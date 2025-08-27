@@ -21,6 +21,19 @@ sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP}
 
 # Copy Docker files
 echo "📦 Copying Docker configuration..."
+if [ ! -f "backend/Dockerfile" ]; then
+    echo "❌ Error: backend/Dockerfile not found!"
+    exit 1
+fi
+if [ ! -f "frontend/Dockerfile" ]; then
+    echo "❌ Error: frontend/Dockerfile not found!"
+    exit 1
+fi
+if [ ! -f "frontend/nginx.conf" ]; then
+    echo "❌ Error: frontend/nginx.conf not found!"
+    exit 1
+fi
+
 sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no backend/Dockerfile ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/Dockerfile.backend
 sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no frontend/Dockerfile ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/Dockerfile.frontend
 sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no frontend/nginx.conf ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
