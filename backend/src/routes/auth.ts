@@ -1,0 +1,289 @@
+import { Router } from 'express';
+import { validateRequest } from '../middleware/validation';
+import { authenticateJWT } from '../middleware/auth';
+import {
+  registerSchema,
+  loginSchema,
+  verifyEmailSchema,
+  resetPasswordSchema,
+  emailSchema
+} from '../middleware/validation';
+import {
+  register,
+  login,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+  refreshToken,
+  getProfile,
+  updateProfile,
+  changePassword
+} from '../controllers/authController';
+import { z } from 'zod';
+
+const router = Router();
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 100
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *                 maxLength: 128
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       400:
+ *         description: Validation error
+ *       409:
+ *         description: User already exists
+ */
+router.post('/register', validateRequest({ body: registerSchema }), register);
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Login user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Email not verified
+ */
+router.post('/login', validateRequest({ body: loginSchema }), login);
+
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   post:
+ *     summary: Verify email address
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid token
+ */
+router.post('/verify-email', validateRequest({ body: verifyEmailSchema }), verifyEmail);
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Password reset email sent
+ */
+router.post('/forgot-password', validateRequest({ 
+  body: z.object({ email: emailSchema }) 
+}), forgotPassword);
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - password
+ *             properties:
+ *               token:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Invalid token
+ */
+router.post('/reset-password', validateRequest({ body: resetPasswordSchema }), resetPassword);
+
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refresh_token
+ *             properties:
+ *               refresh_token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *       400:
+ *         description: Invalid refresh token
+ */
+router.post('/refresh', validateRequest({
+  body: z.object({ refresh_token: z.string().min(1) })
+}), refreshToken);
+
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   get:
+ *     summary: Get user profile
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/profile', authenticateJWT, getProfile);
+
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 100
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.put('/profile', authenticateJWT, validateRequest({
+  body: z.object({ name: z.string().min(2).max(100) })
+}), updateProfile);
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Change password
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - current_password
+ *               - new_password
+ *             properties:
+ *               current_password:
+ *                 type: string
+ *               new_password:
+ *                 type: string
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Invalid current password
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/change-password', authenticateJWT, validateRequest({
+  body: z.object({
+    current_password: z.string().min(1),
+    new_password: z.string().min(8).max(128)
+  })
+}), changePassword);
+
+export default router;

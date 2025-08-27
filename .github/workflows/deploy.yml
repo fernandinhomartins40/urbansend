@@ -1,0 +1,45 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+
+    - name: Build Frontend
+      run: |
+        cd frontend
+        npm ci
+        npm run typecheck
+        npm run build
+
+    - name: Build Backend  
+      run: |
+        cd backend
+        npm ci
+        npm run typecheck
+        npm run build
+
+    - name: Install sshpass
+      run: sudo apt-get update && sudo apt-get install -y sshpass
+
+    - name: Deploy to VPS
+      env:
+        VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+      run: |
+        chmod +x scripts/deploy.sh
+        ./scripts/deploy.sh

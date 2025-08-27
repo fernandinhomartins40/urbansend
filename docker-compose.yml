@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=/app/database.sqlite
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_EXPIRES_IN=7d
+      - SMTP_HOST=localhost
+      - SMTP_PORT=587
+      - SMTP_SECURE=false
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CORS_ORIGIN=http://localhost:5173
+    volumes:
+      - backend_data:/app/data
+      - backend_logs:/app/logs
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Redis for queue system
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # Redis Commander (optional - for Redis management UI)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+  backend_logs:
+  redis_data:
