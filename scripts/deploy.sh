@@ -246,9 +246,34 @@ docker-compose -p ${APP_NAME} exec -T ${APP_NAME}_backend npm run migrate:latest
 echo 'UrbanSend containers status:'
 docker ps --filter 'name=${APP_NAME}_'
 
+# Configure firewall and open ports
+echo '🔥 Configuring firewall for external access...'
+# UFW configuration
+if command -v ufw &> /dev/null; then
+    ufw allow ${BACKEND_PORT}/tcp comment 'UrbanSend Backend' || true
+    ufw allow ${FRONTEND_PORT}/tcp comment 'UrbanSend Frontend' || true  
+    ufw allow ${REDIS_UI_PORT}/tcp comment 'UrbanSend Redis UI' || true
+    ufw allow 22/tcp comment 'SSH' || true
+    echo 'y' | ufw enable || true
+fi
+
+# iptables configuration
+iptables -I INPUT -p tcp --dport ${BACKEND_PORT} -j ACCEPT || true
+iptables -I INPUT -p tcp --dport ${FRONTEND_PORT} -j ACCEPT || true
+iptables -I INPUT -p tcp --dport ${REDIS_UI_PORT} -j ACCEPT || true
+iptables -I INPUT -p tcp --dport 22 -j ACCEPT || true
+
+# Save iptables
+iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+netfilter-persistent save 2>/dev/null || true
+
 # Health check
 echo 'Checking service health...'
 curl -f http://localhost:${BACKEND_PORT}/health || echo 'Backend health check failed'
+
+# Test external connectivity
+echo 'Testing external port accessibility...'
+netstat -tlnp | grep -E ':(${BACKEND_PORT}|${FRONTEND_PORT}|${REDIS_UI_PORT})'
 "
 
 echo "✅ ISOLATED Deployment completed successfully!"
