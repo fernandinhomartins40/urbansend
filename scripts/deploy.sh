@@ -43,7 +43,10 @@ echo "📦 Copying application files..."
 sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -r backend/dist ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
 sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no backend/package*.json ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
 sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no backend/knexfile.js ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -r frontend/dist ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/frontend-dist/
+
+# Create frontend-dist directory and copy files
+sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "mkdir -p ${DEPLOY_PATH}/frontend-dist"
+sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -r frontend/dist/* ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/frontend-dist/
 
 # Create isolated docker-compose with project name
 echo "⚙️  Creating ISOLATED Docker configuration..."
