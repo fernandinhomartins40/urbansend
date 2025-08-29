@@ -185,8 +185,14 @@ jobs:
             echo "✅ Aplicação iniciada com sucesso"
           else
             echo "❌ Falha ao iniciar aplicação"
-            echo "📋 Logs dos containers:"
-            docker-compose logs --tail 30
+            echo "📋 Logs dos containers (últimas 50 linhas):"
+            docker-compose logs --tail 50
+            echo ""
+            echo "🔍 Status detalhado dos containers:"
+            docker ps -a
+            echo ""
+            echo "🔍 Inspecionando container:"
+            docker inspect urbansend-app | grep -A 10 -B 5 "Status\|RestartCount\|Error" || true
             exit 1
           fi
           

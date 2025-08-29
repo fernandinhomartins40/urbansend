@@ -84,8 +84,8 @@ EXPOSE 3010 25
 VOLUME ["/app/data", "/app/logs"]
 
 # ===== HEALTH CHECK =====
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:3010/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=15s --start-period=90s --retries=5 \
+    CMD curl -f http://localhost:3010/health || exit 1
 
 # ===== USUÁRIO E INICIALIZAÇÃO =====
 USER node
