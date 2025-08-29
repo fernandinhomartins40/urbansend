@@ -11,9 +11,8 @@ interface User {
 
 interface AuthState {
   user: User | null
-  token: string | null
   isAuthenticated: boolean
-  login: (user: User, token: string) => void
+  login: (user: User) => void
   logout: () => void
   updateUser: (user: Partial<User>) => void
 }
@@ -22,20 +21,28 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      token: null,
       isAuthenticated: false,
       
-      login: (user, token) => {
-        localStorage.setItem('auth_token', token)
-        set({ user, token, isAuthenticated: true })
+      login: (user) => {
+        set({ user, isAuthenticated: true })
       },
       
-      logout: () => {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('api_key')
-        set({ user: null, token: null, isAuthenticated: false })
-        // Redirect to landing page after logout
-        window.location.href = '/'
+      logout: async () => {
+        try {
+          // Call logout API to clear httpOnly cookies
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include'
+          })
+        } catch (error) {
+          console.error('Error during logout:', error)
+        }
+        
+        set({ user: null, isAuthenticated: false })
+        
+        // Use custom event for secure navigation instead of direct location change
+        const event = new CustomEvent('auth:logout');
+        window.dispatchEvent(event);
       },
       
       updateUser: (userData) =>

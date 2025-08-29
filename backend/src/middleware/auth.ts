@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { createError } from './errorHandler';
 import { Env } from '../utils/env';
+import { verifyApiKey, legacyHashApiKey } from '../utils/crypto';
 import db from '../config/database';
 
 export interface AuthenticatedRequest extends Request {
@@ -20,13 +21,13 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export const generateJWT = (payload: any): string => {
-  return jwt.sign(payload, Env.get('JWT_SECRET', 'fallback-secret'), {
+  return jwt.sign(payload, Env.jwtSecret, {
     expiresIn: Env.get('JWT_EXPIRES_IN', '7d')
   } as any);
 };
 
 export const generateRefreshToken = (payload: any): string => {
-  return jwt.sign(payload, Env.get('JWT_SECRET', 'fallback-secret'), {
+  return jwt.sign(payload, Env.jwtRefreshSecret, {
     expiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '30d')
   } as any);
 };
@@ -46,15 +47,22 @@ export const authenticateJWT = async (
   next: NextFunction
 ) => {
   try {
-    const authHeader = req.headers.authorization;
+    // Try to get token from cookie first (secure method)
+    let token = req.cookies.access_token;
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Fallback to Authorization header for API compatibility
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+    
+    if (!token) {
       throw createError('Access token required', 401);
     }
-
-    const token = authHeader.substring(7);
     
-    const decoded = jwt.verify(token, Env.get('JWT_SECRET', 'fallback-secret')) as any;
+    const decoded = jwt.verify(token, Env.jwtSecret) as any;
     
     const user = await db('users')
       .select('id', 'email', 'name', 'plan_type', 'is_verified')
@@ -107,18 +115,50 @@ export const authenticateApiKey = async (
       throw createError('Invalid API key format', 401);
     }
 
-    const apiKey = await db('api_keys')
+    // First try to find API keys to verify against
+    const apiKeys = await db('api_keys')
       .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.name', 'users.plan_type')
       .join('users', 'api_keys.user_id', 'users.id')
-      .where('api_keys.is_active', true)
-      .andWhere(function() {
-        this.whereRaw('? = api_keys.api_key_hash', [apiKeyHeader]);
-      })
-      .first();
+      .where('api_keys.is_active', true);
 
-    if (!apiKey) {
+    let matchedApiKey = null;
+
+    // Try to verify against each active API key
+    for (const key of apiKeys) {
+      try {
+        // First try bcrypt verification (new secure method)
+        if (await verifyApiKey(apiKeyHeader, key.api_key_hash)) {
+          matchedApiKey = key;
+          break;
+        }
+      } catch {
+        // If bcrypt fails, try legacy SHA256 verification for existing keys
+        const legacyHash = legacyHashApiKey(apiKeyHeader);
+        if (legacyHash === key.api_key_hash) {
+          matchedApiKey = key;
+          
+          // Migrate to secure hash asynchronously (don't wait for it)
+          (async () => {
+            try {
+              const { hashApiKey } = await import('../utils/crypto');
+              const newHash = await hashApiKey(apiKeyHeader);
+              await db('api_keys')
+                .where('id', key.id)
+                .update({ api_key_hash: newHash });
+            } catch (error) {
+              console.error('Failed to migrate API key hash:', error);
+            }
+          })();
+          break;
+        }
+      }
+    }
+
+    if (!matchedApiKey) {
       throw createError('Invalid API key', 401);
     }
+
+    const apiKey = matchedApiKey;
 
     // Update last used timestamp
     await db('api_keys')

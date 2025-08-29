@@ -1,0 +1,39 @@
+# 🔧 UrbanSend - Docker Compose para Desenvolvimento
+# Facilita testes locais antes do deploy
+
+version: '3.8'
+
+services:
+  urbansend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: urbansend-dev
+    restart: "no"
+    
+    ports:
+      - "3010:3010"    # Aplicação principal
+      - "25:25"        # SMTP Server
+      - "3001:3001"    # Backend direto (para debug)
+    
+    volumes:
+      # Bind mounts para desenvolvimento
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./docker/.env.development:/app/.env:ro
+      
+    environment:
+      - NODE_ENV=development
+      - DEBUG=urbansend:*
+      - TZ=America/Sao_Paulo
+      
+    # Remover health check em dev para faster startup
+    # healthcheck:
+    #   disable: true
+      
+    networks:
+      - urbansend-dev-network
+
+networks:
+  urbansend-dev-network:
+    driver: bridge

@@ -1,7 +1,9 @@
 import { SMTPServer } from 'smtp-server';
 import { simpleParser, ParsedMail } from 'mailparser';
+import bcrypt from 'bcrypt';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
+import db from '../config/database';
 
 class UrbanSendSMTPServer {
   private server: SMTPServer;
@@ -12,13 +14,16 @@ class UrbanSendSMTPServer {
     this.server = new SMTPServer({
       name: Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br'),
       banner: 'UrbanMail SMTP Server Ready',
-      authOptional: true, // Allow unauthenticated emails for internal use
+      authOptional: Env.isDevelopment, // Require auth in production
+      authMethods: ['PLAIN', 'LOGIN'], // Secure auth methods only
       onAuth: this.handleAuth.bind(this),
       onConnect: this.handleConnect.bind(this),
       onData: this.handleData.bind(this),
       logger: false, // Use our own logger
-      secure: false, // Start with plain, upgrade to TLS if needed
-      allowInsecureAuth: true,
+      secure: Env.isProduction, // Force TLS in production
+      allowInsecureAuth: Env.isDevelopment, // Only allow insecure auth in dev
+      maxClients: Env.getNumber('SMTP_MAX_CLIENTS', 100),
+      maxAllowedUnauthenticatedCommands: Env.isDevelopment ? 10 : 1
     });
   }
 
@@ -30,20 +35,101 @@ class UrbanSendSMTPServer {
     return callback();
   }
 
-  private handleAuth(auth: any, _session: any, callback: Function) {
-    // For now, accept any authentication for internal system
-    logger.info('SMTP auth attempt', {
-      username: auth.username,
-      method: auth.method
-    });
-    
-    // Accept internal system emails without authentication
-    if (auth.username === 'system' || auth.username === 'noreply') {
-      return callback(null, { user: auth.username });
+  private async handleAuth(auth: any, session: any, callback: Function) {
+    try {
+      logger.info('SMTP auth attempt', {
+        username: auth.username,
+        method: auth.method,
+        remoteAddress: session.remoteAddress
+      });
+
+      if (!auth.username || !auth.password) {
+        logger.warn('SMTP auth failed: missing credentials', {
+          remoteAddress: session.remoteAddress
+        });
+        return callback(new Error('Username and password required'));
+      }
+
+      // Allow internal system accounts with proper authentication
+      if (await this.authenticateSystemUser(auth.username, auth.password)) {
+        logger.info('SMTP system user authenticated', { username: auth.username });
+        return callback(null, { user: auth.username });
+      }
+
+      // Authenticate regular users against database
+      const user = await this.authenticateUser(auth.username, auth.password);
+      if (user) {
+        logger.info('SMTP user authenticated successfully', { 
+          userId: user.id, 
+          username: auth.username 
+        });
+        return callback(null, { user: user.id, email: user.email });
+      }
+
+      logger.warn('SMTP auth failed: invalid credentials', {
+        username: auth.username,
+        remoteAddress: session.remoteAddress
+      });
+      return callback(new Error('Invalid username or password'));
+
+    } catch (error) {
+      logger.error('SMTP auth error', { error, username: auth.username });
+      return callback(new Error('Authentication failed'));
     }
-    
-    // TODO: Implement proper authentication against users table
-    return callback(null, { user: auth.username });
+  }
+
+  private async authenticateSystemUser(username: string, password: string): Promise<boolean> {
+    // Define system accounts and their hashed passwords
+    const systemAccounts = {
+      'system': process.env.SMTP_SYSTEM_PASSWORD,
+      'noreply': process.env.SMTP_NOREPLY_PASSWORD
+    };
+
+    if (!systemAccounts[username] || !password) {
+      return false;
+    }
+
+    try {
+      // In production, use hashed passwords. In development, allow plain text for convenience
+      if (Env.isProduction) {
+        return await bcrypt.compare(password, systemAccounts[username]);
+      } else {
+        return password === systemAccounts[username];
+      }
+    } catch (error) {
+      logger.error('System user auth error', { error, username });
+      return false;
+    }
+  }
+
+  private async authenticateUser(username: string, password: string): Promise<any | null> {
+    try {
+      // Look up user by email (SMTP username is typically email)
+      const user = await db('users')
+        .select('id', 'email', 'password_hash', 'is_verified')
+        .where('email', username)
+        .first();
+
+      if (!user) {
+        return null;
+      }
+
+      if (!user.is_verified) {
+        logger.warn('SMTP auth failed: user not verified', { email: username });
+        return null;
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password_hash);
+      if (!isValidPassword) {
+        return null;
+      }
+
+      return user;
+    } catch (error) {
+      logger.error('User authentication error', { error, username });
+      return null;
+    }
   }
 
   private async handleData(stream: any, session: any, callback: Function) {

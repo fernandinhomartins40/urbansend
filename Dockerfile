@@ -1,40 +1,84 @@
+# 🐳 UrbanSend - Container Único Otimizado
 FROM node:18-alpine
 
-# Install nginx, curl and build tools
-RUN apk add --no-cache nginx curl python3 make g++ sqlite
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    nginx \
+    sqlite \
+    bash \
+    curl \
+    tzdata \
+    && rm -rf /var/cache/apk/*
 
-# Configure npm to use HTTPS
-RUN npm config set registry https://registry.npmjs.org/
+# Configurar timezone
+ENV TZ=America/Sao_Paulo
+
+# Criar diretórios necessários
+RUN mkdir -p /app/backend /app/frontend /app/data /app/logs /var/log/nginx /run/nginx
+
+# ===== BACKEND BUILD =====
+WORKDIR /app/backend
+
+# Copiar package files primeiro para cache otimizado
+COPY backend/package*.json ./
+
+# Instalar dependências do backend
+RUN npm ci --production --silent
+
+# Copiar código do backend
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
+COPY backend/knexfile.js ./
+
+# Build do backend
+RUN npm run build
+
+# ===== FRONTEND BUILD =====
+WORKDIR /app/frontend
+
+# Copiar package files do frontend
+COPY frontend/package*.json ./
+
+# Instalar dependências do frontend (incluindo devDependencies para build)
+RUN npm ci --silent
+
+# Copiar código do frontend
+COPY frontend/ ./
+
+# Build do frontend para produção
+RUN npm run build
+
+# Limpar node_modules do frontend (não precisamos em produção)
+RUN rm -rf node_modules
+
+# ===== CONFIGURAÇÕES =====
+
+# Copiar configuração do Nginx
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Copiar script de inicialização
+COPY docker/start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
+# Copiar configurações de ambiente
+COPY docker/.env.production /app/.env
+
+# Configurar permissões
+RUN chown -R node:node /app /var/log/nginx /run/nginx
+
+# ===== EXPOSIÇÃO DE PORTAS =====
+EXPOSE 3010 25
+
+# ===== VOLUMES =====
+VOLUME ["/app/data", "/app/logs"]
+
+# ===== HEALTH CHECK =====
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3010/api/health || exit 1
+
+# ===== USUÁRIO E INICIALIZAÇÃO =====
+USER node
 
 WORKDIR /app
 
-# Copy all files needed for deployment
-COPY frontend/dist ./frontend/dist
-COPY backend/dist ./backend/dist
-COPY backend/src/migrations ./backend/src/migrations
-COPY backend/knexfile.js ./backend/knexfile.js
-
-# Copy production node_modules (pre-installed and fixed)
-COPY backend/node_modules ./backend/node_modules
-COPY backend/package*.json ./backend/
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Fix any remaining HTTP URLs and rebuild native modules for Linux
-WORKDIR /app/backend
-RUN find node_modules -name "*.json" -exec sed -i 's|http://github.com|https://github.com|g' {} \; && \
-    npm rebuild --platform=linux --arch=x64
-
-# Create directories and permissions
-RUN mkdir -p /app/data /app/logs /var/log/nginx /var/lib/nginx /var/tmp/nginx /run/nginx && \
-    chown -R nginx:nginx /var/log/nginx /var/lib/nginx /var/tmp/nginx /run/nginx || true
-
-# Startup script
-RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'nginx -t && nginx &' >> /app/start.sh && \
-    echo 'sleep 2' >> /app/start.sh && \
-    echo 'cd /app/backend && exec node dist/index.js' >> /app/start.sh && \
-    chmod +x /app/start.sh
-
-EXPOSE 3010 25
-
-CMD ["/app/start.sh"]
+CMD ["/usr/local/bin/start.sh"]

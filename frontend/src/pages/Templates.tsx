@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SafeHTML } from '@/components/ui/SafeHTML'
 import { templateApi } from '@/lib/api'
 import { formatRelativeTime, generateRandomId } from '@/lib/utils'
 import { 
@@ -780,11 +781,10 @@ Confirme sua conta em: {{confirmation_url}}"
                             </CardDescription>
                           </CardHeader>
                           <CardContent>
-                            <div 
+                            <SafeHTML 
                               className="border rounded p-4 bg-white min-h-[400px]"
-                              dangerouslySetInnerHTML={{
-                                __html: processTemplate(htmlContent, previewData) || processTemplate(textContent, previewData).replace(/\n/g, '<br>')
-                              }}
+                              html={processTemplate(htmlContent, previewData) || processTemplate(textContent, previewData).replace(/\n/g, '<br>')}
+                              strict={true}
                             />
                           </CardContent>
                         </Card>

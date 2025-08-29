@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { validateRequest, createTemplateSchema, idParamSchema } from '../middleware/validation';
+import { validateRequest, createTemplateSchema, idParamSchema, sanitizeEmailHtml } from '../middleware/validation';
 import { authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
@@ -24,13 +24,20 @@ router.post('/',
   authenticateJWT,
   validateRequest({ body: createTemplateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const [templateId] = await db('email_templates').insert({
+    const templateData = {
       ...req.body,
       user_id: req.user!.id,
       variables: JSON.stringify(req.body.variables || []),
       created_at: new Date(),
       updated_at: new Date()
-    });
+    };
+
+    // Sanitize HTML content if provided
+    if (templateData.html_content) {
+      templateData.html_content = sanitizeEmailHtml(templateData.html_content);
+    }
+
+    const [templateId] = await db('email_templates').insert(templateData);
 
     const template = await db('email_templates').where('id', templateId).first();
     res.status(201).json({ template });
@@ -60,14 +67,21 @@ router.put('/:id',
   authenticateJWT,
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const updateData = {
+      ...req.body,
+      variables: JSON.stringify(req.body.variables || []),
+      updated_at: new Date()
+    };
+
+    // Sanitize HTML content if provided
+    if (updateData.html_content) {
+      updateData.html_content = sanitizeEmailHtml(updateData.html_content);
+    }
+
     await db('email_templates')
       .where('id', req.params['id'])
       .where('user_id', req.user!.id)
-      .update({
-        ...req.body,
-        variables: JSON.stringify(req.body.variables || []),
-        updated_at: new Date()
-      });
+      .update(updateData);
 
     const template = await db('email_templates')
       .where('id', req.params['id'])

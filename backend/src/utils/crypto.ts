@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 export const generateApiKey = (): string => {
@@ -19,7 +20,26 @@ export const generateTrackingId = (): string => {
   return uuidv4();
 };
 
-export const hashApiKey = (apiKey: string): string => {
+/**
+ * Hash API key using bcrypt for secure storage
+ */
+export const hashApiKey = async (apiKey: string): Promise<string> => {
+  const saltRounds = 12;
+  return bcrypt.hash(apiKey, saltRounds);
+};
+
+/**
+ * Verify API key against hash
+ */
+export const verifyApiKey = async (apiKey: string, hash: string): Promise<boolean> => {
+  return bcrypt.compare(apiKey, hash);
+};
+
+/**
+ * Legacy hash function for migration purposes (DO NOT USE for new API keys)
+ * @deprecated Use hashApiKey instead
+ */
+export const legacyHashApiKey = (apiKey: string): string => {
   return crypto.createHash('sha256').update(apiKey).digest('hex');
 };
 

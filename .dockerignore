@@ -1,68 +1,72 @@
-# Development files
+# === NODE.JS ===
 node_modules
-*/node_modules
-.git
-.gitignore
-*.md
-README.md
-.env*
-.vscode
-.idea
-
-# Logs
-logs
-*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# === DEVELOPMENT ===
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Coverage directory used by tools like istanbul
+# === LOGS ===
+logs
+*.log
+lerna-debug.log*
+
+# === RUNTIME ===
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+
+# === TESTING ===
 coverage
 .nyc_output
+test-results
+playwright-report
 
-# Dependency directories
-.npm
-.yarn-integrity
-
-# Build outputs (will be built in container)
+# === BUILD ===
 dist
 build
-*.tgz
-
-# Database files
-*.sqlite
-*.db
-backend/database.sqlite
-backend/urbansend.db
-
-# Temporary files
-.tmp
-*.tmp
 .cache
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# === DATABASE ===
+*.sqlite-shm
+*.sqlite-wal
 
-# Scripts and deployment files
-scripts/
-deploy.sh
+# === DOCKER ===
 Dockerfile*
 docker-compose*.yml
-!Dockerfile.production
+.dockerignore
 
-# Documentation
+# === BACKUP E TEMP ===
+*.backup
+*.tmp
+*.temp
+.backup/
+data/
+logs/
+
+# === SCRIPTS DE DEPLOY ===
+scripts/
+deploy*.sh
+
+# === DOCUMENTAÇÃO ===
 docs/
-contexto.md
-prompt.md
+*.md
+!README.md
+
+# === FRONTEND ESPECÍFICO ===
+frontend/.vite
+frontend/dist
+
+# === BACKEND ESPECÍFICO ===
+backend/dist
+backend/logs

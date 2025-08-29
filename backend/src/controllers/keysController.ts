@@ -42,7 +42,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 
   // Generate API key
   const apiKey = generateApiKey();
-  const hashedApiKey = hashApiKey(apiKey);
+  const hashedApiKey = await hashApiKey(apiKey);
 
   // Create API key record
   const [keyId] = await db('api_keys').insert({
@@ -172,7 +172,7 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
 
   // Generate new API key
   const newApiKey = generateApiKey();
-  const hashedApiKey = hashApiKey(newApiKey);
+  const hashedApiKey = await hashApiKey(newApiKey);
 
   // Update the API key
   await db('api_keys')

@@ -3,6 +3,7 @@ import fs from 'fs';
 import { logger } from '../config/logger';
 import { validateEmailAddress, processTemplate, generateTrackingPixel, processLinksForTracking } from '../utils/email';
 import { generateTrackingId } from '../utils/crypto';
+import { sanitizeEmailHtml } from '../middleware/validation';
 import db from '../config/database';
 import SMTPDeliveryService from './smtpDelivery';
 import { Env } from '../utils/env';
@@ -102,7 +103,8 @@ class EmailService {
     };
     
     if (template.html_content) {
-      result.html = processTemplate(template.html_content, variables);
+      const processedHtml = processTemplate(template.html_content, variables);
+      result.html = sanitizeEmailHtml(processedHtml);
     }
     
     if (template.text_content) {
@@ -142,7 +144,7 @@ class EmailService {
       }
 
       let subject = options.subject;
-      let html = options.html;
+      let html = options.html ? sanitizeEmailHtml(options.html) : options.html;
       let text = options.text;
 
       // Process template if provided

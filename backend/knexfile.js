@@ -12,9 +12,19 @@ module.exports = {
     },
     pool: {
       min: 2,
-      max: 10,
+      max: 15,
+      acquireTimeoutMillis: 30000,
+      createTimeoutMillis: 30000,
+      destroyTimeoutMillis: 5000,
+      idleTimeoutMillis: 30000,
+      reapIntervalMillis: 1000,
+      createRetryIntervalMillis: 100,
       afterCreate: (conn, cb) => {
         conn.run('PRAGMA foreign_keys = ON', cb);
+        conn.run('PRAGMA journal_mode = WAL', cb);
+        conn.run('PRAGMA synchronous = NORMAL', cb);
+        conn.run('PRAGMA cache_size = 1000', cb);
+        conn.run('PRAGMA temp_store = memory', cb);
       }
     }
   },
@@ -29,10 +39,21 @@ module.exports = {
       directory: path.join(__dirname, 'src/migrations')
     },
     pool: {
-      min: 2,
-      max: 10,
+      min: 10,
+      max: 50,
+      acquireTimeoutMillis: 30000,
+      createTimeoutMillis: 30000,
+      destroyTimeoutMillis: 5000,
+      idleTimeoutMillis: 30000,
+      reapIntervalMillis: 1000,
+      createRetryIntervalMillis: 100,
       afterCreate: (conn, cb) => {
         conn.run('PRAGMA foreign_keys = ON', cb);
+        conn.run('PRAGMA journal_mode = WAL', cb);
+        conn.run('PRAGMA synchronous = NORMAL', cb);
+        conn.run('PRAGMA cache_size = 2000', cb);
+        conn.run('PRAGMA temp_store = memory', cb);
+        conn.run('PRAGMA mmap_size = 268435456', cb); // 256MB
       }
     }
   }

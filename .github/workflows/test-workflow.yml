@@ -1,0 +1,267 @@
+# 🧪 Test Workflow - UrbanSend CI/CD
+# Workflow para testar antes do deploy principal
+
+name: 🧪 Test CI/CD Workflow
+
+on:
+  push:
+    branches: [develop, feature/*]
+  pull_request:
+    branches: [main]
+  
+  workflow_dispatch:
+
+jobs:
+  # ===== TESTE DE BUILD =====
+  build-test:
+    name: 🔨 Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🧪 Build Image
+        run: |
+          echo "🔨 Building Docker image..."
+          docker build -t urbansend:test .
+          
+          echo "📊 Image built successfully"
+          docker images urbansend:test
+      
+      - name: 🏥 Container Health Test
+        run: |
+          echo "🧪 Testing container health..."
+          
+          # Start container
+          docker run -d --name health-test \
+            -p 3010:3010 \
+            -e NODE_ENV=test \
+            urbansend:test
+          
+          # Wait and test
+          echo "⏳ Waiting for container..."
+          sleep 30
+          
+          # Health check
+          if docker exec health-test curl -f http://localhost:3010/health; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            docker logs health-test --tail 50
+            exit 1
+          fi
+          
+          # Cleanup
+          docker stop health-test
+          docker rm health-test
+          echo "🧹 Cleanup completed"
+
+  # ===== TESTE DE SEGURANÇA =====
+  security-test:
+    name: 🔐 Security Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔍 Scan for Secrets
+        run: |
+          echo "🔍 Scanning for hardcoded secrets..."
+          
+          # Check for common secret patterns
+          if grep -r -E "(password|secret|key|token).*=.*['\"][^'\"]{10,}['\"]" . --exclude-dir=.git --exclude="*.md" --exclude="*test*"; then
+            echo "⚠️ Potential secrets found, please review"
+          else
+            echo "✅ No obvious secrets found"
+          fi
+      
+      - name: 📋 Check Environment Files
+        run: |
+          echo "📋 Checking environment configuration..."
+          
+          if [ -f "docker/.env.production" ]; then
+            echo "✅ Production env file exists"
+            
+            # Check if default secrets are still in use
+            if grep -q "sua_chave_jwt_super_secreta" docker/.env.production; then
+              echo "⚠️ Default JWT secret detected - needs to be changed in production"
+            fi
+          fi
+
+  # ===== TESTE DE CONFIGURAÇÃO =====
+  config-test:
+    name: ⚙️ Configuration Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Validate Docker Compose
+        run: |
+          echo "🔧 Validating Docker Compose files..."
+          
+          # Validate docker-compose.yml
+          if docker-compose -f docker-compose.yml config > /dev/null; then
+            echo "✅ docker-compose.yml is valid"
+          else
+            echo "❌ docker-compose.yml has errors"
+            exit 1
+          fi
+          
+          # Validate development compose
+          if docker-compose -f docker-compose.dev.yml config > /dev/null; then
+            echo "✅ docker-compose.dev.yml is valid"
+          else
+            echo "❌ docker-compose.dev.yml has errors"
+            exit 1
+          fi
+      
+      - name: 📋 Check Required Files
+        run: |
+          echo "📋 Checking required files..."
+          
+          required_files=(
+            "Dockerfile"
+            "docker-compose.yml"
+            "docker/nginx.conf"
+            "docker/start.sh"
+            "docker/.env.production"
+            "scripts/deploy-vps.sh"
+          )
+          
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists"
+            else
+              echo "❌ $file is missing"
+              exit 1
+            fi
+          done
+      
+      - name: 🌐 Validate Nginx Config
+        run: |
+          echo "🌐 Validating Nginx configuration..."
+          
+          # Build image to test nginx config
+          docker build -t urbansend:config-test .
+          
+          # Test nginx config
+          if docker run --rm urbansend:config-test nginx -t; then
+            echo "✅ Nginx configuration is valid"
+          else
+            echo "❌ Nginx configuration has errors"
+            exit 1
+          fi
+
+  # ===== SIMULAÇÃO DE DEPLOY =====
+  deploy-simulation:
+    name: 🎭 Deploy Simulation
+    runs-on: ubuntu-latest
+    needs: [build-test, security-test, config-test]
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🎭 Simulate Deploy Steps
+        run: |
+          echo "🎭 Simulating deploy process..."
+          
+          # Simulate image build
+          echo "📦 Building image..."
+          docker build -t urbansend:deploy-test .
+          
+          # Simulate image save/load
+          echo "💾 Saving image..."
+          docker save urbansend:deploy-test | gzip > urbansend-test.tar.gz
+          
+          IMAGE_SIZE=$(du -h urbansend-test.tar.gz | cut -f1)
+          echo "📊 Compressed image size: $IMAGE_SIZE"
+          
+          # Simulate load
+          echo "📦 Loading image..."
+          docker rmi urbansend:deploy-test
+          gunzip -c urbansend-test.tar.gz | docker load
+          
+          # Simulate deployment
+          echo "🚀 Simulating deployment..."
+          docker run -d --name deploy-simulation \
+            -p 3011:3010 \
+            urbansend:deploy-test
+          
+          # Test deployment
+          sleep 20
+          if curl -f http://localhost:3011/health; then
+            echo "✅ Deploy simulation successful"
+          else
+            echo "❌ Deploy simulation failed"
+            docker logs deploy-simulation --tail 20
+            exit 1
+          fi
+          
+          # Cleanup
+          docker stop deploy-simulation
+          docker rm deploy-simulation
+          rm urbansend-test.tar.gz
+          
+          echo "✅ Deploy simulation completed successfully"
+
+  # ===== RESULTADO FINAL =====
+  test-summary:
+    name: 📊 Test Summary
+    runs-on: ubuntu-latest
+    needs: [build-test, security-test, config-test, deploy-simulation]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate Test Report
+        run: |
+          echo "📊 TEST SUMMARY REPORT"
+          echo "====================="
+          echo "📅 Date: $(date)"
+          echo ""
+          
+          # Check results
+          if [ "${{ needs.build-test.result }}" == "success" ]; then
+            echo "✅ Build Test: PASSED"
+          else
+            echo "❌ Build Test: FAILED"
+          fi
+          
+          if [ "${{ needs.security-test.result }}" == "success" ]; then
+            echo "✅ Security Test: PASSED"
+          else
+            echo "❌ Security Test: FAILED"
+          fi
+          
+          if [ "${{ needs.config-test.result }}" == "success" ]; then
+            echo "✅ Configuration Test: PASSED"
+          else
+            echo "❌ Configuration Test: FAILED"
+          fi
+          
+          if [ "${{ needs.deploy-simulation.result }}" == "success" ]; then
+            echo "✅ Deploy Simulation: PASSED"
+          else
+            echo "❌ Deploy Simulation: FAILED"
+          fi
+          
+          echo ""
+          
+          # Overall status
+          if [ "${{ needs.build-test.result }}" == "success" ] && \
+             [ "${{ needs.security-test.result }}" == "success" ] && \
+             [ "${{ needs.config-test.result }}" == "success" ] && \
+             [ "${{ needs.deploy-simulation.result }}" == "success" ]; then
+            echo "🎉 ALL TESTS PASSED - Ready for deployment!"
+            echo "🚀 Workflow is ready for production use"
+          else
+            echo "❌ SOME TESTS FAILED - Review before deployment"
+            exit 1
+          fi

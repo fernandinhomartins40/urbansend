@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { validateRequest } from '../middleware/validation';
 import { authenticateJWT } from '../middleware/auth';
+import { 
+  loginRateLimit, 
+  registrationRateLimit, 
+  passwordResetRateLimit 
+} from '../middleware/rateLimiting';
 import {
   registerSchema,
   loginSchema,
@@ -15,6 +20,7 @@ import {
   forgotPassword,
   resetPassword,
   refreshToken,
+  logout,
   getProfile,
   updateProfile,
   changePassword
@@ -59,7 +65,7 @@ const router = Router();
  *       409:
  *         description: User already exists
  */
-router.post('/register', validateRequest({ body: registerSchema }), register);
+router.post('/register', registrationRateLimit, validateRequest({ body: registerSchema }), register);
 
 /**
  * @swagger
@@ -90,7 +96,19 @@ router.post('/register', validateRequest({ body: registerSchema }), register);
  *       403:
  *         description: Email not verified
  */
-router.post('/login', validateRequest({ body: loginSchema }), login);
+router.post('/login', loginRateLimit, validateRequest({ body: loginSchema }), login);
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout user
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
+ */
+router.post('/logout', logout);
 
 /**
  * @swagger
@@ -139,7 +157,7 @@ router.post('/verify-email', validateRequest({ body: verifyEmailSchema }), verif
  *       200:
  *         description: Password reset email sent
  */
-router.post('/forgot-password', validateRequest({ 
+router.post('/forgot-password', passwordResetRateLimit, validateRequest({ 
   body: z.object({ email: emailSchema }) 
 }), forgotPassword);
 
@@ -176,28 +194,15 @@ router.post('/reset-password', validateRequest({ body: resetPasswordSchema }), r
  * @swagger
  * /api/auth/refresh:
  *   post:
- *     summary: Refresh access token
+ *     summary: Refresh access token using httpOnly cookie
  *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - refresh_token
- *             properties:
- *               refresh_token:
- *                 type: string
  *     responses:
  *       200:
  *         description: Token refreshed successfully
- *       400:
+ *       401:
  *         description: Invalid refresh token
  */
-router.post('/refresh', validateRequest({
-  body: z.object({ refresh_token: z.string().min(1) })
-}), refreshToken);
+router.post('/refresh', refreshToken);
 
 /**
  * @swagger

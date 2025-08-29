@@ -9,6 +9,7 @@ import { emailApi } from '@/lib/api'
 import { formatDate, formatRelativeTime, getStatusColor } from '@/lib/utils'
 import { Search, Filter, RefreshCw, Send, Eye, MousePointer, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useSmartPolling } from '@/hooks/useSmartPolling'
 
 interface Email {
   id: number
@@ -30,7 +31,16 @@ export function EmailList() {
   const [limit] = useState(20)
   const queryClient = useQueryClient()
 
-  const { data, isLoading, error, refetch } = useQuery({
+  // Smart polling for email list
+  const { 
+    data, 
+    isLoading, 
+    error, 
+    refetch,
+    currentInterval,
+    pausePolling,
+    resumePolling
+  } = useSmartPolling({
     queryKey: ['emails', { search, statusFilter, page, limit }],
     queryFn: () => emailApi.getEmails({
       search,
@@ -40,19 +50,16 @@ export function EmailList() {
       sort: 'created_at',
       order: 'desc'
     }),
+    baseInterval: 15000, // 15 seconds
+    maxInterval: 120000, // 2 minutes
+    onError: (error) => {
+      console.error('Error fetching emails:', error)
+      toast.error('Erro ao buscar emails')
+    }
   })
 
   const emails = data?.data?.emails || []
   const pagination = data?.data?.pagination || { page: 1, pages: 1, total: 0 }
-
-  // Auto-refresh emails every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetch()
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [refetch])
 
   const handleRefresh = () => {
     toast.promise(

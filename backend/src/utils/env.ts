@@ -59,4 +59,26 @@ export class Env {
   static get isTest(): boolean {
     return Env.get('NODE_ENV') === 'test';
   }
+
+  /**
+   * Get JWT Secret (required for security)
+   */
+  static get jwtSecret(): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret || secret.length < 32) {
+      throw new Error('JWT_SECRET é obrigatório e deve ter pelo menos 32 caracteres para segurança adequada');
+    }
+    return secret;
+  }
+
+  /**
+   * Get JWT Refresh Secret (required for security)
+   */
+  static get jwtRefreshSecret(): string {
+    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if (!secret || secret.length < 32) {
+      throw new Error('JWT_REFRESH_SECRET (ou JWT_SECRET) é obrigatório e deve ter pelo menos 32 caracteres');
+    }
+    return secret;
+  }
 }

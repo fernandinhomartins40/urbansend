@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -27,12 +28,14 @@ import dnsRoutes from './routes/dns';
 
 dotenv.config();
 
-// CORS allowed origins
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://urbanmail.com.br',
-  'https://www.urbanmail.com.br'
-];
+// CORS allowed origins - load from environment variables for security
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
+  process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
+  [
+    ...(Env.isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : []),
+    'https://urbanmail.com.br',
+    'https://www.urbanmail.com.br'
+  ];
 
 const app = express();
 const server = createServer(app);
@@ -50,28 +53,79 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", "data:"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      mediaSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      childSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+      formAction: ["'self'"],
+      baseUri: ["'self'"],
+      upgradeInsecureRequests: Env.isProduction ? [] : null
     },
+    reportOnly: false
   },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  dnsPrefetchControl: true,
+  frameguard: { action: 'deny' },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  xssFilter: true
 }));
 
-// CORS configuration
+// CORS configuration - secure implementation
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+  origin: (origin: string | undefined, callback: Function) => {
+    // In development, allow requests with no origin (like Postman, mobile apps)
+    if (!origin && Env.isDevelopment) {
+      return callback(null, true);
     }
+    
+    // In production, ALWAYS require origin header
+    if (!origin && Env.isProduction) {
+      logger.warn('CORS: Request blocked - missing origin header', { 
+        timestamp: new Date().toISOString() 
+      });
+      return callback(new Error('Origin header é obrigatório'));
+    }
+    
+    // Check if origin is in allowed list
+    if (origin && allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log blocked request for security monitoring
+    logger.warn('CORS: Blocked request from unauthorized origin', { 
+      origin, 
+      allowedOrigins,
+      timestamp: new Date().toISOString() 
+    });
+    
+    return callback(new Error('Não permitido pelo CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  // Security headers
+  optionsSuccessStatus: 200,
+  preflightContinue: false,
+  // Prevent credential leaks
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
 }));
 
 // Rate limiting
@@ -90,6 +144,9 @@ app.use(limiter);
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cookie parsing with secure settings
+app.use(cookieParser(Env.get('COOKIE_SECRET', 'fallback-secret')));
 
 // Logging middleware
 app.use((req, _res, next) => {

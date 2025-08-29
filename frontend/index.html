@@ -4,11 +4,93 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UrbanSend - Email Transacional</title>
-    <meta name="description" content="Plataforma profissional de email transacional - Clone do Resend.com" />
+    <title>UrbanSend - Email Transacional Profissional</title>
+    <meta name="description" content="Plataforma completa de email transacional com APIs robustas, analytics avançados e alta entregabilidade para desenvolvedores e empresas." />
+    <meta name="keywords" content="email transacional, API email, SMTP, entregabilidade, analytics email, webhooks, templates email" />
+    <meta name="author" content="UrbanSend" />
+    <meta name="robots" content="index, follow" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="UrbanSend - Email Transacional Profissional" />
+    <meta property="og:description" content="Plataforma completa de email transacional com APIs robustas, analytics avançados e alta entregabilidade para desenvolvedores e empresas." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://urbansend.com" />
+    <meta property="og:image" content="https://urbansend.com/og-image.png" />
+    <meta property="og:image:alt" content="UrbanSend - Logo e dashboard da plataforma" />
+    <meta property="og:site_name" content="UrbanSend" />
+    <meta property="og:locale" content="pt_BR" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@urbansend" />
+    <meta name="twitter:creator" content="@urbansend" />
+    <meta name="twitter:title" content="UrbanSend - Email Transacional Profissional" />
+    <meta name="twitter:description" content="Plataforma completa de email transacional com APIs robustas, analytics avançados e alta entregabilidade." />
+    <meta name="twitter:image" content="https://urbansend.com/twitter-image.png" />
+    <meta name="twitter:image:alt" content="UrbanSend - Dashboard da plataforma" />
+    
+    <!-- Additional SEO Meta Tags -->
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="msapplication-TileColor" content="#2563eb" />
+    <link rel="canonical" href="https://urbansend.com" />
+    
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: https: blob:;
+      connect-src 'self' https: wss: ws:;
+      media-src 'self';
+      object-src 'none';
+      child-src 'none';
+      frame-src 'none';
+      worker-src 'self';
+      manifest-src 'self';
+      form-action 'self';
+      base-uri 'self';
+      upgrade-insecure-requests;
+    ">
+    
+    <!-- Additional Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" role="application" aria-label="UrbanSend - Aplicativo de email transacional"></div>
+    
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded">
+      Pular para conteúdo principal
+    </a>
+    
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "UrbanSend",
+      "description": "Plataforma completa de email transacional com APIs robustas, analytics avançados e alta entregabilidade para desenvolvedores e empresas.",
+      "url": "https://urbansend.com",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL",
+        "priceValidUntil": "2025-12-31"
+      },
+      "provider": {
+        "@type": "Organization",
+        "name": "UrbanSend",
+        "url": "https://urbansend.com"
+      }
+    }
+    </script>
   </body>
 </html>

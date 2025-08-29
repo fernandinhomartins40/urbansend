@@ -5,6 +5,7 @@ import { Mail, CheckCircle, AlertTriangle, TrendingUp, FileText, Globe, Loader2 
 import { analyticsApi, api } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useSmartPolling } from '@/hooks/useSmartPolling'
 
 interface DashboardStats {
   totalEmails: number
@@ -24,37 +25,51 @@ interface RecentActivity {
 }
 
 export function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-  const [loading, setLoading] = useState(true)
+
+  // Smart polling for dashboard stats
+  const {
+    data: stats,
+    isLoading: loading,
+    isError,
+    currentInterval
+  } = useSmartPolling({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const overviewResponse = await analyticsApi.getOverview()
+      return overviewResponse.data.stats as DashboardStats
+    },
+    baseInterval: 30000, // 30 seconds
+    maxInterval: 300000, // 5 minutes
+    onError: (error) => {
+      console.error('Error fetching dashboard stats:', error)
+    }
+  })
+
+  // Smart polling for recent activity
+  const {
+    data: activityData,
+    isLoading: activityLoading
+  } = useSmartPolling({
+    queryKey: ['recent-activity'],
+    queryFn: async () => {
+      try {
+        const recentResponse = await api.get('/analytics/recent-activity')
+        return recentResponse.data.activities || []
+      } catch (error) {
+        // If recent activity endpoint doesn't exist, return empty array
+        return []
+      }
+    },
+    baseInterval: 60000, // 1 minute
+    maxInterval: 600000, // 10 minutes
+  })
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true)
-        
-        // Fetch overview stats
-        const overviewResponse = await analyticsApi.getOverview()
-        setStats(overviewResponse.data.stats)
-        
-        // Check if we have recent activity endpoint
-        try {
-          const recentResponse = await api.get('/analytics/recent-activity')
-          setRecentActivity(recentResponse.data.activities || [])
-        } catch (error) {
-          // If recent activity endpoint doesn't exist, use empty array
-          setRecentActivity([])
-        }
-        
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-      } finally {
-        setLoading(false)
-      }
+    if (activityData) {
+      setRecentActivity(activityData)
     }
-
-    fetchDashboardData()
-  }, [])
+  }, [activityData])
 
   const formatChangePercentage = (change: number) => {
     const sign = change >= 0 ? '+' : ''

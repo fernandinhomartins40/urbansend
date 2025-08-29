@@ -1,10 +1,29 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import db from '../config/database';
 import { logger } from '../config/logger';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthenticatedRequest, generateJWT, generateRefreshToken, hashPassword, verifyPassword } from '../middleware/auth';
 import { generateVerificationToken } from '../utils/crypto';
 import { validateEmailAddress } from '../utils/email';
+import { Env } from '../utils/env';
+
+// Secure cookie configuration
+const getCookieOptions = () => ({
+  httpOnly: true, // Prevent XSS attacks
+  secure: Env.isProduction, // HTTPS only in production
+  sameSite: 'strict' as const, // Prevent CSRF attacks
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: '/'
+});
+
+const getRefreshCookieOptions = () => ({
+  httpOnly: true,
+  secure: Env.isProduction,
+  sameSite: 'strict' as const,
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  path: '/api/auth/refresh'
+});
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password } = req.body;
@@ -91,6 +110,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // Update last login
   await db('users').where('id', user.id).update({ updated_at: new Date() });
 
+  // Set secure HTTP-only cookies instead of returning tokens in body
+  res.cookie('access_token', accessToken, getCookieOptions());
+  res.cookie('refresh_token', refreshToken, getRefreshCookieOptions());
+
   logger.info('User logged in successfully', { userId: user.id, email });
 
   res.json({
@@ -101,11 +124,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       is_verified: user.is_verified,
       plan_type: user.plan_type
-    },
-    tokens: {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expires_in: process.env['JWT_EXPIRES_IN'] || '7d'
     }
   });
 });
@@ -221,24 +239,78 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   });
 });
 
-export const refreshToken = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { refresh_token } = req.body;
-
-  if (!refresh_token) {
-    throw createError('Refresh token required', 400);
-  }
-
-  // TODO: Implement proper refresh token validation
-  // For now, generate new tokens
-
-  const newAccessToken = generateJWT({ userId: req.user!.id, email: req.user!.email });
-  const newRefreshToken = generateRefreshToken({ userId: req.user!.id, email: req.user!.email });
+export const logout = asyncHandler(async (_req: Request, res: Response) => {
+  // Clear authentication cookies
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    secure: Env.isProduction,
+    sameSite: 'strict',
+    path: '/'
+  });
+  
+  res.clearCookie('refresh_token', {
+    httpOnly: true,
+    secure: Env.isProduction,
+    sameSite: 'strict',
+    path: '/api/auth/refresh'
+  });
 
   res.json({
-    access_token: newAccessToken,
-    refresh_token: newRefreshToken,
-    expires_in: process.env['JWT_EXPIRES_IN'] || '7d'
+    message: 'Logged out successfully'
   });
+});
+
+export const refreshToken = asyncHandler(async (req: Request, res: Response) => {
+  const refreshToken = req.cookies.refresh_token;
+  
+  if (!refreshToken) {
+    throw createError('Refresh token not provided', 401);
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, Env.jwtRefreshSecret) as any;
+    
+    // Find user
+    const user = await db('users')
+      .select('id', 'email', 'name', 'plan_type', 'is_verified')
+      .where('id', decoded.userId)
+      .first();
+
+    if (!user) {
+      throw createError('Invalid refresh token - user not found', 401);
+    }
+
+    if (!user.is_verified) {
+      throw createError('Email verification required', 403);
+    }
+
+    // Generate new access token
+    const newAccessToken = generateJWT({ userId: user.id, email: user.email });
+    
+    // Set new access token cookie
+    res.cookie('access_token', newAccessToken, getCookieOptions());
+
+    res.json({
+      message: 'Token refreshed successfully',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        is_verified: user.is_verified,
+        plan_type: user.plan_type
+      }
+    });
+  } catch (error) {
+    // Clear invalid refresh token
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: Env.isProduction,
+      sameSite: 'strict',
+      path: '/api/auth/refresh'
+    });
+    
+    throw createError('Invalid refresh token', 401);
+  }
 });
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

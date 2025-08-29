@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validateRequest, idParamSchema, createApiKeySchema } from '../middleware/validation';
 import { authenticateJWT } from '../middleware/auth';
+import { apiKeyRateLimit } from '../middleware/rateLimiting';
 import {
   getApiKeys,
   createApiKey,

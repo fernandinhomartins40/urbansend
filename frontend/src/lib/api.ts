@@ -9,19 +9,17 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable cookies to be sent with requests
 })
 
-// Request interceptor to add auth token
+// Request interceptor for API keys (cookies handled automatically)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    
+    // Only add API key header if explicitly needed (for programmatic API access)
     const apiKey = localStorage.getItem('api_key')
-    if (apiKey && !config.headers.Authorization) {
+    if (apiKey && config.headers['x-api-key-override']) {
       config.headers['x-api-key'] = apiKey
+      delete config.headers['x-api-key-override']
     }
     
     return config
@@ -34,14 +32,21 @@ api.interceptors.request.use(
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_data')
-      
-      if (window.location.pathname !== '/login') {
-        toast.error('Sua sessão expirou. Faça login novamente.')
-        window.location.href = '/login'
+      // Try to refresh token first
+      try {
+        await api.post('/auth/refresh')
+        // If refresh successful, retry the original request
+        return api.request(error.config)
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        if (window.location.pathname !== '/login') {
+          toast.error('Sua sessão expirou. Faça login novamente.')
+          // Use React Router navigation instead of direct location change
+          const event = new CustomEvent('auth:session-expired');
+          window.dispatchEvent(event);
+        }
       }
     }
     
@@ -60,6 +65,9 @@ export const authApi = {
   login: (credentials: { email: string; password: string }) =>
     api.post('/auth/login', credentials),
   
+  logout: () =>
+    api.post('/auth/logout'),
+  
   register: (data: { name: string; email: string; password: string }) =>
     api.post('/auth/register', data),
   
@@ -71,6 +79,9 @@ export const authApi = {
   
   resetPassword: (token: string, password: string) =>
     api.post('/auth/reset-password', { token, password }),
+  
+  refreshToken: () =>
+    api.post('/auth/refresh'),
   
   getProfile: () =>
     api.get('/auth/profile'),
