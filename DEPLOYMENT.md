@@ -19,13 +19,52 @@ A aplicação UrbanSend foi configurada para rodar em um **container único e is
 
 ## Deployment
 
-### Opção 1: Deploy Automático
+### Opção 1: Deploy Local (Requer SSH configurado)
 ```bash
-chmod +x scripts/deploy-unified.sh
-./scripts/deploy-unified.sh
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
-### Opção 2: Deploy Manual
+### Opção 2: Deploy para CI/CD
+```bash
+chmod +x scripts/deploy-ci.sh
+./scripts/deploy-ci.sh
+```
+
+### Opção 3: Deploy GitHub Actions
+```bash
+chmod +x scripts/deploy-github.sh
+./scripts/deploy-github.sh
+```
+
+## Scripts de Deploy Disponíveis
+
+### 🔧 `scripts/deploy.sh` - Deploy Local
+- **Uso**: Desenvolvimento local com SSH configurado
+- **Requisitos**: Chaves SSH ou senha configurada
+- **Funcionalidades**: 
+  - Teste de conexão SSH
+  - Build automático frontend/backend
+  - Cópia otimizada de arquivos
+  - Deploy completo com verificações
+
+### 🤖 `scripts/deploy-ci.sh` - Deploy CI/CD
+- **Uso**: Ambientes de CI/CD (Jenkins, GitLab CI, etc.)
+- **Funcionalidades**:
+  - Empacotamento com tar
+  - Deploy via pipe SSH
+  - Método alternativo para ambientes restritivos
+  - Logs detalhados
+
+### 🚀 `scripts/deploy-github.sh` - GitHub Actions
+- **Uso**: Integração com GitHub Actions
+- **Funcionalidades**:
+  - Transferência via base64 (compatível com qualquer shell)
+  - Deploy sem dependências externas
+  - Configuração automática do nginx
+  - Verificações de saúde completas
+
+### 📋 Deploy Manual
 
 1. **Build das aplicações**:
 ```bash
