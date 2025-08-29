@@ -1,0 +1,84 @@
+# Multi-stage build for production
+FROM node:18-alpine AS base
+
+# Install system dependencies
+RUN apk add --no-cache \
+    nginx \
+    curl \
+    python3 \
+    make \
+    g++ \
+    sqlite \
+    && rm -rf /var/cache/apk/*
+
+# Configure npm for security and performance
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set audit false && \
+    npm config set fund false
+
+WORKDIR /app
+
+# Backend build stage
+FROM base AS backend-build
+COPY backend/package*.json ./backend/
+WORKDIR /app/backend
+# Install ALL dependencies (including dev) for build
+RUN npm ci --no-audit --no-fund
+COPY backend/src ./src/
+COPY backend/tsconfig.json ./
+COPY backend/knexfile.js ./
+COPY backend/knexfile.d.ts ./
+RUN npm run build
+# Install only production dependencies
+RUN rm -rf node_modules && npm ci --omit=dev --no-audit --no-fund
+
+# Frontend build stage  
+FROM base AS frontend-build
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# Production stage
+FROM base AS production
+
+# Copy built applications
+COPY --from=backend-build /app/backend/dist ./backend/dist/
+COPY --from=backend-build /app/backend/node_modules ./backend/node_modules/
+COPY --from=backend-build /app/backend/knexfile.js ./backend/
+COPY --from=backend-build /app/backend/knexfile.d.ts ./backend/
+COPY --from=backend-build /app/backend/src/migrations ./backend/src/migrations/
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist/
+
+# Copy configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY backend/package.json ./backend/
+
+# Create app user and directories
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S appuser -u 1001 -G nodejs && \
+    mkdir -p /app/data /app/logs /var/log/nginx /var/lib/nginx /var/tmp/nginx /run/nginx && \
+    chown -R appuser:nodejs /app /var/log/nginx /var/lib/nginx /var/tmp/nginx /run/nginx
+
+# Create startup script
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'set -e' >> /app/start.sh && \
+    echo 'echo "Starting UrbanSend..."' >> /app/start.sh && \
+    echo 'nginx -t' >> /app/start.sh && \
+    echo 'nginx &' >> /app/start.sh && \
+    echo 'cd /app/backend' >> /app/start.sh && \
+    echo 'npm run migrate:latest || true' >> /app/start.sh && \
+    echo 'exec node dist/index.js' >> /app/start.sh && \
+    chmod +x /app/start.sh && \
+    chown appuser:nodejs /app/start.sh
+
+# Switch to non-root user
+USER appuser
+
+EXPOSE 3010 25
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3010/health || exit 1
+
+CMD ["/app/start.sh"]

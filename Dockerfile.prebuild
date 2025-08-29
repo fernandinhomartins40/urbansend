@@ -3,9 +3,6 @@ FROM node:18-alpine
 # Install nginx, curl and build tools
 RUN apk add --no-cache nginx curl python3 make g++ sqlite
 
-# Configure npm to use HTTPS
-RUN npm config set registry https://registry.npmjs.org/
-
 WORKDIR /app
 
 # Copy all files needed for deployment
@@ -14,15 +11,14 @@ COPY backend/dist ./backend/dist
 COPY backend/src/migrations ./backend/src/migrations
 COPY backend/knexfile.js ./backend/knexfile.js
 
-# Copy production node_modules (pre-installed and fixed)
+# Copy production node_modules (pre-installed)
 COPY backend/node_modules ./backend/node_modules
 COPY backend/package*.json ./backend/
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Fix any remaining HTTP URLs and rebuild native modules for Linux
+# Rebuild native modules for Linux
 WORKDIR /app/backend
-RUN find node_modules -name "*.json" -exec sed -i 's|http://github.com|https://github.com|g' {} \; && \
-    npm rebuild --platform=linux --arch=x64
+RUN npm rebuild --platform=linux --arch=x64
 
 # Create directories and permissions
 RUN mkdir -p /app/data /app/logs /var/log/nginx /var/lib/nginx /var/tmp/nginx /run/nginx && \

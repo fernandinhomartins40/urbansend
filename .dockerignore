@@ -1,0 +1,68 @@
+# Development files
+node_modules
+*/node_modules
+.git
+.gitignore
+*.md
+README.md
+.env*
+.vscode
+.idea
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+.nyc_output
+
+# Dependency directories
+.npm
+.yarn-integrity
+
+# Build outputs (will be built in container)
+dist
+build
+*.tgz
+
+# Database files
+*.sqlite
+*.db
+backend/database.sqlite
+backend/urbansend.db
+
+# Temporary files
+.tmp
+*.tmp
+.cache
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Scripts and deployment files
+scripts/
+deploy.sh
+Dockerfile*
+docker-compose*.yml
+!Dockerfile.production
+
+# Documentation
+docs/
+contexto.md
+prompt.md
