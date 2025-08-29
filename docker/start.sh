@@ -38,9 +38,9 @@ fi
 # === CONFIGURAR NGINX ===
 echo "🌐 Configurando Nginx..."
 
-# Criar diretórios necessários
-mkdir -p /var/log/nginx /var/run /tmp
-chmod 755 /var/log/nginx /var/run /tmp
+# Criar diretórios necessários (evitar /var/run que é do sistema)
+mkdir -p /var/log/nginx /tmp
+chmod 755 /var/log/nginx || echo "⚠️ Chmod falhou em /var/log/nginx"
 
 # Testar configuração do nginx
 nginx -c /etc/nginx/nginx.conf -t || {
