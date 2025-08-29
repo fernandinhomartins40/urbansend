@@ -39,11 +39,12 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     updated_at: new Date()
   });
 
-  // Send verification email (implement async, don't block response)
+  // Send verification email (async, don't block response)
   setImmediate(async () => {
     try {
-      // TODO: Implement actual email sending
-      logger.info('Verification email would be sent', { email, verificationToken });
+      const emailService = (await import('../services/emailService')).default;
+      await emailService.sendVerificationEmail(email, name, verificationToken);
+      logger.info('Verification email sent successfully', { email });
     } catch (error) {
       logger.error('Failed to send verification email', { error, email });
     }
@@ -104,7 +105,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     tokens: {
       access_token: accessToken,
       refresh_token: refreshToken,
-      expires_in: process.env.JWT_EXPIRES_IN || '7d'
+      expires_in: process.env['JWT_EXPIRES_IN'] || '7d'
     }
   });
 });
@@ -112,32 +113,42 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.body;
 
-  // In a real implementation, you would store and verify the token
-  // For now, we'll just mark any user as verified
-  // This is a simplified implementation
+  // Find user by verification token
+  const user = await db('users').where('verification_token', token).first();
+  if (!user) {
+    throw createError('Invalid or expired verification token', 400);
+  }
 
-  // TODO: Implement proper token verification
-  // const user = await db('users').where('verification_token', token).first();
-  // if (!user) {
-  //   throw createError('Invalid or expired verification token', 400);
-  // }
-
-  // For demo purposes, we'll verify based on a dummy token
-  if (token !== 'dummy-verification-token') {
-    throw createError('Invalid verification token', 400);
+  // Check if user is already verified
+  if (user.is_verified) {
+    return res.json({
+      message: 'Email already verified',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        is_verified: true
+      }
+    });
   }
 
   // Update user verification status
-  // await db('users').where('id', user.id).update({
-  //   is_verified: true,
-  //   verification_token: null,
-  //   updated_at: new Date()
-  // });
+  await db('users').where('id', user.id).update({
+    is_verified: true,
+    verification_token: null,
+    updated_at: new Date()
+  });
 
-  logger.info('Email verified successfully');
+  logger.info('Email verified successfully', { userId: user.id, email: user.email });
 
-  res.json({
-    message: 'Email verified successfully. You can now login.'
+  return res.json({
+    message: 'Email verified successfully. You can now login.',
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      is_verified: true
+    }
   });
 });
 
@@ -226,7 +237,7 @@ export const refreshToken = asyncHandler(async (req: AuthenticatedRequest, res: 
   res.json({
     access_token: newAccessToken,
     refresh_token: newRefreshToken,
-    expires_in: process.env.JWT_EXPIRES_IN || '7d'
+    expires_in: process.env['JWT_EXPIRES_IN'] || '7d'
   });
 });
 

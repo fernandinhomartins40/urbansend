@@ -4,6 +4,8 @@ import { logger } from '../config/logger';
 import { validateEmailAddress, processTemplate, generateTrackingPixel, processLinksForTracking } from '../utils/email';
 import { generateTrackingId } from '../utils/crypto';
 import db from '../config/database';
+import SMTPDeliveryService from './smtpDelivery';
+import { Env } from '../utils/env';
 
 interface EmailAttachment {
   filename: string;
@@ -32,10 +34,12 @@ interface SendEmailOptions {
 class EmailService {
   private transporter!: Transporter;
   private dkimPrivateKey: string | null = null;
+  private smtpDelivery: SMTPDeliveryService;
 
   constructor() {
     this.initializeTransporter();
     this.loadDkimKey();
+    this.smtpDelivery = new SMTPDeliveryService();
   }
 
   private initializeTransporter() {
@@ -359,6 +363,227 @@ class EmailService {
       logger.info('Email bounce processed', { emailId, bounceReason });
     } catch (error) {
       logger.error('Failed to process email bounce', { error, emailId });
+    }
+  }
+
+  async sendInternalEmail(options: SendEmailOptions): Promise<{
+    emailId: number;
+    trackingId: string;
+  }> {
+    try {
+      // Validate recipients
+      await this.validateRecipients(options.to);
+      
+      // Generate tracking ID
+      const trackingId = generateTrackingId();
+
+      // Create email record in database as queued for real delivery
+      const [rawEmailId] = await db('emails').insert({
+        user_id: options.userId,
+        api_key_id: options.apiKeyId,
+        template_id: options.template_id,
+        from_email: options.from,
+        to_email: Array.isArray(options.to) ? options.to.join(', ') : options.to,
+        subject: options.subject,
+        html_content: options.html,
+        text_content: options.text,
+        status: 'queued', // Queue for real SMTP delivery
+        created_at: new Date()
+      });
+      
+      const emailId = Array.isArray(rawEmailId) ? rawEmailId[0] : rawEmailId;
+      
+      if (!emailId) {
+        throw new Error('Failed to create email record in database');
+      }
+
+      // Deliver email via real SMTP
+      const toEmail = Array.isArray(options.to) ? options.to[0] : options.to;
+      if (!toEmail) {
+        throw new Error('No recipient email provided');
+      }
+      
+      const delivered = await this.smtpDelivery.deliverEmail({
+        from: options.from,
+        to: toEmail,
+        subject: options.subject,
+        html: options.html || undefined,
+        text: options.text || undefined,
+        headers: {
+          'X-Email-ID': emailId.toString(),
+          'X-Tracking-ID': trackingId
+        }
+      }, emailId as number);
+
+      if (!delivered) {
+        throw new Error('Failed to deliver email via SMTP');
+      }
+
+      logger.info('Email delivered via real SMTP', {
+        emailId,
+        to: options.to,
+        subject: options.subject
+      });
+
+      return {
+        emailId: emailId as number,
+        trackingId
+      };
+
+    } catch (error) {
+      logger.error('Failed to send internal email', { error, options });
+      throw error;
+    }
+  }
+
+  async sendVerificationEmail(email: string, name: string, verificationToken: string): Promise<void> {
+    try {
+      const verificationUrl = `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+      
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Verifique seu Email - UrbanSend</title>
+            <style>
+                body {
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    line-height: 1.6;
+                    color: #374151;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9fafb;
+                }
+                .container {
+                    background-color: white;
+                    padding: 40px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                }
+                .logo {
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #6366f1;
+                    margin-bottom: 10px;
+                }
+                h1 {
+                    color: #1f2937;
+                    font-size: 24px;
+                    margin: 0 0 20px 0;
+                }
+                .button {
+                    display: inline-block;
+                    background-color: #6366f1;
+                    color: white;
+                    padding: 12px 32px;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: 500;
+                    margin: 20px 0;
+                    text-align: center;
+                }
+                .button:hover {
+                    background-color: #5855eb;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #e5e7eb;
+                    font-size: 14px;
+                    color: #6b7280;
+                    text-align: center;
+                }
+                .warning {
+                    background-color: #fef3c7;
+                    border: 1px solid #f59e0b;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    font-size: 14px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">🚀 UrbanSend</div>
+                    <h1>Verifique seu Email</h1>
+                </div>
+                
+                <p>Olá <strong>${name}</strong>,</p>
+                
+                <p>Obrigado por se registrar no UrbanSend! Para completar seu cadastro e começar a usar nossa plataforma, você precisa verificar seu endereço de email.</p>
+                
+                <div style="text-align: center;">
+                    <a href="${verificationUrl}" class="button">Verificar Email</a>
+                </div>
+                
+                <p>Ou copie e cole o link abaixo no seu navegador:</p>
+                <p style="word-break: break-all; background-color: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                    ${verificationUrl}
+                </p>
+                
+                <div class="warning">
+                    <strong>⚠️ Importante:</strong> Este link de verificação expira em 24 horas. Se você não verificar seu email dentro deste período, precisará solicitar um novo link.
+                </div>
+                
+                <p>Se você não criou uma conta no UrbanSend, pode ignorar este email com segurança.</p>
+                
+                <div class="footer">
+                    <p>Esta é uma mensagem automática, por favor não responda este email.</p>
+                    <p>© 2025 UrbanSend. Todos os direitos reservados.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+      `;
+
+      const textContent = `
+        Olá ${name},
+
+        Obrigado por se registrar no UrbanSend!
+
+        Para completar seu cadastro, clique no link abaixo para verificar seu email:
+        ${verificationUrl}
+
+        Este link expira em 24 horas.
+
+        Se você não criou uma conta no UrbanSend, pode ignorar este email.
+
+        Atenciosamente,
+        Equipe UrbanSend
+      `;
+
+      // Use o próprio sistema de emails do UrbanSend ao invés de SMTP externo
+      // Isso é um servidor de email, não um cliente!
+      
+      // Buscar usuário do sistema
+      const systemUser = await db('users').where('email', 'system@urbansend.local').first();
+      if (!systemUser) {
+        throw new Error('System user not found. Database migration may have failed.');
+      }
+
+      await this.sendInternalEmail({
+        from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br')}`,
+        to: email,
+        subject: 'Verifique seu email - UrbanSend',
+        html: htmlContent,
+        text: textContent,
+        userId: systemUser.id,
+        tracking: false
+      });
+
+      logger.info('Verification email sent successfully via internal system', { email });
+    } catch (error) {
+      logger.error('Failed to send verification email via internal system', { error, email });
+      throw error;
     }
   }
 }

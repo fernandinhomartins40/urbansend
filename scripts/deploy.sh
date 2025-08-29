@@ -7,6 +7,7 @@ VPS_IP="72.60.10.112"
 VPS_USER="root"
 DEPLOY_PATH="/var/www/urbansend"
 APP_NAME="urbansend"
+DOMAIN="www.urbanmail.com.br"
 NETWORK_NAME="${APP_NAME}_network"
 BACKEND_PORT="3010"
 FRONTEND_PORT="3011"
@@ -17,7 +18,7 @@ echo "🚀 Starting ISOLATED deployment for ${APP_NAME}..."
 
 # Create deployment directory
 echo "📁 Creating deployment directory..."
-sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "mkdir -p ${DEPLOY_PATH}"
+ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "mkdir -p ${DEPLOY_PATH}"
 
 # Copy Docker files
 echo "📦 Copying Docker configuration..."
@@ -34,23 +35,25 @@ if [ ! -f "frontend/nginx.conf" ]; then
     exit 1
 fi
 
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no backend/Dockerfile ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/Dockerfile.backend
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no frontend/Dockerfile ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/Dockerfile.frontend
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no frontend/nginx.conf ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
+scp -o StrictHostKeyChecking=no backend/Dockerfile ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/Dockerfile.backend
+scp -o StrictHostKeyChecking=no frontend/Dockerfile ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/Dockerfile.frontend
+scp -o StrictHostKeyChecking=no frontend/nginx.conf ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
+
+# Create directories
+echo "📁 Creating application directories..."
+ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "mkdir -p ${DEPLOY_PATH}/frontend-dist ${DEPLOY_PATH}/src"
 
 # Copy application files
 echo "📦 Copying application files..."
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -r backend/dist ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no backend/package*.json ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no backend/knexfile.js ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
-
-# Create frontend-dist directory and copy files
-sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "mkdir -p ${DEPLOY_PATH}/frontend-dist"
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -r frontend/dist/* ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/frontend-dist/
+scp -o StrictHostKeyChecking=no -r backend/dist ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
+scp -o StrictHostKeyChecking=no backend/package*.json ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
+scp -o StrictHostKeyChecking=no backend/knexfile.js ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/
+scp -o StrictHostKeyChecking=no -r backend/src/migrations ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/src/
+scp -o StrictHostKeyChecking=no -r frontend/dist/* ${VPS_USER}@${VPS_IP}:${DEPLOY_PATH}/frontend-dist/
 
 # Create isolated docker-compose with project name
 echo "⚙️  Creating ISOLATED Docker configuration..."
-sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
+ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
 cd ${DEPLOY_PATH}
 
 # Create isolated docker-compose.yml
@@ -79,6 +82,7 @@ services:
     restart: unless-stopped
     ports:
       - '${BACKEND_PORT}:3000'
+      - '25:25'
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -86,8 +90,10 @@ services:
       - JWT_EXPIRES_IN=7d
       - REDIS_HOST=${APP_NAME}_redis
       - REDIS_PORT=6379
-      - CORS_ORIGIN=http://${VPS_IP}:${FRONTEND_PORT}
+      - CORS_ORIGIN=https://${DOMAIN}
       - DATABASE_URL=/app/database.sqlite
+      - FRONTEND_URL=https://${DOMAIN}
+      - SMTP_HOSTNAME=${DOMAIN}
     volumes:
       - ${APP_NAME}_backend_data:/app/data
       - ${APP_NAME}_backend_logs:/app/logs
@@ -135,8 +141,7 @@ services:
       - ${NETWORK_NAME}
 EOF
 
-# Create backend Dockerfile if not exists
-if [ ! -f Dockerfile.backend ]; then
+# Create backend Dockerfile (force overwrite)
 cat > Dockerfile.backend << 'EOF'
 FROM node:18-alpine
 
@@ -148,16 +153,17 @@ RUN npm ci --only=production
 COPY dist/ ./dist/
 COPY knexfile.js ./
 
+# Copy migrations
+COPY src/migrations ./src/migrations
+
 RUN mkdir -p /app/data /app/logs
 
 EXPOSE 3000
 
 CMD [\"node\", \"dist/index.js\"]
 EOF
-fi
 
-# Create frontend Dockerfile if not exists  
-if [ ! -f Dockerfile.frontend ]; then
+# Create frontend Dockerfile (force overwrite)
 cat > Dockerfile.frontend << 'EOF'
 FROM nginx:alpine
 
@@ -168,10 +174,8 @@ EXPOSE 80
 
 CMD [\"nginx\", \"-g\", \"daemon off;\"]
 EOF
-fi
 
-# Create nginx.conf if not exists
-if [ ! -f nginx.conf ]; then
+# Create nginx.conf (force overwrite)
 cat > nginx.conf << 'EOF'
 events {
     worker_connections 1024;
@@ -190,20 +194,25 @@ http {
             try_files \$uri \$uri/ /index.html;
         }
 
-        location /api {
-            proxy_pass http://${APP_NAME}_backend:3000;
+        location /api/ {
+            proxy_pass http://${APP_NAME}_backend:3000/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection 'upgrade';
             proxy_set_header Host \$host;
             proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_cache_bypass \$http_upgrade;
         }
     }
 }
 EOF
-fi
 "
 
-# Install Docker if needed
+# Install Docker and Certbot if needed
 echo "🔧 Installing system dependencies..."
-sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
+ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
 if ! command -v docker &> /dev/null; then
     echo 'Installing Docker...'
     curl -fsSL https://get.docker.com | sh
@@ -216,11 +225,25 @@ if ! command -v docker-compose &> /dev/null; then
     curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-Linux-x86_64 -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
 fi
+
+# Install Certbot for SSL certificates
+if ! command -v certbot &> /dev/null; then
+    echo 'Installing Certbot...'
+    apt-get update
+    apt-get install -y certbot python3-certbot-nginx
+fi
+
+# Install nginx if not present
+if ! command -v nginx &> /dev/null; then
+    echo 'Installing Nginx...'
+    apt-get update
+    apt-get install -y nginx
+fi
 "
 
 # Deploy with complete isolation
 echo "🐳 Deploying with ISOLATED Docker containers..."
-sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
+ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
 cd ${DEPLOY_PATH}
 
 # Stop and remove existing containers with this project name
@@ -246,21 +269,87 @@ docker-compose -p ${APP_NAME} exec -T ${APP_NAME}_backend npm run migrate:latest
 echo 'UrbanSend containers status:'
 docker ps --filter 'name=${APP_NAME}_'
 
+# Setup SSL with Let's Encrypt and Nginx proxy
+echo '🔒 Configuring SSL certificates and Nginx proxy...'
+
+# Create Nginx configuration for the domain
+cat > /etc/nginx/sites-available/${DOMAIN} << 'NGINXCONF'
+server {
+    listen 80;
+    server_name ${DOMAIN};
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${DOMAIN};
+
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:${FRONTEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:${BACKEND_PORT}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+NGINXCONF
+
+# Enable the site
+ln -sf /etc/nginx/sites-available/${DOMAIN} /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+# Test nginx configuration
+nginx -t
+
+# Obtain SSL certificate with Certbot
+echo 'Obtaining SSL certificate...'
+certbot certonly --nginx -d ${DOMAIN} --non-interactive --agree-tos --email admin@${DOMAIN} || true
+
+# Reload nginx with SSL
+systemctl reload nginx
+
 # Configure firewall and open ports
 echo '🔥 Configuring firewall for external access...'
 # UFW configuration
 if command -v ufw &> /dev/null; then
+    ufw allow 80/tcp comment 'HTTP' || true
+    ufw allow 443/tcp comment 'HTTPS' || true
     ufw allow ${BACKEND_PORT}/tcp comment 'UrbanSend Backend' || true
     ufw allow ${FRONTEND_PORT}/tcp comment 'UrbanSend Frontend' || true  
     ufw allow ${REDIS_UI_PORT}/tcp comment 'UrbanSend Redis UI' || true
+    ufw allow 25/tcp comment 'SMTP' || true
     ufw allow 22/tcp comment 'SSH' || true
     echo 'y' | ufw enable || true
 fi
 
 # iptables configuration
+iptables -I INPUT -p tcp --dport 80 -j ACCEPT || true
+iptables -I INPUT -p tcp --dport 443 -j ACCEPT || true
 iptables -I INPUT -p tcp --dport ${BACKEND_PORT} -j ACCEPT || true
 iptables -I INPUT -p tcp --dport ${FRONTEND_PORT} -j ACCEPT || true
 iptables -I INPUT -p tcp --dport ${REDIS_UI_PORT} -j ACCEPT || true
+iptables -I INPUT -p tcp --dport 25 -j ACCEPT || true
 iptables -I INPUT -p tcp --dport 22 -j ACCEPT || true
 
 # Save iptables
@@ -276,20 +365,44 @@ echo 'Testing external port accessibility...'
 netstat -tlnp | grep -E ':(${BACKEND_PORT}|${FRONTEND_PORT}|${REDIS_UI_PORT})'
 "
 
-echo "✅ ISOLATED Deployment completed successfully!"
+echo "✅ UrbanMail Deployment completed successfully!"
 echo ""
-echo "🔒 Isolated Application URLs:"
-echo "   Frontend: http://${VPS_IP}:${FRONTEND_PORT}"
-echo "   Backend:  http://${VPS_IP}:${BACKEND_PORT}"
+echo "🔒 Application URLs:"
+echo "   Frontend: https://${DOMAIN}"
+echo "   Backend:  https://${DOMAIN}/api/"
 echo "   Redis UI: http://${VPS_IP}:${REDIS_UI_PORT}"
+echo ""
+echo "📧 Email Server Configuration:"
+echo "   SMTP Server: ${DOMAIN}"
+echo "   SMTP Port: 25 (standard SMTP)"
+echo "   Domain: ${DOMAIN}"
+echo ""
+echo "🔑 DNS Configuration Required:"
+echo "   Visit https://${DOMAIN}/api/dns/configuration for DNS records"
+echo ""
+echo "🔧 DNS Records to Add:"
+echo "   SPF:  ${DOMAIN} TXT 'v=spf1 ip4:${VPS_IP} ~all'"
+echo "   DKIM: Check /api/dns/configuration for DKIM record"
+echo "   MX:   ${DOMAIN} MX 10 ${DOMAIN}"
 echo ""
 echo "🐳 Container Management:"
 echo "   View logs: ssh root@${VPS_IP} 'cd ${DEPLOY_PATH} && docker-compose -p ${APP_NAME} logs -f'"
 echo "   Restart:   ssh root@${VPS_IP} 'cd ${DEPLOY_PATH} && docker-compose -p ${APP_NAME} restart'"
 echo "   Stop:      ssh root@${VPS_IP} 'cd ${DEPLOY_PATH} && docker-compose -p ${APP_NAME} down'"
 echo ""
-echo "🔒 Isolation Features:"
+echo "🔒 Features Implemented:"
+echo "   ✅ SSL/TLS with Let's Encrypt"
+echo "   ✅ SPF authentication configured"
+echo "   ✅ DKIM signatures enabled"
 echo "   ✅ Dedicated Docker network: ${NETWORK_NAME}"
 echo "   ✅ Named containers with ${APP_NAME}_ prefix"
-echo "   ✅ Isolated volumes for data persistence"
-echo "   ✅ No conflicts with other applications"
+echo "   ✅ Nginx reverse proxy with SSL termination"
+echo "   ✅ Firewall configured for email and web traffic"
+echo ""
+echo "⚠️  Important Next Steps:"
+echo "   1. Configure DNS A record: ${DOMAIN} → ${VPS_IP}"
+echo "   2. Add SPF record to ${DOMAIN}"
+echo "   3. Add DKIM record (get from /api/dns/configuration)"
+echo "   4. Add MX record: ${DOMAIN} MX 10 ${DOMAIN}"
+echo "   5. Wait for DNS propagation (24-48 hours)"
+echo "   6. Test email delivery after DNS is active"

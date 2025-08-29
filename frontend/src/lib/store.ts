@@ -34,6 +34,8 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem('auth_token')
         localStorage.removeItem('api_key')
         set({ user: null, token: null, isAuthenticated: false })
+        // Redirect to landing page after logout
+        window.location.href = '/'
       },
       
       updateUser: (userData) =>

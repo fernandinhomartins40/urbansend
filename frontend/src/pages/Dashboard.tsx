@@ -1,8 +1,76 @@
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Mail, CheckCircle, AlertTriangle, TrendingUp, FileText, Globe } from 'lucide-react'
+import { Mail, CheckCircle, AlertTriangle, TrendingUp, FileText, Globe, Loader2 } from 'lucide-react'
+import { analyticsApi, api } from '@/lib/api'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+
+interface DashboardStats {
+  totalEmails: number
+  deliveryRate: number
+  openRate: number
+  bounceRate: number
+  emailsChange: number
+  deliveryChange: number
+  openChange: number
+  bounceChange: number
+}
+
+interface RecentActivity {
+  email: string
+  status: string
+  timestamp: string
+}
 
 export function Dashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        
+        // Fetch overview stats
+        const overviewResponse = await analyticsApi.getOverview()
+        setStats(overviewResponse.data.stats)
+        
+        // Check if we have recent activity endpoint
+        try {
+          const recentResponse = await api.get('/analytics/recent-activity')
+          setRecentActivity(recentResponse.data.activities || [])
+        } catch (error) {
+          // If recent activity endpoint doesn't exist, use empty array
+          setRecentActivity([])
+        }
+        
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [])
+
+  const formatChangePercentage = (change: number) => {
+    const sign = change >= 0 ? '+' : ''
+    return `${sign}${change.toFixed(1)}% em relação ao mês passado`
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -23,9 +91,9 @@ export function Dashboard() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
+            <div className="text-2xl font-bold">{stats?.totalEmails?.toLocaleString() || '0'}</div>
             <p className="text-xs text-muted-foreground">
-              +20.1% em relação ao mês passado
+              {stats ? formatChangePercentage(stats.emailsChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -36,9 +104,9 @@ export function Dashboard() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">98.2%</div>
+            <div className="text-2xl font-bold">{stats?.deliveryRate?.toFixed(1) || '0'}%</div>
             <p className="text-xs text-muted-foreground">
-              +2.1% em relação ao mês passado
+              {stats ? formatChangePercentage(stats.deliveryChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -49,9 +117,9 @@ export function Dashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24.1%</div>
+            <div className="text-2xl font-bold">{stats?.openRate?.toFixed(1) || '0'}%</div>
             <p className="text-xs text-muted-foreground">
-              +1.2% em relação ao mês passado
+              {stats ? formatChangePercentage(stats.openChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -62,9 +130,9 @@ export function Dashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1.8%</div>
+            <div className="text-2xl font-bold">{stats?.bounceRate?.toFixed(1) || '0'}%</div>
             <p className="text-xs text-muted-foreground">
-              -0.5% em relação ao mês passado
+              {stats ? formatChangePercentage(-stats.bounceChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -78,20 +146,28 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {[
-                { email: 'usuario@exemplo.com', status: 'Entregue', time: '2min atrás' },
-                { email: 'contato@empresa.com', status: 'Aberto', time: '5min atrás' },
-                { email: 'cliente@loja.com', status: 'Clicado', time: '8min atrás' },
-                { email: 'admin@site.com', status: 'Entregue', time: '12min atrás' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{item.email}</div>
-                    <div className="text-sm text-muted-foreground">{item.status}</div>
+              {recentActivity.length > 0 ? (
+                recentActivity.slice(0, 4).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{item.email}</div>
+                      <div className="text-sm text-muted-foreground">{item.status}</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatDistanceToNow(new Date(item.timestamp), { 
+                        addSuffix: true, 
+                        locale: ptBR 
+                      })}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">{item.time}</div>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma atividade recente encontrada.
+                  <br />
+                  Envie seus primeiros emails para ver as estatísticas aqui!
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>

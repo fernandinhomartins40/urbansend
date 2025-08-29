@@ -60,7 +60,7 @@ export function Login() {
       
       login(user, tokens.access_token)
       toast.success('Login realizado com sucesso!')
-      navigate('/')
+      navigate('/app')
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Erro ao fazer login')
     } finally {

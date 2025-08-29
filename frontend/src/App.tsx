@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MainLayout } from './components/layout/MainLayout'
 import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
+import { VerifyEmail } from './pages/VerifyEmail'
+import { LandingPage } from './pages/LandingPage'
 import { EmailList } from './pages/EmailList'
 import { ApiKeys } from './pages/ApiKeys'
 import { Templates } from './pages/Templates'
@@ -34,16 +36,37 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore()
+  
+  if (isAuthenticated) {
+    return <Navigate to="/app" replace />
+  }
+
+  return <>{children}</>
+}
+
 function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route 
+            path="/login" 
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            } 
+          />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           
+          {/* Protected app routes */}
           <Route
-            path="/"
+            path="/app"
             element={
               <ProtectedRoute>
                 <MainLayout />
@@ -60,6 +83,7 @@ function App() {
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
+          {/* Redirect unknown routes to landing page */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

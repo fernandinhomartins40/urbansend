@@ -20,65 +20,19 @@ export function Header({ className }: HeaderProps) {
 
   return (
     <header className={cn(
-      "sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+      "w-full border-b bg-background",
       className
     )}>
-      <div className="container flex h-16 items-center">
+      <div className="flex h-16 items-center px-6">
         {/* Mobile menu button */}
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="md:hidden mr-4"
           onClick={toggle}
         >
           <Menu className="h-5 w-5" />
         </Button>
-
-        {/* Logo */}
-        <div className="flex items-center space-x-4">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">US</span>
-            </div>
-            <span className="hidden font-bold sm:inline-block">
-              UrbanSend
-            </span>
-          </Link>
-        </div>
-
-        {/* Navigation */}
-        <nav className="hidden md:flex items-center space-x-6 ml-8">
-          <Link
-            to="/"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Dashboard
-          </Link>
-          <Link
-            to="/emails"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Emails
-          </Link>
-          <Link
-            to="/templates"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Templates
-          </Link>
-          <Link
-            to="/domains"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Domains
-          </Link>
-          <Link
-            to="/analytics"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Analytics
-          </Link>
-        </nav>
 
         <div className="ml-auto flex items-center space-x-4">
           {/* Notifications */}
@@ -140,7 +94,7 @@ export function Header({ className }: HeaderProps) {
                 </div>
                 
                 <Link
-                  to="/settings"
+                  to="/app/settings"
                   className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
                   onClick={() => setShowUserMenu(false)}
                 >
@@ -149,7 +103,7 @@ export function Header({ className }: HeaderProps) {
                 </Link>
                 
                 <Link
-                  to="/api-keys"
+                  to="/app/api-keys"
                   className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
                   onClick={() => setShowUserMenu(false)}
                 >

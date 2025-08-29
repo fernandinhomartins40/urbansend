@@ -5,10 +5,10 @@ import { Toaster } from 'react-hot-toast'
 
 export function MainLayout() {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="flex">
-        <Sidebar />
+    <div className="min-h-screen bg-background flex">
+      <Sidebar />
+      <div className="flex-1 flex flex-col md:ml-64">
+        <Header />
         <main className="flex-1 p-6">
           <div className="max-w-7xl mx-auto">
             <Outlet />
