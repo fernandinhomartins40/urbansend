@@ -155,11 +155,19 @@ jobs:
           # Parar aplicação existente
           echo "🛑 Parando aplicação existente..."
           docker-compose down --remove-orphans 2>/dev/null || true
-          docker system prune -f >/dev/null 2>&1 || true
+          
+          # Limpar imagens antigas mais agressivamente
+          echo "🧹 Limpando imagens antigas..."
+          docker rmi urbansend:latest 2>/dev/null || true
+          docker system prune -af >/dev/null 2>&1 || true
           
           # Carregar nova imagem
           echo "📦 Carregando nova imagem Docker..."
           gunzip -c urbansend-image.tar.gz | docker load
+          
+          # Verificar imagem carregada
+          echo "🔍 Verificando imagem carregada..."
+          docker images | grep urbansend || echo "⚠️ Imagem não encontrada"
           
           # Iniciar aplicação
           echo "▶️ Iniciando nova aplicação..."
