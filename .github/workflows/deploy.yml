@@ -80,8 +80,8 @@ jobs:
           
           # Criar diretórios
           echo "📁 Criando diretórios..."
-          mkdir -p $VPS_PATH/{data,logs,backup}
-          chmod -R 755 $VPS_PATH
+          mkdir -p /opt/urbansend/{data,logs,backup}
+          chmod -R 755 /opt/urbansend
           
           echo "✅ VPS configurada"
           SCRIPT
@@ -114,7 +114,7 @@ jobs:
           echo "⚙️ Configurando ambiente de produção..."
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'CONFIG'
-          cd $VPS_PATH
+          cd /opt/urbansend
           
           # Criar .env de produção
           cat > docker/.env.production << 'ENV'
@@ -150,7 +150,7 @@ jobs:
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'DEPLOY'
           set -e
-          cd $VPS_PATH
+          cd /opt/urbansend
           
           # Parar aplicação existente
           echo "🛑 Parando aplicação existente..."
@@ -217,7 +217,7 @@ jobs:
             echo "❌ Health check falhou após 10 tentativas"
             echo "🔍 Verificando status da VPS..."
             sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST \
-              "cd $VPS_PATH && docker-compose logs --tail 20"
+              "cd /opt/urbansend && docker-compose logs --tail 20"
             exit 1
           fi
           
