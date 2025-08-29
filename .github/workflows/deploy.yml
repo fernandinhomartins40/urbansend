@@ -185,7 +185,10 @@ jobs:
             echo "✅ Aplicação iniciada com sucesso"
           else
             echo "❌ Falha ao iniciar aplicação"
-            echo "📋 Logs dos containers (últimas 50 linhas):"
+            echo "📋 Logs completos do container:"
+            docker logs urbansend-app --timestamps
+            echo ""
+            echo "📋 Logs via docker-compose (últimas 50 linhas):"
             docker-compose logs --tail 50
             echo ""
             echo "🔍 Status detalhado dos containers:"
@@ -193,6 +196,13 @@ jobs:
             echo ""
             echo "🔍 Inspecionando container:"
             docker inspect urbansend-app | grep -A 10 -B 5 "Status\|RestartCount\|Error" || true
+            echo ""
+            echo "🔍 Verificando portas em uso:"
+            netstat -tlnp | grep -E ":3010|:25" || echo "Nenhuma porta 3010 ou 25 em uso"
+            echo ""
+            echo "🔍 Tentando executar comando dentro do container:"
+            docker exec urbansend-app whoami || echo "Container não permite exec"
+            docker exec urbansend-app ls -la /app/ || echo "Container não permite exec"
             exit 1
           fi
           
