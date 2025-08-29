@@ -1,32 +1,4 @@
-# Multi-stage build for unified container
-FROM node:18-alpine AS backend-build
-
-WORKDIR /app/backend
-
-# Copy backend package files
-COPY backend/package*.json ./
-RUN npm ci
-
-# Copy backend source and build
-COPY backend/src ./src
-COPY backend/tsconfig.json ./
-COPY backend/knexfile.js ./
-RUN npm run build
-
-# Build frontend
-FROM node:18-alpine AS frontend-build
-
-WORKDIR /app/frontend
-
-# Copy frontend package files
-COPY frontend/package*.json ./
-RUN npm ci
-
-# Copy frontend source and build
-COPY frontend/ ./
-RUN npm run build
-
-# Final stage with Nginx + Node.js
+# Simplified single-stage build to avoid npm ci timeout issues
 FROM node:18-alpine
 
 # Install nginx and curl
@@ -34,21 +6,34 @@ RUN apk add --no-cache nginx curl
 
 WORKDIR /app
 
-# Copy backend build and dependencies
-COPY --from=backend-build /app/backend/dist ./backend/dist
-COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
-COPY --from=backend-build /app/backend/package*.json ./backend/
-COPY backend/knexfile.js ./backend/
-COPY backend/src/migrations ./backend/src/migrations
+# Copy all source files
+COPY backend ./backend
+COPY frontend ./frontend
+COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy frontend build
-COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+# Install backend dependencies and build
+WORKDIR /app/backend
+RUN npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm install --no-audit --no-fund && \
+    npm run build
+
+# Install frontend dependencies and build  
+WORKDIR /app/frontend
+RUN npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm install --no-audit --no-fund && \
+    npm run build
+
+# Clean up dev dependencies to reduce image size
+RUN npm prune --production
+
+WORKDIR /app
 
 # Create directories
 RUN mkdir -p /app/data /app/logs /var/log/nginx /var/lib/nginx /var/tmp/nginx
-
-# Copy nginx configuration for internal routing
-COPY nginx.conf /etc/nginx/nginx.conf
 
 # Create startup script
 RUN cat > /app/start.sh << 'EOF'
