@@ -23,20 +23,20 @@ cd ..
 
 echo "📤 Copying files to VPS..."
 # Create remote directory
-ssh $REMOTE_HOST "mkdir -p $REMOTE_DIR"
+ssh -o StrictHostKeyChecking=no $REMOTE_HOST "mkdir -p $REMOTE_DIR"
 
 # Copy necessary files
-scp -r frontend/dist $REMOTE_HOST:$REMOTE_DIR/frontend-dist
-scp -r backend/dist $REMOTE_HOST:$REMOTE_DIR/backend-dist
-scp -r backend/src/migrations $REMOTE_HOST:$REMOTE_DIR/backend-migrations
-scp backend/package*.json $REMOTE_HOST:$REMOTE_DIR/backend-
-scp backend/knexfile.js $REMOTE_HOST:$REMOTE_DIR/backend-knexfile.js
-scp Dockerfile $REMOTE_HOST:$REMOTE_DIR/Dockerfile
-scp nginx.conf $REMOTE_HOST:$REMOTE_DIR/nginx.conf
-scp $COMPOSE_FILE $REMOTE_HOST:$REMOTE_DIR/docker-compose.yml
+scp -o StrictHostKeyChecking=no -r frontend/dist $REMOTE_HOST:$REMOTE_DIR/frontend-dist
+scp -o StrictHostKeyChecking=no -r backend/dist $REMOTE_HOST:$REMOTE_DIR/backend-dist
+scp -o StrictHostKeyChecking=no -r backend/src/migrations $REMOTE_HOST:$REMOTE_DIR/backend-migrations
+scp -o StrictHostKeyChecking=no backend/package*.json $REMOTE_HOST:$REMOTE_DIR/backend-
+scp -o StrictHostKeyChecking=no backend/knexfile.js $REMOTE_HOST:$REMOTE_DIR/backend-knexfile.js
+scp -o StrictHostKeyChecking=no Dockerfile $REMOTE_HOST:$REMOTE_DIR/Dockerfile
+scp -o StrictHostKeyChecking=no nginx.conf $REMOTE_HOST:$REMOTE_DIR/nginx.conf
+scp -o StrictHostKeyChecking=no $COMPOSE_FILE $REMOTE_HOST:$REMOTE_DIR/docker-compose.yml
 
 echo "🐳 Building and starting containers..."
-ssh $REMOTE_HOST << 'EOF'
+ssh -o StrictHostKeyChecking=no $REMOTE_HOST << 'EOF'
 cd /root/urbansend
 
 # Stop existing containers if they exist
@@ -59,7 +59,7 @@ docker-compose logs urbansend_app --tail 50
 EOF
 
 echo "🔧 Updating nginx configuration..."
-ssh $REMOTE_HOST << 'EOF'
+ssh -o StrictHostKeyChecking=no $REMOTE_HOST << 'EOF'
 # Update nginx configuration for port 3010
 sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br
 sed -i 's/localhost:3011/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br
