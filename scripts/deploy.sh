@@ -6,6 +6,7 @@ set -e
 VPS_IP="72.60.10.112"
 VPS_USER="root"
 DEPLOY_PATH="/var/www/urbansend"
+REPO_URL="https://github.com/fernandinhomartins40/urbansend.git"
 APP_NAME="urbansend"
 DOMAIN="www.urbanmail.com.br"
 NETWORK_NAME="${APP_NAME}_network"
