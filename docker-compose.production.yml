@@ -8,21 +8,22 @@ networks:
 volumes:
   urbansend_redis_data:
     name: urbansend_redis_data
-  urbansend_backend_data:
-    name: urbansend_backend_data
-  urbansend_backend_logs:
-    name: urbansend_backend_logs
+  urbansend_app_data:
+    name: urbansend_app_data
+  urbansend_app_logs:
+    name: urbansend_app_logs
 
 services:
-  urbansend_backend:
+  # Unified UrbanSend Application (Frontend + Backend + Nginx)
+  urbansend_app:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: urbansend_backend
+      dockerfile: Dockerfile
+    container_name: urbansend_app
     restart: unless-stopped
     ports:
-      - '3010:3000'
-      - '25:25'
+      - '3010:3010'  # Main application port
+      - '25:25'      # SMTP server port for email delivery
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -31,30 +32,25 @@ services:
       - REDIS_HOST=urbansend_redis
       - REDIS_PORT=6379
       - CORS_ORIGIN=https://www.urbanmail.com.br
-      - DATABASE_URL=/app/database.sqlite
+      - DATABASE_URL=/app/data/database.sqlite
       - FRONTEND_URL=https://www.urbanmail.com.br
       - SMTP_HOSTNAME=www.urbanmail.com.br
+      - SMTP_SERVER_PORT=25
     volumes:
-      - urbansend_backend_data:/app/data
-      - urbansend_backend_logs:/app/logs
+      - urbansend_app_data:/app/data
+      - urbansend_app_logs:/app/logs
     depends_on:
       - urbansend_redis
     networks:
       - urbansend_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  urbansend_frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: urbansend_frontend
-    restart: unless-stopped
-    ports:
-      - '3011:80'
-    depends_on:
-      - urbansend_backend
-    networks:
-      - urbansend_network
-
+  # Redis for queue system
   urbansend_redis:
     image: redis:7-alpine
     container_name: urbansend_redis
@@ -63,10 +59,16 @@ services:
     volumes:
       - urbansend_redis_data:/data
     ports:
-      - '6380:6379'
+      - '6380:6379'  # External access to Redis (different from digiurban)
     networks:
       - urbansend_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Redis UI (optional)
   urbansend_redis_ui:
     image: rediscommander/redis-commander:latest
     container_name: urbansend_redis_ui
