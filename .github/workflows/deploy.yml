@@ -69,7 +69,17 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
+
+    - name: 📦 Cache npm dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.npm
+          frontend/node_modules
+          backend/node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
 
     - name: 📊 Análise Pre-Deploy
       run: |
@@ -131,12 +141,14 @@ jobs:
         cd backend
         
         echo "📦 Instalando dependências do backend..."
-        if npm install; then
-          echo "✅ Dependências instaladas com sucesso"
+        if [ -f "package-lock.json" ]; then
+          echo "🔒 Usando package-lock.json com npm ci"
+          npm ci
         else
-          echo "❌ Falha ao instalar dependências"
-          exit 1
+          echo "📦 package-lock.json não encontrado, usando npm install"
+          npm install
         fi
+        echo "✅ Dependências do backend instaladas"
         
         echo "🔨 Compilando TypeScript..."
         if npm run build; then
@@ -160,12 +172,14 @@ jobs:
         cd frontend
         
         echo "📦 Instalando dependências do frontend..."
-        if npm install; then
-          echo "✅ Dependências instaladas com sucesso"
+        if [ -f "package-lock.json" ]; then
+          echo "🔒 Usando package-lock.json com npm ci"
+          npm ci
         else
-          echo "❌ Falha ao instalar dependências"
-          exit 1
+          echo "📦 package-lock.json não encontrado, usando npm install"
+          npm install
         fi
+        echo "✅ Dependências do frontend instaladas"
         
         echo "🔨 Compilando React/Vite..."
         if npm run build; then
