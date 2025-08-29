@@ -11,6 +11,9 @@ import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
+import UrbanSendSMTPServer from './services/smtpServer';
+import SMTPDeliveryService from './services/smtpDelivery';
+import './services/queueService'; // Initialize queue processors
 
 // Routes
 import authRoutes from './routes/auth';
@@ -20,14 +23,22 @@ import templatesRoutes from './routes/templates';
 import domainsRoutes from './routes/domains';
 import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
+import dnsRoutes from './routes/dns';
 
 dotenv.config();
+
+// CORS allowed origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://urbanmail.com.br',
+  'https://www.urbanmail.com.br'
+];
 
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: Env.get('CORS_ORIGIN', 'http://localhost:5173'),
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
@@ -48,7 +59,16 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: Env.get('CORS_ORIGIN', 'http://localhost:5173'),
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
@@ -99,6 +119,7 @@ app.use('/api/templates', templatesRoutes);
 app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
+app.use('/api/dns', dnsRoutes);
 
 // Swagger documentation
 setupSwagger(app);
@@ -130,11 +151,33 @@ const startServer = async () => {
     await db.migrate.latest();
     logger.info('Database migrations completed');
 
+    // Start HTTP server
     server.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`🚀 HTTP Server running on port ${PORT}`);
       logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
       logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
     });
+
+    // Start SMTP server
+    const smtpServer = new UrbanSendSMTPServer();
+    await smtpServer.start();
+
+    // Start email queue processor
+    const smtpDelivery = new SMTPDeliveryService();
+    
+    // Process email queue every 30 seconds
+    const processQueue = async () => {
+      try {
+        await smtpDelivery.processEmailQueue();
+      } catch (error) {
+        logger.error('Error in queue processing:', error);
+      }
+    };
+    
+    // Start queue processor
+    setInterval(processQueue, 30000); // Process every 30 seconds
+    logger.info('📧 Email queue processor started (30s intervals)');
+    
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
