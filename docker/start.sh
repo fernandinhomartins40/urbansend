@@ -30,11 +30,12 @@ fi
 # === CONFIGURAR NGINX ===
 echo "🌐 Configurando Nginx..."
 
-# Criar diretório de logs do nginx se não existir
-mkdir -p /var/log/nginx
+# Criar diretórios necessários
+mkdir -p /var/log/nginx /var/run /tmp
+chmod 755 /var/log/nginx /var/run /tmp
 
 # Testar configuração do nginx
-nginx -t || {
+nginx -c /etc/nginx/nginx.conf -t || {
     echo "❌ Erro na configuração do Nginx!"
     exit 1
 }
@@ -43,7 +44,7 @@ echo "✅ Configuração do Nginx válida"
 
 # === INICIAR NGINX ===
 echo "🌐 Iniciando Nginx..."
-nginx -g "daemon off;" &
+nginx -c /etc/nginx/nginx.conf -g "daemon off;" &
 NGINX_PID=$!
 
 # Aguardar nginx inicializar

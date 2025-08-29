@@ -62,7 +62,8 @@ RUN rm -rf node_modules
 
 # ===== CONFIGURAÇÕES =====
 
-# Copiar configuração do Nginx
+# Remover configurações padrão e copiar nossa configuração
+RUN rm -f /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copiar script de inicialização
