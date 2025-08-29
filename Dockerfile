@@ -22,8 +22,8 @@ WORKDIR /app/backend
 # Copiar package files primeiro para cache otimizado
 COPY backend/package*.json ./
 
-# Instalar dependências do backend
-RUN npm ci --production --silent
+# Instalar dependências do backend (incluindo devDependencies para build)
+RUN npm ci --silent
 
 # Copiar código do backend
 COPY backend/src ./src
@@ -32,6 +32,9 @@ COPY backend/knexfile.js ./
 
 # Build do backend
 RUN npm run build
+
+# Limpar devDependencies após build para reduzir tamanho da imagem
+RUN npm prune --production
 
 # ===== FRONTEND BUILD =====
 WORKDIR /app/frontend
