@@ -1,13 +1,9 @@
 # 🐳 UrbanSend - Docker Compose (Container Único)
 # VPS: 72.60.10.112
 
-version: '3.8'
-
 services:
   urbansend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: urbansend:latest
     container_name: urbansend-app
     restart: unless-stopped
     
