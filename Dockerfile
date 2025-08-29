@@ -46,16 +46,14 @@ WORKDIR /app
 RUN mkdir -p /app/data /app/logs /var/log/nginx /var/lib/nginx /var/tmp/nginx
 
 # Create startup script
-RUN cat > /app/start.sh << 'EOF'
-#!/bin/sh
-
-# Start nginx in background
-nginx
-
-# Start backend
-cd /app/backend
-exec node dist/index.js
-EOF
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Start nginx in background' >> /app/start.sh && \
+    echo 'nginx' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Start backend' >> /app/start.sh && \
+    echo 'cd /app/backend' >> /app/start.sh && \
+    echo 'exec node dist/index.js' >> /app/start.sh
 
 RUN chmod +x /app/start.sh
 
