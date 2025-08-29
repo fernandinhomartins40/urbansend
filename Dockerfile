@@ -13,19 +13,29 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 # Install backend dependencies and build
 WORKDIR /app/backend
-RUN npm config set fetch-retry-mintimeout 20000 && \
+RUN echo "🔧 Configurando npm..." && \
+    npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-retries 5 && \
-    npm install --no-audit --no-fund && \
-    npm run build
+    npm config set registry https://registry.npmjs.org/ && \
+    echo "📦 Instalando dependências backend..." && \
+    npm install --verbose --no-audit --no-fund && \
+    echo "🔨 Fazendo build do backend..." && \
+    npm run build && \
+    echo "✅ Backend build concluído"
 
 # Install frontend dependencies and build  
 WORKDIR /app/frontend
-RUN npm config set fetch-retry-mintimeout 20000 && \
+RUN echo "🔧 Configurando npm frontend..." && \
+    npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-retries 5 && \
-    npm install --no-audit --no-fund && \
-    npm run build
+    npm config set registry https://registry.npmjs.org/ && \
+    echo "📦 Instalando dependências frontend..." && \
+    npm install --verbose --no-audit --no-fund && \
+    echo "🔨 Fazendo build do frontend..." && \
+    npm run build && \
+    echo "✅ Frontend build concluído"
 
 # Clean up dev dependencies to reduce image size
 RUN npm prune --production

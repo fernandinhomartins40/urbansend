@@ -266,62 +266,71 @@ jobs:
         echo '✅ Diretório UrbanSend preparado'
         "
 
-    - name: 📤 Transferir Código UrbanSend para VPS
+    - name: 🐳 Build Docker Image Locally
       run: |
-        echo "📤 Transferindo código UrbanSend para VPS..."
-        echo "==========================================="
+        echo "🐳 Construindo imagem Docker localmente..."
+        echo "========================================="
         
-        echo "📊 Analisando arquivos a transferir..."
-        echo "Tamanho total: $(du -sh . | cut -f1)"
+        echo "🔨 Iniciando build da imagem UrbanSend..."
+        docker build -t urbansend:${{ github.sha }} .
+        docker tag urbansend:${{ github.sha }} urbansend:latest
         
-        echo "🚀 Iniciando transferência UrbanSend..."
-        if sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --progress --delete \
-          --exclude='.git/' \
-          --exclude='node_modules/' \
-          --exclude='frontend/node_modules/' \
-          --exclude='backend/node_modules/' \
-          --exclude='.claude/' \
-          --exclude='deploy.yml' \
-          -e "ssh -o StrictHostKeyChecking=no" \
-          ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/; then
-          echo "✅ Código UrbanSend transferido com sucesso"
+        echo "💾 Salvando imagem Docker..."
+        docker save urbansend:latest | gzip > urbansend-image.tar.gz
+        
+        echo "📊 Informações da imagem:"
+        docker images urbansend:latest
+        echo "📈 Tamanho do arquivo: $(du -sh urbansend-image.tar.gz)"
+
+    - name: 📤 Transferir Imagem e Deploy UrbanSend
+      run: |
+        echo "📤 Transferindo imagem Docker para VPS..."
+        echo "========================================"
+        
+        echo "🚀 Transferindo imagem comprimida..."
+        if sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+          urbansend-image.tar.gz ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:/tmp/; then
+          echo "✅ Imagem transferida com sucesso"
         else
-          echo "❌ Falha na transferência"
+          echo "❌ Falha na transferência da imagem"
           exit 1
         fi
+        
+        echo "📤 Transferindo arquivos de configuração..."
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+          docker-compose.production.yml ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/docker-compose.yml
+          
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+          nginx.conf ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/
 
-    - name: 🐳 Build e Deploy Container UrbanSend
+    - name: 🚀 Deploy Container UrbanSend
       run: |
-        echo "🐳 Construindo e deployando container UrbanSend..."
-        echo "================================================="
+        echo "🚀 Fazendo deploy na VPS..."
+        echo "=========================="
         
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        set -e
+        
+        echo '🐳 Carregando imagem Docker...'
+        cd /tmp
+        gunzip -c urbansend-image.tar.gz | docker load
+        rm urbansend-image.tar.gz
+        
+        echo '🛑 Parando containers existentes...'
         cd ${{ env.APP_DIR }}
+        docker-compose down --remove-orphans || true
+        docker container rm -f urbansend_app || true
+        docker image rm -f urbansend_urbansend_app || true
         
-        echo '📋 Verificando estrutura transferida...'
-        ls -la
+        echo '🚀 Iniciando novos containers...'
+        docker-compose up -d
         
-        echo '🔍 Verificando arquivos Docker...'
-        ls -la Dockerfile docker-compose.production.yml nginx.conf 2>/dev/null || echo '⚠️ Alguns arquivos Docker podem estar ausentes'
+        echo '⏳ Aguardando inicialização...'
+        sleep 30
         
-        echo '🏗️ Construindo container UrbanSend (isso pode levar alguns minutos)...'
-        if docker-compose -f docker-compose.production.yml build --no-cache; then
-          echo '✅ Container UrbanSend construído com sucesso'
-        else
-          echo '❌ Falha na construção do container UrbanSend'
-          exit 1
-        fi
-        
-        echo '🚀 Iniciando container UrbanSend...'
-        if docker-compose -f docker-compose.production.yml up -d; then
-          echo '✅ Container UrbanSend iniciado'
-        else
-          echo '❌ Falha ao iniciar container UrbanSend'
-          exit 1
-        fi
-        
-        echo '📊 Status dos containers UrbanSend:'
-        docker-compose -f docker-compose.production.yml ps
+        echo '📊 Status dos containers:'
+        docker-compose ps
+        docker-compose logs urbansend_app --tail 10
         "
 
     - name: 🔧 Configurar Nginx para UrbanSend
