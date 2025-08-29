@@ -1,4 +1,3 @@
-version: '3.8'
 
 networks:
   urbansend_network:
@@ -16,9 +15,7 @@ volumes:
 services:
   # Unified UrbanSend Application (Frontend + Backend + Nginx)
   urbansend_app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: urbansend:latest
     container_name: urbansend_app
     restart: unless-stopped
     ports:
