@@ -6,8 +6,15 @@ concurrency:
 
 on:
   push:
-    branches: [main]
+    branches: 
+      - main
+      - master
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: false
+        default: 'production'
 
 env:
   VPS_HOST: '72.60.10.112'
@@ -22,10 +29,10 @@ jobs:
     timeout-minutes: 60
     
     steps:
-    - name: 📋 Deploy Information
+    - name: 🔍 Workflow Debug
       run: |
         echo "=============================================="
-        echo "🚀 URBANSEND PRODUCTION DEPLOYMENT"
+        echo "🚀 URBANSEND WORKFLOW EXECUTANDO!"
         echo "=============================================="
         echo "📦 Commit: ${{ github.sha }}"
         echo "🌿 Branch: ${{ github.ref_name }}"
@@ -33,8 +40,20 @@ jobs:
         echo "⏰ Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
         echo "🎯 Target: ${{ env.VPS_HOST }}"
         echo "🌐 Domain: ${{ env.DOMAIN }}"
+        echo "🔑 Secret existe: ${{ secrets.VPS_PASSWORD != '' && 'SIM' || 'NÃO' }}"
         echo "=============================================="
         
+        if [ -z "${{ secrets.VPS_PASSWORD }}" ]; then
+          echo "❌ Secret VPS_PASSWORD não está disponível!"
+          echo "Configure em: Settings → Secrets and variables → Actions"
+          exit 1
+        else
+          echo "✅ Secret VPS_PASSWORD configurado"
+        fi
+        
+    - name: 📋 Deploy Information
+      run: |
+        echo "🚀 Iniciando deploy para produção..."
         echo "DEPLOY_START_TIME=$(date +%s)" >> $GITHUB_ENV
 
     - name: 📥 Checkout Repository
