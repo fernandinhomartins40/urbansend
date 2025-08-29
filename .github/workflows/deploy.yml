@@ -1,401 +1,250 @@
-# 🚀 Deploy Workflow - UrbanSend para VPS
-# Domínio: www.urbanmail.com.br
-# VPS: 72.60.10.112:3010
+# 🚀 Deploy Simplificado - UrbanSend
+# Domínio: www.urbanmail.com.br | VPS: 72.60.10.112:3010
 
-name: 🚀 Deploy to VPS
+name: 🚀 Deploy UrbanSend
 
 on:
   push:
-    branches: [main, production]
-    paths-ignore:
-      - 'README.md'
-      - 'docs/**'
-      - '*.md'
-  
+    branches: [main]
+    paths-ignore: ['*.md', 'docs/**']
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-          - production
-          - staging
 
 env:
   VPS_HOST: 72.60.10.112
   VPS_USER: root
   VPS_PATH: /opt/urbansend
-  DOMAIN: www.urbanmail.com.br
   APP_PORT: 3010
-  DOCKER_IMAGE: urbansend
-  GITHUB_REPO: fernandinhomartins40/urbansend
 
 jobs:
-  # ===== BUILD JOB =====
-  build:
-    name: 🔨 Build & Test
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: 🏗️ Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: 🧪 Build Test Image
-        run: |
-          echo "🔨 Building Docker image for testing..."
-          docker build -t $DOCKER_IMAGE:test .
-      
-      - name: 🧪 Run Container Tests
-        run: |
-          echo "🧪 Running container tests..."
-          
-          # Start container for testing
-          docker run -d --name test-container \
-            -p 3010:3010 \
-            -e NODE_ENV=test \
-            $DOCKER_IMAGE:test
-          
-          # Wait for container to be ready
-          echo "⏳ Waiting for container to be ready..."
-          for i in {1..12}; do
-            if docker exec test-container curl -f http://localhost:3010/health 2>/dev/null; then
-              echo "✅ Container is ready after $(($i * 5)) seconds"
-              break
-            fi
-            sleep 5
-            if [ $i -eq 12 ]; then
-              echo "❌ Container failed to start"
-              docker logs test-container
-              exit 1
-            fi
-          done
-          
-          # Run health checks
-          echo "🏥 Running health checks..."
-          docker exec test-container curl -f http://localhost:3010/health || exit 1
-          docker exec test-container curl -f http://localhost:3010/ || exit 1
-          
-          # Check processes
-          echo "🔍 Checking internal processes..."
-          PROCESSES=$(docker exec test-container ps aux)
-          echo "$PROCESSES"
-          
-          if ! echo "$PROCESSES" | grep -q nginx; then
-            echo "❌ Nginx not running"
-            exit 1
-          fi
-          
-          if ! echo "$PROCESSES" | grep -q node; then
-            echo "❌ Node.js not running"  
-            exit 1
-          fi
-          
-          echo "✅ All tests passed"
-          
-          # Cleanup
-          docker stop test-container
-          docker rm test-container
-      
-      - name: 💾 Save Docker Image
-        run: |
-          echo "💾 Saving Docker image for deployment..."
-          docker tag $DOCKER_IMAGE:test $DOCKER_IMAGE:latest
-          docker save $DOCKER_IMAGE:latest | gzip > urbansend-image.tar.gz
-          
-          # Get image info
-          IMAGE_SIZE=$(du -h urbansend-image.tar.gz | cut -f1)
-          echo "📊 Image size: $IMAGE_SIZE"
-          
-          # Store image info for next job
-          echo "IMAGE_SIZE=$IMAGE_SIZE" >> $GITHUB_ENV
-      
-      - name: ⬆️ Upload Image Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: urbansend-image.tar.gz
-          retention-days: 1
-
-  # ===== DEPLOY JOB =====
   deploy:
-    name: 🚀 Deploy to VPS
+    name: 🚀 Deploy Completo
     runs-on: ubuntu-latest
-    needs: build
-    environment: production
+    timeout-minutes: 20
     
     steps:
-      - name: 📥 Checkout Code
+      # ==================== PREPARAÇÃO ====================
+      - name: 📥 1️⃣ Checkout & Setup
         uses: actions/checkout@v4
-      
-      - name: ⬇️ Download Image Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-      
-      - name: 🔧 Install sshpass
+        
+      - name: 🔧 2️⃣ Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
-      
-      - name: 🔐 Setup SSH
-        run: |
-          echo "🔐 Setting up SSH connection..."
+          echo "🔧 Instalando dependências..."
+          sudo apt-get update -qq
+          sudo apt-get install -y sshpass curl
           
-          # Test SSH connectivity
+          echo "🔐 Testando conexão SSH..."
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-            $VPS_USER@$VPS_HOST "echo 'SSH connection successful'"
-      
-      - name: 🛠️ Prepare VPS Environment
+            $VPS_USER@$VPS_HOST "echo '✅ SSH conectado com sucesso'"
+
+      # ==================== BUILD LOCAL ====================
+      - name: 🏗️ 3️⃣ Build Docker Image
         run: |
-          echo "🛠️ Preparing VPS environment..."
+          echo "🏗️ Construindo imagem Docker..."
+          docker build -t urbansend:latest . --no-cache
           
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
-            $VPS_USER@$VPS_HOST << 'EOF'
+          echo "📊 Verificando imagem construída..."
+          docker images | grep urbansend
           
-          # Install Docker if not present
-          if ! command -v docker &> /dev/null; then
-            echo "📦 Installing Docker..."
-            curl -fsSL https://get.docker.com -o get-docker.sh
-            sh get-docker.sh
+          echo "💾 Exportando imagem..."
+          docker save urbansend:latest | gzip > urbansend-image.tar.gz
+          IMAGE_SIZE=$(du -h urbansend-image.tar.gz | cut -f1)
+          echo "📦 Tamanho da imagem: $IMAGE_SIZE"
+
+      # ==================== PREPARAR VPS ====================
+      - name: 🛠️ 4️⃣ Setup VPS Environment
+        run: |
+          echo "🛠️ Configurando ambiente da VPS..."
+          
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'SCRIPT'
+          set -e
+          
+          # Instalar Docker se necessário
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "📦 Instalando Docker..."
+            curl -fsSL https://get.docker.com | sh
             systemctl enable docker
             systemctl start docker
-            usermod -aG docker $USER
-            echo "✅ Docker installed"
+          else
+            echo "✅ Docker já instalado"
           fi
           
-          # Install Docker Compose if not present
-          if ! command -v docker-compose &> /dev/null; then
-            echo "📦 Installing Docker Compose..."
-            curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+          # Instalar Docker Compose
+          if ! command -v docker-compose >/dev/null 2>&1; then
+            echo "📦 Instalando Docker Compose..."
+            curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-Linux-x86_64" \
               -o /usr/local/bin/docker-compose
             chmod +x /usr/local/bin/docker-compose
-            echo "✅ Docker Compose installed"
+          else
+            echo "✅ Docker Compose já instalado"
           fi
           
-          # Create application directory
-          mkdir -p /opt/urbansend/{data,logs,backup}
+          # Criar diretórios
+          echo "📁 Criando diretórios..."
+          mkdir -p $VPS_PATH/{data,logs,backup}
+          chmod -R 755 $VPS_PATH
           
-          # Set proper permissions
-          chmod 755 /opt/urbansend/{data,logs,backup}
-          
-          # Create nginx log directory
-          mkdir -p /var/log/nginx
-          
-          echo "✅ VPS environment prepared"
-          EOF
-      
-      - name: 📤 Transfer Files to VPS
+          echo "✅ VPS configurada"
+          SCRIPT
+
+      # ==================== TRANSFERIR ARQUIVOS ====================
+      - name: 📤 5️⃣ Transfer Files
         run: |
-          echo "📤 Transferring files to VPS..."
+          echo "📤 Enviando arquivos para VPS..."
           
-          # Transfer Docker image
-          echo "📦 Transferring Docker image..."
+          # Enviar imagem Docker
+          echo "🐳 Enviando imagem Docker..."
           sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
             urbansend-image.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
           
-          # Transfer Docker Compose file
-          echo "📋 Transferring Docker Compose..."
+          # Enviar docker-compose
+          echo "📋 Enviando docker-compose.yml..."
           sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
             docker-compose.yml $VPS_USER@$VPS_HOST:$VPS_PATH/
           
-          # Transfer Docker configurations
-          echo "⚙️ Transferring configurations..."
+          # Enviar configurações Docker
+          echo "⚙️ Enviando configurações..."
           sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -r \
             docker/ $VPS_USER@$VPS_HOST:$VPS_PATH/
           
-          echo "✅ All files transferred"
-      
-      - name: 🔧 Configure Production Environment
+          echo "✅ Todos os arquivos enviados"
+
+      # ==================== CONFIGURAR PRODUÇÃO ====================
+      - name: ⚙️ 6️⃣ Configure Production
         run: |
-          echo "🔧 Configuring production environment..."
+          echo "⚙️ Configurando ambiente de produção..."
           
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
-            $VPS_USER@$VPS_HOST << EOF
-          
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'CONFIG'
           cd $VPS_PATH
           
-          # Update production environment file with correct domain
-          cat > docker/.env.production << 'ENVFILE'
-          # === URBANSEND PRODUCTION CONFIG ===
+          # Criar .env de produção
+          cat > docker/.env.production << 'ENV'
           NODE_ENV=production
           PORT=3001
           INTERNAL_PORT=3010
-          
-          # === DOMAIN CONFIGURATION ===
           DOMAIN=www.urbanmail.com.br
           PUBLIC_URL=http://www.urbanmail.com.br
-          FRONTEND_URL=http://www.urbanmail.com.br
           API_URL=http://www.urbanmail.com.br/api
-          
-          # === DATABASE ===
           DATABASE_URL=/app/data/database.sqlite
-          
-          # === SECURITY ===
           JWT_SECRET=urbansend_jwt_secret_key_production_2024_secure_32_chars_minimum
           COOKIE_SECRET=urbansend_cookie_secret_production_2024_secure_32_chars_min
           API_KEY_SALT=urbansend_api_key_salt_production_2024_secure_32_chars_min
-          
-          # === CORS ===
-          ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br,http://urbanmail.com.br,https://urbanmail.com.br
-          
-          # === SMTP SERVER ===
+          ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br
           SMTP_SERVER_PORT=25
           SMTP_HOSTNAME=www.urbanmail.com.br
-          SMTP_MAX_CLIENTS=100
-          
-          # === EMAIL CONFIG ===
           FROM_EMAIL=noreply@urbanmail.com.br
           FROM_NAME=UrbanMail
-          
-          # === LOGS ===
           LOG_LEVEL=info
-          LOG_FILE=/app/logs/app.log
-          
-          # === RATE LIMITING ===
-          RATE_LIMIT_WINDOW_MS=900000
           RATE_LIMIT_MAX_REQUESTS=100
+          ENV
           
-          # === UPLOADS ===
-          MAX_FILE_SIZE=10485760
-          UPLOAD_DIR=/app/data/uploads
+          # Tornar scripts executáveis
+          chmod +x docker/start.sh 2>/dev/null || true
           
-          # === BACKUP ===
-          BACKUP_DIR=/app/data/backups
-          BACKUP_RETENTION_DAYS=30
-          ENVFILE
-          
-          # Update Nginx config for production domain
-          sed -i 's/server_name 72\.60\.10\.112 localhost;/server_name www.urbanmail.com.br urbanmail.com.br 72.60.10.112;/' docker/nginx.conf
-          
-          # Make scripts executable
-          chmod +x docker/start.sh
-          
-          echo "✅ Production environment configured"
-          EOF
-      
-      - name: 🚀 Deploy Application
+          echo "✅ Configuração de produção criada"
+          CONFIG
+
+      # ==================== DEPLOY APLICAÇÃO ====================
+      - name: 🚀 7️⃣ Deploy Application
         run: |
-          echo "🚀 Deploying application..."
+          echo "🚀 Fazendo deploy da aplicação..."
           
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
-            $VPS_USER@$VPS_HOST << EOF
-          
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'DEPLOY'
+          set -e
           cd $VPS_PATH
           
-          # Stop existing application
-          echo "🛑 Stopping existing application..."
+          # Parar aplicação existente
+          echo "🛑 Parando aplicação existente..."
           docker-compose down --remove-orphans 2>/dev/null || true
+          docker system prune -f >/dev/null 2>&1 || true
           
-          # Remove old image
-          docker rmi urbansend:latest 2>/dev/null || true
-          
-          # Load new image
-          echo "📦 Loading new Docker image..."
+          # Carregar nova imagem
+          echo "📦 Carregando nova imagem Docker..."
           gunzip -c urbansend-image.tar.gz | docker load
           
-          # Start application
-          echo "🚀 Starting new application..."
+          # Iniciar aplicação
+          echo "▶️ Iniciando nova aplicação..."
           docker-compose up -d
           
-          # Wait for application to start
-          echo "⏳ Waiting for application to start..."
+          # Aguardar inicialização
+          echo "⏳ Aguardando inicialização (30s)..."
           sleep 30
           
-          # Check if application is running
+          # Verificar status
+          echo "🔍 Verificando status dos containers..."
+          docker-compose ps
+          
           if docker-compose ps | grep -q "Up"; then
-            echo "✅ Application started successfully"
+            echo "✅ Aplicação iniciada com sucesso"
           else
-            echo "❌ Application failed to start"
-            echo "📋 Container logs:"
-            docker-compose logs --tail 50
+            echo "❌ Falha ao iniciar aplicação"
+            echo "📋 Logs dos containers:"
+            docker-compose logs --tail 30
             exit 1
           fi
           
-          # Cleanup
+          # Limpeza
           rm -f urbansend-image.tar.gz
-          
-          echo "🎉 Deployment completed!"
-          EOF
-      
-      - name: 🧪 Post-Deploy Tests
+          echo "🎉 Deploy concluído!"
+          DEPLOY
+
+      # ==================== VERIFICAÇÕES FINAIS ====================
+      - name: 🧪 8️⃣ Health Check
         run: |
-          echo "🧪 Running post-deploy tests..."
+          echo "🧪 Executando verificações de saúde..."
           
-          # Wait for application to be fully ready
+          # Aguardar estabilização
           sleep 15
           
-          # Test health endpoint
-          echo "🏥 Testing health endpoint..."
-          for i in {1..12}; do
-            if curl -f --connect-timeout 10 --max-time 30 "http://$VPS_HOST:$APP_PORT/health" &>/dev/null; then
-              echo "✅ Health check passed after $(($i * 5)) seconds"
+          # Testar endpoint de saúde
+          echo "🏥 Testando endpoint /health..."
+          HEALTH_OK=false
+          
+          for i in {1..10}; do
+            echo "🔄 Tentativa $i/10..."
+            
+            if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST:$APP_PORT/health" 2>/dev/null; then
+              echo "✅ Health check passou na tentativa $i"
+              HEALTH_OK=true
               break
             fi
-            sleep 5
-            if [ $i -eq 12 ]; then
-              echo "❌ Health check failed"
-              exit 1
+            
+            if [ $i -lt 10 ]; then
+              sleep 10
             fi
           done
           
-          # Test main application
-          echo "🌐 Testing main application..."
-          if curl -f --connect-timeout 10 --max-time 30 "http://$VPS_HOST:$APP_PORT/" &>/dev/null; then
-            echo "✅ Main application is responding"
-          else
-            echo "⚠️ Main application test failed, but continuing..."
-          fi
-          
-          # Test domain with port (if accessible)
-          echo "🏷️ Testing domain with port..."
-          if curl -f --connect-timeout 10 --max-time 30 "http://www.urbanmail.com.br:3010/" &>/dev/null; then
-            echo "✅ Domain is responding on port 3010"
-          else
-            echo "⚠️ Domain test failed (may need DNS propagation time or port not accessible)"
-          fi
-      
-      - name: 📊 Deployment Summary
-        run: |
-          echo "📊 DEPLOYMENT SUMMARY"
-          echo "===================="
-          echo "🌐 Domain: www.urbanmail.com.br"
-          echo "🔌 VPS IP: $VPS_HOST"
-          echo "🚪 Port: $APP_PORT"
-          echo "📧 SMTP Port: 25"
-          echo "🐳 Image: $DOCKER_IMAGE:latest"
-          echo "📅 Deploy Time: $(date)"
-          echo "🔗 Repository: https://github.com/$GITHUB_REPO"
-          echo ""
-          echo "🔗 URLs:"
-          echo "  - Main App: http://www.urbanmail.com.br:3010"
-          echo "  - IP Access: http://$VPS_HOST:$APP_PORT"
-          echo "  - Health: http://$VPS_HOST:$APP_PORT/health"
-          echo ""
-          echo "✅ Deployment completed successfully!"
-
-  # ===== NOTIFICATION JOB =====
-  notify:
-    name: 📢 Notify
-    runs-on: ubuntu-latest
-    needs: [build, deploy]
-    if: always()
-    
-    steps:
-      - name: 📢 Deployment Notification
-        run: |
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "✅ DEPLOYMENT SUCCESS"
-            echo "🌐 Application is live at: http://www.urbanmail.com.br:3010"
-            echo "📧 SMTP Server active on port 25"
-          else
-            echo "❌ DEPLOYMENT FAILED"
-            echo "Check the logs above for details"
+          if [ "$HEALTH_OK" = false ]; then
+            echo "❌ Health check falhou após 10 tentativas"
+            echo "🔍 Verificando status da VPS..."
+            sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST \
+              "cd $VPS_PATH && docker-compose logs --tail 20"
             exit 1
           fi
+          
+          # Testar página principal
+          echo "🌐 Testando página principal..."
+          if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST:$APP_PORT/" >/dev/null 2>&1; then
+            echo "✅ Página principal respondendo"
+          else
+            echo "⚠️ Página principal não responde (pode ser normal)"
+          fi
+
+      # ==================== RESUMO FINAL ====================
+      - name: 📊 9️⃣ Summary
+        run: |
+          echo ""
+          echo "🎉 ===== DEPLOY CONCLUÍDO COM SUCESSO ====="
+          echo ""
+          echo "📋 INFORMAÇÕES DO DEPLOY:"
+          echo "  🌐 Domínio: www.urbanmail.com.br"
+          echo "  🔌 IP VPS: $VPS_HOST"
+          echo "  🚪 Porta: $APP_PORT"
+          echo "  📧 SMTP: Porta 25"
+          echo "  ⏰ Deploy: $(date '+%d/%m/%Y %H:%M:%S')"
+          echo ""
+          echo "🔗 URLS DISPONÍVEIS:"
+          echo "  📱 App: http://$VPS_HOST:$APP_PORT"
+          echo "  🏥 Health: http://$VPS_HOST:$APP_PORT/health"
+          echo "  🌐 Domínio: http://www.urbanmail.com.br:$APP_PORT"
+          echo ""
+          echo "✅ Aplicação UrbanSend está online!"
