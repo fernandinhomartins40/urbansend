@@ -1,32 +1,25 @@
-name: 🚀 Deploy UrbanSend Production
+name: 🚀 Deploy UrbanSend Simple
 
 concurrency:
-  group: urbansend-production-deploy
+  group: urbansend-simple-deploy
   cancel-in-progress: true
 
 on:
   push:
     branches: 
       - main
-      - master
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy'
-        required: false
-        default: 'production'
 
 env:
   VPS_HOST: '72.60.10.112'
   VPS_USER: 'root'
   APP_DIR: '/var/www/urbansend'
-  DOMAIN: 'www.urbanmail.com.br'
 
 jobs:
   deploy:
-    name: 🎯 Deploy to Production VPS
+    name: 🎯 Simple Deploy to VPS
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     
     steps:
     - name: 🔍 Workflow Debug
@@ -37,67 +30,32 @@ jobs:
         echo "📦 Commit: ${{ github.sha }}"
         echo "🌿 Branch: ${{ github.ref_name }}"
         echo "👤 Actor: ${{ github.actor }}"
-        echo "⏰ Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+        echo "⏰ Timestamp: $(date -u)"
         echo "🎯 Target: ${{ env.VPS_HOST }}"
-        echo "🌐 Domain: ${{ env.DOMAIN }}"
         echo "🔑 Secret existe: ${{ secrets.VPS_PASSWORD != '' && 'SIM' || 'NÃO' }}"
         echo "=============================================="
         
         if [ -z "${{ secrets.VPS_PASSWORD }}" ]; then
           echo "❌ Secret VPS_PASSWORD não está disponível!"
-          echo "Configure em: Settings → Secrets and variables → Actions"
           exit 1
         else
           echo "✅ Secret VPS_PASSWORD configurado"
         fi
         
-    - name: 📋 Deploy Information
-      run: |
-        echo "🚀 Iniciando deploy para produção..."
-        echo "DEPLOY_START_TIME=$(date +%s)" >> $GITHUB_ENV
-
     - name: 📥 Checkout Repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: 🟢 Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
 
-    - name: 🔧 Configure SSH
-      run: |
-        echo "🔧 Configurando SSH..."
-        sudo apt-get update -qq
-        sudo apt-get install -y sshpass rsync
-        
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
-        
-        echo "🔐 Testando conexão SSH..."
-        if sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '✅ SSH OK'"; then
-          echo "✅ SSH configurado com sucesso"
-        else
-          echo "❌ Falha na conexão SSH"
-          exit 1
-        fi
-
     - name: 🏗️ Build Backend
       run: |
         echo "🏗️ Building backend..."
         cd backend
-        
-        if [ -f "package-lock.json" ]; then
-          npm ci --no-audit --no-fund
-        else
-          npm install --no-audit --no-fund
-        fi
-        
-        echo "🔨 Compilando TypeScript..."
+        npm ci --no-audit --no-fund
         npm run build
-        
         echo "✅ Backend build completo"
         ls -la dist/
 
@@ -105,85 +63,51 @@ jobs:
       run: |
         echo "⚛️ Building frontend..."
         cd frontend
-        
-        if [ -f "package-lock.json" ]; then
-          npm ci --no-audit --no-fund
-        else
-          npm install --no-audit --no-fund
-        fi
-        
-        echo "🔨 Compilando React/Vite..."
+        npm ci --no-audit --no-fund
         npm run build
-        
         echo "✅ Frontend build completo"
         ls -la dist/
-        
-        if [ ! -f "dist/index.html" ]; then
-          echo "❌ index.html não encontrado"
-          exit 1
-        fi
 
-    - name: 🧹 Prepare VPS Environment
+    - name: 🔧 Setup SSH
       run: |
-        echo "🧹 Preparando ambiente VPS..."
-        
+        echo "🔧 Configurando SSH..."
+        sudo apt-get update -qq
+        sudo apt-get install -y sshpass
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+    - name: 🧹 Prepare VPS
+      run: |
+        echo "🧹 Preparando VPS..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        echo '🔄 Atualizando sistema...'
-        apt-get update -y > /dev/null 2>&1
+        echo 'Atualizando sistema...'
+        apt-get update -y > /dev/null
         
-        echo '🐳 Instalando Docker...'
+        echo 'Instalando Docker se necessário...'
         if ! command -v docker >/dev/null; then
           curl -fsSL https://get.docker.com -o get-docker.sh
-          sh get-docker.sh > /dev/null 2>&1
+          sh get-docker.sh > /dev/null
           rm get-docker.sh
-          systemctl start docker
-          systemctl enable docker
         fi
+        systemctl start docker
+        systemctl enable docker
         
-        echo '🔧 Instalando Docker Compose Plugin...'
-        if ! docker compose version >/dev/null 2>&1; then
-          apt-get install -y docker-compose-plugin > /dev/null 2>&1
-        fi
-        
-        echo '🔥 Configurando firewall...'
-        ufw allow 3010/tcp comment 'UrbanSend App' 2>/dev/null || true
-        ufw allow 25/tcp comment 'UrbanSend SMTP' 2>/dev/null || true
-        ufw allow 80/tcp comment 'HTTP' 2>/dev/null || true
-        ufw allow 443/tcp comment 'HTTPS' 2>/dev/null || true
-        
-        echo '✅ Ambiente preparado'
-        docker --version
-        docker compose version
-        "
-
-    - name: 🛑 Stop Old Deployment
-      run: |
-        echo "🛑 Parando deployment anterior..."
-        
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        cd ${{ env.APP_DIR }} 2>/dev/null || true
-        
-        if [ -f 'docker-compose.production.yml' ]; then
-          echo '🛑 Parando containers...'
-          docker compose -f docker-compose.production.yml down --remove-orphans 2>/dev/null || true
-        fi
-        
-        echo '🧹 Limpando containers antigos...'
-        docker container prune -f 2>/dev/null || true
-        docker image prune -f 2>/dev/null || true
-        
-        echo '📁 Preparando diretório...'
-        rm -rf ${{ env.APP_DIR }}
+        echo 'Criando diretório...'
         mkdir -p ${{ env.APP_DIR }}
+        cd ${{ env.APP_DIR }}
         
-        echo '✅ Limpeza concluída'
+        echo 'Parando containers existentes...'
+        docker compose -f docker-compose.production.yml down 2>/dev/null || true
+        docker container prune -f 2>/dev/null || true
+        
+        echo '✅ VPS preparada'
         "
 
-    - name: 📤 Deploy Application
+    - name: 📤 Deploy Files
       run: |
-        echo "📤 Enviando aplicação..."
+        echo "📤 Enviando arquivos..."
         
-        echo "📦 Copiando arquivos..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -r \
           backend/dist ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/backend-dist
         
@@ -205,204 +129,54 @@ jobs:
           nginx.conf \
           ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/
 
-    - name: 🚀 Start Production Services
+    - name: 🚀 Start Services
       run: |
         echo "🚀 Iniciando serviços..."
         
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
         
-        echo '📦 Instalando dependências de produção...'
+        echo 'Instalando dependências...'
         npm ci --omit=dev --no-audit --no-fund
         
-        echo '🐳 Iniciando containers...'
+        echo 'Iniciando containers...'
         docker compose -f docker-compose.production.yml up -d --build
         
-        echo '⏳ Aguardando inicialização (60s)...'
-        sleep 60
+        echo 'Aguardando inicialização...'
+        sleep 30
         
-        echo '🗄️ Executando migrações...'
-        docker compose -f docker-compose.production.yml exec -T urbansend sh -c 'cd /app/backend && npm run migrate:latest' || echo 'Migrações já executadas'
-        
-        echo '📊 Status dos containers:'
+        echo 'Status dos containers:'
         docker compose -f docker-compose.production.yml ps
         
         echo '✅ Serviços iniciados'
         "
 
-    - name: 🔧 Configure Nginx Reverse Proxy
+    - name: 🏥 Health Check
       run: |
-        echo "🔧 Configurando Nginx..."
+        echo "🏥 Verificando saúde da aplicação..."
         
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        echo '📝 Criando configuração Nginx...'
-        cat > /etc/nginx/sites-available/${{ env.DOMAIN }} << 'EOF'
-server {
-    listen 80;
-    server_name ${{ env.DOMAIN }};
-    return 301 https://\$server_name\$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name ${{ env.DOMAIN }};
-
-    # SSL certificates (configure manually)
-    ssl_certificate /etc/letsencrypt/live/${{ env.DOMAIN }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${{ env.DOMAIN }}/privkey.pem;
-    
-    # SSL security
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers on;
-
-    # Security headers
-    add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\";
-    add_header X-Content-Type-Options nosniff;
-    add_header X-Frame-Options DENY;
-    add_header X-XSS-Protection \"1; mode=block\";
-
-    # Proxy to application
-    location / {
-        proxy_pass http://localhost:3010;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 86400;
-    }
-
-    # API routes
-    location /api/ {
-        proxy_pass http://localhost:3010/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 86400;
-    }
-}
-EOF
-
-        echo '🔗 Ativando site...'
-        ln -sf /etc/nginx/sites-available/${{ env.DOMAIN }} /etc/nginx/sites-enabled/
-        rm -f /etc/nginx/sites-enabled/default
+        for i in {1..10}; do
+          echo "Tentativa $i/10..."
+          if curl -f http://${{ env.VPS_HOST }}:3010/health; then
+            echo "✅ Aplicação está funcionando!"
+            exit 0
+          fi
+          sleep 15
+        done
         
-        echo '🔍 Testando configuração...'
-        if nginx -t; then
-          echo '✅ Nginx configuração OK'
-          systemctl reload nginx
-        else
-          echo '⚠️ Nginx configuração com problemas, mas continuando...'
-        fi
-        "
+        echo "❌ Aplicação não está respondendo"
+        exit 1
 
-    - name: 🏥 Health Checks
-      run: |
-        echo "🏥 Executando health checks..."
-        
-        # Função para health check com retry
-        health_check() {
-          local url=$1
-          local name=$2
-          local max_attempts=20
-          local delay=15
-          
-          echo "🔍 Verificando $name..."
-          
-          for attempt in $(seq 1 $max_attempts); do
-            echo "⏳ Tentativa $attempt/$max_attempts - $name"
-            
-            if curl -s -f "$url" >/dev/null; then
-              echo "✅ $name: OK"
-              return 0
-            fi
-            
-            if [ $attempt -lt $max_attempts ]; then
-              sleep $delay
-            fi
-          done
-          
-          echo "❌ $name: Falhou após $max_attempts tentativas"
-          return 1
-        }
-        
-        echo "⏳ Aguardando inicialização (60s)..."
-        sleep 60
-        
-        # Health check da aplicação
-        if health_check "http://${{ env.VPS_HOST }}:3010/health" "UrbanSend App"; then
-          echo "✅ Aplicação respondendo"
-        else
-          echo "❌ Aplicação não responde"
-          
-          echo "🔍 Coletando logs para diagnóstico..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-          cd ${{ env.APP_DIR }}
-          echo '📋 Status dos containers:'
-          docker compose -f docker-compose.production.yml ps
-          echo '📝 Logs da aplicação:'
-          docker compose -f docker-compose.production.yml logs urbansend --tail=50
-          "
-          exit 1
-        fi
-        
-        # Verificar porta SMTP
-        echo "🔍 Verificando servidor SMTP..."
-        if timeout 10 bash -c "</dev/tcp/${{ env.VPS_HOST }}/25" 2>/dev/null; then
-          echo "✅ Servidor SMTP respondendo"
-        else
-          echo "⚠️ Servidor SMTP pode não estar acessível externamente"
-        fi
-
-    - name: ✅ Deployment Success
+    - name: ✅ Deploy Success
       if: success()
       run: |
-        DEPLOY_END_TIME=$(date +%s)
-        DEPLOY_DURATION=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
-        DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DEPLOY_DURATION/3600)) $((DEPLOY_DURATION%3600/60)) $((DEPLOY_DURATION%60)))
-        
         echo "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
-        echo "================================"
-        echo "⏱️  Tempo total: $DURATION_FORMATTED"
-        echo "🌐 Aplicação: https://${{ env.DOMAIN }}"
-        echo "🔌 Endpoint: http://${{ env.VPS_HOST }}:3010"
-        echo "📧 SMTP: ${{ env.VPS_HOST }}:25"
+        echo "🌐 Aplicação: http://${{ env.VPS_HOST }}:3010"
         echo "🏥 Health: http://${{ env.VPS_HOST }}:3010/health"
-        echo ""
-        echo "🔧 Para SSL, execute:"
-        echo "sudo certbot --nginx -d ${{ env.DOMAIN }}"
-        echo ""
-        echo "🎊 URBANSEND ONLINE! 🎊"
+        echo "📧 SMTP: ${{ env.VPS_HOST }}:25"
 
-    - name: ❌ Deployment Failed
+    - name: ❌ Deploy Failed
       if: failure()
       run: |
-        DEPLOY_END_TIME=$(date +%s)
-        DEPLOY_DURATION=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
-        DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DEPLOY_DURATION/3600)) $((DEPLOY_DURATION%3600/60)) $((DEPLOY_DURATION%60)))
-        
         echo "❌ DEPLOY FALHOU!"
-        echo "================="
-        echo "⏱️  Tempo até falha: $DURATION_FORMATTED"
-        echo "🔍 Verifique os logs acima para diagnóstico"
-        echo ""
-        echo "🔧 Diagnóstico adicional:"
-        
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        echo '📋 Containers em execução:'
-        docker ps -a
-        echo '💾 Uso de disco:'
-        df -h
-        echo '🧠 Uso de memória:'
-        free -h
-        echo '🔍 Portas em uso:'
-        netstat -tlnp | grep -E ':(3010|25|6379)'
-        " 2>/dev/null || echo "Não foi possível conectar à VPS para diagnóstico"
-        
-        exit 1
+        echo "Verifique os logs acima para detalhes"
