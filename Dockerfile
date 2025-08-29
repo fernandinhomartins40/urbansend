@@ -72,8 +72,9 @@ RUN chmod +x /usr/local/bin/start.sh
 # Copiar configurações de ambiente
 COPY docker/.env.production /app/.env
 
-# Configurar permissões
-RUN chown -R node:node /app /var/log/nginx /run/nginx
+# Criar diretórios e configurar permissões
+RUN mkdir -p /var/log/nginx /tmp && \
+    chown -R node:node /app /var/log/nginx /tmp
 
 # ===== EXPOSIÇÃO DE PORTAS =====
 EXPOSE 3010 25
