@@ -92,4 +92,4 @@ USER node
 
 WORKDIR /app
 
-CMD ["/usr/local/bin/start.sh"]
+ENTRYPOINT ["/usr/local/bin/start.sh"]

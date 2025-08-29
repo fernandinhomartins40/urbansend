@@ -11,6 +11,14 @@ echo "🌐 VPS: 72.60.10.112"
 echo "🔌 Porta Principal: 3010"
 echo "📧 Porta SMTP: 25"
 
+# Debug: Verificar ambiente
+echo "🔍 DEBUG: Verificando ambiente..."
+whoami
+pwd
+ls -la /app/
+echo "Node version: $(node --version)"
+echo "NPM version: $(npm --version)"
+
 # === CONFIGURAR DIRETÓRIOS ===
 echo "📁 Configurando diretórios..."
 mkdir -p /app/data /app/logs /app/data/uploads /app/data/backups
