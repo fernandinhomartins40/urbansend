@@ -1,65 +1,40 @@
-version: '3.8'
-
 services:
-  # Backend API
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+  app:
+    build: .
+    container_name: urbansend
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3010:3010"
+      - "25:25"
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - DATABASE_URL=/app/database.sqlite
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - PORT=3010
+      - JWT_SECRET=urbansend-super-secret-jwt-key-production-2024
       - JWT_EXPIRES_IN=7d
-      - SMTP_HOST=localhost
-      - SMTP_PORT=587
-      - SMTP_SECURE=false
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - CORS_ORIGIN=http://localhost:5173
+      - CORS_ORIGIN=https://www.urbanmail.com.br
+      - DATABASE_URL=/app/data/database.sqlite
+      - FRONTEND_URL=https://www.urbanmail.com.br
+      - SMTP_HOSTNAME=www.urbanmail.com.br
+      - SMTP_SERVER_PORT=25
     volumes:
-      - backend_data:/app/data
-      - backend_logs:/app/logs
+      - app_data:/app/data
+      - app_logs:/app/logs
     depends_on:
       - redis
-    restart: unless-stopped
 
-  # Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  # Redis for queue system
   redis:
     image: redis:7-alpine
+    container_name: urbansend_redis
+    restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
-    restart: unless-stopped
-
-  # Redis Commander (optional - for Redis management UI)
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "8081:8081"
-    depends_on:
-      - redis
-    restart: unless-stopped
 
 volumes:
-  backend_data:
-  backend_logs:
+  app_data:
+  app_logs:
   redis_data:
