@@ -1,6 +1,6 @@
 # 🚀 Guia Completo de CI/CD - UrbanSend
 
-## 🎯 Deploy Automático para VPS 72.60.10.112:3010 com www.urbanmail.com.br
+## 🎯 Deploy Automático para VPS 72.60.10.112:3010 com www.ultrazend.com.br
 
 ---
 
@@ -18,7 +18,7 @@ GitHub Repository → GitHub Actions → VPS Deploy
 ### Repositório:
 - **URL**: https://github.com/fernandinhomartins40/urbansend/
 - **Secret**: `VPS_PASSWORD` (senha SSH da VPS)
-- **Domínio**: www.urbanmail.com.br
+- **Domínio**: www.ultrazend.com.br
 - **VPS**: 72.60.10.112:3010
 
 ---
@@ -40,7 +40,7 @@ Ver arquivo: `DNS_EMAIL_CONFIGURATION.md`
 A      @           72.60.10.112
 A      www         72.60.10.112
 A      mail        72.60.10.112
-MX     @           mail.urbanmail.com.br  10
+MX     @           mail.ultrazend.com.br  10
 TXT    @           "v=spf1 a mx ip4:72.60.10.112 ~all"
 ```
 
@@ -105,18 +105,18 @@ docker/
 ### Variáveis de Produção:
 ```bash
 # Domínio e URLs (porta 3010 para compatibilidade com múltiplas apps na VPS)
-DOMAIN=www.urbanmail.com.br
-PUBLIC_URL=http://www.urbanmail.com.br
-FRONTEND_URL=http://www.urbanmail.com.br
-API_URL=http://www.urbanmail.com.br/api
+DOMAIN=www.ultrazend.com.br
+PUBLIC_URL=http://www.ultrazend.com.br
+FRONTEND_URL=http://www.ultrazend.com.br
+API_URL=http://www.ultrazend.com.br/api
 INTERNAL_PORT=3010
 
 # SMTP
-SMTP_HOSTNAME=www.urbanmail.com.br
-FROM_EMAIL=noreply@urbanmail.com.br
+SMTP_HOSTNAME=www.ultrazend.com.br
+FROM_EMAIL=noreply@ultrazend.com.br
 
 # CORS  
-ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br,http://urbanmail.com.br,https://urbanmail.com.br
+ALLOWED_ORIGINS=http://www.ultrazend.com.br,https://www.ultrazend.com.br,http://ultrazend.com.br,https://ultrazend.com.br
 ```
 
 ---
@@ -182,9 +182,9 @@ docker-compose restart
 ```
 
 ### Health Checks:
-- **Application**: http://www.urbanmail.com.br:3010/health
+- **Application**: http://www.ultrazend.com.br:3010/health
 - **IP Access**: http://72.60.10.112:3010/health
-- **SMTP**: `telnet www.urbanmail.com.br 25`
+- **SMTP**: `telnet www.ultrazend.com.br 25`
 
 ---
 
@@ -235,7 +235,7 @@ Verificar:
 #### 3. **Domínio Não Resolve**:
 ```
 Verificar:
-- DNS propagado: nslookup www.urbanmail.com.br
+- DNS propagado: nslookup www.ultrazend.com.br
 - TTL baixo (300s) para propagação rápida
 - Registros A apontando para 72.60.10.112
 ```
@@ -243,7 +243,7 @@ Verificar:
 #### 4. **SMTP Não Funciona**:
 ```
 Verificar:
-- telnet www.urbanmail.com.br 25
+- telnet www.ultrazend.com.br 25
 - Registros MX configurados
 - SPF record configurado
 - Porta 25 liberada no firewall
@@ -353,7 +353,7 @@ tar -czf backup-$(date +%Y%m%d).tar.gz data/ logs/
 # Adicionar staging environment
 staging:
   - Branch: develop
-  - URL: staging.urbanmail.com.br
+  - URL: staging.ultrazend.com.br
   - VPS: mesma instância, porta diferente
 ```
 
@@ -369,7 +369,7 @@ staging:
 - [ ] SSH funcionando
 
 ### Pós-Deploy:
-- [ ] Aplicação respondendo em www.urbanmail.com.br
+- [ ] Aplicação respondendo em www.ultrazend.com.br
 - [ ] Health check OK
 - [ ] SMTP funcionando (porta 25)
 - [ ] Logs sem erros críticos
@@ -381,7 +381,7 @@ staging:
 
 **CI/CD completo implementado para:**
 - ✅ **Deploy automático** via GitHub Actions
-- ✅ **Domínio configurado**: www.urbanmail.com.br
+- ✅ **Domínio configurado**: www.ultrazend.com.br
 - ✅ **VPS deploy**: 72.60.10.112:3010
 - ✅ **Email server**: Porta 25 ativa
 - ✅ **Testes automáticos** antes do deploy

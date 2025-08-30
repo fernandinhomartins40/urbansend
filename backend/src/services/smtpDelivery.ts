@@ -105,7 +105,7 @@ class SMTPDeliveryService {
             'subject': options.subject,
             'date': new Date().toUTCString(),
             'message-id': options.messageId || `<${Date.now()}@${this.hostname}>`,
-            'x-mailer': 'UrbanMail SMTP Server',
+            'x-mailer': 'UltraZend SMTP Server',
             'x-priority': '3',
             ...options.headers
           };
@@ -129,7 +129,7 @@ class SMTPDeliveryService {
             messageId: emailHeaders['message-id'],
             headers: {
               'DKIM-Signature': dkimSignature,
-              'X-Mailer': 'UrbanMail SMTP Server',
+              'X-Mailer': 'UltraZend SMTP Server',
               'X-Priority': '3',
               ...options.headers
             },

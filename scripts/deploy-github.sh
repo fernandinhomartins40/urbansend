@@ -64,8 +64,8 @@ echo "⏳ Waiting for services to start..."
 sleep 45
 
 echo "🔧 Updating nginx configuration..."
-sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br 2>/dev/null || true
-sed -i 's/localhost:3011/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br 2>/dev/null || true
+sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/ultrazend.com.br 2>/dev/null || true
+sed -i 's/localhost:3011/localhost:3010/g' /etc/nginx/sites-available/ultrazend.com.br 2>/dev/null || true
 
 echo "🔄 Testing and reloading nginx..."
 nginx -t && systemctl reload nginx || echo "⚠️ Nginx reload failed"
@@ -86,5 +86,5 @@ echo "✅ Deployment completed successfully!"
 FINAL_EOF
 
 echo "✅ GitHub Actions deployment completed!"
-echo "🌐 Application: https://urbanmail.com.br"
+echo "🌐 Application: https://ultrazend.com.br"
 echo "📧 SMTP Server: Port 25"

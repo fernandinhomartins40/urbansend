@@ -1,8 +1,8 @@
 exports.up = async function(knex) {
   // Criar usuário do sistema para emails internos
   const systemUserId = await knex('users').insert({
-    name: 'UrbanSend System',
-    email: 'system@urbansend.local',
+    name: 'UltraZend System',
+    email: 'system@ultrazend.local',
     password_hash: '$2b$12$dummy.hash.for.system.user.that.cannot.login',
     is_verified: true,
     plan_type: 'system',
@@ -17,5 +17,5 @@ exports.up = async function(knex) {
 };
 
 exports.down = function(knex) {
-  return knex('users').where('email', 'system@urbansend.local').del();
+  return knex('users').where('email', 'system@ultrazend.local').del();
 };

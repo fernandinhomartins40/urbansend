@@ -32,7 +32,7 @@ export function LandingPage() {
                 <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1" />
               </div>
               <span className="ml-3 text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                UrbanSend
+                UltraZend
               </span>
             </div>
             
@@ -628,7 +628,7 @@ export function LandingPage() {
             <div>
               <div className="flex items-center mb-4">
                 <Mail className="h-8 w-8 text-indigo-400" />
-                <span className="ml-2 text-xl font-bold">UrbanSend</span>
+                <span className="ml-2 text-xl font-bold">UltraZend</span>
               </div>
               <p className="text-gray-400">
                 Plataforma profissional de email transacional para desenvolvedores e empresas.
@@ -667,7 +667,7 @@ export function LandingPage() {
           
           <div className="border-t border-gray-800 mt-8 pt-8 text-center">
             <p className="text-gray-400">
-              © 2025 UrbanSend. Todos os direitos reservados.
+              © 2025 UltraZend. Todos os direitos reservados.
             </p>
           </div>
         </div>

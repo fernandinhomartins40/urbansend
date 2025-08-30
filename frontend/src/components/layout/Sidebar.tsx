@@ -58,9 +58,9 @@ export function Sidebar({ className }: SidebarProps) {
           <header className="flex items-center justify-between h-16 px-6 border-b">
             <div className="flex items-center space-x-2">
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center" aria-hidden="true">
-                <span className="text-primary-foreground font-bold text-sm">US</span>
+                <span className="text-primary-foreground font-bold text-sm">UZ</span>
               </div>
-              <span className="font-bold">UrbanSend</span>
+              <span className="font-bold">UltraZend</span>
             </div>
             
             <Button

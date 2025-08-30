@@ -1,6 +1,6 @@
 # 🔧 Configuração para VPS Compartilhada - UrbanSend
 
-## 🎯 Domínio: www.urbanmail.com.br na porta 3010
+## 🎯 Domínio: www.ultrazend.com.br na porta 3010
 
 ---
 
@@ -8,15 +8,15 @@
 
 ### Cenário:
 - **VPS**: 72.60.10.112 (múltiplas aplicações)
-- **Domínio**: www.urbanmail.com.br
+- **Domínio**: www.ultrazend.com.br
 - **Porta UrbanSend**: 3010 (não padrão 80/443)
 - **SMTP**: Porta 25 (padrão)
 
 ### URLs de Acesso:
-- **Principal**: http://www.urbanmail.com.br:3010
-- **API**: http://www.urbanmail.com.br:3010/api
-- **Health**: http://www.urbanmail.com.br:3010/health
-- **SMTP**: www.urbanmail.com.br:25
+- **Principal**: http://www.ultrazend.com.br:3010
+- **API**: http://www.ultrazend.com.br:3010/api
+- **Health**: http://www.ultrazend.com.br:3010/health
+- **SMTP**: www.ultrazend.com.br:25
 
 ---
 
@@ -30,7 +30,7 @@ A      www         72.60.10.112
 
 # Registros para email
 A      mail        72.60.10.112
-MX     @           mail.urbanmail.com.br  10
+MX     @           mail.ultrazend.com.br  10
 
 # SPF para email
 TXT    @           "v=spf1 a mx ip4:72.60.10.112 ~all"
@@ -45,14 +45,14 @@ TXT    @           "v=spf1 a mx ip4:72.60.10.112 ~all"
 ### Environment (.env.production):
 ```bash
 # === DOMAIN CONFIGURATION ===
-DOMAIN=www.urbanmail.com.br
-PUBLIC_URL=http://www.urbanmail.com.br
-FRONTEND_URL=http://www.urbanmail.com.br
-API_URL=http://www.urbanmail.com.br/api
+DOMAIN=www.ultrazend.com.br
+PUBLIC_URL=http://www.ultrazend.com.br
+FRONTEND_URL=http://www.ultrazend.com.br
+API_URL=http://www.ultrazend.com.br/api
 INTERNAL_PORT=3010
 
 # === CORS ===
-ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br
+ALLOWED_ORIGINS=http://www.ultrazend.com.br,https://www.ultrazend.com.br
 ```
 
 ### Docker Compose:
@@ -66,7 +66,7 @@ ports:
 ```nginx
 server {
     listen 3010 default_server;
-    server_name www.urbanmail.com.br urbanmail.com.br 72.60.10.112;
+    server_name www.ultrazend.com.br ultrazend.com.br 72.60.10.112;
     # ...
 }
 ```
@@ -87,10 +87,10 @@ server {
 curl http://72.60.10.112:3010/health
 
 # Teste do domínio
-curl http://www.urbanmail.com.br:3010/health
+curl http://www.ultrazend.com.br:3010/health
 
 # Teste SMTP
-telnet www.urbanmail.com.br 25
+telnet www.ultrazend.com.br 25
 ```
 
 ---
@@ -117,7 +117,7 @@ telnet www.urbanmail.com.br 25
 # Nginx principal da VPS (porta 80)
 server {
     listen 80;
-    server_name www.urbanmail.com.br;
+    server_name www.ultrazend.com.br;
     
     location / {
         proxy_pass http://localhost:3010;
@@ -129,13 +129,13 @@ server {
 ### 2. **Subdomínio**
 ```
 # Usar subdomínio específico
-app.urbanmail.com.br → 72.60.10.112:3010
+app.ultrazend.com.br → 72.60.10.112:3010
 ```
 
 ### 3. **Path-based Routing**
 ```
 # Roteamento por path
-www.urbanmail.com.br/urbansend → localhost:3010
+www.ultrazend.com.br/urbansend → localhost:3010
 ```
 
 ---
@@ -146,23 +146,23 @@ www.urbanmail.com.br/urbansend → localhost:3010
 ```bash
 # Workflow CI/CD testa:
 ✅ http://72.60.10.112:3010/health
-✅ http://www.urbanmail.com.br:3010/health
-✅ telnet www.urbanmail.com.br 25
+✅ http://www.ultrazend.com.br:3010/health
+✅ telnet www.ultrazend.com.br 25
 ```
 
 ### Testes Manuais:
 ```bash
 # Aplicação
-curl http://www.urbanmail.com.br:3010/
+curl http://www.ultrazend.com.br:3010/
 
 # API
-curl http://www.urbanmail.com.br:3010/api/health
+curl http://www.ultrazend.com.br:3010/api/health
 
 # WebSocket
 # Testar na aplicação frontend
 
 # Email
-telnet www.urbanmail.com.br 25
+telnet www.ultrazend.com.br 25
 ```
 
 ---
@@ -170,8 +170,8 @@ telnet www.urbanmail.com.br 25
 ## 📋 CHECKLIST DE CONFIGURAÇÃO
 
 ### DNS:
-- [ ] www.urbanmail.com.br → 72.60.10.112
-- [ ] mail.urbanmail.com.br → 72.60.10.112
+- [ ] www.ultrazend.com.br → 72.60.10.112
+- [ ] mail.ultrazend.com.br → 72.60.10.112
 - [ ] Registro MX configurado
 - [ ] SPF configurado
 
@@ -192,9 +192,9 @@ telnet www.urbanmail.com.br 25
 ## 🎯 RESULTADO FINAL
 
 ### URLs de Acesso:
-- **Aplicação**: http://www.urbanmail.com.br:3010
+- **Aplicação**: http://www.ultrazend.com.br:3010
 - **Direta IP**: http://72.60.10.112:3010
-- **SMTP**: www.urbanmail.com.br:25
+- **SMTP**: www.ultrazend.com.br:25
 
 ### Configuração:
 ✅ **Profissional**: Domínio próprio configurado  

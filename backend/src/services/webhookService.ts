@@ -66,7 +66,7 @@ class WebhookService {
             'X-Webhook-Signature': `sha256=${signature}`,
             'X-Webhook-Event': event,
             'X-Webhook-ID': webhook.id.toString(),
-            'User-Agent': 'UrbanSend-Webhook/1.0'
+            'User-Agent': 'UltraZend-Webhook/1.0'
           },
           timeout: 30000, // 30 seconds timeout
           validateStatus: (status) => status >= 200 && status < 300
@@ -213,7 +213,7 @@ class WebhookService {
       const testPayload = {
         event: 'webhook.test',
         data: {
-          message: 'This is a test webhook from UrbanSend',
+          message: 'This is a test webhook from UltraZend',
           timestamp: new Date().toISOString()
         },
         timestamp: new Date().toISOString(),

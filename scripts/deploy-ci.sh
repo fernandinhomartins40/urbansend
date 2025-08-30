@@ -66,8 +66,8 @@ echo "📝 Recent logs:"
 docker-compose logs urbansend_app --tail 20
 
 echo "🔧 Updating nginx configuration..."
-sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br || true
-sed -i 's/localhost:3011/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br || true
+sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/ultrazend.com.br || true
+sed -i 's/localhost:3011/localhost:3010/g' /etc/nginx/sites-available/ultrazend.com.br || true
 
 echo "🔄 Reloading nginx..."
 nginx -t && systemctl reload nginx || true
@@ -119,5 +119,5 @@ fi
 rm -rf deploy-temp
 
 echo "✅ CI/CD Deployment completed!"
-echo "🌐 Application should be available at https://urbanmail.com.br"
+echo "🌐 Application should be available at https://ultrazend.com.br"
 echo "📧 SMTP server should be listening on port 25"

@@ -7,11 +7,11 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'UrbanSend API',
+      title: 'UltraZend API',
       version: '1.0.0',
       description: 'API completa para plataforma de email transacional - Clone do Resend.com',
       contact: {
-        name: 'UrbanSend Team',
+        name: 'UltraZend Team',
         email: 'support@urbansend.com'
       }
     },
@@ -132,6 +132,6 @@ const specs = swaggerJSDoc(options);
 export const setupSwagger = (app: Express) => {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
     customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'UrbanSend API Documentation'
+    customSiteTitle: 'UltraZend API Documentation'
   }));
 };

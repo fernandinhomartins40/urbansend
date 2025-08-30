@@ -1,4 +1,4 @@
-# 🧪 Test Workflow - UrbanSend CI/CD
+# 🧪 Test Workflow - UltraZend CI/CD
 # Workflow para testar antes do deploy principal
 
 name: 🧪 Test CI/CD Workflow
@@ -27,10 +27,10 @@ jobs:
       - name: 🧪 Build Image
         run: |
           echo "🔨 Building Docker image..."
-          docker build -t urbansend:test .
+          docker build -t ultrazend:test .
           
           echo "📊 Image built successfully"
-          docker images urbansend:test
+          docker images ultrazend:test
       
       - name: 🏥 Container Health Test
         run: |
@@ -40,7 +40,7 @@ jobs:
           docker run -d --name health-test \
             -p 3010:3010 \
             -e NODE_ENV=test \
-            urbansend:test
+            ultrazend:test
           
           # Wait and test
           echo "⏳ Waiting for container..."
@@ -149,10 +149,10 @@ jobs:
           echo "🌐 Validating Nginx configuration..."
           
           # Build image to test nginx config
-          docker build -t urbansend:config-test .
+          docker build -t ultrazend:config-test .
           
           # Test nginx config
-          if docker run --rm urbansend:config-test nginx -t; then
+          if docker run --rm ultrazend:config-test nginx -t; then
             echo "✅ Nginx configuration is valid"
           else
             echo "❌ Nginx configuration has errors"
@@ -175,25 +175,25 @@ jobs:
           
           # Simulate image build
           echo "📦 Building image..."
-          docker build -t urbansend:deploy-test .
+          docker build -t ultrazend:deploy-test .
           
           # Simulate image save/load
           echo "💾 Saving image..."
-          docker save urbansend:deploy-test | gzip > urbansend-test.tar.gz
+          docker save ultrazend:deploy-test | gzip > ultrazend-test.tar.gz
           
-          IMAGE_SIZE=$(du -h urbansend-test.tar.gz | cut -f1)
+          IMAGE_SIZE=$(du -h ultrazend-test.tar.gz | cut -f1)
           echo "📊 Compressed image size: $IMAGE_SIZE"
           
           # Simulate load
           echo "📦 Loading image..."
-          docker rmi urbansend:deploy-test
-          gunzip -c urbansend-test.tar.gz | docker load
+          docker rmi ultrazend:deploy-test
+          gunzip -c ultrazend-test.tar.gz | docker load
           
           # Simulate deployment
           echo "🚀 Simulating deployment..."
           docker run -d --name deploy-simulation \
             -p 3011:3010 \
-            urbansend:deploy-test
+            ultrazend:deploy-test
           
           # Test deployment
           sleep 20
@@ -208,7 +208,7 @@ jobs:
           # Cleanup
           docker stop deploy-simulation
           docker rm deploy-simulation
-          rm urbansend-test.tar.gz
+          rm ultrazend-test.tar.gz
           
           echo "✅ Deploy simulation completed successfully"
 

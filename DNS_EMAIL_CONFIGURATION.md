@@ -1,6 +1,6 @@
 # 📧 Configuração DNS para Servidor de Email - UrbanMail
 
-## 🎯 Domínio: www.urbanmail.com.br | VPS: 72.60.10.112
+## 🎯 Domínio: www.ultrazend.com.br | VPS: 72.60.10.112
 
 ---
 
@@ -23,7 +23,7 @@ TTL: 300
 ```
 Tipo: MX
 Nome: @
-Valor: mail.urbanmail.com.br
+Valor: mail.ultrazend.com.br
 Prioridade: 10
 TTL: 300
 
@@ -53,7 +53,7 @@ TTL: 300
 ```
 Tipo: TXT
 Nome: _dmarc
-Valor: "v=DMARC1; p=quarantine; rua=mailto:dmarc@urbanmail.com.br"
+Valor: "v=DMARC1; p=quarantine; rua=mailto:dmarc@ultrazend.com.br"
 TTL: 300
 ```
 
@@ -63,7 +63,7 @@ TTL: 300
 
 ### Para **Cloudflare**:
 1. Acesse o painel Cloudflare
-2. Selecione o domínio `urbanmail.com.br`
+2. Selecione o domínio `ultrazend.com.br`
 3. Vá em "DNS" > "Records"
 4. Adicione os registros acima
 5. **IMPORTANTE**: Desative o proxy (ícone nuvem cinza) para registros MX
@@ -109,7 +109,7 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
   --data '{
     "type": "MX",
     "name": "@",
-    "content": "mail.urbanmail.com.br",
+    "content": "mail.ultrazend.com.br",
     "priority": 10,
     "ttl": 300
   }'
@@ -133,15 +133,15 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
 ### 1. **Testar Resolução DNS**:
 ```bash
 # Testar registro A
-dig A www.urbanmail.com.br
-dig A urbanmail.com.br
+dig A www.ultrazend.com.br
+dig A ultrazend.com.br
 
 # Testar registro MX  
-dig MX urbanmail.com.br
+dig MX ultrazend.com.br
 
 # Testar registros TXT (SPF/DMARC)
-dig TXT urbanmail.com.br
-dig TXT _dmarc.urbanmail.com.br
+dig TXT ultrazend.com.br
+dig TXT _dmarc.ultrazend.com.br
 ```
 
 ### 2. **Ferramentas Online**:
@@ -153,10 +153,10 @@ dig TXT _dmarc.urbanmail.com.br
 ### 3. **Teste de Email**:
 ```bash
 # Testar SMTP Server
-telnet www.urbanmail.com.br 25
+telnet www.ultrazend.com.br 25
 
 # Enviar email de teste
-echo "Test email" | mail -s "Test" -r noreply@urbanmail.com.br test@gmail.com
+echo "Test email" | mail -s "Test" -r noreply@ultrazend.com.br test@gmail.com
 ```
 
 ---
@@ -169,7 +169,7 @@ echo "Test email" | mail -s "Test" -r noreply@urbanmail.com.br test@gmail.com
 apt-get install opendkim opendkim-tools
 
 # Gerar chave privada
-opendkim-genkey -t -s default -d urbanmail.com.br
+opendkim-genkey -t -s default -d ultrazend.com.br
 
 # Visualizar chave pública para DNS
 cat default.txt
@@ -177,7 +177,7 @@ cat default.txt
 
 ### Exemplo de Saída:
 ```
-default._domainkey.urbanmail.com.br. IN TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA..."
+default._domainkey.ultrazend.com.br. IN TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA..."
 ```
 
 ---
@@ -212,7 +212,7 @@ default._domainkey.urbanmail.com.br. IN TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9
 - [ ] Firewall liberando portas 25 e 3010
 
 ### Após o Deploy:
-- [ ] Aplicação acessível via www.urbanmail.com.br
+- [ ] Aplicação acessível via www.ultrazend.com.br
 - [ ] SMTP respondendo na porta 25
 - [ ] Teste de envio de email funcionando
 - [ ] Health check OK
@@ -240,14 +240,14 @@ docker-compose ps
 ### Externamente:
 ```bash
 # Testar aplicação
-curl http://www.urbanmail.com.br/health
+curl http://www.ultrazend.com.br/health
 
 # Testar SMTP externo  
-telnet www.urbanmail.com.br 25
+telnet www.ultrazend.com.br 25
 
 # Verificar DNS
-nslookup www.urbanmail.com.br
-nslookup -q=mx urbanmail.com.br
+nslookup www.ultrazend.com.br
+nslookup -q=mx ultrazend.com.br
 ```
 
 ---
@@ -255,7 +255,7 @@ nslookup -q=mx urbanmail.com.br
 ## 🔧 CONFIGURAÇÕES AVANÇADAS
 
 ### Reverse DNS (PTR):
-Configurar no provedor VPS para que 72.60.10.112 resolva para `mail.urbanmail.com.br`
+Configurar no provedor VPS para que 72.60.10.112 resolva para `mail.ultrazend.com.br`
 
 ### SSL/TLS para SMTP:
 Configurar certificado SSL para SMTP seguro (porta 587/993)
@@ -265,4 +265,4 @@ Implementar rate limiting específico para SMTP
 
 ---
 
-**✅ DNS e Email Server configurados para www.urbanmail.com.br na VPS 72.60.10.112:3010**
+**✅ DNS e Email Server configurados para www.ultrazend.com.br na VPS 72.60.10.112:3010**

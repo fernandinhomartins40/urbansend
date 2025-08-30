@@ -11,10 +11,10 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
 ● Update(.github\workflows\deploy.yml)
   ⎿  Updated .github\workflows\deploy.yml with 148 additions and 299 removals
          1 -  # 🚀 Deploy Workflow - UrbanSend para VPS
-         2 -  # Domínio: www.urbanmail.com.br
+         2 -  # Domínio: www.ultrazend.com.br
          3 -  # VPS: 72.60.10.112:3010
          1 +  # 🚀 Deploy Simplificado - UrbanSend
-         2 +  # Domínio: www.urbanmail.com.br | VPS: 72.60.10.112:3010
+         2 +  # Domínio: www.ultrazend.com.br | VPS: 72.60.10.112:3010
          3    
          4 -  name: 🚀 Deploy to VPS
          4 +  name: 🚀 Deploy UrbanSend
@@ -44,7 +44,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
         13      VPS_HOST: 72.60.10.112
         14      VPS_USER: root
         15      VPS_PATH: /opt/urbansend
-        16 -    DOMAIN: www.urbanmail.com.br
+        16 -    DOMAIN: www.ultrazend.com.br
         16      APP_PORT: 3010
         17 -    DOCKER_IMAGE: urbansend
         18 -    GITHUB_REPO: fernandinhomartins40/urbansend
@@ -311,10 +311,10 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        123              INTERNAL_PORT=3010
        124 -
        125 -            # === DOMAIN CONFIGURATION ===
-       124              DOMAIN=www.urbanmail.com.br
-       125              PUBLIC_URL=http://www.urbanmail.com.br
-       126 -            FRONTEND_URL=http://www.urbanmail.com.br
-       126              API_URL=http://www.urbanmail.com.br/api
+       124              DOMAIN=www.ultrazend.com.br
+       125              PUBLIC_URL=http://www.ultrazend.com.br
+       126 -            FRONTEND_URL=http://www.ultrazend.com.br
+       126              API_URL=http://www.ultrazend.com.br/api
        127 -
        128 -            # === DATABASE ===
        127              DATABASE_URL=/app/data/database.sqlite
@@ -326,16 +326,16 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        131 -
        132 -            # === CORS ===
        133 -
-           - ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br,http://urbanmail.com.br,https://urbanmail.com.br
+           - ALLOWED_ORIGINS=http://www.ultrazend.com.br,https://www.ultrazend.com.br,http://ultrazend.com.br,https://ultrazend.com.br
        134 -
        135 -            # === SMTP SERVER ===
-       131 +            ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br
+       131 +            ALLOWED_ORIGINS=http://www.ultrazend.com.br,https://www.ultrazend.com.br
        132              SMTP_SERVER_PORT=25
-       133              SMTP_HOSTNAME=www.urbanmail.com.br
+       133              SMTP_HOSTNAME=www.ultrazend.com.br
        134 -            SMTP_MAX_CLIENTS=100
        135 -
        136 -            # === EMAIL CONFIG ===
-       134              FROM_EMAIL=noreply@urbanmail.com.br
+       134              FROM_EMAIL=noreply@ultrazend.com.br
        135              FROM_NAME=UrbanMail
        136 -
        137 -            # === LOGS ===
@@ -359,7 +359,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        146 -            ENVFILE
        147 -
        148 -            # Update Nginx config for production domain
-       149 -            sed -i 's/server_name 72\.60\.10\.112 localhost;/server_name www.urbanmail.com.br urbanmail.com.br 72.60.10.112;/'        
+       149 -            sed -i 's/server_name 72\.60\.10\.112 localhost;/server_name www.ultrazend.com.br ultrazend.com.br 72.60.10.112;/'        
            - docker/nginx.conf
        150 -
        151 -            # Make scripts executable
@@ -495,7 +495,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        223
        224 -            # Test domain with port (if accessible)
        225 -            echo "🏷️ Testing domain with port..."
-       226 -            if curl -f --connect-timeout 10 --max-time 30 "http://www.urbanmail.com.br:3010/" &>/dev/null; then
+       226 -            if curl -f --connect-timeout 10 --max-time 30 "http://www.ultrazend.com.br:3010/" &>/dev/null; then
        227 -              echo "✅ Domain is responding on port 3010"
        224 +            # Testar página principal
        225 +            echo "🌐 Testando página principal..."
@@ -513,7 +513,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        234            run: |
        235 -            echo "📊 DEPLOYMENT SUMMARY"
        236 -            echo "===================="
-       237 -            echo "🌐 Domain: www.urbanmail.com.br"
+       237 -            echo "🌐 Domain: www.ultrazend.com.br"
        238 -            echo "🔌 VPS IP: $VPS_HOST"
        239 -            echo "🚪 Port: $APP_PORT"
        240 -            echo "📧 SMTP Port: 25"
@@ -522,7 +522,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        243 -            echo "🔗 Repository: https://github.com/$GITHUB_REPO"
        235              echo ""
        236 -            echo "🔗 URLs:"
-       237 -            echo "  - Main App: http://www.urbanmail.com.br:3010"
+       237 -            echo "  - Main App: http://www.ultrazend.com.br:3010"
        238 -            echo "  - IP Access: http://$VPS_HOST:$APP_PORT"
        239 -            echo "  - Health: http://$VPS_HOST:$APP_PORT/health"
        236 +            echo "🎉 ===== DEPLOY CONCLUÍDO COM SUCESSO ====="
@@ -541,7 +541,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        249 -          run: |
        250 -            if [ "${{ needs.deploy.result }}" == "success" ]; then
        251 -              echo "✅ DEPLOYMENT SUCCESS"
-       252 -              echo "🌐 Application is live at: http://www.urbanmail.com.br:3010"
+       252 -              echo "🌐 Application is live at: http://www.ultrazend.com.br:3010"
        253 -              echo "📧 SMTP Server active on port 25"
        254 -            else
        255 -              echo "❌ DEPLOYMENT FAILED"
@@ -550,7 +550,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        258 -            fi
        238   \ No newline at end of file
        239 +            echo "📋 INFORMAÇÕES DO DEPLOY:"
-       240 +            echo "  🌐 Domínio: www.urbanmail.com.br"
+       240 +            echo "  🌐 Domínio: www.ultrazend.com.br"
        241 +            echo "  🔌 IP VPS: $VPS_HOST"
        242 +            echo "  🚪 Porta: $APP_PORT"
        243 +            echo "  📧 SMTP: Porta 25"
@@ -559,7 +559,7 @@ Simplifique o deploy em job com etapas bem estruturadas feedback visual e funcio
        246 +            echo "🔗 URLS DISPONÍVEIS:"
        247 +            echo "  📱 App: http://$VPS_HOST:$APP_PORT"
        248 +            echo "  🏥 Health: http://$VPS_HOST:$APP_PORT/health"
-       249 +            echo "  🌐 Domínio: http://www.urbanmail.com.br:$APP_PORT"
+       249 +            echo "  🌐 Domínio: http://www.ultrazend.com.br:$APP_PORT"
        250 +            echo ""
        251 +            echo "✅ Aplicação UrbanSend está online!"
        252   \ No newline at end of file

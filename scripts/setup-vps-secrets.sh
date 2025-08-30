@@ -22,7 +22,7 @@ log_error() { echo -e "${RED}❌ $1${NC}"; }
 # === INFORMAÇÕES ===
 REPO_URL="https://github.com/fernandinhomartins40/urbansend/"
 VPS_IP="72.60.10.112"
-DOMAIN="www.urbanmail.com.br"
+DOMAIN="www.ultrazend.com.br"
 
 log_info "Repositório: $REPO_URL"
 log_info "VPS IP: $VPS_IP"  

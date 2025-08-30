@@ -12,7 +12,7 @@ on:
 env:
   VPS_HOST: 31.97.162.155
   VPS_USER: root
-  DEPLOY_PATH: /var/www/urbansend
+  DEPLOY_PATH: /var/www/ultrazend
   APP_DOMAIN: www.ultrazend.com.br
 
 jobs:
@@ -92,9 +92,9 @@ jobs:
           
           # Criar estrutura de diretórios
           echo "📁 Criando estrutura de diretórios..."
-          mkdir -p /var/www/urbansend/{backend,frontend,data,logs,backup}
-          chown -R www-data:www-data /var/www/urbansend
-          chmod 755 /var/www/urbansend
+          mkdir -p /var/www/ultrazend/{backend,frontend,data,logs,backup}
+          chown -R www-data:www-data /var/www/ultrazend
+          chmod 755 /var/www/ultrazend
           
           echo "✅ VPS configurada"
           SCRIPT
@@ -132,7 +132,7 @@ jobs:
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'CONFIG'
           set -e
-          cd /var/www/urbansend
+          cd /var/www/ultrazend
           
           # Instalar dependências de produção no backend
           echo "📦 Instalando dependências de produção..."
@@ -141,8 +141,8 @@ jobs:
           
           # Configurar nginx
           echo "🌐 Configurando nginx..."
-          cp /tmp/urbansend-nginx-ssl.conf /etc/nginx/sites-available/urbansend
-          ln -sf /etc/nginx/sites-available/urbansend /etc/nginx/sites-enabled/
+          cp /tmp/urbansend-nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+          ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
           rm -f /etc/nginx/sites-enabled/default
           nginx -t && systemctl reload nginx
           
@@ -160,11 +160,11 @@ jobs:
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'DEPLOY'
           set -e
-          cd /var/www/urbansend
+          cd /var/www/ultrazend
           
           # Parar aplicação existente
           echo "🛑 Parando aplicação existente..."
-          pm2 delete urbansend 2>/dev/null || echo "Nenhuma aplicação rodando"
+          pm2 delete ultrazend 2>/dev/null || echo "Nenhuma aplicação rodando"
           
           # Iniciar aplicação com PM2
           echo "▶️ Iniciando aplicação com PM2..."
@@ -188,10 +188,10 @@ jobs:
             echo "❌ Falha ao iniciar aplicação"
             echo ""
             echo "📋 Logs da aplicação (PM2):"
-            pm2 logs urbansend --lines 30 || echo "Sem logs PM2"
+            pm2 logs ultrazend --lines 30 || echo "Sem logs PM2"
             echo ""
             echo "📋 Status detalhado PM2:"
-            pm2 describe urbansend || echo "Processo não encontrado"
+            pm2 describe ultrazend || echo "Processo não encontrado"
             echo ""
             echo "🔍 Verificando arquivos dist:"
             ls -la backend/dist/ || echo "Pasta dist não encontrada"

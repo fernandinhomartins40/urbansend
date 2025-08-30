@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# UrbanSend Multi-Container Deploy Script
+# UltraZend Multi-Container Deploy Script
 set -e
 
 VPS_IP="72.60.10.112"
 VPS_USER="root"
-DEPLOY_PATH="/var/www/urbansend"
+DEPLOY_PATH="/var/www/ultrazend"
 REPO_URL="https://github.com/fernandinhomartins40/urbansend.git"
-APP_NAME="urbansend"
-DOMAIN="www.urbanmail.com.br"
+APP_NAME="ultrazend"
+DOMAIN="www.ultrazend.com.br"
 NETWORK_NAME="${APP_NAME}_network"
 BACKEND_PORT="3010"
 FRONTEND_PORT="3011"
@@ -185,24 +185,24 @@ docker ps --filter 'name=${APP_NAME}_'
 echo "🔧 Updating nginx configuration..."
 ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} << 'EOF'
 # Update nginx configuration with correct ports
-sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/urbanmail.com.br || true
-sed -i 's/localhost:3021/localhost:3011/g' /etc/nginx/sites-available/urbanmail.com.br || true
+sed -i 's/localhost:3020/localhost:3010/g' /etc/nginx/sites-available/ultrazend.com.br || true
+sed -i 's/localhost:3021/localhost:3011/g' /etc/nginx/sites-available/ultrazend.com.br || true
 
 # Create proper nginx config if doesn't exist
-cat > /etc/nginx/sites-available/urbanmail.com.br << 'NGINXCONF'
+cat > /etc/nginx/sites-available/ultrazend.com.br << 'NGINXCONF'
 server {
     listen 80;
-    server_name www.urbanmail.com.br;
+    server_name www.ultrazend.com.br;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name www.urbanmail.com.br;
+    server_name www.ultrazend.com.br;
 
     # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/www.urbanmail.com.br/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/www.urbanmail.com.br/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
@@ -232,7 +232,7 @@ server {
 NGINXCONF
 
 # Enable the site
-ln -sf /etc/nginx/sites-available/urbanmail.com.br /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/ultrazend.com.br /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
 # Test and reload nginx

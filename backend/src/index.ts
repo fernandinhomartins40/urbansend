@@ -12,7 +12,7 @@ import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
-import UrbanSendSMTPServer from './services/smtpServer';
+import UltraZendSMTPServer from './services/smtpServer';
 import SMTPDeliveryService from './services/smtpDelivery';
 import './services/queueService'; // Initialize queue processors
 
@@ -26,7 +26,15 @@ import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 
-dotenv.config();
+// Load environment variables from configs directory
+import path from 'path';
+const configPath = path.resolve(process.cwd(), 'configs', '.env.production');
+dotenv.config({ path: configPath });
+
+// Fallback to development if production config doesn't exist
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config(); // This loads .env from root for development
+}
 
 // CORS allowed origins - load from environment variables for security
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
@@ -216,7 +224,7 @@ const startServer = async () => {
     });
 
     // Start SMTP server
-    const smtpServer = new UrbanSendSMTPServer();
+    const smtpServer = new UltraZendSMTPServer();
     await smtpServer.start();
 
     // Start email queue processor

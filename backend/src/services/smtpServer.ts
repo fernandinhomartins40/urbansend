@@ -5,7 +5,7 @@ import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import db from '../config/database';
 
-class UrbanSendSMTPServer {
+class UltraZendSMTPServer {
   private server: SMTPServer;
   private port: number;
 
@@ -13,7 +13,7 @@ class UrbanSendSMTPServer {
     this.port = Env.getNumber('SMTP_SERVER_PORT', 25);
     this.server = new SMTPServer({
       name: Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br'),
-      banner: 'UrbanMail SMTP Server Ready',
+      banner: 'UltraZend SMTP Server Ready',
       authOptional: Env.isDevelopment, // Require auth in production
       authMethods: ['PLAIN', 'LOGIN'], // Secure auth methods only
       onAuth: this.handleAuth.bind(this),
@@ -178,7 +178,7 @@ class UrbanSendSMTPServer {
           logger.error('Failed to start SMTP server', { error: err, port: this.port });
           reject(err);
         } else {
-          logger.info('🚀 UrbanMail SMTP Server started', {
+          logger.info('🚀 UltraZend SMTP Server started', {
             port: this.port,
             hostname: Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')
           });
@@ -198,4 +198,4 @@ class UrbanSendSMTPServer {
   }
 }
 
-export default UrbanSendSMTPServer;
+export default UltraZendSMTPServer;

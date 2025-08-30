@@ -9,7 +9,7 @@ VPS_IP="72.60.10.112"
 VPS_USER="root"
 DEPLOY_PATH="/var/www/urbansend"
 APP_NAME="urbansend"
-DOMAIN="www.urbanmail.com.br"
+DOMAIN="www.ultrazend.com.br"
 COMPOSE_FILE="docker-compose.production.yml"
 
 echo "🚀 UrbanSend Professional Deployment"

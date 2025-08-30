@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 🚀 Script de Deploy para VPS - UrbanSend
+# 🚀 Script de Deploy para VPS - UltraZend
 # VPS: 72.60.10.112
 
 set -e
@@ -8,7 +8,7 @@ set -e
 # === CONFIGURAÇÕES ===
 VPS_IP="72.60.10.112"
 VPS_USER="root"  # Ajustar conforme necessário
-VPS_PATH="/opt/urbansend"
+VPS_PATH="/opt/ultrazend"
 LOCAL_PATH="$(pwd)"
 
 # === CORES ===
@@ -23,7 +23,7 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
-echo "🚀 Deploy UrbanSend para VPS"
+echo "🚀 Deploy UltraZend para VPS"
 echo "🌐 IP: $VPS_IP"
 echo "📁 Destino: $VPS_PATH"
 echo "📅 $(date)"

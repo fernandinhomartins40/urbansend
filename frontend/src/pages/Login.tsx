@@ -89,9 +89,9 @@ export function Login() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center space-x-2 mb-4">
             <div className="h-12 w-12 rounded-lg bg-primary-blue flex items-center justify-center">
-              <span className="text-white font-bold text-lg">US</span>
+              <span className="text-white font-bold text-lg">UZ</span>
             </div>
-            <span className="text-2xl font-bold text-white">UrbanSend</span>
+            <span className="text-2xl font-bold text-white">UltraZend</span>
           </div>
           <p className="text-gray-400">
             {isLogin ? 'Faça login em sua conta' : 'Crie sua conta gratuita'}
@@ -261,7 +261,7 @@ export function Login() {
         </Card>
 
         <div className="mt-8 text-center text-sm text-gray-400">
-          <p>© 2024 UrbanSend. Todos os direitos reservados.</p>
+          <p>© 2024 UltraZend. Todos os direitos reservados.</p>
         </div>
       </div>
     </div>

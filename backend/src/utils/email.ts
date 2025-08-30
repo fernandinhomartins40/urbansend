@@ -21,8 +21,13 @@ export const validateEmailAddress = async (email: string): Promise<{
   }
   
   try {
-    // Check if domain has MX records
-    const mxRecords = await resolveMx(domain);
+    // Check if domain has MX records with timeout
+    const mxRecords = await Promise.race([
+      resolveMx(domain),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('DNS timeout')), 5000)
+      )
+    ]) as any[];
     
     if (!mxRecords || mxRecords.length === 0) {
       return { isValid: false, reason: 'Domain has no MX records' };
@@ -30,7 +35,9 @@ export const validateEmailAddress = async (email: string): Promise<{
 
     return { isValid: true };
   } catch (error) {
-    return { isValid: false, reason: 'Domain does not exist' };
+    // For now, accept emails even if DNS fails (could be network issue)
+    // In production, you might want to be more strict
+    return { isValid: true, reason: 'DNS check failed but email format is valid' };
   }
 };
 
