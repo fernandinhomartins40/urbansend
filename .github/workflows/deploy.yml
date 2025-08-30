@@ -186,11 +186,29 @@ jobs:
             echo "✅ Aplicação iniciada com sucesso"
           else
             echo "❌ Falha ao iniciar aplicação"
-            echo "📋 Logs da aplicação:"
-            pm2 logs urbansend --lines 20
+            echo ""
+            echo "📋 Logs da aplicação (PM2):"
+            pm2 logs urbansend --lines 30 || echo "Sem logs PM2"
+            echo ""
+            echo "📋 Status detalhado PM2:"
+            pm2 describe urbansend || echo "Processo não encontrado"
+            echo ""
+            echo "🔍 Verificando arquivos dist:"
+            ls -la backend/dist/ || echo "Pasta dist não encontrada"
+            echo ""
+            echo "🔍 Verificando dependências:"
+            ls -la backend/node_modules/ | head -10 || echo "node_modules não encontrado"
+            echo ""
+            echo "🔍 Verificando .env:"
+            ls -la backend/.env || echo ".env não encontrado"
             echo ""
             echo "🔍 Verificando portas em uso:"
             netstat -tlnp | grep ":3001" || echo "Porta 3001 não está em uso"
+            echo ""
+            echo "🔍 Tentando executar aplicação manualmente:"
+            cd backend && node dist/index.js 2>&1 | head -10 &
+            sleep 3
+            kill $! 2>/dev/null || echo "Processo já parou"
             exit 1
           fi
           
