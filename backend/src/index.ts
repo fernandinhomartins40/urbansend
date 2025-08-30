@@ -5,7 +5,10 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import { Server } from 'socket.io';
+import fs from 'fs';
+import path from 'path';
 
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { logger } from './config/logger';
@@ -27,7 +30,6 @@ import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 
 // Load environment variables from configs directory
-import path from 'path';
 const configPath = path.resolve(process.cwd(), 'configs', '.env.production');
 dotenv.config({ path: configPath });
 
@@ -46,15 +48,46 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS ?
   ];
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
+
+// No more trust proxy needed - direct SSL connection
+app.set('trust proxy', false);
+
+// SSL Configuration for production
+let server;
+let httpsServer;
+const PORT = Env.getNumber('PORT', 3000);
+const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443);
+
+if (Env.isProduction) {
+  try {
+    const sslOptions = {
+      key: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
+      cert: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
+    };
+    
+    // Create HTTPS server
+    httpsServer = createHttpsServer(sslOptions, app);
+    
+    // Create HTTP server for redirects
+    server = createServer((req, res) => {
+      res.writeHead(301, { "Location": "https://" + req.headers['host'] + req.url });
+      res.end();
+    });
+    
+  } catch (error) {
+    logger.error('SSL certificate not found, falling back to HTTP', error);
+    server = createServer(app);
+  }
+} else {
+  server = createServer(app);
+}
+
+const io = new Server(httpsServer || server, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
-
-const PORT = Env.getNumber('PORT', 3000);
 
 // Security middleware
 app.use(helmet({
@@ -145,6 +178,11 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip failing requests to avoid issues with proxy setup
+  skip: (req) => {
+    // Skip rate limiting if there are issues with IP detection
+    return false;
+  },
 });
 
 app.use(limiter);
@@ -216,12 +254,27 @@ const startServer = async () => {
     await db.migrate.latest();
     logger.info('Database migrations completed');
 
-    // Start HTTP server
-    server.listen(PORT, () => {
-      logger.info(`🚀 HTTP Server running on port ${PORT}`);
-      logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
-      logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
-    });
+    // Start servers
+    if (Env.isProduction && httpsServer) {
+      // Start HTTPS server on port 443
+      httpsServer.listen(HTTPS_PORT, () => {
+        logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
+        logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
+        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
+      });
+      
+      // Start HTTP redirect server on port 80
+      server.listen(80, () => {
+        logger.info(`↩️  HTTP Redirect Server running on port 80`);
+      });
+    } else {
+      // Development: HTTP only
+      server.listen(PORT, () => {
+        logger.info(`🚀 HTTP Server running on port ${PORT}`);
+        logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
+        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
+      });
+    }
 
     // Start SMTP server
     const smtpServer = new UltraZendSMTPServer();
@@ -250,23 +303,37 @@ const startServer = async () => {
 };
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Server closed');
+const gracefulShutdown = () => {
+  logger.info('Shutting down gracefully');
+  
+  const closePromises = [];
+  
+  if (server) {
+    closePromises.push(new Promise((resolve) => {
+      server.close(() => {
+        logger.info('HTTP Server closed');
+        resolve(void 0);
+      });
+    }));
+  }
+  
+  if (httpsServer) {
+    closePromises.push(new Promise((resolve) => {
+      httpsServer.close(() => {
+        logger.info('HTTPS Server closed');
+        resolve(void 0);
+      });
+    }));
+  }
+  
+  Promise.all(closePromises).then(() => {
     db.destroy();
     process.exit(0);
   });
-});
+};
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Server closed');
-    db.destroy();
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 startServer();
 

@@ -78,12 +78,16 @@ export const apiKeyRateLimit = rateLimit({
 // Rate limiting for user registration
 export const registrationRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // Maximum 3 registrations per IP per hour
+  max: 10, // Increased to 10 registrations per IP per hour
   message: {
     error: 'Limite de registros excedido. Tente novamente em 1 hora.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req: Request) => {
+    // Skip rate limiting in development to avoid issues during testing
+    return !Env.isProduction;
+  },
   handler: (req: Request) => {
     logger.warn('Registration rate limit exceeded', {
       ip: req.ip,
