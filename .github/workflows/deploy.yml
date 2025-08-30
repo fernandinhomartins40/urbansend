@@ -1,7 +1,7 @@
-# 🚀 Direct VPS Deploy - UrbanSend (No Docker)
+# 🚀 Direct VPS Deploy - UltraZend (No Docker)
 # Direct deployment to VPS with nginx + PM2
 
-name: 🚀 Deploy UrbanSend Direct
+name: 🚀 Deploy UltraZend Direct
 
 on:
   push:
@@ -26,198 +26,185 @@ jobs:
       - name: 📥 1️⃣ Checkout & Setup
         uses: actions/checkout@v4
         
-      - name: 🔧 2️⃣ Install Dependencies
+      - name: 🔧 2️⃣ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: 📦 3️⃣ Install Dependencies & Build
         run: |
-          echo "🔧 Instalando dependências..."
+          echo "📦 Instalando dependências do backend..."
+          cd backend && npm ci
+          
+          echo "🏗️ Construindo backend..."
+          npm run build
+          
+          echo "📦 Instalando dependências do frontend..."
+          cd ../frontend && npm ci
+          
+          echo "🏗️ Construindo frontend..."
+          npm run build
+
+      - name: 🔧 4️⃣ Install SSH Tools
+        run: |
+          echo "🔧 Instalando ferramentas SSH..."
           sudo apt-get update -qq
-          sudo apt-get install -y sshpass curl
+          sudo apt-get install -y sshpass rsync
           
           echo "🔐 Testando conexão SSH..."
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
             $VPS_USER@$VPS_HOST "echo '✅ SSH conectado com sucesso'"
 
-      # ==================== BUILD LOCAL ====================
-      - name: 🏗️ 3️⃣ Build Docker Image
-        run: |
-          echo "🏗️ Construindo imagem Docker..."
-          docker build -t urbansend:latest . --no-cache
-          
-          echo "📊 Verificando imagem construída..."
-          docker images | grep urbansend
-          
-          echo "💾 Exportando imagem..."
-          docker save urbansend:latest | gzip > urbansend-image.tar.gz
-          IMAGE_SIZE=$(du -h urbansend-image.tar.gz | cut -f1)
-          echo "📦 Tamanho da imagem: $IMAGE_SIZE"
-
       # ==================== PREPARAR VPS ====================
-      - name: 🛠️ 4️⃣ Setup VPS Environment
+      - name: 🛠️ 5️⃣ Setup VPS Environment
         run: |
           echo "🛠️ Configurando ambiente da VPS..."
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'SCRIPT'
           set -e
           
-          # Instalar Docker se necessário
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "📦 Instalando Docker..."
-            curl -fsSL https://get.docker.com | sh
-            systemctl enable docker
-            systemctl start docker
+          # Instalar Node.js se necessário
+          if ! command -v node >/dev/null 2>&1; then
+            echo "📦 Instalando Node.js..."
+            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+            apt-get install -y nodejs
           else
-            echo "✅ Docker já instalado"
+            echo "✅ Node.js já instalado: $(node -v)"
           fi
           
-          # Instalar Docker Compose
-          if ! command -v docker-compose >/dev/null 2>&1; then
-            echo "📦 Instalando Docker Compose..."
-            curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-Linux-x86_64" \
-              -o /usr/local/bin/docker-compose
-            chmod +x /usr/local/bin/docker-compose
+          # Instalar PM2 globalmente
+          if ! command -v pm2 >/dev/null 2>&1; then
+            echo "📦 Instalando PM2..."
+            npm install -g pm2
           else
-            echo "✅ Docker Compose já instalado"
+            echo "✅ PM2 já instalado"
           fi
           
-          # Criar diretórios
-          echo "📁 Criando diretórios..."
-          mkdir -p /opt/urbansend/{data,logs,backup}
-          chmod -R 755 /opt/urbansend
+          # Instalar nginx se necessário
+          if ! command -v nginx >/dev/null 2>&1; then
+            echo "📦 Instalando nginx..."
+            apt-get update
+            apt-get install -y nginx
+            systemctl enable nginx
+          else
+            echo "✅ nginx já instalado"
+          fi
+          
+          # Criar estrutura de diretórios
+          echo "📁 Criando estrutura de diretórios..."
+          mkdir -p $DEPLOY_PATH/{backend,frontend,data,logs,backup}
+          chown -R www-data:www-data $DEPLOY_PATH
+          chmod 755 $DEPLOY_PATH
           
           echo "✅ VPS configurada"
           SCRIPT
 
       # ==================== TRANSFERIR ARQUIVOS ====================
-      - name: 📤 5️⃣ Transfer Files
+      - name: 📤 6️⃣ Transfer Files
         run: |
           echo "📤 Enviando arquivos para VPS..."
           
-          # Enviar imagem Docker
-          echo "🐳 Enviando imagem Docker..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-            urbansend-image.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
+          # Enviar backend build
+          echo "🏗️ Enviando backend..."
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
+            --exclude=node_modules backend/ $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/
           
-          # Enviar docker-compose
-          echo "📋 Enviando docker-compose.yml..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-            docker-compose.yml $VPS_USER@$VPS_HOST:$VPS_PATH/
+          # Enviar frontend build
+          echo "🌐 Enviando frontend..."
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
+            frontend/dist/ $VPS_USER@$VPS_HOST:$DEPLOY_PATH/frontend/
           
-          # Enviar configurações Docker
+          # Enviar configurações
           echo "⚙️ Enviando configurações..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -r \
-            docker/ $VPS_USER@$VPS_HOST:$VPS_PATH/
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+            configs/nginx.conf $VPS_USER@$VPS_HOST:/tmp/urbansend-nginx.conf
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+            configs/ecosystem.config.js $VPS_USER@$VPS_HOST:$DEPLOY_PATH/
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+            configs/.env.production $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/.env
           
           echo "✅ Todos os arquivos enviados"
 
       # ==================== CONFIGURAR PRODUÇÃO ====================
-      - name: ⚙️ 6️⃣ Configure Production
+      - name: ⚙️ 7️⃣ Configure Production
         run: |
           echo "⚙️ Configurando ambiente de produção..."
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'CONFIG'
-          cd /opt/urbansend
+          set -e
+          cd $DEPLOY_PATH
           
-          # Criar .env de produção
-          cat > docker/.env.production << 'ENV'
-          NODE_ENV=production
-          PORT=3001
-          INTERNAL_PORT=3010
-          DOMAIN=www.ultrazend.com.br
-          PUBLIC_URL=http://www.ultrazend.com.br
-          API_URL=http://www.ultrazend.com.br/api
-          DATABASE_URL=/app/data/database.sqlite
-          JWT_SECRET=urbansend_jwt_secret_key_production_2024_secure_32_chars_minimum
-          COOKIE_SECRET=urbansend_cookie_secret_production_2024_secure_32_chars_min
-          API_KEY_SALT=urbansend_api_key_salt_production_2024_secure_32_chars_min
-          ALLOWED_ORIGINS=http://www.ultrazend.com.br,https://www.ultrazend.com.br
-          SMTP_SERVER_PORT=25
-          SMTP_HOSTNAME=www.ultrazend.com.br
-          FROM_EMAIL=noreply@ultrazend.com.br
-          FROM_NAME=UltraZend
-          LOG_LEVEL=info
-          RATE_LIMIT_MAX_REQUESTS=100
-          ENV
+          # Instalar dependências de produção no backend
+          echo "📦 Instalando dependências de produção..."
+          cd backend
+          npm ci --only=production
           
-          # Tornar scripts executáveis
-          chmod +x docker/start.sh 2>/dev/null || true
+          # Configurar nginx
+          echo "🌐 Configurando nginx..."
+          cp /tmp/urbansend-nginx.conf /etc/nginx/sites-available/urbansend
+          ln -sf /etc/nginx/sites-available/urbansend /etc/nginx/sites-enabled/
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t && systemctl reload nginx
           
-          echo "✅ Configuração de produção criada"
+          # Executar migrações do banco
+          echo "💾 Executando migrações..."
+          npm run migrate:latest || echo "Migrações não encontradas ou falhou"
+          
+          echo "✅ Configuração de produção concluída"
           CONFIG
 
       # ==================== DEPLOY APLICAÇÃO ====================
-      - name: 🚀 7️⃣ Deploy Application
+      - name: 🚀 8️⃣ Deploy Application
         run: |
           echo "🚀 Fazendo deploy da aplicação..."
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'DEPLOY'
           set -e
-          cd /opt/urbansend
+          cd $DEPLOY_PATH
           
           # Parar aplicação existente
           echo "🛑 Parando aplicação existente..."
-          docker-compose down --remove-orphans 2>/dev/null || true
+          pm2 delete urbansend 2>/dev/null || echo "Nenhuma aplicação rodando"
           
-          # Limpar imagens antigas mais agressivamente
-          echo "🧹 Limpando imagens antigas..."
-          docker rmi urbansend:latest 2>/dev/null || true
-          docker system prune -af >/dev/null 2>&1 || true
+          # Iniciar aplicação com PM2
+          echo "▶️ Iniciando aplicação com PM2..."
+          pm2 start ecosystem.config.js
           
-          # Carregar nova imagem
-          echo "📦 Carregando nova imagem Docker..."
-          gunzip -c urbansend-image.tar.gz | docker load
-          
-          # Verificar imagem carregada
-          echo "🔍 Verificando imagem carregada..."
-          docker images | grep urbansend || echo "⚠️ Imagem não encontrada"
-          
-          # Iniciar aplicação
-          echo "▶️ Iniciando nova aplicação..."
-          docker-compose up -d
+          # Salvar configuração PM2
+          pm2 save
+          pm2 startup | tail -1 | bash || echo "PM2 startup já configurado"
           
           # Aguardar inicialização
-          echo "⏳ Aguardando inicialização (30s)..."
-          sleep 30
+          echo "⏳ Aguardando inicialização (15s)..."
+          sleep 15
           
           # Verificar status
-          echo "🔍 Verificando status dos containers..."
-          docker-compose ps
+          echo "🔍 Verificando status da aplicação..."
+          pm2 status
           
-          if docker-compose ps | grep -q "Up"; then
+          if pm2 list | grep -q "online"; then
             echo "✅ Aplicação iniciada com sucesso"
           else
             echo "❌ Falha ao iniciar aplicação"
-            echo "📋 Logs completos do container:"
-            docker logs urbansend-app --timestamps
-            echo ""
-            echo "📋 Logs via docker-compose (últimas 50 linhas):"
-            docker-compose logs --tail 50
-            echo ""
-            echo "🔍 Status detalhado dos containers:"
-            docker ps -a
-            echo ""
-            echo "🔍 Inspecionando container:"
-            docker inspect urbansend-app | grep -A 10 -B 5 "Status\|RestartCount\|Error" || true
+            echo "📋 Logs da aplicação:"
+            pm2 logs urbansend --lines 20
             echo ""
             echo "🔍 Verificando portas em uso:"
-            netstat -tlnp | grep -E ":3010|:25" || echo "Nenhuma porta 3010 ou 25 em uso"
-            echo ""
-            echo "🔍 Tentando executar comando dentro do container:"
-            docker exec urbansend-app whoami || echo "Container não permite exec"
-            docker exec urbansend-app ls -la /app/ || echo "Container não permite exec"
+            netstat -tlnp | grep ":3001" || echo "Porta 3001 não está em uso"
             exit 1
           fi
           
-          # Limpeza
-          rm -f urbansend-image.tar.gz
           echo "🎉 Deploy concluído!"
           DEPLOY
 
       # ==================== VERIFICAÇÕES FINAIS ====================
-      - name: 🧪 8️⃣ Health Check
+      - name: 🧪 9️⃣ Health Check
         run: |
           echo "🧪 Executando verificações de saúde..."
           
           # Aguardar estabilização
-          sleep 15
+          sleep 10
           
           # Testar endpoint de saúde
           echo "🏥 Testando endpoint /health..."
@@ -226,7 +213,7 @@ jobs:
           for i in {1..10}; do
             echo "🔄 Tentativa $i/10..."
             
-            if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST:$APP_PORT/health" 2>/dev/null; then
+            if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST/api/health" 2>/dev/null; then
               echo "✅ Health check passou na tentativa $i"
               HEALTH_OK=true
               break
@@ -241,20 +228,20 @@ jobs:
             echo "❌ Health check falhou após 10 tentativas"
             echo "🔍 Verificando status da VPS..."
             sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST \
-              "cd /opt/urbansend && docker-compose logs --tail 20"
+              "cd $DEPLOY_PATH && pm2 logs urbansend --lines 20"
             exit 1
           fi
           
           # Testar página principal
           echo "🌐 Testando página principal..."
-          if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST:$APP_PORT/" >/dev/null 2>&1; then
+          if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST/" >/dev/null 2>&1; then
             echo "✅ Página principal respondendo"
           else
             echo "⚠️ Página principal não responde (pode ser normal)"
           fi
 
       # ==================== RESUMO FINAL ====================
-      - name: 📊 9️⃣ Summary
+      - name: 📊 🔟 Summary
         run: |
           echo ""
           echo "🎉 ===== DEPLOY CONCLUÍDO COM SUCESSO ====="
@@ -262,13 +249,14 @@ jobs:
           echo "📋 INFORMAÇÕES DO DEPLOY:"
           echo "  🌐 Domínio: www.ultrazend.com.br"
           echo "  🔌 IP VPS: $VPS_HOST"
-          echo "  🚪 Porta: $APP_PORT"
+          echo "  🚪 Backend: Porta 3001 (via nginx)"
+          echo "  🌐 Frontend: nginx porta 80"
           echo "  📧 SMTP: Porta 25"
           echo "  ⏰ Deploy: $(date '+%d/%m/%Y %H:%M:%S')"
           echo ""
           echo "🔗 URLS DISPONÍVEIS:"
-          echo "  📱 App: http://$VPS_HOST:$APP_PORT"
-          echo "  🏥 Health: http://$VPS_HOST:$APP_PORT/health"
-          echo "  🌐 Domínio: http://www.ultrazend.com.br:$APP_PORT"
+          echo "  🌐 App: http://www.ultrazend.com.br"
+          echo "  🏥 Health: http://www.ultrazend.com.br/api/health"
+          echo "  📱 Direct IP: http://$VPS_HOST"
           echo ""
-          echo "✅ Aplicação UrbanSend está online!"
+          echo "✅ Aplicação UltraZend está online!"
