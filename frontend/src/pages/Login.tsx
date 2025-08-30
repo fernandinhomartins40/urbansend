@@ -22,15 +22,43 @@ const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Senha deve conter ao menos: 1 minúscula, 1 maiúscula, 1 número'),
+    .regex(/^(?=.*[A-Z])(?=.*[@$!%*?&])/, 'Senha deve conter pelo menos: 1 letra maiúscula e 1 caractere especial'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "As senhas não coincidem",
+  path: ["confirmPassword"],
 })
 
 type LoginForm = z.infer<typeof loginSchema>
 type RegisterForm = z.infer<typeof registerSchema>
 
+// Função para calcular força da senha
+const calculatePasswordStrength = (password: string) => {
+  let strength = 0
+  const checks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    numbers: /\d/.test(password),
+    special: /[@$!%*?&]/.test(password)
+  }
+  
+  Object.values(checks).forEach(check => {
+    if (check) strength++
+  })
+  
+  return {
+    score: strength,
+    checks,
+    label: strength < 2 ? 'Fraca' : strength < 4 ? 'Média' : 'Forte',
+    color: strength < 2 ? 'text-red-500' : strength < 4 ? 'text-yellow-500' : 'text-green-500'
+  }
+}
+
 export function Login() {
   const [isLogin, setIsLogin] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuthStore()
@@ -49,6 +77,7 @@ export function Login() {
       name: '',
       email: '',
       password: '',
+      confirmPassword: '',
     },
   })
 
@@ -59,10 +88,18 @@ export function Login() {
       const { user, tokens } = response.data
       
       login(user, tokens.access_token)
-      toast.success('Login realizado com sucesso!')
+      toast.success(`✅ Bem-vindo de volta, ${user.name}!`)
       navigate('/app')
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Erro ao fazer login')
+      const errorMessage = error.response?.data?.message || 'Erro ao fazer login'
+      
+      if (errorMessage.includes('Invalid credentials')) {
+        toast.error('❌ Email ou senha incorretos. Verifique suas credenciais.')
+      } else if (errorMessage.includes('verify')) {
+        toast.error('❌ Você precisa verificar seu email antes de fazer login.')
+      } else {
+        toast.error(`❌ ${errorMessage}`)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -71,12 +108,27 @@ export function Login() {
   const onRegister = async (data: RegisterForm) => {
     setIsLoading(true)
     try {
-      await authApi.register(data)
-      toast.success('Usuário registrado com sucesso! Verifique seu email.')
+      // Remove confirmPassword antes de enviar
+      const { confirmPassword, ...registerData } = data
+      await authApi.register(registerData)
+      toast.success('🎉 Usuário registrado com sucesso! Verifique seu email para confirmar sua conta.', {
+        duration: 5000,
+      })
       setIsLogin(true)
       registerForm.reset()
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Erro ao registrar usuário')
+      const errorMessage = error.response?.data?.message || 'Erro ao registrar usuário'
+      
+      // Notificações mais específicas baseadas no tipo de erro
+      if (errorMessage.includes('already exists')) {
+        toast.error('❌ Este email já está registrado. Tente fazer login ou use outro email.')
+      } else if (errorMessage.includes('validation')) {
+        toast.error('❌ Dados inválidos. Verifique os campos e tente novamente.')
+      } else if (errorMessage.includes('password')) {
+        toast.error('❌ Senha não atende aos requisitos mínimos.')
+      } else {
+        toast.error(`❌ ${errorMessage}`)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -221,9 +273,87 @@ export function Login() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  
+                  {/* Feedback de força da senha */}
+                  {registerForm.watch('password') && (
+                    <div className="space-y-1">
+                      {(() => {
+                        const strength = calculatePasswordStrength(registerForm.watch('password'))
+                        return (
+                          <>
+                            <div className="flex items-center justify-between text-xs">
+                              <span>Força da senha:</span>
+                              <span className={strength.color}>{strength.label}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1">
+                              <div 
+                                className={`h-1 rounded-full transition-all ${
+                                  strength.score < 2 ? 'bg-red-500' : 
+                                  strength.score < 4 ? 'bg-yellow-500' : 'bg-green-500'
+                                }`}
+                                style={{ width: `${(strength.score / 5) * 100}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500 space-y-1">
+                              <div className="flex flex-wrap gap-2">
+                                <span className={strength.checks.length ? 'text-green-500' : 'text-gray-400'}>
+                                  ✓ 8+ caracteres
+                                </span>
+                                <span className={strength.checks.uppercase ? 'text-green-500' : 'text-gray-400'}>
+                                  ✓ Maiúscula
+                                </span>
+                                <span className={strength.checks.special ? 'text-green-500' : 'text-gray-400'}>
+                                  ✓ Especial
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  )}
+                  
                   {registerForm.formState.errors.password && (
                     <p className="text-sm text-destructive">
                       {registerForm.formState.errors.password.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className="pl-10 pr-10"
+                      {...registerForm.register('confirmPassword')}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  
+                  {/* Feedback de confirmação */}
+                  {registerForm.watch('confirmPassword') && registerForm.watch('password') && (
+                    <div className="text-xs">
+                      {registerForm.watch('password') === registerForm.watch('confirmPassword') ? (
+                        <span className="text-green-500">✓ Senhas coincidem</span>
+                      ) : (
+                        <span className="text-red-500">✗ Senhas não coincidem</span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {registerForm.formState.errors.confirmPassword && (
+                    <p className="text-sm text-destructive">
+                      {registerForm.formState.errors.confirmPassword.message}
                     </p>
                   )}
                 </div>

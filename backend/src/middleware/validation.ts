@@ -39,11 +39,11 @@ export const emailSchema = z.string()
   .transform(email => validator.normalizeEmail(email) || email);
 
 export const passwordSchema = z.string()
-  .min(12, 'Senha deve ter pelo menos 12 caracteres')
+  .min(8, 'Senha deve ter pelo menos 8 caracteres')
   .max(128, 'Senha deve ter no máximo 128 caracteres')
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, 
-    'Senha deve conter pelo menos: 1 letra minúscula, 1 maiúscula, 1 número e 1 caractere especial')
-  .refine(password => !validator.contains(password, 'password'), 
+  .regex(/^(?=.*[A-Z])(?=.*[@$!%*?&])/, 
+    'Senha deve conter pelo menos: 1 letra maiúscula e 1 caractere especial')
+  .refine(password => !validator.contains(password.toLowerCase(), 'password'), 
     'Senha não pode conter a palavra "password"')
   .refine(password => !validator.contains(password, '123456'), 
     'Senha não pode conter sequências numéricas óbvias');

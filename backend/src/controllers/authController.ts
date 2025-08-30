@@ -47,7 +47,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const verificationToken = generateVerificationToken();
 
   // Create user
-  const [userId] = await db('users').insert({
+  const insertResult = await db('users').insert({
     name,
     email,
     password_hash: passwordHash,
@@ -57,6 +57,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     created_at: new Date(),
     updated_at: new Date()
   });
+  
+  // SQLite returns the last inserted row ID
+  const userId = insertResult[0];
 
   // Send verification email (async, don't block response)
   setImmediate(async () => {

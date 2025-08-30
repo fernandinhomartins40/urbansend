@@ -14,13 +14,15 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
 }));
 
 router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const [webhookId] = await db('webhooks').insert({
+  const insertResult = await db('webhooks').insert({
     ...req.body,
     user_id: req.user!.id,
     secret: req.body.secret || generateSecretKey(),
     events: JSON.stringify(req.body.events),
     created_at: new Date()
   });
+  
+  const webhookId = insertResult[0];
   const webhook = await db('webhooks').where('id', webhookId).first();
   res.status(201).json({ webhook });
 }));

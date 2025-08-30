@@ -37,7 +37,8 @@ router.post('/',
       templateData.html_content = sanitizeEmailHtml(templateData.html_content);
     }
 
-    const [templateId] = await db('email_templates').insert(templateData);
+    const insertResult = await db('email_templates').insert(templateData);
+    const templateId = insertResult[0];
 
     const template = await db('email_templates').where('id', templateId).first();
     res.status(201).json({ template });

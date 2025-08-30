@@ -159,7 +159,7 @@ class EmailService {
       const trackingId = generateTrackingId();
 
       // Create email record in database
-      const [rawEmailId] = await db('emails').insert({
+      const insertResult = await db('emails').insert({
         user_id: options.userId,
         api_key_id: options.apiKeyId,
         template_id: options.template_id,
@@ -172,6 +172,7 @@ class EmailService {
         created_at: new Date()
       });
       
+      const rawEmailId = insertResult[0];
       const emailId = Array.isArray(rawEmailId) ? rawEmailId[0] : rawEmailId;
       
       if (!emailId) {
@@ -380,7 +381,7 @@ class EmailService {
       const trackingId = generateTrackingId();
 
       // Create email record in database as queued for real delivery
-      const [rawEmailId] = await db('emails').insert({
+      const insertResult = await db('emails').insert({
         user_id: options.userId,
         api_key_id: options.apiKeyId,
         template_id: options.template_id,
@@ -393,6 +394,7 @@ class EmailService {
         created_at: new Date()
       });
       
+      const rawEmailId = insertResult[0];
       const emailId = Array.isArray(rawEmailId) ? rawEmailId[0] : rawEmailId;
       
       if (!emailId) {

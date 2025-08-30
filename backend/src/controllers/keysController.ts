@@ -45,7 +45,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   const hashedApiKey = await hashApiKey(apiKey);
 
   // Create API key record
-  const [keyId] = await db('api_keys').insert({
+  const insertResult = await db('api_keys').insert({
     user_id: userId,
     key_name,
     api_key_hash: hashedApiKey,
@@ -53,6 +53,8 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     created_at: new Date(),
     is_active: true
   });
+  
+  const keyId = insertResult[0];
 
   logger.info('API key created successfully', { 
     userId, 

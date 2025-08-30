@@ -13,11 +13,13 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
 }));
 
 router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const [domainId] = await db('domains').insert({
+  const insertResult = await db('domains').insert({
     ...req.body,
     user_id: req.user!.id,
     created_at: new Date()
   });
+  
+  const domainId = insertResult[0];
   const domain = await db('domains').where('id', domainId).first();
   res.status(201).json({ domain });
 }));
