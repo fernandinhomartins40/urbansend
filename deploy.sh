@@ -8,7 +8,7 @@ set -e
 VPS_HOST="${VPS_HOST:-31.97.162.155}"
 VPS_USER="${VPS_USER:-root}"
 DEPLOY_PATH="/var/www/urbansend"
-APP_DOMAIN="${APP_DOMAIN:-your-domain.com}"
+APP_DOMAIN="${APP_DOMAIN:-www.ultrazend.com.br}"
 
 echo "🚀 Starting UrbanSend deployment to $VPS_HOST"
 echo "=========================================="

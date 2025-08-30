@@ -13,7 +13,7 @@ env:
   VPS_HOST: 31.97.162.155
   VPS_USER: root
   DEPLOY_PATH: /var/www/urbansend
-  APP_DOMAIN: your-domain.com
+  APP_DOMAIN: www.ultrazend.com.br
 
 jobs:
   deploy:
@@ -121,18 +121,18 @@ jobs:
           NODE_ENV=production
           PORT=3001
           INTERNAL_PORT=3010
-          DOMAIN=www.urbanmail.com.br
-          PUBLIC_URL=http://www.urbanmail.com.br
-          API_URL=http://www.urbanmail.com.br/api
+          DOMAIN=www.ultrazend.com.br
+          PUBLIC_URL=http://www.ultrazend.com.br
+          API_URL=http://www.ultrazend.com.br/api
           DATABASE_URL=/app/data/database.sqlite
           JWT_SECRET=urbansend_jwt_secret_key_production_2024_secure_32_chars_minimum
           COOKIE_SECRET=urbansend_cookie_secret_production_2024_secure_32_chars_min
           API_KEY_SALT=urbansend_api_key_salt_production_2024_secure_32_chars_min
-          ALLOWED_ORIGINS=http://www.urbanmail.com.br,https://www.urbanmail.com.br
+          ALLOWED_ORIGINS=http://www.ultrazend.com.br,https://www.ultrazend.com.br
           SMTP_SERVER_PORT=25
-          SMTP_HOSTNAME=www.urbanmail.com.br
-          FROM_EMAIL=noreply@urbanmail.com.br
-          FROM_NAME=UrbanMail
+          SMTP_HOSTNAME=www.ultrazend.com.br
+          FROM_EMAIL=noreply@ultrazend.com.br
+          FROM_NAME=UltraZend
           LOG_LEVEL=info
           RATE_LIMIT_MAX_REQUESTS=100
           ENV
@@ -260,7 +260,7 @@ jobs:
           echo "🎉 ===== DEPLOY CONCLUÍDO COM SUCESSO ====="
           echo ""
           echo "📋 INFORMAÇÕES DO DEPLOY:"
-          echo "  🌐 Domínio: www.urbanmail.com.br"
+          echo "  🌐 Domínio: www.ultrazend.com.br"
           echo "  🔌 IP VPS: $VPS_HOST"
           echo "  🚪 Porta: $APP_PORT"
           echo "  📧 SMTP: Porta 25"
@@ -269,6 +269,6 @@ jobs:
           echo "🔗 URLS DISPONÍVEIS:"
           echo "  📱 App: http://$VPS_HOST:$APP_PORT"
           echo "  🏥 Health: http://$VPS_HOST:$APP_PORT/health"
-          echo "  🌐 Domínio: http://www.urbanmail.com.br:$APP_PORT"
+          echo "  🌐 Domínio: http://www.ultrazend.com.br:$APP_PORT"
           echo ""
           echo "✅ Aplicação UrbanSend está online!"
