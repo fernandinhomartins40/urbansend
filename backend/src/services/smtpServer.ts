@@ -20,8 +20,8 @@ class UrbanSendSMTPServer {
       onConnect: this.handleConnect.bind(this),
       onData: this.handleData.bind(this),
       logger: false, // Use our own logger
-      secure: Env.isProduction, // Force TLS in production
-      allowInsecureAuth: Env.isDevelopment, // Only allow insecure auth in dev
+      secure: false, // Don't force TLS - let client decide
+      allowInsecureAuth: true, // Allow insecure auth for local emails
       maxClients: Env.getNumber('SMTP_MAX_CLIENTS', 100)
     });
   }
