@@ -573,7 +573,7 @@ class EmailService {
       }
 
       await this.sendInternalEmail({
-        from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br')}`,
+        from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
         to: email,
         subject: 'Verifique seu email - UrbanSend',
         html: htmlContent,

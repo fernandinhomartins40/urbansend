@@ -29,7 +29,7 @@ class SMTPDeliveryService {
   private dkimService: DKIMService;
 
   constructor() {
-    this.hostname = Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br');
+    this.hostname = Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br');
     this.dkimService = new DKIMService();
   }
 

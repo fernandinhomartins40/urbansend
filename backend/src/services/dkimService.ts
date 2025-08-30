@@ -23,7 +23,7 @@ class DKIMService {
     // Initialize options first without privateKey
     this.options = {
       selector: Env.get('DKIM_SELECTOR', 'default'),
-      domain: Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br'),
+      domain: Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br'),
       privateKey: '', // Will be set below
       canonicalization: 'relaxed/relaxed',
       headerCanonical: 'relaxed',

@@ -33,8 +33,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS ?
   process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
   [
     ...(Env.isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : []),
-    'https://urbanmail.com.br',
-    'https://www.urbanmail.com.br'
+    'https://ultrazend.com.br',
+    'https://www.ultrazend.com.br'
   ];
 
 const app = express();

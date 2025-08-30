@@ -12,7 +12,7 @@ class UrbanSendSMTPServer {
   constructor() {
     this.port = Env.getNumber('SMTP_SERVER_PORT', 25);
     this.server = new SMTPServer({
-      name: Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br'),
+      name: Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br'),
       banner: 'UrbanMail SMTP Server Ready',
       authOptional: Env.isDevelopment, // Require auth in production
       authMethods: ['PLAIN', 'LOGIN'], // Secure auth methods only
@@ -180,7 +180,7 @@ class UrbanSendSMTPServer {
         } else {
           logger.info('🚀 UrbanMail SMTP Server started', {
             port: this.port,
-            hostname: Env.get('SMTP_HOSTNAME', 'www.urbanmail.com.br')
+            hostname: Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')
           });
           resolve();
         }
