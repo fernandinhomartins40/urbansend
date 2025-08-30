@@ -129,6 +129,67 @@ jobs:
           echo "🧹 Limpando devDependencies..."
           npm ci --only=production
           
+          # Voltar para root e configurar frontend
+          cd /var/www/ultrazend
+          echo "🌐 Configurando frontend..."
+          
+          # Criar diretório frontend se não existir
+          mkdir -p frontend
+          
+          # Copiar frontend build se existir no repositório
+          if [ -d "frontend/dist" ]; then
+            echo "📦 Copiando build do frontend..."
+            cp -r frontend/dist/* frontend/ 2>/dev/null || echo "Frontend dist vazio"
+          else
+            echo "⚠️ Frontend build não encontrado - criando página placeholder"
+            cat > frontend/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UltraZend - Em Breve</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        h1 { color: #333; }
+        p { color: #666; }
+        .api-link { 
+            display: inline-block; 
+            margin: 20px 10px; 
+            padding: 10px 20px; 
+            background: #007bff; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 UltraZend</h1>
+        <p>Sistema de email marketing em produção</p>
+        <p>Frontend em desenvolvimento...</p>
+        <a href="/api-docs" class="api-link">📚 Documentação da API</a>
+        <a href="/health" class="api-link">💚 Status do Sistema</a>
+    </div>
+</body>
+</html>
+EOF
+          fi
+          
           # Configurar permissões do banco
           echo "🔧 Configurando permissões..."
           chown -R www-data:www-data /var/www/ultrazend/data/ || true

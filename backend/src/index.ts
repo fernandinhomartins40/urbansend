@@ -227,6 +227,58 @@ app.use('/api/dns', dnsRoutes);
 // Swagger documentation
 setupSwagger(app);
 
+// Serve static frontend files in production
+if (Env.isProduction) {
+  const frontendPath = path.resolve(__dirname, '../../frontend');
+  
+  // Check if frontend directory exists
+  if (fs.existsSync(frontendPath)) {
+    logger.info(`Serving frontend from: ${frontendPath}`);
+    app.use(express.static(frontendPath));
+    
+    // Handle client-side routing (SPA)
+    app.get('*', (req, res) => {
+      // Don't serve index.html for API routes
+      if (req.path.startsWith('/api/') || req.path.startsWith('/docs')) {
+        return res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
+      }
+      
+      const indexPath = path.join(frontendPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).json({ error: 'Frontend not found', message: 'Frontend files not available' });
+      }
+    });
+  } else {
+    logger.warn(`Frontend directory not found at: ${frontendPath}`);
+    
+    // Fallback route for missing frontend
+    app.get('/', (req, res) => {
+      res.json({
+        message: 'UltraZend API Server',
+        status: 'OK',
+        frontend: 'Not available - frontend files not found',
+        api: '/api/',
+        docs: '/api-docs',
+        timestamp: new Date().toISOString()
+      });
+    });
+  }
+} else {
+  // Development mode - show API info
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'UltraZend API Server - Development',
+      status: 'OK',
+      mode: 'development',
+      api: '/api/',
+      docs: '/api-docs',
+      timestamp: new Date().toISOString()
+    });
+  });
+}
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   logger.info('Client connected to WebSocket', { socketId: socket.id });
