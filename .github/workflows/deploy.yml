@@ -215,50 +215,8 @@ jobs:
           echo "🎉 Deploy concluído!"
           DEPLOY
 
-      # ==================== VERIFICAÇÕES FINAIS ====================
-      - name: 🧪 9️⃣ Health Check
-        run: |
-          echo "🧪 Executando verificações de saúde..."
-          
-          # Aguardar estabilização
-          sleep 10
-          
-          # Testar endpoint de saúde
-          echo "🏥 Testando endpoint /health..."
-          HEALTH_OK=false
-          
-          for i in {1..10}; do
-            echo "🔄 Tentativa $i/10..."
-            
-            if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST/health" 2>/dev/null; then
-              echo "✅ Health check passou na tentativa $i"
-              HEALTH_OK=true
-              break
-            fi
-            
-            if [ $i -lt 10 ]; then
-              sleep 10
-            fi
-          done
-          
-          if [ "$HEALTH_OK" = false ]; then
-            echo "❌ Health check falhou após 10 tentativas"
-            echo "🔍 Verificando status da VPS..."
-            sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST \
-              "cd /var/www/urbansend && pm2 logs urbansend --lines 20"
-            exit 1
-          fi
-          
-          # Testar página principal
-          echo "🌐 Testando página principal..."
-          if curl -f --connect-timeout 5 --max-time 10 "http://$VPS_HOST/" >/dev/null 2>&1; then
-            echo "✅ Página principal respondendo"
-          else
-            echo "⚠️ Página principal não responde (pode ser normal)"
-          fi
-
       # ==================== RESUMO FINAL ====================
-      - name: 📊 🔟 Summary
+      - name: 📊 9️⃣ Summary
         run: |
           echo ""
           echo "🎉 ===== DEPLOY CONCLUÍDO COM SUCESSO ====="
@@ -272,8 +230,7 @@ jobs:
           echo "  ⏰ Deploy: $(date '+%d/%m/%Y %H:%M:%S')"
           echo ""
           echo "🔗 URLS DISPONÍVEIS:"
-          echo "  🌐 App: http://www.ultrazend.com.br"
-          echo "  🏥 Health: http://www.ultrazend.com.br/health"
-          echo "  📱 Direct IP: http://$VPS_HOST"
+          echo "  🌐 App: https://www.ultrazend.com.br"
+          echo "  📱 Direct IP: https://$VPS_HOST"
           echo ""
           echo "✅ Aplicação UltraZend está online!"
