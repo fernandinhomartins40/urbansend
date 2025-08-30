@@ -58,15 +58,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function App() {
-  useAuthEvents()
+function AppRoutes() {
+  useAuthEvents() // Now inside Router context
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
-        <Router>
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
               {/* Public routes */}
               <Route path="/" element={<LandingPage />} />
               <Route 
@@ -167,6 +164,15 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <Router>
+          <AppRoutes />
         </Router>
       </ErrorBoundary>
     </QueryClientProvider>
