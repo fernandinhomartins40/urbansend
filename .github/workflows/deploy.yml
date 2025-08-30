@@ -92,9 +92,9 @@ jobs:
           
           # Criar estrutura de diretórios
           echo "📁 Criando estrutura de diretórios..."
-          mkdir -p $DEPLOY_PATH/{backend,frontend,data,logs,backup}
-          chown -R www-data:www-data $DEPLOY_PATH
-          chmod 755 $DEPLOY_PATH
+          mkdir -p /var/www/urbansend/{backend,frontend,data,logs,backup}
+          chown -R www-data:www-data /var/www/urbansend
+          chmod 755 /var/www/urbansend
           
           echo "✅ VPS configurada"
           SCRIPT
@@ -132,7 +132,7 @@ jobs:
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'CONFIG'
           set -e
-          cd $DEPLOY_PATH
+          cd /var/www/urbansend
           
           # Instalar dependências de produção no backend
           echo "📦 Instalando dependências de produção..."
@@ -160,7 +160,7 @@ jobs:
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'DEPLOY'
           set -e
-          cd $DEPLOY_PATH
+          cd /var/www/urbansend
           
           # Parar aplicação existente
           echo "🛑 Parando aplicação existente..."
@@ -227,7 +227,7 @@ jobs:
             echo "❌ Health check falhou após 10 tentativas"
             echo "🔍 Verificando status da VPS..."
             sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST \
-              "cd $DEPLOY_PATH && pm2 logs urbansend --lines 20"
+              "cd /var/www/urbansend && pm2 logs urbansend --lines 20"
             exit 1
           fi
           
