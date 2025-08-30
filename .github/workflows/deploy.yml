@@ -105,6 +105,10 @@ jobs:
           pm2 stop ultrazend 2>/dev/null || echo "Nenhuma aplicação rodando"
           pm2 delete ultrazend 2>/dev/null || echo "Processo não existia"
           
+          # Corrigir ownership do Git
+          echo "🔧 Corrigindo configuração do Git..."
+          git config --global --add safe.directory /var/www/ultrazend || true
+          
           # Atualizar código do Git
           echo "📦 Atualizando código do repositório..."
           git pull origin main || echo "Erro no git pull, continuando..."
@@ -113,13 +117,17 @@ jobs:
           echo "⚙️ Configurando backend..."
           cd backend
           
-          # Instalar dependências de produção
-          echo "📦 Instalando dependências de produção..."
-          npm install --only=production
+          # Instalar todas as dependências (incluindo dev para compilar)
+          echo "📦 Instalando todas as dependências..."
+          npm install
           
           # Compilar TypeScript
           echo "🔨 Compilando TypeScript..."
           npm run build
+          
+          # Reinstalar só dependências de produção
+          echo "🧹 Limpando devDependencies..."
+          npm ci --only=production
           
           # Configurar permissões do banco
           echo "🔧 Configurando permissões..."
