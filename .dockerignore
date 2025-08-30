@@ -33,7 +33,7 @@ test-results
 playwright-report
 
 # === BUILD ===
-dist
+# dist - Comentado para incluir build do frontend
 build
 .cache
 
@@ -65,7 +65,7 @@ docs/
 
 # === FRONTEND ESPECÍFICO ===
 frontend/.vite
-frontend/dist
+# frontend/dist - Comentado para incluir build do frontend
 
 # === BACKEND ESPECÍFICO ===
 backend/dist
