@@ -130,14 +130,14 @@ app.use(helmet({
 }));
 
 // CORS configuration - secure implementation
-app.use(cors({
+app.use('/api', cors({
   origin: (origin: string | undefined, callback: Function) => {
     // In development, allow requests with no origin (like Postman, mobile apps)
     if (!origin && Env.isDevelopment) {
       return callback(null, true);
     }
     
-    // In production, ALWAYS require origin header
+    // In production, ALWAYS require origin header for API routes
     if (!origin && Env.isProduction) {
       logger.warn('CORS: Request blocked - missing origin header', { 
         timestamp: new Date().toISOString() 
