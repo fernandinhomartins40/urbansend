@@ -42,20 +42,20 @@ router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Resp
     .first();
 
   // Calculate percentages and changes
-  const totalEmails = currentStats.total_emails || 0;
-  const delivered = currentStats.delivered || 0;
-  const opened = currentStats.opened || 0;
-  const bounced = currentStats.bounced || 0;
+  const totalEmails = (currentStats as any)?.total_emails || 0;
+  const delivered = (currentStats as any)?.delivered || 0;
+  const opened = (currentStats as any)?.opened || 0;
+  const bounced = (currentStats as any)?.bounced || 0;
 
   const deliveryRate = totalEmails > 0 ? ((delivered / totalEmails) * 100) : 0;
   const openRate = totalEmails > 0 ? ((opened / totalEmails) * 100) : 0;
   const bounceRate = totalEmails > 0 ? ((bounced / totalEmails) * 100) : 0;
 
   // Calculate percentage changes
-  const prevTotalEmails = previousStats.total_emails || 0;
-  const prevDelivered = previousStats.delivered || 0;
-  const prevOpened = previousStats.opened || 0;
-  const prevBounced = previousStats.bounced || 0;
+  const prevTotalEmails = (previousStats as any)?.total_emails || 0;
+  const prevDelivered = (previousStats as any)?.delivered || 0;
+  const prevOpened = (previousStats as any)?.opened || 0;
+  const prevBounced = (previousStats as any)?.bounced || 0;
 
   const prevDeliveryRate = prevTotalEmails > 0 ? ((prevDelivered / prevTotalEmails) * 100) : 0;
   const prevOpenRate = prevTotalEmails > 0 ? ((prevOpened / prevTotalEmails) * 100) : 0;

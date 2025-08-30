@@ -22,8 +22,7 @@ class UrbanSendSMTPServer {
       logger: false, // Use our own logger
       secure: Env.isProduction, // Force TLS in production
       allowInsecureAuth: Env.isDevelopment, // Only allow insecure auth in dev
-      maxClients: Env.getNumber('SMTP_MAX_CLIENTS', 100),
-      maxAllowedUnauthenticatedCommands: Env.isDevelopment ? 10 : 1
+      maxClients: Env.getNumber('SMTP_MAX_CLIENTS', 100)
     });
   }
 

@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../types/auth';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 
@@ -16,7 +17,7 @@ export const loginRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  onLimitReached: (req: Request) => {
+  handler: (req: Request) => {
     logger.warn('Login rate limit exceeded', {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
@@ -38,14 +39,14 @@ export const emailSendRateLimit = rateLimit({
   keyGenerator: (req: Request) => {
     // Rate limit by API key or user ID if available
     const apiKey = req.headers['x-api-key'];
-    const userId = req.user?.id;
+    const userId = (req as AuthenticatedRequest).user?.id;
     return apiKey ? `api:${apiKey}` : userId ? `user:${userId}` : req.ip;
   },
-  onLimitReached: (req: Request) => {
+  handler: (req: Request) => {
     logger.warn('Email send rate limit exceeded', {
       ip: req.ip,
       apiKey: req.headers['x-api-key'] ? 'present' : 'absent',
-      userId: req.user?.id,
+      userId: (req as AuthenticatedRequest).user?.id,
       endpoint: req.path
     });
   },
@@ -62,12 +63,12 @@ export const apiKeyRateLimit = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
     // Rate limit by user ID
-    return req.user?.id ? `user:${req.user.id}` : req.ip;
+    return (req as AuthenticatedRequest).user?.id ? `user:${(req as AuthenticatedRequest).user.id}` : req.ip;
   },
-  onLimitReached: (req: Request) => {
+  handler: (req: Request) => {
     logger.warn('API key operation rate limit exceeded', {
       ip: req.ip,
-      userId: req.user?.id,
+      userId: (req as AuthenticatedRequest).user?.id,
       endpoint: req.path,
       method: req.method
     });
@@ -83,7 +84,7 @@ export const registrationRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  onLimitReached: (req: Request) => {
+  handler: (req: Request) => {
     logger.warn('Registration rate limit exceeded', {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
@@ -101,7 +102,7 @@ export const passwordResetRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  onLimitReached: (req: Request) => {
+  handler: (req: Request) => {
     logger.warn('Password reset rate limit exceeded', {
       ip: req.ip,
       email: req.body?.email,
@@ -142,7 +143,7 @@ export const generalApiRateLimit = rateLimit({
   keyGenerator: (req: Request) => {
     // Rate limit by API key, user ID, or IP
     const apiKey = req.headers['x-api-key'];
-    const userId = req.user?.id;
+    const userId = (req as AuthenticatedRequest).user?.id;
     if (apiKey) return `api:${apiKey}`;
     if (userId) return `user:${userId}`;
     return req.ip;
@@ -159,12 +160,12 @@ export const sensitiveOperationRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
-    return req.user?.id ? `user:${req.user.id}` : req.ip;
+    return (req as AuthenticatedRequest).user?.id ? `user:${(req as AuthenticatedRequest).user.id}` : req.ip;
   },
-  onLimitReached: (req: Request) => {
+  handler: (req: Request) => {
     logger.warn('Sensitive operation rate limit exceeded', {
       ip: req.ip,
-      userId: req.user?.id,
+      userId: (req as AuthenticatedRequest).user?.id,
       endpoint: req.path,
       method: req.method
     });
@@ -188,6 +189,6 @@ export const createCustomRateLimit = (options: {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator,
-    onLimitReached: options.onLimitReached,
+    handler: options.onLimitReached,
   });
 };
