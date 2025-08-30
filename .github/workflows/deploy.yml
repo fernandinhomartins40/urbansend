@@ -1,7 +1,7 @@
-# 🚀 Deploy Simplificado - UrbanSend
-# Domínio: www.urbanmail.com.br | VPS: 72.60.10.112:3010
+# 🚀 Direct VPS Deploy - UrbanSend (No Docker)
+# Direct deployment to VPS with nginx + PM2
 
-name: 🚀 Deploy UrbanSend
+name: 🚀 Deploy UrbanSend Direct
 
 on:
   push:
@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
 
 env:
-  VPS_HOST: 72.60.10.112
+  VPS_HOST: 31.97.162.155
   VPS_USER: root
-  VPS_PATH: /opt/urbansend
-  APP_PORT: 3010
+  DEPLOY_PATH: /var/www/urbansend
+  APP_DOMAIN: your-domain.com
 
 jobs:
   deploy:
