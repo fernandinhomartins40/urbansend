@@ -74,7 +74,7 @@ RUN chmod +x /usr/local/bin/start.sh
 COPY docker/.env.production /app/.env
 
 # Criar diretórios e configurar permissões
-RUN mkdir -p /var/log/nginx /tmp && \
+RUN mkdir -p /var/log/nginx /tmp/nginx/{client_body,proxy,fastcgi,uwsgi,scgi} && \
     chown -R node:node /app /var/log/nginx /tmp
 
 # ===== EXPOSIÇÃO DE PORTAS =====
