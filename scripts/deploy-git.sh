@@ -1,99 +1,80 @@
 #!/bin/bash
 
-# UrbanSend Git-based Deploy Script
-set -e
+# UltraZend Simple Git Deploy Script (Node.js direto, sem Docker/Nginx)
+set -euo pipefail
 
-VPS_IP="72.60.10.112"
+VPS_IP="31.97.162.155"
 VPS_USER="root"
-DEPLOY_PATH="/root/urbansend-sync"
-PRODUCTION_PATH="/var/www/urbansend"
-APP_NAME="urbansend"
-DOMAIN="www.ultrazend.com.br"
-NETWORK_NAME="${APP_NAME}_network"
-BACKEND_PORT="3010"
-FRONTEND_PORT="3011"
-REDIS_PORT="6380"
-REDIS_UI_PORT="8082"
+DEPLOY_PATH="/var/www/ultrazend"
+APP_NAME="ultrazend"
+DOMAIN="ultrazend.com.br"
 
-echo "🚀 Starting Git-based deployment for ${APP_NAME}..."
+echo "🚀 UltraZend Git Deployment"
+echo "==========================="
 
-# SSH into server and perform deploy
-ssh -o ConnectTimeout=10 -o BatchMode=yes ${VPS_USER}@${VPS_IP} "
-set -e
-
-echo '📁 Setting up deployment directories...'
-mkdir -p ${PRODUCTION_PATH}
-
-echo '📦 Updating code from Git repository...'
-if [ -d ${DEPLOY_PATH} ]; then
-    cd ${DEPLOY_PATH}
-    git pull origin main
-else
-    cd /root
-    git clone https://github.com/fernandinhomartins40/urbansend.git urbansend-sync
-    cd ${DEPLOY_PATH}
+# Pre-deployment checks
+echo "📋 Pre-deployment checks..."
+if [ ! -d "backend/src" ]; then
+    echo "❌ Error: Backend source not found!"
+    exit 1
 fi
 
-echo '🔨 Building backend...'
-cd ${DEPLOY_PATH}/backend
-npm ci
-npm run build
+echo "✅ Pre-deployment checks passed"
 
-echo '🎨 Building frontend...'
-cd ${DEPLOY_PATH}/frontend
-npm ci
-npm run build
+# Stop existing PM2 process
+echo "🛑 Stopping existing application..."
+ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP "
+    cd $DEPLOY_PATH 2>/dev/null || true
+    pm2 stop $APP_NAME 2>/dev/null || true
+    pm2 delete $APP_NAME 2>/dev/null || true
+" || echo "⚠️  No existing processes to stop"
 
-echo '📦 Copying built files to production...'
-# Copy backend files
-cp -r ${DEPLOY_PATH}/backend/dist ${PRODUCTION_PATH}/
-cp ${DEPLOY_PATH}/backend/package*.json ${PRODUCTION_PATH}/
-cp ${DEPLOY_PATH}/backend/knexfile.js ${PRODUCTION_PATH}/
-mkdir -p ${PRODUCTION_PATH}/src
-cp -r ${DEPLOY_PATH}/backend/src/migrations ${PRODUCTION_PATH}/src/
-
-# Copy frontend files
-mkdir -p ${PRODUCTION_PATH}/frontend-dist
-cp -r ${DEPLOY_PATH}/frontend/dist/* ${PRODUCTION_PATH}/frontend-dist/
-
-# Copy Docker files
-cp ${DEPLOY_PATH}/Dockerfile.backend ${PRODUCTION_PATH}/
-cp ${DEPLOY_PATH}/Dockerfile.frontend ${PRODUCTION_PATH}/
-cp ${DEPLOY_PATH}/nginx.conf ${PRODUCTION_PATH}/
-cp ${DEPLOY_PATH}/docker-compose.production.yml ${PRODUCTION_PATH}/docker-compose.yml
-
-echo '🐳 Starting Docker deployment...'
-cd ${PRODUCTION_PATH}
-
-# Stop existing containers
-echo 'Stopping existing containers...'
-docker-compose -p ${APP_NAME} down --remove-orphans || true
-
-# Clean up
-docker container prune -f
-docker network rm ${NETWORK_NAME} 2>/dev/null || true
-
-# Build and start
-echo 'Building and starting containers...'
-docker-compose -p ${APP_NAME} up -d --build
-
-# Wait for services
-sleep 30
-
-# Run migrations
-echo 'Running database migrations...'
-docker-compose -p ${APP_NAME} exec -T ${APP_NAME}_backend npm run migrate:latest || true
-
-# Show status
-echo 'Container status:'
-docker ps --filter 'name=${APP_NAME}_'
-
-echo '✅ Deployment completed!'
+# Update code from git
+echo "📦 Updating application code from Git..."
+ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP "
+    cd $DEPLOY_PATH
+    git pull origin main
+    
+    echo '⚙️ Configurando ambiente de produção...'
+    cd backend
+    
+    echo '📦 Instalando dependências de produção...'
+    npm install --only=production
+    
+    echo '🔨 Compilando TypeScript...'
+    npm run build
+    
+    echo '🔧 Configurando permissões...'
+    chown -R www-data:www-data /var/www/ultrazend/data/ || true
+    chmod 664 /var/www/ultrazend/data/database.sqlite || true
 "
 
-echo "✅ Git-based deployment completed successfully!"
+# Start application with PM2
+echo "🚀 Starting application..."
+ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP "
+    cd $DEPLOY_PATH
+    
+    echo '▶️ Iniciando aplicação...'
+    pm2 start ecosystem.config.js --env production
+    pm2 save
+    
+    echo '⏳ Aguardando inicialização...'
+    sleep 10
+    
+    echo '📊 Status da aplicação:'
+    pm2 status
+    
+    echo '🔍 Verificação de saúde:'
+    curl -k -m 10 https://localhost:443/health || echo 'Health check failed'
+"
+
+echo "✅ Git deployment completed successfully!"
 echo ""
 echo "🔒 Application URLs:"
-echo "   Frontend: https://${DOMAIN}"
-echo "   Backend:  https://${DOMAIN}/api/"
-echo "   Redis UI: http://${VPS_IP}:${REDIS_UI_PORT}"
+echo "   Frontend: https://$DOMAIN"
+echo "   Backend:  https://$DOMAIN/api/"
+echo ""
+echo "🔧 Application Management:"
+echo "   View logs: ssh $VPS_USER@$VPS_IP 'pm2 logs $APP_NAME'"
+echo "   Restart:   ssh $VPS_USER@$VPS_IP 'pm2 restart $APP_NAME'"
+echo "   Stop:      ssh $VPS_USER@$VPS_IP 'pm2 stop $APP_NAME'"

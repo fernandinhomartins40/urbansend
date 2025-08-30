@@ -3,6 +3,7 @@
 # UltraZend Simple Deploy Script (Node.js direto, sem Docker/Nginx)
 set -euo pipefail
 
+# Configuration
 VPS_IP="31.97.162.155"
 VPS_USER="root"
 DEPLOY_PATH="/var/www/ultrazend"
@@ -10,7 +11,7 @@ APP_NAME="ultrazend"
 DOMAIN="ultrazend.com.br"
 
 echo "🚀 UltraZend Simple Deployment"
-echo "=============================="
+echo "==============================="
 
 # Pre-deployment checks
 echo "📋 Pre-deployment checks..."
