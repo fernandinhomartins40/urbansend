@@ -1,7 +1,7 @@
-# 🚀 Direct VPS Deploy - UltraZend (No Docker)
-# Direct deployment to VPS with nginx + PM2
+# 🚀 Direct VPS Deploy - UltraZend (Node.js direto, sem Docker/Nginx)
+# Direct deployment to VPS with PM2 + Native SSL
 
-name: 🚀 Deploy UltraZend Direct
+name: 🚀 Deploy UltraZend Simple
 
 on:
   push:
@@ -13,13 +13,13 @@ env:
   VPS_HOST: 31.97.162.155
   VPS_USER: root
   DEPLOY_PATH: /var/www/ultrazend
-  APP_DOMAIN: www.ultrazend.com.br
+  APP_DOMAIN: ultrazend.com.br
 
 jobs:
   deploy:
-    name: 🚀 Deploy Completo
+    name: 🚀 Deploy Simplificado
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     
     steps:
       # ==================== PREPARAÇÃO ====================
@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: '18'
           
-      - name: 📦 3️⃣ Install Dependencies & Build
+      - name: 📦 3️⃣ Build Application
         run: |
           echo "📦 Instalando dependências do backend..."
           cd backend && npm ci
@@ -80,95 +80,58 @@ jobs:
             echo "✅ PM2 já instalado"
           fi
           
-          # Instalar nginx se necessário
-          if ! command -v nginx >/dev/null 2>&1; then
-            echo "📦 Instalando nginx..."
-            apt-get update
-            apt-get install -y nginx
-            systemctl enable nginx
-          else
-            echo "✅ nginx já instalado"
-          fi
-          
           # Criar estrutura de diretórios
           echo "📁 Criando estrutura de diretórios..."
-          mkdir -p /var/www/ultrazend/{backend,frontend,data,logs,backup}
-          chown -R www-data:www-data /var/www/ultrazend
+          mkdir -p /var/www/ultrazend/{backend,data,logs}
+          chown -R www-data:www-data /var/www/ultrazend/data
           chmod 755 /var/www/ultrazend
           
           echo "✅ VPS configurada"
           SCRIPT
 
-      # ==================== TRANSFERIR ARQUIVOS ====================
-      - name: 📤 6️⃣ Transfer Files
-        run: |
-          echo "📤 Enviando arquivos para VPS..."
-          
-          # Enviar backend build
-          echo "🏗️ Enviando backend..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
-            --exclude=node_modules backend/ $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/
-          
-          # Enviar frontend build
-          echo "🌐 Enviando frontend..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
-            frontend/dist/ $VPS_USER@$VPS_HOST:$DEPLOY_PATH/frontend/
-          
-          # Enviar configurações
-          echo "⚙️ Enviando configurações..."
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-            configs/nginx-ssl.conf $VPS_USER@$VPS_HOST:/tmp/urbansend-nginx-ssl.conf
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-            configs/ecosystem.config.js $VPS_USER@$VPS_HOST:$DEPLOY_PATH/
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-            configs/.env.production $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/.env
-          
-          echo "✅ Todos os arquivos enviados"
-
-      # ==================== CONFIGURAR PRODUÇÃO ====================
-      - name: ⚙️ 7️⃣ Configure Production
-        run: |
-          echo "⚙️ Configurando ambiente de produção..."
-          
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'CONFIG'
-          set -e
-          cd /var/www/ultrazend
-          
-          # Instalar dependências de produção no backend
-          echo "📦 Instalando dependências de produção..."
-          cd backend
-          npm ci --only=production
-          
-          # Configurar nginx
-          echo "🌐 Configurando nginx..."
-          cp /tmp/urbansend-nginx-ssl.conf /etc/nginx/sites-available/ultrazend
-          ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
-          rm -f /etc/nginx/sites-enabled/default
-          nginx -t && systemctl reload nginx
-          
-          # Executar migrações do banco
-          echo "💾 Executando migrações..."
-          npm run migrate:latest || echo "Migrações não encontradas ou falhou"
-          
-          echo "✅ Configuração de produção concluída"
-          CONFIG
-
       # ==================== DEPLOY APLICAÇÃO ====================
-      - name: 🚀 8️⃣ Deploy Application
+      - name: 🚀 6️⃣ Deploy Application
         run: |
           echo "🚀 Fazendo deploy da aplicação..."
           
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'DEPLOY'
           set -e
+          
+          # Navegar para diretório da aplicação
           cd /var/www/ultrazend
           
           # Parar aplicação existente
           echo "🛑 Parando aplicação existente..."
-          pm2 delete ultrazend 2>/dev/null || echo "Nenhuma aplicação rodando"
+          pm2 stop ultrazend 2>/dev/null || echo "Nenhuma aplicação rodando"
+          pm2 delete ultrazend 2>/dev/null || echo "Processo não existia"
+          
+          # Atualizar código do Git
+          echo "📦 Atualizando código do repositório..."
+          git pull origin main || echo "Erro no git pull, continuando..."
+          
+          # Ir para backend e configurar
+          echo "⚙️ Configurando backend..."
+          cd backend
+          
+          # Instalar dependências de produção
+          echo "📦 Instalando dependências de produção..."
+          npm install --only=production
+          
+          # Compilar TypeScript
+          echo "🔨 Compilando TypeScript..."
+          npm run build
+          
+          # Configurar permissões do banco
+          echo "🔧 Configurando permissões..."
+          chown -R www-data:www-data /var/www/ultrazend/data/ || true
+          chmod 664 /var/www/ultrazend/data/database.sqlite || true
+          
+          # Voltar para root da aplicação
+          cd /var/www/ultrazend
           
           # Iniciar aplicação com PM2
           echo "▶️ Iniciando aplicação com PM2..."
-          pm2 start ecosystem.config.js
+          pm2 start ecosystem.config.js --env production
           
           # Salvar configuração PM2
           pm2 save
@@ -182,55 +145,50 @@ jobs:
           echo "🔍 Verificando status da aplicação..."
           pm2 status
           
+          # Verificar se aplicação está online
           if pm2 list | grep -q "online"; then
             echo "✅ Aplicação iniciada com sucesso"
+            
+            # Teste de conectividade
+            echo "🔍 Testando conectividade..."
+            curl -k -m 10 https://localhost:443/health || echo "Health check interno falhou"
+            
+            # Verificar portas
+            echo "🌐 Verificando portas..."
+            netstat -tlnp | grep -E ':(80|443|25)' || echo "Algumas portas não estão escutando"
           else
             echo "❌ Falha ao iniciar aplicação"
-            echo ""
-            echo "📋 Logs da aplicação (PM2):"
-            pm2 logs ultrazend --lines 30 || echo "Sem logs PM2"
-            echo ""
-            echo "📋 Status detalhado PM2:"
-            pm2 describe ultrazend || echo "Processo não encontrado"
-            echo ""
-            echo "🔍 Verificando arquivos dist:"
-            ls -la backend/dist/ || echo "Pasta dist não encontrada"
-            echo ""
-            echo "🔍 Verificando dependências:"
-            ls -la backend/node_modules/ | head -10 || echo "node_modules não encontrado"
-            echo ""
-            echo "🔍 Verificando .env:"
-            ls -la backend/.env || echo ".env não encontrado"
-            echo ""
-            echo "🔍 Verificando portas em uso:"
-            netstat -tlnp | grep ":3001" || echo "Porta 3001 não está em uso"
-            echo ""
-            echo "🔍 Tentando executar aplicação manualmente:"
-            cd backend && node dist/index.js 2>&1 | head -10 &
-            sleep 3
-            kill $! 2>/dev/null || echo "Processo já parou"
+            echo "📋 Logs da aplicação:"
+            pm2 logs ultrazend --lines 30 || echo "Sem logs disponíveis"
             exit 1
           fi
           
-          echo "🎉 Deploy concluído!"
+          echo "🎉 Deploy concluído com sucesso!"
           DEPLOY
 
       # ==================== RESUMO FINAL ====================
-      - name: 📊 9️⃣ Summary
+      - name: 📊 7️⃣ Summary
         run: |
           echo ""
           echo "🎉 ===== DEPLOY CONCLUÍDO COM SUCESSO ====="
           echo ""
           echo "📋 INFORMAÇÕES DO DEPLOY:"
-          echo "  🌐 Domínio: www.ultrazend.com.br"
+          echo "  🌐 Domínio: $APP_DOMAIN"
           echo "  🔌 IP VPS: $VPS_HOST"
-          echo "  🚪 Backend: Porta 3001 (via nginx)"
-          echo "  🌐 Frontend: nginx porta 80"
+          echo "  🚪 HTTPS: Porta 443 (SSL nativo)"
+          echo "  🌐 HTTP: Porta 80 (redirect para HTTPS)"
           echo "  📧 SMTP: Porta 25"
           echo "  ⏰ Deploy: $(date '+%d/%m/%Y %H:%M:%S')"
           echo ""
           echo "🔗 URLS DISPONÍVEIS:"
-          echo "  🌐 App: https://www.ultrazend.com.br"
-          echo "  📱 Direct IP: https://$VPS_HOST"
+          echo "  🌐 App: https://$APP_DOMAIN"
+          echo "  📱 API: https://$APP_DOMAIN/api/"
+          echo ""
+          echo "🎯 ARQUITETURA SIMPLIFICADA:"
+          echo "  ✅ Node.js direto com SSL nativo"
+          echo "  ✅ PM2 process management (fork mode)"
+          echo "  ✅ Sem Docker containers"
+          echo "  ✅ Sem Nginx reverse proxy"
+          echo "  ✅ Certificados Let's Encrypt diretos"
           echo ""
           echo "✅ Aplicação UltraZend está online!"
