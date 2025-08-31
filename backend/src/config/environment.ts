@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import path from 'path';
-import { logger } from './logger';
+import { logger } from './logger.enterprise';
 
 /**
  * Enterprise-grade Environment Configuration System
