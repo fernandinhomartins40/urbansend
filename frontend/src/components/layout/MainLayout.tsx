@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
-import { Toaster } from 'react-hot-toast'
 
 export function MainLayout() {
   return (
@@ -16,9 +15,6 @@ export function MainLayout() {
             <Outlet />
           </div>
         </main>
-      </div>
-      <div aria-live="polite" aria-atomic="true">
-        <Toaster position="top-right" />
       </div>
     </div>
   )

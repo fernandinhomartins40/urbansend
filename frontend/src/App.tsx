@@ -5,6 +5,7 @@ import { MainLayout } from './components/layout/MainLayout'
 import { useAuthStore } from './lib/store'
 import { useAuthEvents } from './hooks/useAuthEvents'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { Toaster } from 'react-hot-toast'
 import './styles/globals.css'
 
 // Loading component
@@ -173,6 +174,62 @@ function App() {
       <ErrorBoundary>
         <Router>
           <AppRoutes />
+          {/* Toast global configurado para toda aplicação */}
+          <div aria-live="polite" aria-atomic="true">
+            <Toaster
+              position="top-right"
+              reverseOrder={false}
+              gutter={8}
+              containerClassName=""
+              containerStyle={{
+                top: 20,
+                right: 20,
+                zIndex: 9999
+              }}
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: '#ffffff',
+                  color: '#374151',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  maxWidth: '400px',
+                  padding: '12px 16px'
+                },
+                success: {
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: '#ffffff'
+                  },
+                  style: {
+                    border: '1px solid #10b981',
+                    background: '#f0fdf4',
+                    color: '#065f46'
+                  }
+                },
+                error: {
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#ffffff'
+                  },
+                  style: {
+                    border: '1px solid #ef4444',
+                    background: '#fef2f2',
+                    color: '#991b1b'
+                  }
+                },
+                loading: {
+                  iconTheme: {
+                    primary: '#3b82f6',
+                    secondary: '#ffffff'
+                  }
+                }
+              }}
+            />
+          </div>
         </Router>
       </ErrorBoundary>
     </QueryClientProvider>

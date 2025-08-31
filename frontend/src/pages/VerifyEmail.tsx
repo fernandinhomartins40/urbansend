@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { authApi } from '../lib/api'
-import toast from 'react-hot-toast'
+import { useToast } from '../hooks/useToast'
 
 export function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
+  const toast = useToast()
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -25,7 +26,12 @@ export function VerifyEmail() {
         const response = await authApi.verifyEmail(token)
         setStatus('success')
         setMessage(response.data.message)
-        toast.success('Email verificado com sucesso!')
+        toast.auth.verificationSuccess()
+        
+        // Mostrar toast informativo sobre próximo passo
+        setTimeout(() => {
+          toast.info('🔑 Redirecionando para o login...', { duration: 2000 })
+        }, 1000)
         
         // Redirecionar para login após 3 segundos
         setTimeout(() => {
@@ -38,8 +44,16 @@ export function VerifyEmail() {
         }, 3000)
       } catch (error: any) {
         setStatus('error')
-        setMessage(error.response?.data?.message || 'Erro ao verificar email.')
-        toast.error('Erro ao verificar email')
+        const errorMessage = error.response?.data?.message || 'Erro ao verificar email'
+        setMessage(errorMessage)
+        toast.auth.verificationError(errorMessage)
+        
+        // Oferecer ajuda adicional
+        setTimeout(() => {
+          toast.warning('🔗 Precisa de um novo link de verificação? Tente se registrar novamente.', { 
+            duration: 6000 
+          })
+        }, 2000)
       }
     }
 

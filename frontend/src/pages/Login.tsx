@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { authApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import toast from 'react-hot-toast'
+import { useToast } from '@/hooks/useToast'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 
 const loginSchema = z.object({
@@ -62,6 +62,7 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuthStore()
+  const toast = useToast()
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -83,22 +84,32 @@ export function Login() {
 
   const onLogin = async (data: LoginForm) => {
     setIsLoading(true)
+    
+    // Toast de loading
+    const loadingToast = toast.loading('🔑 Fazendo login...')
+    
     try {
       const response = await authApi.login(data)
       const { user, tokens } = response.data
       
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
+      
       login(user, tokens.access_token)
-      toast.success(`✅ Bem-vindo de volta, ${user.name}!`)
+      toast.auth.loginSuccess(user.name)
       navigate('/app')
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Erro ao fazer login'
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
       
-      if (errorMessage.includes('Invalid credentials')) {
-        toast.error('❌ Email ou senha incorretos. Verifique suas credenciais.')
-      } else if (errorMessage.includes('verify')) {
-        toast.error('❌ Você precisa verificar seu email antes de fazer login.')
+      const errorMessage = error.response?.data?.message || ''
+      
+      if (errorMessage.includes('Invalid credentials') || errorMessage.includes('credentials')) {
+        toast.auth.loginError('credentials')
+      } else if (errorMessage.includes('verify') || errorMessage.includes('verification')) {
+        toast.auth.loginError('verification')
       } else {
-        toast.error(`❌ ${errorMessage}`)
+        toast.auth.loginError('generic', errorMessage || 'Erro interno do servidor')
       }
     } finally {
       setIsLoading(false)
@@ -107,27 +118,49 @@ export function Login() {
 
   const onRegister = async (data: RegisterForm) => {
     setIsLoading(true)
+    
+    // Toast de loading
+    const loadingToast = toast.loading('👤 Criando sua conta...')
+    
     try {
       // Remove confirmPassword antes de enviar
       const { confirmPassword, ...registerData } = data
       await authApi.register(registerData)
-      toast.success('🎉 Usuário registrado com sucesso! Verifique seu email para confirmar sua conta.', {
-        duration: 5000,
-      })
+      
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
+      
+      toast.auth.registerSuccess()
       setIsLogin(true)
       registerForm.reset()
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Erro ao registrar usuário'
       
-      // Notificações mais específicas baseadas no tipo de erro
-      if (errorMessage.includes('already exists')) {
-        toast.error('❌ Este email já está registrado. Tente fazer login ou use outro email.')
-      } else if (errorMessage.includes('validation')) {
-        toast.error('❌ Dados inválidos. Verifique os campos e tente novamente.')
-      } else if (errorMessage.includes('password')) {
-        toast.error('❌ Senha não atende aos requisitos mínimos.')
+      // Mostrar informação adicional sobre próximo passo
+      setTimeout(() => {
+        toast.info('📧 Não recebeu o email? Verifique sua pasta de spam ou aguarde alguns minutos.', {
+          duration: 6000
+        })
+      }, 2000)
+      
+    } catch (error: any) {
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
+      
+      const errorMessage = error.response?.data?.message || ''
+      
+      if (errorMessage.includes('already exists') || errorMessage.includes('exists')) {
+        toast.auth.registerError('exists')
+        // Sugerir ação
+        setTimeout(() => {
+          toast.info('💡 Já tem uma conta? Clique em "Fazer Login" para acessar.', {
+            duration: 4000
+          })
+        }, 1500)
+      } else if (errorMessage.includes('validation') || errorMessage.includes('invalid')) {
+        toast.auth.registerError('validation')
+      } else if (errorMessage.includes('password') || errorMessage.includes('senha')) {
+        toast.auth.registerError('password')
       } else {
-        toast.error(`❌ ${errorMessage}`)
+        toast.auth.registerError('generic', errorMessage || 'Erro interno do servidor')
       }
     } finally {
       setIsLoading(false)
