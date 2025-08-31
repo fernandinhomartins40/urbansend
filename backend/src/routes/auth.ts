@@ -7,7 +7,8 @@ import db from '../config/database';
 import { 
   loginRateLimit, 
   registrationRateLimit, 
-  passwordResetRateLimit 
+  passwordResetRateLimit,
+  verificationResendRateLimit 
 } from '../middleware/rateLimiting';
 import {
   registerSchema,
@@ -162,7 +163,7 @@ router.post('/verify-email', validateRequest({ body: verifyEmailSchema }), verif
  *         description: Rate limit exceeded
  */
 router.post('/resend-verification', 
-  registrationRateLimit, 
+  verificationResendRateLimit, 
   validateRequest({ body: z.object({ email: emailSchema }) }), 
   resendVerificationEmail
 );

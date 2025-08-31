@@ -52,5 +52,12 @@ export const emailSendRateLimit = createRateLimit(
   'Muitos emails enviados. Tente novamente em 10 minutos.'
 );
 
+// Verification resend rate limiting - 3 attempts per 10 minutes
+export const verificationResendRateLimit = createRateLimit(
+  10 * 60 * 1000, // 10 minutes
+  3, // max attempts
+  'Muitas tentativas de reenvio. Tente novamente em 10 minutos.'
+);
+
 // API key rate limiting - same as general API
 export const apiKeyRateLimit = apiRateLimit;

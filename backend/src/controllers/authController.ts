@@ -544,9 +544,14 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   // Check if user is already verified
   if (user.is_verified) {
     logger.info('Verification email resend attempted for already verified user', { userId: user.id, email });
-    return res.json({
-      message: 'Esta conta já está verificada. Você pode fazer login normalmente.'
-    });
+    // In development, allow resend for testing purposes
+    if (Env.isDevelopment) {
+      logger.info('Development mode: allowing resend for verified user', { userId: user.id, email });
+    } else {
+      return res.json({
+        message: 'Esta conta já está verificada. Você pode fazer login normalmente.'
+      });
+    }
   }
 
   // Generate new verification token
