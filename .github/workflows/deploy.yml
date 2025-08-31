@@ -136,13 +136,26 @@ jobs:
           # Criar diretório frontend se não existir
           mkdir -p frontend
           
-          # Copiar frontend build se existir no repositório
-          if [ -d "frontend/dist" ]; then
-            echo "📦 Copiando build do frontend..."
-            cp -r frontend/dist/* frontend/ 2>/dev/null || echo "Frontend dist vazio"
+          # Verificar se existe build do frontend no repositório atual
+          echo "🔍 Verificando se frontend/dist existe..."
+          ls -la frontend/ || echo "Diretório frontend não existe"
+          
+          # Copiar frontend build se existir
+          if [ -d "frontend/dist" ] && [ "$(ls -A frontend/dist 2>/dev/null)" ]; then
+            echo "📦 Copiando build completo do frontend..."
+            cp -r frontend/dist/* frontend/ && echo "✅ Frontend copiado com sucesso"
           else
-            echo "⚠️ Frontend build não encontrado - criando página placeholder"
-            echo '<!DOCTYPE html><html><head><title>UltraZend</title><style>body{font-family:Arial;text-align:center;padding:50px;background:#f5f5f5}.container{max-width:600px;margin:0 auto;background:white;padding:40px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}h1{color:#333}p{color:#666}.api-link{display:inline-block;margin:20px 10px;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px}</style></head><body><div class="container"><h1>🚀 UltraZend</h1><p>Sistema de email marketing em produção</p><p>Frontend em desenvolvimento...</p><a href="/api-docs" class="api-link">📚 API</a><a href="/health" class="api-link">💚 Status</a></div></body></html>' > frontend/index.html
+            echo "⚠️ Frontend dist não encontrado ou vazio - usando aplicação React do repositório"
+            # Fazer build do frontend na VPS se necessário
+            if [ -f "frontend/package.json" ]; then
+              echo "🏗️ Fazendo build do frontend na VPS..."
+              cd frontend
+              npm ci && npm run build && cp -r dist/* . && echo "✅ Build do frontend concluído"
+              cd /var/www/ultrazend
+            else
+              echo "❌ Frontend não disponível - usando placeholder"
+              echo '<!DOCTYPE html><html><head><title>UltraZend</title><style>body{font-family:Arial;text-align:center;padding:50px;background:#f5f5f5}.container{max-width:600px;margin:0 auto;background:white;padding:40px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}h1{color:#333}p{color:#666}.api-link{display:inline-block;margin:20px 10px;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px}</style></head><body><div class="container"><h1>🚀 UltraZend</h1><p>Sistema de email marketing em produção</p><p>Frontend em desenvolvimento...</p><a href="/api-docs" class="api-link">📚 API</a><a href="/health" class="api-link">💚 Status</a></div></body></html>' > frontend/index.html
+            fi
           fi
           
           # Configurar permissões do banco
