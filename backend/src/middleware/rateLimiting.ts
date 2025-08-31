@@ -11,7 +11,7 @@ import { Env } from '../utils/env';
 // General rate limiting for login attempts
 export const loginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Maximum 5 attempts per IP per window
+  max: 15, // Maximum 15 attempts per IP per window
   message: {
     error: 'Muitas tentativas de login. Tente novamente em 15 minutos.',
   },
@@ -30,7 +30,7 @@ export const loginRateLimit = rateLimit({
 // Rate limiting for email sending API
 export const emailSendRateLimit = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: Env.isProduction ? 100 : 1000, // 100 emails per minute in production
+  max: Env.isProduction ? 500 : 2000, // 500 emails per minute in production
   message: {
     error: 'Limite de envio de emails excedido. Tente novamente em alguns minutos.',
   },
@@ -52,10 +52,10 @@ export const emailSendRateLimit = rateLimit({
   },
 });
 
-// Stricter rate limiting for API key creation/regeneration
+// Rate limiting for API key creation/regeneration
 export const apiKeyRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // Maximum 10 API key operations per hour
+  max: 25, // Maximum 25 API key operations per hour
   message: {
     error: 'Limite de operações de chaves API excedido. Tente novamente em 1 hora.',
   },
@@ -78,7 +78,7 @@ export const apiKeyRateLimit = rateLimit({
 // Rate limiting for user registration
 export const registrationRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // Increased to 10 registrations per IP per hour
+  max: 25, // Maximum 25 registrations per IP per hour
   message: {
     error: 'Limite de registros excedido. Tente novamente em 1 hora.',
   },
@@ -100,7 +100,7 @@ export const registrationRateLimit = rateLimit({
 // Rate limiting for password reset requests
 export const passwordResetRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 3, // Maximum 3 password reset requests per IP per window
+  max: 10, // Maximum 10 password reset requests per IP per window
   message: {
     error: 'Limite de solicitações de redefinição de senha excedido. Tente novamente em 15 minutos.',
   },
@@ -138,7 +138,7 @@ export const webhookRateLimit = rateLimit({
 // Rate limiting for general API calls
 export const generalApiRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: Env.isProduction ? 1000 : 10000, // 1000 requests per 15 minutes in production
+  max: Env.isProduction ? 5000 : 50000, // 5000 requests per 15 minutes in production
   message: {
     error: 'Limite de requisições da API excedido. Tente novamente em alguns minutos.',
   },
@@ -154,10 +154,10 @@ export const generalApiRateLimit = rateLimit({
   },
 });
 
-// Strict rate limiting for sensitive operations (domain verification, etc.)
+// Rate limiting for sensitive operations (domain verification, etc.)
 export const sensitiveOperationRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // Maximum 5 sensitive operations per hour
+  max: 20, // Maximum 20 sensitive operations per hour
   message: {
     error: 'Limite de operações sensíveis excedido. Tente novamente em 1 hora.',
   },

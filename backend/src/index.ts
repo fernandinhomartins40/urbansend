@@ -172,7 +172,7 @@ app.use('/api', cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: Env.getNumber('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutes
-  max: Env.getNumber('RATE_LIMIT_MAX_REQUESTS', 100),
+  max: Env.getNumber('RATE_LIMIT_MAX_REQUESTS', 500), // Increased from 100 to 500
   message: {
     error: 'Too many requests from this IP, please try again later.',
   },
@@ -180,6 +180,10 @@ const limiter = rateLimit({
   legacyHeaders: false,
   // Skip failing requests to avoid issues with proxy setup
   skip: (req) => {
+    // Skip rate limiting in development environment
+    if (Env.isDevelopment) {
+      return true;
+    }
     // Skip rate limiting if there are issues with IP detection
     return false;
   },
