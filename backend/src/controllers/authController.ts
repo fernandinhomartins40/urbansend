@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import db from '../config/database';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthenticatedRequest, generateJWT, generateRefreshToken, hashPassword, verifyPassword } from '../middleware/auth';
 import { generateVerificationToken } from '../utils/crypto';

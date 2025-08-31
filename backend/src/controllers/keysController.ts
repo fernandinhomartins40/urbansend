@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import db from '../config/database';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { generateApiKey, hashApiKey } from '../utils/crypto';

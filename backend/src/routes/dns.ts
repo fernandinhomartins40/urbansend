@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import DKIMService from '../services/dkimService';
 import { Env } from '../utils/env';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 
 const router = Router();
 

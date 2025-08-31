@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { performanceMiddleware } from './middleware/performanceMonitoring';
 import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
@@ -28,6 +29,7 @@ import domainsRoutes from './routes/domains';
 import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
+import healthRoutes from './routes/health';
 
 // Load environment variables from configs directory
 const configPath = path.resolve(process.cwd(), 'configs', '.env.production');
@@ -201,6 +203,9 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Performance monitoring middleware (after body parsers, before routes)
+app.use(performanceMiddleware);
+
 // Cookie parsing with secure settings
 app.use(cookieParser(Env.get('COOKIE_SECRET', 'fallback-secret')));
 
@@ -225,6 +230,7 @@ app.get('/health', (_req, res) => {
 });
 
 // API Routes
+app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/keys', keysRoutes);
 app.use('/api/emails', emailsRoutes);
@@ -360,6 +366,15 @@ const startServer = async () => {
         logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
         logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
       });
+    }
+
+    // Verificar Redis connection para queues
+    try {
+      const queueService = await import('./services/queueService');
+      const stats = await queueService.getQueueStats();
+      logger.info('📊 Queue service initialized successfully', stats);
+    } catch (error) {
+      logger.warn('⚠️ Queue service not available, running without Redis queues', { error: error instanceof Error ? error.message : error });
     }
 
     // Start SMTP server

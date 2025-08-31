@@ -1,10 +1,14 @@
 import { createTransport, Transporter, SentMessageInfo } from 'nodemailer';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 import db from '../config/database';
 import { Env } from '../utils/env';
 import * as dns from 'dns';
+import * as crypto from 'crypto';
 import { promisify } from 'util';
 import DKIMService from './dkimService';
+import SuppressionService from './suppressionService';
+import ReputationService from './reputationService';
+import { getBounceCategory } from '../utils/email';
 
 const resolveMx = promisify(dns.resolveMx);
 
@@ -27,10 +31,20 @@ interface MXRecord {
 class SMTPDeliveryService {
   private hostname: string;
   private dkimService: DKIMService;
+  private suppressionService: SuppressionService;
+  private reputationService: ReputationService;
 
   constructor() {
     this.hostname = Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br');
     this.dkimService = new DKIMService();
+    this.suppressionService = new SuppressionService();
+    this.reputationService = new ReputationService();
+  }
+
+  private generateVERPAddress(originalFrom: string, emailId: number): string {
+    // Generate VERP address: bounce-{emailId}-{hash}@domain
+    const hash = crypto.createHash('md5').update(`${emailId}-${originalFrom}`).digest('hex').substring(0, 8);
+    return `bounce-${emailId}-${hash}@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`;
   }
 
   private async getMXRecords(domain: string): Promise<MXRecord[]> {
@@ -60,18 +74,53 @@ class SMTPDeliveryService {
     } as any); // Type assertion for direct SMTP delivery
   }
 
-  public async deliverEmail(options: DeliveryOptions, emailId: number): Promise<boolean> {
+  public async deliverEmail(options: DeliveryOptions, emailId: number, userId?: number): Promise<boolean> {
     try {
       const recipientDomain = options.to.split('@')[1];
       if (!recipientDomain) {
         throw new Error('Invalid recipient email format');
       }
 
+      // Check if recipient is suppressed
+      const isSuppressed = await this.suppressionService.isSuppressed(options.to, userId);
+      if (isSuppressed) {
+        const suppressionRecord = await this.suppressionService.getSuppressionRecord(options.to, userId);
+        
+        logger.warn('Email blocked - recipient is suppressed', {
+          emailId,
+          to: options.to,
+          suppressionType: suppressionRecord?.type,
+          reason: suppressionRecord?.reason
+        });
+
+        // Update email status as suppressed
+        await db('emails')
+          .where('id', emailId)
+          .update({
+            status: 'suppressed',
+            bounce_reason: `Suppressed: ${suppressionRecord?.reason || 'Unknown reason'}`
+          });
+
+        // Log suppression event
+        await db('email_analytics').insert({
+          email_id: emailId,
+          event_type: 'suppressed',
+          timestamp: new Date(),
+          metadata: JSON.stringify({ 
+            suppression_type: suppressionRecord?.type,
+            reason: suppressionRecord?.reason
+          })
+        });
+
+        return false;
+      }
+
       logger.info('Starting SMTP delivery', {
         emailId,
         to: options.to,
         domain: recipientDomain,
-        from: options.from
+        from: options.from,
+        userId
       });
 
       // Get MX records for the recipient domain
@@ -113,6 +162,9 @@ class SMTPDeliveryService {
           // Criar corpo do email
           const emailBody = options.html || options.text || '';
 
+          // Generate VERP address for bounce handling
+          const verpAddress = this.generateVERPAddress(options.from, emailId);
+
           // Assinar com DKIM
           const dkimSignature = this.dkimService.signEmail({
             headers: emailHeaders,
@@ -131,11 +183,12 @@ class SMTPDeliveryService {
               'DKIM-Signature': dkimSignature,
               'X-Mailer': 'UltraZend SMTP Server',
               'X-Priority': '3',
+              'Return-Path': `<${verpAddress}>`,
               ...options.headers
             },
-            // Proper envelope for direct SMTP
+            // Use VERP address in envelope for bounce tracking
             envelope: {
-              from: options.from,
+              from: verpAddress,
               to: options.to
             }
           };
@@ -176,7 +229,8 @@ class SMTPDeliveryService {
             to: options.to,
             mxServer: mx.exchange,
             messageId: info.messageId,
-            response: info.response
+            response: info.response,
+            verpAddress: verpAddress
           });
 
           return true;
@@ -196,27 +250,55 @@ class SMTPDeliveryService {
       throw lastError || new Error('All MX servers failed');
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
       logger.error('Email delivery failed completely', {
         emailId,
         to: options.to,
-        error: error instanceof Error ? error.message : error
+        error: errorMessage,
+        userId
       });
 
-      // Update email status as failed
+      // Process bounce and potentially add to suppression list
+      try {
+        await this.suppressionService.processBounce(options.to, errorMessage, userId);
+        
+        // Get bounce category for better status classification
+        const bounceCategory = getBounceCategory(errorMessage);
+        
+        logger.info('Bounce processed', {
+          emailId,
+          to: options.to,
+          category: bounceCategory.category,
+          severity: bounceCategory.severity,
+          action: bounceCategory.action,
+          userId
+        });
+      } catch (suppressionError) {
+        logger.error('Failed to process bounce for suppression', {
+          emailId,
+          error: suppressionError,
+          userId
+        });
+      }
+
+      // Update email status as bounced
       await db('emails')
         .where('id', emailId)
         .update({
-          status: 'failed',
-          bounce_reason: error instanceof Error ? error.message : 'Unknown error'
+          status: 'bounced',
+          bounce_reason: errorMessage
         });
 
-      // Log failed delivery
+      // Log bounce event
       await db('email_analytics').insert({
         email_id: emailId,
         event_type: 'bounced',
         timestamp: new Date(),
         metadata: JSON.stringify({ 
-          reason: error instanceof Error ? error.message : 'Unknown error' 
+          reason: errorMessage,
+          category: getBounceCategory(errorMessage).category,
+          severity: getBounceCategory(errorMessage).severity
         })
       });
 
@@ -240,6 +322,22 @@ class SMTPDeliveryService {
 
       for (const email of queuedEmails) {
         try {
+          // Check reputation before processing
+          if (email.user_id) {
+            const throttleStatus = await this.reputationService.shouldThrottle(email.user_id);
+            if (throttleStatus.should_throttle) {
+              logger.warn('Email delivery throttled due to reputation', {
+                emailId: email.id,
+                userId: email.user_id,
+                reason: throttleStatus.reason,
+                suggestedLimit: throttleStatus.suggested_limit
+              });
+              
+              // Skip this email for now, it will be retried later
+              continue;
+            }
+          }
+
           const deliveryOptions: DeliveryOptions = {
             from: email.from_email,
             to: email.to_email,
@@ -251,16 +349,51 @@ class SMTPDeliveryService {
             }
           };
 
-          await this.deliverEmail(deliveryOptions, email.id);
+          await this.deliverEmail(deliveryOptions, email.id, email.user_id);
         } catch (error) {
           logger.error('Failed to process queued email', {
             emailId: email.id,
+            userId: email.user_id,
             error
           });
         }
       }
     } catch (error) {
       logger.error('Error processing email queue', { error });
+    }
+  }
+
+  /**
+   * Test SMTP connection health for monitoring
+   */
+  public async testConnection(): Promise<boolean> {
+    try {
+      // Test connectivity to Gmail's MX servers as a health check
+      const testDomain = 'gmail.com';
+      const mxRecords = await this.getMXRecords(testDomain);
+      
+      if (mxRecords.length > 0) {
+        // Test connection to primary MX server
+        const transporter = this.createTransporterForDomain(mxRecords[0].exchange);
+        
+        return new Promise((resolve) => {
+          // Use verify method with timeout
+          const timeout = setTimeout(() => {
+            resolve(false);
+          }, 5000); // 5 second timeout
+          
+          transporter.verify((error) => {
+            clearTimeout(timeout);
+            transporter.close();
+            resolve(!error);
+          });
+        });
+      }
+      
+      return false;
+    } catch (error) {
+      logger.debug('SMTP connection test failed', { error: (error as Error).message });
+      return false;
     }
   }
 }

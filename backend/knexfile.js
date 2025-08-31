@@ -29,6 +29,22 @@ module.exports = {
     }
   },
 
+  test: {
+    client: 'sqlite3',
+    connection: ':memory:',
+    useNullAsDefault: true,
+    migrations: {
+      directory: path.join(__dirname, 'src/migrations')
+    },
+    pool: {
+      min: 1,
+      max: 1,
+      afterCreate: (conn, cb) => {
+        conn.run('PRAGMA foreign_keys = ON', cb);
+      }
+    }
+  },
+
   production: {
     client: 'sqlite3',
     connection: {

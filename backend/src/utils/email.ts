@@ -109,17 +109,100 @@ export const generateUnsubscribeLink = (emailId: string, domain: string): string
   return `https://${domain}/unsubscribe/${emailId}`;
 };
 
-export const isBouncedEmail = (bounceReason: string): boolean => {
+export const classifyBounce = (bounceReason: string): 'hard' | 'soft' | 'block' => {
   const hardBouncePatterns = [
-    'user unknown',
-    'mailbox unavailable',
-    'invalid recipient',
-    'no such user',
-    'user not found',
-    'recipient rejected'
+    'user unknown', 'mailbox unavailable', 'invalid recipient',
+    'no such user', 'user not found', 'recipient rejected',
+    'domain not found', 'no mx record', 'host not found',
+    'invalid address', 'mailbox full', 'quota exceeded',
+    'account disabled', 'account suspended'
   ];
   
-  return hardBouncePatterns.some(pattern => 
-    bounceReason.toLowerCase().includes(pattern)
-  );
+  const blockPatterns = [
+    'blocked', 'blacklist', 'spam', 'reputation',
+    'policy violation', 'content filter', 'refused',
+    'rejected by policy', 'sender blocked', 'ip blocked',
+    'domain blocked', 'rbl', 'dnsbl', 'spamhaus'
+  ];
+
+  const softBouncePatterns = [
+    'temporary failure', 'try again', 'mailbox busy',
+    'server busy', 'connection timeout', 'network error',
+    'dns failure', 'temporary error', 'deferred',
+    'rate limited', 'throttled'
+  ];
+
+  const reason = bounceReason.toLowerCase();
+  
+  if (blockPatterns.some(pattern => reason.includes(pattern))) {
+    return 'block';
+  }
+  
+  if (hardBouncePatterns.some(pattern => reason.includes(pattern))) {
+    return 'hard';
+  }
+  
+  if (softBouncePatterns.some(pattern => reason.includes(pattern))) {
+    return 'soft';
+  }
+  
+  // Default to soft bounce if pattern is not recognized
+  return 'soft';
+};
+
+export const isBouncedEmail = (bounceReason: string): boolean => {
+  const bounceType = classifyBounce(bounceReason);
+  return bounceType === 'hard' || bounceType === 'block';
+};
+
+export const getBounceCategory = (bounceReason: string): {
+  category: string;
+  severity: 'low' | 'medium' | 'high';
+  action: string;
+} => {
+  const bounceType = classifyBounce(bounceReason);
+  const reason = bounceReason.toLowerCase();
+
+  if (bounceType === 'block') {
+    if (reason.includes('spam') || reason.includes('blacklist')) {
+      return {
+        category: 'reputation',
+        severity: 'high',
+        action: 'Review sender reputation and content quality'
+      };
+    }
+    return {
+      category: 'policy',
+      severity: 'high',
+      action: 'Review content and sender authentication'
+    };
+  }
+
+  if (bounceType === 'hard') {
+    if (reason.includes('user unknown') || reason.includes('invalid recipient')) {
+      return {
+        category: 'invalid_recipient',
+        severity: 'medium',
+        action: 'Remove from mailing list'
+      };
+    }
+    if (reason.includes('mailbox full') || reason.includes('quota exceeded')) {
+      return {
+        category: 'mailbox_full',
+        severity: 'medium',
+        action: 'Retry later or suppress temporarily'
+      };
+    }
+    return {
+      category: 'permanent_failure',
+      severity: 'medium',
+      action: 'Remove from mailing list'
+    };
+  }
+
+  return {
+    category: 'temporary',
+    severity: 'low',
+    action: 'Retry with exponential backoff'
+  };
 };

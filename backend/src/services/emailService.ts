@@ -1,6 +1,6 @@
 import { createTransport, Transporter } from 'nodemailer';
 import fs from 'fs';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 import { validateEmailAddress, processTemplate, generateTrackingPixel, processLinksForTracking } from '../utils/email';
 import { generateTrackingId } from '../utils/crypto';
 import { sanitizeEmailHtml } from '../middleware/validation';
@@ -442,11 +442,10 @@ class EmailService {
 
   async sendVerificationEmail(email: string, name: string, verificationToken: string): Promise<void> {
     try {
-      logger.info('Sending verification email', {
+      logger.info('Sending verification email via SMTP delivery', { 
         email,
         name,
         tokenLength: verificationToken.length,
-        tokenPreview: verificationToken.substring(0, 8) + '...',
         tokenType: typeof verificationToken
       });
 
@@ -587,28 +586,55 @@ class EmailService {
         Equipe Ultrazend
       `;
 
-      // Use o próprio sistema de emails do UltraZend ao invés de SMTP externo
-      // Isso é um servidor de email, não um cliente!
+      // USAR SMTP DELIVERY DIRETAMENTE (SEM CIRCULAR DEPENDENCY)
+      const SMTPDeliveryService = (await import('./smtpDelivery')).default;
+      const smtpDelivery = new SMTPDeliveryService();
       
-      // Buscar usuário do sistema
-      const systemUser = await db('users').where('email', 'system@urbansend.local').first();
+      // Buscar system user para usar ID correto
+      const systemUser = await db('users').where('email', 'system@ultrazend.local').first();
       if (!systemUser) {
         throw new Error('System user not found. Database migration may have failed.');
       }
 
-      await this.sendInternalEmail({
+      // Criar email record no banco para tracking
+      const insertResult = await db('emails').insert({
+        user_id: systemUser.id, // System user ID correto
+        from_email: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
+        to_email: email,
+        subject: 'Verifique seu email - Ultrazend',
+        html_content: htmlContent,
+        text_content: textContent,
+        status: 'queued',
+        created_at: new Date()
+      });
+
+      const emailId = Array.isArray(insertResult) ? insertResult[0] : insertResult;
+
+      // Entregar via SMTP direto
+      const delivered = await smtpDelivery.deliverEmail({
         from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
         to: email,
         subject: 'Verifique seu email - Ultrazend',
         html: htmlContent,
         text: textContent,
-        userId: systemUser.id,
-        tracking: false
+        headers: {
+          'X-Email-ID': emailId.toString(),
+          'X-Mailer': 'UltraZend SMTP Server'
+        }
+      }, emailId as number);
+
+      if (!delivered) {
+        throw new Error('Failed to deliver verification email via SMTP');
+      }
+
+      logger.info('Verification email sent successfully via SMTP delivery', { 
+        email, 
+        emailId,
+        delivered: true
       });
 
-      logger.info('Verification email sent successfully via internal system', { email });
     } catch (error) {
-      logger.error('Failed to send verification email via internal system', { error, email });
+      logger.error('Failed to send verification email via SMTP delivery', { error, email });
       throw error;
     }
   }

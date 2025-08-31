@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 import { ZodError } from 'zod';
 import { Env } from '../utils/env';
 

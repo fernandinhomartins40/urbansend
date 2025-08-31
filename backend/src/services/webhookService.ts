@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { logger } from '../config/logger.enterprise';
+import { logger } from '../config/logger';
 import { createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
 

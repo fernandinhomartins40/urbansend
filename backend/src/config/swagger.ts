@@ -1,7 +1,7 @@
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { Application } from 'express';
-import { env } from './environment';
+import { Env } from '../utils/env';
 
 const options = {
   definition: {
@@ -17,7 +17,7 @@ const options = {
     },
     servers: [
       {
-        url: env.config.API_BASE_URL || 'http://localhost:3000',
+        url: Env.get('API_BASE_URL', 'http://localhost:3001'),
         description: 'Development server'
       }
     ],
