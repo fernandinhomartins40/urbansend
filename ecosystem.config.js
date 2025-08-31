@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
-    name: 'urbansend',
-    cwd: '/var/www/urbansend/backend',
+    name: 'ultrazend',
+    cwd: '/var/www/ultrazend/backend',
     script: 'dist/index.js',
     instances: 1,
     autorestart: true,
@@ -14,13 +14,13 @@ module.exports = {
       PORT: 3001,
       HTTPS_PORT: 443,
       HOST: '0.0.0.0',
-      DATABASE_URL: '/var/www/urbansend/data/database.sqlite',
+      DATABASE_URL: '/var/www/ultrazend/data/database.sqlite',
       FRONTEND_URL: 'https://www.ultrazend.com.br',
       API_BASE_URL: 'https://www.ultrazend.com.br',
       ALLOWED_ORIGINS: 'https://ultrazend.com.br,https://www.ultrazend.com.br',
       TRUST_PROXY: 1,
       LOG_LEVEL: 'info',
-      LOG_FILE_PATH: '/var/www/urbansend/logs/app.log',
+      LOG_FILE_PATH: '/var/www/ultrazend/logs/app.log',
       LOG_MAX_SIZE: '20m',
       LOG_MAX_FILES: 14,
       RATE_LIMIT_MAX_REQUESTS: 100,
@@ -46,9 +46,9 @@ module.exports = {
     },
     
     // Log configuration with rotation
-    log_file: '/var/www/urbansend/logs/app.log',
-    out_file: '/var/www/urbansend/logs/out.log',
-    error_file: '/var/www/urbansend/logs/error.log',
+    log_file: '/var/www/ultrazend/logs/app.log',
+    out_file: '/var/www/ultrazend/logs/out.log',
+    error_file: '/var/www/ultrazend/logs/error.log',
     time: true,
     log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     
@@ -76,10 +76,10 @@ module.exports = {
       host: '31.97.162.155',
       ref: 'origin/main',
       repo: 'https://github.com/fernandinhomartins40/urbansend.git',
-      path: '/var/www/urbansend',
+      path: '/var/www/ultrazend',
       'pre-deploy-local': '',
       'post-deploy': 'cd backend && npm install --production && npm run build && pm2 reload ecosystem.config.js --env production',
-      'pre-setup': 'mkdir -p /var/www/urbansend/logs /var/www/urbansend/data'
+      'pre-setup': 'mkdir -p /var/www/ultrazend/logs /var/www/ultrazend/data'
     }
   }
 };

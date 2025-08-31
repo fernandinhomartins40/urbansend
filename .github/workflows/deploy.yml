@@ -123,13 +123,21 @@ jobs:
           pm2 stop ultrazend 2>/dev/null || echo "Nenhuma aplicação rodando"
           pm2 delete ultrazend 2>/dev/null || echo "Processo não existia"
           
-          # Corrigir ownership do Git
-          echo "🔧 Corrigindo configuração do Git..."
-          git config --global --add safe.directory /var/www/ultrazend || true
-          
-          # Atualizar código do Git
-          echo "📦 Atualizando código do repositório..."
-          git pull origin main || echo "Erro no git pull, continuando..."
+          # Garantir repositório Git atualizado
+          echo "🔧 Configurando repositório Git..."
+          if [ ! -d ".git" ]; then
+            echo "📥 Clonando repositório (primeira vez)..."
+            cd /var/www
+            rm -rf ultrazend
+            git clone https://github.com/fernandinhomartins40/urbansend.git ultrazend
+            cd ultrazend
+          else
+            echo "📦 Atualizando código do repositório..."
+            git config --global --add safe.directory /var/www/ultrazend || true
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
+          fi
           
           # Ir para backend e configurar
           echo "⚙️ Configurando backend..."

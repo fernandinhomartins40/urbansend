@@ -20,9 +20,9 @@ NC='\033[0m' # No Color
 # Configuration
 SERVER_HOST="31.97.162.155"
 SERVER_USER="root"
-APP_NAME="urbansend"
-DEPLOY_PATH="/var/www/urbansend"
-BACKUP_PATH="/var/backups/urbansend"
+APP_NAME="ultrazend"
+DEPLOY_PATH="/var/www/ultrazend"
+BACKUP_PATH="/var/backups/ultrazend"
 NODE_VERSION="18"
 LOG_FILE="/tmp/ultrazend-deploy-$(date +%Y%m%d-%H%M%S).log"
 
@@ -210,7 +210,7 @@ ssh "$SERVER_USER@$SERVER_HOST" << EOF
 module.exports = {
   apps: [
     {
-      name: 'urbansend',
+      name: 'ultrazend',
       script: 'dist/index.js',
       cwd: '$DEPLOY_PATH/backend',
       instances: 1,

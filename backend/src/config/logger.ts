@@ -120,7 +120,7 @@ const logger = winston.createLogger({
   level: logLevel,
   format: Env.isProduction ? productionFormat : developmentFormat,
   defaultMeta: { 
-    service: 'urbansend-backend',
+    service: 'ultrazend-backend',
     environment: Env.get('NODE_ENV'),
     version: Env.get('APP_VERSION', '1.0.0'),
     buildNumber: Env.get('BUILD_NUMBER', 'unknown'),
