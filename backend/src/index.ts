@@ -49,8 +49,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS ?
 
 const app = express();
 
-// No more trust proxy needed - direct SSL connection
-app.set('trust proxy', false);
+// Configure trust proxy for rate limiting compatibility
+app.set('trust proxy', 1);
 
 // SSL Configuration for production
 let server;
