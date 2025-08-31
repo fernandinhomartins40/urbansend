@@ -142,7 +142,7 @@ jobs:
             cp -r frontend/dist/* frontend/ 2>/dev/null || echo "Frontend dist vazio"
           else
             echo "⚠️ Frontend build não encontrado - criando página placeholder"
-            cat > frontend/index.html << 'EOF'
+            cat > frontend/index.html <<EOF
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
