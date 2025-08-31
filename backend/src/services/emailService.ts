@@ -442,11 +442,31 @@ class EmailService {
 
   async sendVerificationEmail(email: string, name: string, verificationToken: string): Promise<void> {
     try {
+      logger.info('Sending verification email', {
+        email,
+        name,
+        tokenLength: verificationToken.length,
+        tokenPreview: verificationToken.substring(0, 8) + '...',
+        tokenType: typeof verificationToken
+      });
+
+      // Validate token format
+      if (!verificationToken || typeof verificationToken !== 'string' || verificationToken.length !== 64) {
+        throw new Error(`Invalid verification token format: length=${verificationToken?.length}, type=${typeof verificationToken}`);
+      }
+
       // Use environment-specific frontend URL
       const frontendUrl = process.env['FRONTEND_URL'] || 
         (process.env['NODE_ENV'] === 'production' ? 'https://ultrazend.com.br' : 'http://localhost:5173');
-      const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+      const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
       
+      logger.info('Generated verification URL', {
+        email,
+        frontendUrl,
+        verificationUrl: verificationUrl.substring(0, 100) + '...',
+        tokenInUrl: verificationUrl.includes(verificationToken)
+      });
+
       const htmlContent = `
         <!DOCTYPE html>
         <html lang="pt-BR">

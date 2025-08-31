@@ -46,6 +46,12 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // Generate verification token
   const verificationToken = generateVerificationToken();
 
+  logger.info('Generated verification token for new user', {
+    email,
+    tokenLength: verificationToken.length,
+    tokenPreview: verificationToken.substring(0, 8) + '...'
+  });
+
   // Create user
   const insertResult = await db('users').insert({
     name,
@@ -61,14 +67,28 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // SQLite returns the last inserted row ID
   const userId = insertResult[0];
 
+  // Verify the token was saved correctly
+  const savedUser = await db('users').where('id', userId).first();
+  logger.info('New user created with verification token', {
+    userId,
+    email,
+    savedTokenLength: savedUser.verification_token?.length,
+    savedTokenPreview: savedUser.verification_token?.substring(0, 8) + '...',
+    tokenMatchesGenerated: savedUser.verification_token === verificationToken
+  });
+
   // Send verification email (async, don't block response)
   setImmediate(async () => {
     try {
       const emailService = (await import('../services/emailService')).default;
       await emailService.sendVerificationEmail(email, name, verificationToken);
-      logger.info('Verification email sent successfully', { email });
+      logger.info('Verification email sent successfully', { 
+        email,
+        userId,
+        tokenUsedInEmail: verificationToken.substring(0, 8) + '...'
+      });
     } catch (error) {
-      logger.error('Failed to send verification email', { error, email });
+      logger.error('Failed to send verification email', { error, email, userId });
     }
   });
 
@@ -134,18 +154,95 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.body;
 
-  logger.info('Email verification attempt', { token: token ? 'present' : 'missing', tokenLength: token?.length });
+  logger.info('Email verification attempt', { 
+    token: token ? 'present' : 'missing', 
+    tokenLength: token?.length,
+    requestBody: JSON.stringify(req.body),
+    headers: {
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent']
+    }
+  });
 
   if (!token) {
     logger.warn('Verification token missing from request body');
     throw createError('Verification token is required', 400);
   }
 
-  // Find user by verification token
-  const user = await db('users').where('verification_token', token).first();
+  // Normalize token - remove whitespace, decode URL encoding, and ensure it's a string
+  let normalizedToken = String(token).trim();
+  
+  // Handle URL-encoded tokens (in case they come from URL parameters)
+  try {
+    const decodedToken = decodeURIComponent(normalizedToken);
+    if (decodedToken !== normalizedToken) {
+      logger.info('Token was URL encoded', {
+        originalToken: normalizedToken.substring(0, 8) + '...',
+        decodedToken: decodedToken.substring(0, 8) + '...'
+      });
+      normalizedToken = decodedToken;
+    }
+  } catch (decodeError) {
+    logger.warn('Failed to decode token, using original', { decodeError });
+  }
+  
+  // Remove any extra characters that might have been added
+  normalizedToken = normalizedToken.replace(/[^a-f0-9]/gi, '');
+  
+  // Validate token format (should be 64 hex characters)
+  if (!/^[a-f0-9]{64}$/i.test(normalizedToken)) {
+    logger.warn('Invalid token format detected', {
+      originalToken: token.substring(0, 8) + '...',
+      normalizedToken: normalizedToken.substring(0, 8) + '...',
+      tokenLength: normalizedToken.length,
+      pattern: 'Expected 64 hex characters'
+    });
+  }
+  
+  logger.info('Searching for user with token', { 
+    tokenReceived: normalizedToken, 
+    tokenLength: normalizedToken.length,
+    originalToken: token,
+    originalLength: token.length,
+    tokenType: typeof token,
+    tokenChanged: token !== normalizedToken
+  });
+  
+  const user = await db('users').where('verification_token', normalizedToken).first();
   
   if (!user) {
-    logger.warn('Invalid or expired verification token', { token: token.substring(0, 8) + '...' });
+    // Debug: let's see what tokens we have in the database
+    const allTokens = await db('users')
+      .select('id', 'email', 'verification_token', 'created_at')
+      .whereNotNull('verification_token')
+      .where('is_verified', false);
+      
+    logger.warn('Invalid or expired verification token', { 
+      tokenReceived: normalizedToken.substring(0, 8) + '...',
+      tokenLength: normalizedToken.length,
+      originalToken: token.substring(0, 8) + '...',
+      originalTokenLength: token.length,
+      availableTokensCount: allTokens.length,
+      availableTokens: allTokens.map(u => ({
+        id: u.id,
+        email: u.email,
+        token: u.verification_token?.substring(0, 8) + '...',
+        tokenLength: u.verification_token?.length,
+        exactMatch: u.verification_token === normalizedToken,
+        originalMatch: u.verification_token === token,
+        created: u.created_at
+      }))
+    });
+    
+    // Try to find with original token as well in case normalization caused issues
+    const userWithOriginalToken = await db('users').where('verification_token', token).first();
+    if (userWithOriginalToken) {
+      logger.info('Found user with original token, normalization caused the issue', {
+        userId: userWithOriginalToken.id,
+        email: userWithOriginalToken.email
+      });
+    }
+    
     throw createError('Invalid or expired verification token. Please request a new verification email.', 400);
   }
 
@@ -397,6 +494,34 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
   });
 });
 
+export const debugVerificationTokens = asyncHandler(async (req: Request, res: Response) => {
+  // This is a temporary debug endpoint - remove in production
+  if (process.env.NODE_ENV === 'production') {
+    throw createError('Debug endpoint not available in production', 404);
+  }
+
+  const unverifiedUsers = await db('users')
+    .select('id', 'email', 'verification_token', 'is_verified', 'created_at')
+    .where('is_verified', false)
+    .limit(10);
+
+  const debugInfo = {
+    totalUnverifiedUsers: unverifiedUsers.length,
+    users: unverifiedUsers.map(user => ({
+      id: user.id,
+      email: user.email,
+      tokenPreview: user.verification_token ? user.verification_token.substring(0, 8) + '...' : null,
+      tokenLength: user.verification_token?.length,
+      isVerified: user.is_verified,
+      created: user.created_at
+    }))
+  };
+
+  logger.info('Debug tokens endpoint called', debugInfo);
+
+  res.json(debugInfo);
+});
+
 export const resendVerificationEmail = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.body;
 
@@ -422,10 +547,27 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   // Generate new verification token
   const verificationToken = generateVerificationToken();
 
+  logger.info('Generated new verification token for resend', {
+    userId: user.id,
+    email,
+    tokenLength: verificationToken.length,
+    tokenPreview: verificationToken.substring(0, 8) + '...',
+    oldTokenPreview: user.verification_token ? user.verification_token.substring(0, 8) + '...' : 'null'
+  });
+
   // Update user with new verification token
   await db('users').where('id', user.id).update({
     verification_token: verificationToken,
     updated_at: new Date()
+  });
+
+  // Verify the token was saved correctly
+  const updatedUser = await db('users').where('id', user.id).first();
+  logger.info('Token saved to database', {
+    userId: user.id,
+    savedTokenLength: updatedUser.verification_token?.length,
+    savedTokenPreview: updatedUser.verification_token?.substring(0, 8) + '...',
+    tokenMatchesGenerated: updatedUser.verification_token === verificationToken
   });
 
   // Send verification email (async, don't block response)
@@ -433,7 +575,11 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
     try {
       const emailService = (await import('../services/emailService')).default;
       await emailService.sendVerificationEmail(email, user.name, verificationToken);
-      logger.info('Verification email resent successfully', { userId: user.id, email });
+      logger.info('Verification email resent successfully', { 
+        userId: user.id, 
+        email,
+        tokenUsedInEmail: verificationToken.substring(0, 8) + '...'
+      });
     } catch (error) {
       logger.error('Failed to resend verification email', { error, email, userId: user.id });
     }
