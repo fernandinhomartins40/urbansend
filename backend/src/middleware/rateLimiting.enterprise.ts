@@ -1,6 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import { env } from '../config/environment';
 import { CorrelatedRequest } from './correlationId';
 

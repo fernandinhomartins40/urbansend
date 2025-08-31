@@ -1,6 +1,6 @@
 import { createTransport, Transporter } from 'nodemailer';
 import fs from 'fs';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import { validateEmailAddress, processTemplate, generateTrackingPixel, processLinksForTracking } from '../utils/email';
 import { generateTrackingId } from '../utils/crypto';
 import { sanitizeEmailHtml } from '../middleware/validation';

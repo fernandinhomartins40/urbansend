@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import { env } from '../config/environment';
 import db from '../config/database';
 import fs from 'fs/promises';

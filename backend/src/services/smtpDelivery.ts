@@ -1,5 +1,5 @@
 import { createTransport, Transporter, SentMessageInfo } from 'nodemailer';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import db from '../config/database';
 import { Env } from '../utils/env';
 import * as dns from 'dns';

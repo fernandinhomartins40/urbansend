@@ -1,7 +1,7 @@
 import { SMTPServer } from 'smtp-server';
 import { simpleParser, ParsedMail } from 'mailparser';
 import bcrypt from 'bcrypt';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import { Env } from '../utils/env';
 import db from '../config/database';
 

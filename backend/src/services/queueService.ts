@@ -1,6 +1,6 @@
 import Queue from 'bull';
 import Redis from 'ioredis';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import { Env } from '../utils/env';
 import emailService from './emailService';
 import webhookService from './webhookService';
