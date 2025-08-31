@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.enterprise';
 import { Env } from '../utils/env';
 
 interface DKIMOptions {
