@@ -1,74 +1,25 @@
-/**
- * UltraZend Enterprise API Server
- * 
- * Production-ready Node.js/Express application with:
- * - Enterprise-grade architecture and middleware chain
- * - Comprehensive security, logging, and monitoring
- * - Environment-aware configuration management
- * - Robust error handling and graceful shutdown
- * - Health checks and observability
- * - Performance optimization and rate limiting
- * 
- * @version 1.0.0
- * @author UltraZend Engineering Team
- */
-
-import express, { Application } from 'express';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
 
-// Enterprise Configuration and Environment
-import { env } from './config/environment';
-import { logger, httpLoggerMiddleware } from './config/logger.enterprise';
-
-// Enterprise Middleware Suite
-import { correlationIdMiddleware, CorrelatedRequest } from './middleware/correlationId';
-import { 
-  generalRateLimit, 
-  authRateLimit, 
-  registrationRateLimit,
-  passwordResetRateLimit,
-  verificationResendRateLimit,
-  emailSendRateLimit,
-  apiKeyRateLimit
-} from './middleware/rateLimiting.enterprise';
-import { 
-  errorHandler, 
-  notFoundHandler, 
-  setupGlobalErrorHandlers,
-  asyncHandler 
-} from './middleware/errorHandler.enterprise';
-import {
-  healthCheck,
-  livenessCheck,
-  readinessCheck,
-  trackRequestMetrics
-} from './middleware/healthCheck.enterprise';
-import {
-  securityMiddleware,
-  sanitizeRequest,
-  additionalSecurityHeaders,
-  attackDetection,
-  ipFilter,
-  requestSizeLimit,
-  cspViolationReporter
-} from './middleware/security.enterprise';
-
-// Standard Middleware
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-
-// Database and Services
-import db from './config/database';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
+import { Env } from './utils/env';
+import db from './config/database';
 import UltraZendSMTPServer from './services/smtpServer';
 import SMTPDeliveryService from './services/smtpDelivery';
 import './services/queueService'; // Initialize queue processors
 
-// Application Routes
+// Routes
 import authRoutes from './routes/auth';
 import keysRoutes from './routes/keys';
 import emailsRoutes from './routes/emails';
@@ -78,302 +29,311 @@ import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 
-/**
- * Enterprise Application Class
- * Encapsulates the entire application lifecycle with proper separation of concerns
- */
-class UltraZendServer {
-  private app: Application;
-  private httpServer: any;
-  private httpsServer: any;
-  private redirectServer: any;
-  private io: SocketIOServer;
-  private smtpServer: UltraZendSMTPServer;
-  private smtpDelivery: SMTPDeliveryService;
-  
-  constructor() {
-    // Initialize environment configuration first
-    env.initialize();
-    env.validateCriticalConfig();
+// Load environment variables from configs directory
+const configPath = path.resolve(process.cwd(), 'configs', '.env.production');
+dotenv.config({ path: configPath });
+
+// Fallback to development if production config doesn't exist
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config(); // This loads .env from root for development
+}
+
+// CORS allowed origins - load from environment variables for security
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
+  process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
+  [
+    ...(Env.isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : []),
+    'https://ultrazend.com.br',
+    'https://www.ultrazend.com.br'
+  ];
+
+const app = express();
+
+// Configure trust proxy for rate limiting compatibility
+app.set('trust proxy', 1);
+
+// Server Configuration
+const PORT = Env.getNumber('PORT', 3001); // HTTP port for development/internal
+const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443); // HTTPS port for production
+
+let server;
+let httpsServer;
+let primaryServer; // The server that Socket.io will use
+
+if (Env.isProduction) {
+  try {
+    // Load SSL certificates from Let's Encrypt
+    const sslOptions = {
+      key: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
+      cert: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
+    };
     
-    // Setup global error handlers
-    setupGlobalErrorHandlers();
+    // Create HTTPS server with the Express app
+    httpsServer = createHttpsServer(sslOptions, app);
+    primaryServer = httpsServer;
     
-    // Initialize Express application
-    this.app = express();
+    // Create HTTP server that serves the app on port 3001 (for internal/debug)
+    server = createServer(app);
     
-    // Configure application
-    this.configureApplication();
-    this.configureMiddleware();
-    this.configureRoutes();
-    this.configureErrorHandling();
+    logger.info('✅ SSL certificates loaded successfully');
     
-    // Initialize servers and services
-    this.initializeServers();
-    this.initializeServices();
-    
-    logger.info('UltraZend Server initialized successfully', {
-      environment: env.config.NODE_ENV,
-      version: process.env.npm_package_version,
-      node: process.version,
-      platform: process.platform
-    });
+  } catch (error) {
+    logger.error('❌ SSL certificates not found, using HTTP only', error);
+    server = createServer(app);
+    primaryServer = server;
   }
-  
-  /**
-   * Configure Express application settings
-   */
-  private configureApplication(): void {
-    // Trust proxy configuration for proper IP detection and security
-    const trustProxyConfig = env.getTrustProxyConfig();
-    this.app.set('trust proxy', trustProxyConfig);
-    
-    // Disable x-powered-by header for security
-    this.app.disable('x-powered-by');
-    
-    // Set view engine (if needed for emails/templates)
-    this.app.set('view engine', 'ejs');
-    
-    // Configure Express settings
-    this.app.set('env', env.config.NODE_ENV);
-    this.app.set('case sensitive routing', true);
-    this.app.set('strict routing', false);
-    
-    logger.info('Application configuration completed', {
-      trustProxy: trustProxyConfig,
-      environment: env.config.NODE_ENV
-    });
+} else {
+  // Development: only HTTP server
+  server = createServer(app);
+  primaryServer = server;
+}
+
+const io = new Server(primaryServer, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"]
   }
-  
-  /**
-   * Configure middleware chain in optimal order
-   * Order is critical for security and functionality
-   */
-  private configureMiddleware(): void {
-    logger.info('Configuring middleware chain...');
-    
-    // 1. CORRELATION ID - Must be first to track all requests
-    this.app.use(correlationIdMiddleware);
-    
-    // 2. REQUEST METRICS TRACKING
-    this.app.use(trackRequestMetrics);
-    
-    // 3. SECURITY MIDDLEWARE - Early security filtering
-    this.app.use(ipFilter);
-    this.app.use(attackDetection);
-    this.app.use(requestSizeLimit('10mb'));
-    
-    // 4. HELMET SECURITY HEADERS
-    this.app.use(securityMiddleware());
-    this.app.use(additionalSecurityHeaders);
-    
-    // 5. CORS CONFIGURATION - After security, before rate limiting
-    const corsConfig = env.getCorsConfig();
-    this.app.use('/api', cors(corsConfig));
-    
-    // 6. GENERAL RATE LIMITING - Apply to all requests
-    this.app.use(generalRateLimit);
-    
-    // 7. REQUEST PARSING MIDDLEWARE
-    this.app.use(express.json({ 
-      limit: '10mb',
-      verify: (req, res, buf) => {
-        // Store raw body for webhook signature verification
-        (req as any).rawBody = buf.toString('utf8');
-      }
-    }));
-    this.app.use(express.urlencoded({ 
-      extended: true, 
-      limit: '10mb' 
-    }));
-    
-    // 8. COOKIE PARSING - After body parsing
-    this.app.use(cookieParser(env.config.COOKIE_SECRET));
-    
-    // 9. REQUEST SANITIZATION - After parsing, before routes
-    this.app.use(sanitizeRequest);
-    
-    // 10. HTTP REQUEST LOGGING - After all parsing
-    this.app.use(httpLoggerMiddleware);
-    
-    logger.info('Middleware chain configured successfully');
-  }
-  
-  /**
-   * Configure application routes with proper organization
-   */
-  private configureRoutes(): void {
-    logger.info('Configuring application routes...');
-    
-    // Health Check Endpoints (no rate limiting for monitoring)
-    this.app.get('/health', asyncHandler(healthCheck));
-    this.app.get('/health/live', asyncHandler(livenessCheck));
-    this.app.get('/health/ready', asyncHandler(readinessCheck));
-    
-    // Security Reporting Endpoints
-    this.app.post('/api/security/csp-report', 
-      express.json({ type: 'application/csp-report' }), 
-      cspViolationReporter
-    );
-    
-    // API Routes with specific rate limiting
-    this.app.use('/api/auth/login', authRateLimit);
-    this.app.use('/api/auth/register', registrationRateLimit);
-    this.app.use('/api/auth/forgot-password', passwordResetRateLimit);
-    this.app.use('/api/auth/reset-password', passwordResetRateLimit);
-    this.app.use('/api/auth/resend-verification', verificationResendRateLimit);
-    
-    // Email sending endpoints
-    this.app.use('/api/emails/send', emailSendRateLimit);
-    
-    // API key endpoints
-    this.app.use('/api/keys', apiKeyRateLimit);
-    
-    // Main API routes
-    this.app.use('/api/auth', authRoutes);
-    this.app.use('/api/keys', keysRoutes);
-    this.app.use('/api/emails', emailsRoutes);
-    this.app.use('/api/templates', templatesRoutes);
-    this.app.use('/api/domains', domainsRoutes);
-    this.app.use('/api/analytics', analyticsRoutes);
-    this.app.use('/api/webhooks', webhooksRoutes);
-    this.app.use('/api/dns', dnsRoutes);
-    
-    // API Documentation (only if enabled)
-    if (env.config.ENABLE_SWAGGER) {
-      setupSwagger(this.app);
-      logger.info('API documentation enabled at /api-docs');
+});
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      mediaSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      childSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+      formAction: ["'self'"],
+      baseUri: ["'self'"],
+      upgradeInsecureRequests: Env.isProduction ? [] : null
+    },
+    reportOnly: false
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  dnsPrefetchControl: true,
+  frameguard: { action: 'deny' },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  xssFilter: true
+}));
+
+// CORS configuration - secure implementation
+app.use('/api', cors({
+  origin: (origin: string | undefined, callback: Function) => {
+    // In development, allow requests with no origin (like Postman, mobile apps)
+    if (!origin && Env.isDevelopment) {
+      return callback(null, true);
     }
     
-    // Static file serving and SPA routing
-    this.configureStaticServing();
-    
-    logger.info('Routes configured successfully');
-  }
-  
-  /**
-   * Configure static file serving and SPA routing
-   */
-  private configureStaticServing(): void {
-    if (env.isProduction) {
-      const frontendPath = path.resolve(__dirname, '../../frontend');
-      
-      if (fs.existsSync(frontendPath)) {
-        logger.info(`Serving frontend from: ${frontendPath}`);
-        
-        // Serve static files with caching headers
-        this.app.use(express.static(frontendPath, {
-          maxAge: '1d',
-          etag: true,
-          lastModified: true,
-          setHeaders: (res, path) => {
-            if (path.endsWith('.html')) {
-              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            }
-          }
-        }));
-        
-        // SPA routing - serve index.html for non-API routes
-        this.app.get('*', (req, res) => {
-          // Don't serve index.html for API routes or health checks
-          if (req.path.startsWith('/api/') || 
-              req.path.startsWith('/health') || 
-              req.path.startsWith('/docs')) {
-            return; // Let it fall through to 404 handler
-          }
-          
-          const indexPath = path.join(frontendPath, 'index.html');
-          if (fs.existsSync(indexPath)) {
-            res.sendFile(indexPath);
-          } else {
-            res.status(404).json({ 
-              error: 'Frontend not found', 
-              message: 'Frontend files not available' 
-            });
-          }
-        });
-      } else {
-        logger.warn(`Frontend directory not found at: ${frontendPath}`);
-        
-        // Fallback route for missing frontend
-        this.app.get('/', (req, res) => {
-          res.json({
-            name: 'UltraZend API Server',
-            version: process.env.npm_package_version,
-            status: 'OK',
-            environment: env.config.NODE_ENV,
-            frontend: 'Not available - frontend files not found',
-            endpoints: {
-              api: '/api/',
-              docs: env.config.ENABLE_SWAGGER ? '/api-docs' : 'disabled',
-              health: '/health'
-            },
-            timestamp: new Date().toISOString()
-          });
-        });
-      }
-    } else {
-      // Development mode - show API info
-      this.app.get('/', (req, res) => {
-        res.json({
-          name: 'UltraZend API Server',
-          version: process.env.npm_package_version,
-          status: 'OK',
-          mode: 'development',
-          environment: env.config.NODE_ENV,
-          endpoints: {
-            api: '/api/',
-            docs: '/api-docs',
-            health: '/health'
-          },
-          configuration: {
-            cors: env.getCorsConfig().origin,
-            rateLimit: env.getRateLimitConfig(),
-            database: !!env.config.DATABASE_URL,
-            smtp: !!env.config.SMTP_HOST
-          },
-          timestamp: new Date().toISOString()
-        });
+    // In production, ALWAYS require origin header for API routes
+    if (!origin && Env.isProduction) {
+      logger.warn('CORS: Request blocked - missing origin header', { 
+        timestamp: new Date().toISOString() 
       });
+      return callback(new Error('Origin header é obrigatório'));
     }
-  }
+    
+    // Check if origin is in allowed list
+    if (origin && allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log blocked request for security monitoring
+    logger.warn('CORS: Blocked request from unauthorized origin', { 
+      origin, 
+      allowedOrigins,
+      timestamp: new Date().toISOString() 
+    });
+    
+    return callback(new Error('Não permitido pelo CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  // Security headers
+  optionsSuccessStatus: 200,
+  preflightContinue: false,
+  // Prevent credential leaks
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: Env.getNumber('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutes
+  max: Env.getNumber('RATE_LIMIT_MAX_REQUESTS', 500), // Increased from 100 to 500
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip failing requests to avoid issues with proxy setup
+  skip: (req) => {
+    // Skip rate limiting in development environment
+    if (Env.isDevelopment) {
+      return true;
+    }
+    // Skip rate limiting if there are issues with IP detection
+    return false;
+  },
+});
+
+app.use(limiter);
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cookie parsing with secure settings
+app.use(cookieParser(Env.get('COOKIE_SECRET', 'fallback-secret')));
+
+// Logging middleware
+app.use((req, _res, next) => {
+  logger.info(`${req.method} ${req.path}`, {
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    timestamp: new Date().toISOString()
+  });
+  next();
+});
+
+// Health check endpoint
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: Env.get('NODE_ENV', 'development')
+  });
+});
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/keys', keysRoutes);
+app.use('/api/emails', emailsRoutes);
+app.use('/api/templates', templatesRoutes);
+app.use('/api/domains', domainsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/webhooks', webhooksRoutes);
+app.use('/api/dns', dnsRoutes);
+
+// Swagger documentation
+setupSwagger(app);
+
+// Serve static frontend files in production
+if (Env.isProduction) {
+  const frontendPath = path.resolve(__dirname, '../../frontend');
   
-  /**
-   * Configure error handling middleware (must be last)
-   */
-  private configureErrorHandling(): void {
-    // 404 handler for unmatched routes
-    this.app.use(notFoundHandler);
+  // Check if frontend directory exists
+  if (fs.existsSync(frontendPath)) {
+    logger.info(`Serving frontend from: ${frontendPath}`);
+    app.use(express.static(frontendPath));
     
-    // Global error handler (must be last middleware)
-    this.app.use(errorHandler);
+    // Handle client-side routing (SPA)
+    app.get('*', (req, res) => {
+      // Don't serve index.html for API routes
+      if (req.path.startsWith('/api/') || req.path.startsWith('/docs')) {
+        return res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
+      }
+      
+      const indexPath = path.join(frontendPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).json({ error: 'Frontend not found', message: 'Frontend files not available' });
+      }
+    });
+  } else {
+    logger.warn(`Frontend directory not found at: ${frontendPath}`);
     
-    logger.info('Error handling configured');
+    // Fallback route for missing frontend
+    app.get('/', (req, res) => {
+      res.json({
+        message: 'UltraZend API Server',
+        status: 'OK',
+        frontend: 'Not available - frontend files not found',
+        api: '/api/',
+        docs: '/api-docs',
+        timestamp: new Date().toISOString()
+      });
+    });
   }
+} else {
+  // Development mode - show API info
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'UltraZend API Server - Development',
+      status: 'OK',
+      mode: 'development',
+      api: '/api/',
+      docs: '/api-docs',
+      timestamp: new Date().toISOString()
+    });
+  });
+}
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  logger.info('Client connected to WebSocket', { socketId: socket.id });
   
-  /**
-   * Initialize HTTP/HTTPS servers and WebSocket
-   */
-  private initializeServers(): void {
-    const config = env.config;
-    
-    if (env.isProduction) {
-      try {
-        // Load SSL certificates
-        const sslOptions = {
-          key: fs.readFileSync(config.SSL_KEY_PATH || '/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
-          cert: fs.readFileSync(config.SSL_CERT_PATH || '/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
-        };
+  socket.on('disconnect', () => {
+    logger.info('Client disconnected from WebSocket', { socketId: socket.id });
+  });
+});
+
+// Make io available in request object
+app.set('io', io);
+
+// Error handling middleware
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// Database connection and server start
+const startServer = async () => {
+  try {
+    // Test database connection
+    await db.raw('SELECT 1');
+    logger.info('Database connected successfully');
+
+    // Run migrations
+    await db.migrate.latest();
+    logger.info('Database migrations completed');
+
+    // Start servers
+    if (Env.isProduction) {
+      if (httpsServer) {
+        // Production with SSL: Start HTTPS server on port 443
+        httpsServer.listen(HTTPS_PORT, () => {
+          logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
+          logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
+          logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'production')}`);
+        });
         
-        // Create HTTPS server
-        this.httpsServer = createHttpsServer(sslOptions, this.app);
+        // Also start HTTP server on port 3001 (internal/debug access)
+        server.listen(PORT, () => {
+          logger.info(`🔧 HTTP Server (internal) running on port ${PORT}`);
+        });
         
-        // Create HTTP server for internal access
-        this.httpServer = createServer(this.app);
-        
-        // Create HTTP to HTTPS redirect server
-        this.redirectServer = createServer((req, res) => {
-          const host = req.headers.host?.replace(/:\\d+/, '');
+        // Create HTTP redirect server on port 80
+        const redirectServer = createServer((req, res) => {
+          const host = req.headers.host?.replace(/:\d+/, ''); // Remove port from host
           const redirectUrl = `https://${host}${req.url}`;
           
           res.writeHead(301, { 
@@ -383,322 +343,84 @@ class UltraZendServer {
           res.end(`Redirecting to ${redirectUrl}`);
         });
         
-        // Initialize WebSocket on HTTPS server
-        this.io = new SocketIOServer(this.httpsServer, {
-          cors: env.getCorsConfig(),
-          transports: ['websocket', 'polling'],
-          pingTimeout: 60000,
-          pingInterval: 25000
+        redirectServer.listen(80, () => {
+          logger.info(`↩️  HTTP Redirect Server running on port 80 → HTTPS`);
         });
-        
-        logger.info('HTTPS server configuration completed');
-        
-      } catch (error) {
-        logger.error('SSL certificates not found, using HTTP only', { error });
-        
-        // Fallback to HTTP only
-        this.httpServer = createServer(this.app);
-        this.io = new SocketIOServer(this.httpServer, {
-          cors: env.getCorsConfig()
+      } else {
+        // Production without SSL certificates: HTTP only on configured port
+        server.listen(PORT, () => {
+          logger.info(`🚀 HTTP Server running on port ${PORT} (SSL certificates not found)`);
+          logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
         });
       }
     } else {
       // Development: HTTP only
-      this.httpServer = createServer(this.app);
-      this.io = new SocketIOServer(this.httpServer, {
-        cors: env.getCorsConfig()
+      server.listen(PORT, () => {
+        logger.info(`🚀 HTTP Server running on port ${PORT}`);
+        logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
+        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
       });
     }
+
+    // Start SMTP server
+    const smtpServer = new UltraZendSMTPServer();
+    await smtpServer.start();
+
+    // Start email queue processor
+    const smtpDelivery = new SMTPDeliveryService();
     
-    // Configure WebSocket connection handling
-    this.configureWebSocket();
-    
-    // Make io available to routes
-    this.app.set('io', this.io);
-  }
-  
-  /**
-   * Configure WebSocket connection handling
-   */
-  private configureWebSocket(): void {
-    this.io.on('connection', (socket) => {
-      const clientInfo = {
-        socketId: socket.id,
-        ip: socket.handshake.address,
-        userAgent: socket.handshake.headers['user-agent'],
-        timestamp: new Date().toISOString()
-      };
-      
-      logger.info('WebSocket client connected', clientInfo);
-      
-      // Handle authentication if needed
-      socket.on('authenticate', (token) => {
-        // Implement JWT authentication for WebSocket if needed
-        logger.debug('WebSocket authentication attempt', { 
-          socketId: socket.id,
-          hasToken: !!token 
-        });
-      });
-      
-      // Handle disconnection
-      socket.on('disconnect', (reason) => {
-        logger.info('WebSocket client disconnected', {
-          ...clientInfo,
-          reason,
-          disconnectedAt: new Date().toISOString()
-        });
-      });
-      
-      // Handle errors
-      socket.on('error', (error) => {
-        logger.error('WebSocket error', {
-          ...clientInfo,
-          error: error.message
-        });
-      });
-    });
-  }
-  
-  /**
-   * Initialize SMTP and email services
-   */
-  private initializeServices(): void {
-    this.smtpServer = new UltraZendSMTPServer();
-    this.smtpDelivery = new SMTPDeliveryService();
-    
-    logger.info('Services initialized');
-  }
-  
-  /**
-   * Start the server and all services
-   */
-  public async start(): Promise<void> {
-    try {
-      // Test database connection first
-      await this.testDatabaseConnection();
-      
-      // Run database migrations
-      await this.runDatabaseMigrations();
-      
-      // Start HTTP/HTTPS servers
-      await this.startHttpServers();
-      
-      // Start SMTP server
-      await this.startSMTPServer();
-      
-      // Start background services
-      this.startBackgroundServices();
-      
-      logger.info('🚀 UltraZend Server started successfully', {
-        environment: env.config.NODE_ENV,
-        ports: {
-          http: env.config.PORT,
-          https: env.config.HTTPS_PORT
-        },
-        features: {
-          ssl: !!this.httpsServer,
-          websocket: true,
-          smtp: true,
-          swagger: env.config.ENABLE_SWAGGER
-        }
-      });
-      
-    } catch (error) {
-      logger.error('Failed to start server', { error });
-      process.exit(1);
-    }
-  }
-  
-  /**
-   * Test database connection
-   */
-  private async testDatabaseConnection(): Promise<void> {
-    try {
-      await db.raw('SELECT 1');
-      logger.info('✅ Database connection successful');
-    } catch (error) {
-      logger.error('❌ Database connection failed', { error });
-      throw error;
-    }
-  }
-  
-  /**
-   * Run database migrations
-   */
-  private async runDatabaseMigrations(): Promise<void> {
-    try {
-      const [batchNo, migrations] = await db.migrate.latest();
-      logger.info('Database migrations completed', { 
-        batch: batchNo,
-        migrationsRun: migrations.length 
-      });
-    } catch (error) {
-      logger.error('Database migrations failed', { error });
-      throw error;
-    }
-  }
-  
-  /**
-   * Start HTTP and HTTPS servers
-   */
-  private async startHttpServers(): Promise<void> {
-    const config = env.config;
-    
-    return new Promise((resolve, reject) => {
-      let serversStarted = 0;
-      const totalServers = this.httpsServer ? 3 : 1; // HTTP, HTTPS, Redirect OR just HTTP
-      
-      const checkComplete = () => {
-        serversStarted++;
-        if (serversStarted === totalServers) {
-          resolve();
-        }
-      };
-      
-      if (this.httpsServer) {
-        // Start HTTPS server
-        this.httpsServer.listen(config.HTTPS_PORT, (err: any) => {
-          if (err) return reject(err);
-          logger.info(`🔒 HTTPS Server listening on port ${config.HTTPS_PORT}`);
-          checkComplete();
-        });
-        
-        // Start HTTP server (internal access)
-        this.httpServer.listen(config.PORT, (err: any) => {
-          if (err) return reject(err);
-          logger.info(`🔧 HTTP Server (internal) listening on port ${config.PORT}`);
-          checkComplete();
-        });
-        
-        // Start HTTP redirect server
-        this.redirectServer.listen(80, (err: any) => {
-          if (err) return reject(err);
-          logger.info(`↩️  HTTP Redirect Server listening on port 80`);
-          checkComplete();
-        });
-        
-      } else {
-        // Start HTTP server only
-        this.httpServer.listen(config.PORT, (err: any) => {
-          if (err) return reject(err);
-          logger.info(`🚀 HTTP Server listening on port ${config.PORT}`);
-          checkComplete();
-        });
-      }
-    });
-  }
-  
-  /**
-   * Start SMTP server
-   */
-  private async startSMTPServer(): Promise<void> {
-    try {
-      await this.smtpServer.start();
-      logger.info('📧 SMTP Server started successfully');
-    } catch (error) {
-      logger.error('Failed to start SMTP server', { error });
-      // Don't fail the entire application if SMTP fails
-    }
-  }
-  
-  /**
-   * Start background services
-   */
-  private startBackgroundServices(): void {
-    // Email queue processor
-    const processEmailQueue = async () => {
+    // Process email queue every 30 seconds
+    const processQueue = async () => {
       try {
-        await this.smtpDelivery.processEmailQueue();
+        await smtpDelivery.processEmailQueue();
       } catch (error) {
-        logger.error('Email queue processing error', { error });
+        logger.error('Error in queue processing:', error);
       }
     };
     
-    setInterval(processEmailQueue, 30000); // Every 30 seconds
-    logger.info('📬 Email queue processor started (30s intervals)');
+    // Start queue processor
+    setInterval(processQueue, 30000); // Process every 30 seconds
+    logger.info('📧 Email queue processor started (30s intervals)');
     
-    // Health check scheduling (if needed)
-    // Additional background tasks can be added here
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Graceful shutdown
+const gracefulShutdown = () => {
+  logger.info('Shutting down gracefully');
+  
+  const closePromises = [];
+  
+  if (server) {
+    closePromises.push(new Promise((resolve) => {
+      server.close(() => {
+        logger.info('HTTP Server closed');
+        resolve(void 0);
+      });
+    }));
   }
   
-  /**
-   * Graceful shutdown
-   */
-  public async shutdown(): Promise<void> {
-    logger.info('Initiating graceful shutdown...');
-    
-    const shutdownPromises: Promise<void>[] = [];
-    
-    // Close HTTP servers
-    if (this.httpServer) {
-      shutdownPromises.push(new Promise(resolve => {
-        this.httpServer.close(() => {
-          logger.info('HTTP Server closed');
-          resolve();
-        });
-      }));
-    }
-    
-    if (this.httpsServer) {
-      shutdownPromises.push(new Promise(resolve => {
-        this.httpsServer.close(() => {
-          logger.info('HTTPS Server closed');
-          resolve();
-        });
-      }));
-    }
-    
-    if (this.redirectServer) {
-      shutdownPromises.push(new Promise(resolve => {
-        this.redirectServer.close(() => {
-          logger.info('Redirect Server closed');
-          resolve();
-        });
-      }));
-    }
-    
-    // Close WebSocket server
-    if (this.io) {
-      shutdownPromises.push(new Promise(resolve => {
-        this.io.close(() => {
-          logger.info('WebSocket Server closed');
-          resolve();
-        });
-      }));
-    }
-    
-    // Wait for all servers to close
-    await Promise.all(shutdownPromises);
-    
-    // Close database connections
-    await db.destroy();
-    logger.info('Database connections closed');
-    
-    logger.info('✅ Graceful shutdown completed');
+  if (httpsServer) {
+    closePromises.push(new Promise((resolve) => {
+      httpsServer.close(() => {
+        logger.info('HTTPS Server closed');
+        resolve(void 0);
+      });
+    }));
   }
-}
+  
+  Promise.all(closePromises).then(() => {
+    db.destroy();
+    process.exit(0);
+  });
+};
 
-// Create and start the server
-const server = new UltraZendServer();
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
-// Graceful shutdown handlers
-process.on('SIGTERM', async () => {
-  logger.info('Received SIGTERM signal');
-  await server.shutdown();
-  process.exit(0);
-});
+startServer();
 
-process.on('SIGINT', async () => {
-  logger.info('Received SIGINT signal');
-  await server.shutdown();
-  process.exit(0);
-});
-
-// Start the server
-server.start().catch(error => {
-  logger.error('Failed to start UltraZend Server', { error });
-  process.exit(1);
-});
-
-// Export for testing
-export { server as ultraZendServer };
+export { io };
