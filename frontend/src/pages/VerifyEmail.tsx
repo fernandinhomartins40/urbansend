@@ -14,16 +14,26 @@ export function VerifyEmail() {
   useEffect(() => {
     const token = searchParams.get('token')
     
+    // Debug logging
+    console.log('VerifyEmail component mounted')
+    console.log('Token from URL:', token)
+    console.log('Current URL:', window.location.href)
+    
     if (!token) {
+      console.error('No token found in URL')
       setStatus('error')
-      setMessage('Token de verificação não encontrado.')
+      setMessage('Token de verificação não encontrado na URL. Verifique se o link está completo.')
+      toast.auth.verificationError('Token não encontrado na URL')
       return
     }
 
     // Chamar API de verificação
     const verifyEmail = async () => {
       try {
+        console.log('Calling verifyEmail API with token:', token)
         const response = await authApi.verifyEmail(token)
+        console.log('Verification response:', response)
+        
         setStatus('success')
         setMessage(response.data.message)
         toast.auth.verificationSuccess()
@@ -43,22 +53,40 @@ export function VerifyEmail() {
           })
         }, 3000)
       } catch (error: any) {
+        console.error('Email verification error:', error)
+        console.error('Error response:', error.response)
+        
         setStatus('error')
-        const errorMessage = error.response?.data?.message || 'Erro ao verificar email'
-        setMessage(errorMessage)
+        const errorMessage = error.response?.data?.message || error.message || 'Erro ao verificar email'
+        const errorStatus = error.response?.status
+        
+        console.log('Error status:', errorStatus)
+        console.log('Error message:', errorMessage)
+        
+        setMessage(`${errorMessage} ${errorStatus ? `(Status: ${errorStatus})` : ''}`)
         toast.auth.verificationError(errorMessage)
         
-        // Oferecer ajuda adicional
+        // Oferecer ajuda baseada no tipo de erro
         setTimeout(() => {
-          toast.warning('🔗 Precisa de um novo link de verificação? Tente se registrar novamente.', { 
-            duration: 6000 
-          })
+          if (errorStatus === 404 || errorMessage.includes('not found')) {
+            toast.warning('🔗 O link pode ter expirado. Tente se registrar novamente para receber um novo link.', { 
+              duration: 8000 
+            })
+          } else if (errorStatus === 400 || errorMessage.includes('Invalid')) {
+            toast.warning('🔗 Link inválido. Certifique-se de usar o link completo do email.', { 
+              duration: 6000 
+            })
+          } else {
+            toast.warning('🔗 Precisa de ajuda? Entre em contato com o suporte.', { 
+              duration: 6000 
+            })
+          }
         }, 2000)
       }
     }
 
     verifyEmail()
-  }, [searchParams, navigate])
+  }, [searchParams, navigate, toast])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">

@@ -134,16 +134,28 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.body;
 
+  logger.info('Email verification attempt', { token: token ? 'present' : 'missing', tokenLength: token?.length });
+
+  if (!token) {
+    logger.warn('Verification token missing from request body');
+    throw createError('Verification token is required', 400);
+  }
+
   // Find user by verification token
   const user = await db('users').where('verification_token', token).first();
+  
   if (!user) {
-    throw createError('Invalid or expired verification token', 400);
+    logger.warn('Invalid or expired verification token', { token: token.substring(0, 8) + '...' });
+    throw createError('Invalid or expired verification token. Please request a new verification email.', 400);
   }
+
+  logger.info('User found for verification', { userId: user.id, email: user.email, isAlreadyVerified: user.is_verified });
 
   // Check if user is already verified
   if (user.is_verified) {
+    logger.info('User already verified', { userId: user.id, email: user.email });
     return res.json({
-      message: 'Email already verified',
+      message: 'Email already verified. You can proceed to login.',
       user: {
         id: user.id,
         name: user.name,

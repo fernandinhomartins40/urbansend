@@ -135,6 +135,29 @@ router.post('/logout', logout);
  */
 router.post('/verify-email', validateRequest({ body: verifyEmailSchema }), verifyEmail);
 
+// Debug endpoint - only available in development
+if (!Env.isProduction) {
+  router.get('/debug/verification-tokens', asyncHandler(async (req: Request, res: Response) => {
+    const users = await db('users')
+      .select('id', 'email', 'verification_token', 'is_verified', 'created_at')
+      .whereNotNull('verification_token')
+      .orderBy('created_at', 'desc')
+      .limit(10);
+    
+    res.json({
+      message: 'Debug: Recent verification tokens (development only)',
+      users: users.map(user => ({
+        id: user.id,
+        email: user.email,
+        token: user.verification_token,
+        isVerified: user.is_verified,
+        createdAt: user.created_at,
+        verifyUrl: `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/verify-email?token=${user.verification_token}`
+      }))
+    });
+  }));
+}
+
 /**
  * @swagger
  * /api/auth/forgot-password:
