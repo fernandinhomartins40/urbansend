@@ -62,6 +62,8 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [showResendOption, setShowResendOption] = useState(false)
   const [resendEmail, setResendEmail] = useState('')
+  const [showResendForm, setShowResendForm] = useState(false)
+  const [resendFormEmail, setResendFormEmail] = useState('')
   const navigate = useNavigate()
   const { login } = useAuthStore()
   const toast = useToast()
@@ -204,6 +206,46 @@ export function Login() {
     }
   }
 
+  const onResendFormSubmit = async () => {
+    if (!resendFormEmail.trim()) {
+      toast.warning('⚠️ Por favor, digite seu email.')
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resendFormEmail)) {
+      toast.error('❌ Por favor, digite um email válido.')
+      return
+    }
+
+    setIsLoading(true)
+    
+    const loadingToast = toast.loading('📧 Reenviando email de verificação...')
+    
+    try {
+      await authApi.resendVerificationEmail(resendFormEmail)
+      toast.dismiss(loadingToast)
+      toast.auth.resendSuccess()
+      
+      // Limpar e fechar formulário
+      setResendFormEmail('')
+      setShowResendForm(false)
+      
+      // Informação adicional
+      setTimeout(() => {
+        toast.info('⏰ Pode levar alguns minutos para chegar. Verifique também sua pasta de spam.', {
+          duration: 5000
+        })
+      }, 1500)
+      
+    } catch (error: any) {
+      toast.dismiss(loadingToast)
+      const errorMessage = error.response?.data?.message || ''
+      toast.auth.resendError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-black via-primary-dark to-gray-900 p-4">
       <div className="w-full max-w-md">
@@ -213,7 +255,7 @@ export function Login() {
             <div className="h-12 w-12 rounded-lg bg-primary-blue flex items-center justify-center">
               <span className="text-white font-bold text-lg">UZ</span>
             </div>
-            <span className="text-2xl font-bold text-white">UltraZend</span>
+            <span className="text-2xl font-bold text-white">Ultrazend</span>
           </div>
           <p className="text-gray-400">
             {isLogin ? 'Faça login em sua conta' : 'Crie sua conta gratuita'}
@@ -457,8 +499,57 @@ export function Login() {
                     Esqueceu sua senha?
                   </Link>
                 </div>
+
+                {/* Link para reenvio de email - sempre visível */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                    onClick={() => setShowResendForm(!showResendForm)}
+                  >
+                    Não recebeu o email de verificação?
+                  </button>
+                </div>
+
+                {/* Formulário de reenvio */}
+                {showResendForm && (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-700 mb-2">
+                      📧 Digite seu email para reenviar a verificação:
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={resendFormEmail}
+                        onChange={(e) => setResendFormEmail(e.target.value)}
+                        className="text-sm"
+                        onKeyPress={(e) => e.key === 'Enter' && onResendFormSubmit()}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={onResendFormSubmit}
+                        disabled={isLoading}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isLoading ? 'Enviando...' : 'Enviar'}
+                      </Button>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-500 mt-1 hover:text-gray-700"
+                      onClick={() => {
+                        setShowResendForm(false)
+                        setResendFormEmail('')
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
                 
-                {/* Opção de reenvio de verificação */}
+                {/* Opção de reenvio de verificação - só após registro */}
                 {showResendOption && (
                   <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-sm text-blue-700 mb-2">
@@ -485,7 +576,7 @@ export function Login() {
         </Card>
 
         <div className="mt-8 text-center text-sm text-gray-400">
-          <p>© 2024 UltraZend. Todos os direitos reservados.</p>
+          <p>© 2024 Ultrazend. Todos os direitos reservados.</p>
         </div>
       </div>
     </div>

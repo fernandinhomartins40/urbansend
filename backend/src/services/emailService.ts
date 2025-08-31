@@ -453,7 +453,7 @@ class EmailService {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Verifique seu Email - UltraZend</title>
+            <title>Verifique seu Email - Ultrazend</title>
             <style>
                 body {
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -520,13 +520,13 @@ class EmailService {
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🚀 UltraZend</div>
+                    <div class="logo">🚀 Ultrazend</div>
                     <h1>Verifique seu Email</h1>
                 </div>
                 
                 <p>Olá <strong>${name}</strong>,</p>
                 
-                <p>Obrigado por se registrar no UltraZend! Para completar seu cadastro e começar a usar nossa plataforma, você precisa verificar seu endereço de email.</p>
+                <p>Obrigado por se registrar no Ultrazend! Para completar seu cadastro e começar a usar nossa plataforma, você precisa verificar seu endereço de email.</p>
                 
                 <div style="text-align: center;">
                     <a href="${verificationUrl}" class="button">Verificar Email</a>
@@ -541,11 +541,11 @@ class EmailService {
                     <strong>⚠️ Importante:</strong> Este link de verificação expira em 24 horas. Se você não verificar seu email dentro deste período, precisará solicitar um novo link.
                 </div>
                 
-                <p>Se você não criou uma conta no UltraZend, pode ignorar este email com segurança.</p>
+                <p>Se você não criou uma conta no Ultrazend, pode ignorar este email com segurança.</p>
                 
                 <div class="footer">
                     <p>Esta é uma mensagem automática, por favor não responda este email.</p>
-                    <p>© 2025 UltraZend. Todos os direitos reservados.</p>
+                    <p>© 2025 Ultrazend. Todos os direitos reservados.</p>
                 </div>
             </div>
         </body>
@@ -555,17 +555,17 @@ class EmailService {
       const textContent = `
         Olá ${name},
 
-        Obrigado por se registrar no UltraZend!
+        Obrigado por se registrar no Ultrazend!
 
         Para completar seu cadastro, clique no link abaixo para verificar seu email:
         ${verificationUrl}
 
         Este link expira em 24 horas.
 
-        Se você não criou uma conta no UltraZend, pode ignorar este email.
+        Se você não criou uma conta no Ultrazend, pode ignorar este email.
 
         Atenciosamente,
-        Equipe UltraZend
+        Equipe Ultrazend
       `;
 
       // Use o próprio sistema de emails do UltraZend ao invés de SMTP externo
@@ -580,7 +580,7 @@ class EmailService {
       await this.sendInternalEmail({
         from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
         to: email,
-        subject: 'Verifique seu email - UltraZend',
+        subject: 'Verifique seu email - Ultrazend',
         html: htmlContent,
         text: textContent,
         userId: systemUser.id,
