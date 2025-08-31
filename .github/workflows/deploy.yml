@@ -46,10 +46,10 @@ jobs:
           npm run build
           
           echo "📋 Verificando se build foi criado..."
-          ls -la frontend/dist/ || echo "❌ Build do frontend falhou"
+          ls -la dist/ || echo "❌ Build do frontend falhou"
           
           echo "📦 Verificando conteúdo do index.html..."
-          head -5 frontend/dist/index.html || echo "❌ index.html não encontrado"
+          head -5 dist/index.html || echo "❌ index.html não encontrado"
 
       - name: 🔧 4️⃣ Install SSH Tools
         run: |
