@@ -13,12 +13,36 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3001,
       HTTPS_PORT: 443,
-      DATABASE_URL: '/var/www/urbansend/data/database.sqlite'
+      HOST: '0.0.0.0',
+      DATABASE_URL: '/var/www/urbansend/data/database.sqlite',
+      FRONTEND_URL: 'https://www.ultrazend.com.br',
+      API_BASE_URL: 'https://www.ultrazend.com.br',
+      ALLOWED_ORIGINS: 'https://ultrazend.com.br,https://www.ultrazend.com.br',
+      TRUST_PROXY: 1,
+      LOG_LEVEL: 'info',
+      LOG_FILE_PATH: '/var/www/urbansend/logs/app.log',
+      LOG_MAX_SIZE: '20m',
+      LOG_MAX_FILES: 14,
+      RATE_LIMIT_MAX_REQUESTS: 100,
+      BCRYPT_SALT_ROUNDS: 12,
+      ENABLE_SWAGGER: false,
+      ENABLE_METRICS: true,
+      ENABLE_HEALTH_CHECKS: true,
+      ENABLE_DETAILED_HEALTH_CHECKS: true,
+      ENABLE_SECURITY_HEADERS: true,
+      ENABLE_REQUEST_LOGGING: true,
+      ENABLE_PERFORMANCE_MONITORING: true,
+      ENABLE_CORRELATION_IDS: true,
+      HEALTH_CHECK_TIMEOUT: 5000,
+      HSTS_MAX_AGE: 31536000,
+      CSP_REPORT_ONLY: false
     },
     env_production: {
       NODE_ENV: 'production',
       PORT: 3001,
-      HTTPS_PORT: 443
+      HTTPS_PORT: 443,
+      ENABLE_SWAGGER: false,
+      LOG_LEVEL: 'warn'
     },
     
     // Log configuration with rotation
@@ -54,7 +78,7 @@ module.exports = {
       repo: 'https://github.com/fernandinhomartins40/urbansend.git',
       path: '/var/www/urbansend',
       'pre-deploy-local': '',
-      'post-deploy': 'npm install --production && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy': 'cd backend && npm install --production && npm run build && pm2 reload ecosystem.config.js --env production',
       'pre-setup': 'mkdir -p /var/www/urbansend/logs /var/www/urbansend/data'
     }
   }

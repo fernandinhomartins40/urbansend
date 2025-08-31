@@ -1,7 +1,7 @@
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
-import { Express } from 'express';
-import { Env } from '../utils/env';
+import { Application } from 'express';
+import { env } from './environment';
 
 const options = {
   definition: {
@@ -17,7 +17,7 @@ const options = {
     },
     servers: [
       {
-        url: Env.get('API_BASE_URL', 'http://localhost:3000'),
+        url: env.config.API_BASE_URL || 'http://localhost:3000',
         description: 'Development server'
       }
     ],
@@ -129,7 +129,7 @@ const options = {
 
 const specs = swaggerJSDoc(options);
 
-export const setupSwagger = (app: Express) => {
+export const setupSwagger = (app: Application) => {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
     customCss: '.swagger-ui .topbar { display: none }',
     customSiteTitle: 'UltraZend API Documentation'
