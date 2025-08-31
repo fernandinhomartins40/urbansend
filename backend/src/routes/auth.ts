@@ -26,7 +26,8 @@ import {
   logout,
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  resendVerificationEmail
 } from '../controllers/authController';
 import { z } from 'zod';
 
@@ -137,6 +138,34 @@ router.post('/logout', logout);
  *         description: Invalid token
  */
 router.post('/verify-email', validateRequest({ body: verifyEmailSchema }), verifyEmail);
+
+/**
+ * @swagger
+ * /api/auth/resend-verification:
+ *   post:
+ *     summary: Resend verification email
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Verification email resent (or security message)
+ *       429:
+ *         description: Rate limit exceeded
+ */
+router.post('/resend-verification', 
+  registrationRateLimit, 
+  validateRequest({ body: z.object({ email: emailSchema }) }), 
+  resendVerificationEmail
+);
 
 // Debug endpoint - only available in development
 if (!Env.isProduction) {

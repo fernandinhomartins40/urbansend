@@ -192,6 +192,14 @@ export const useToast = (): UseToastReturn => {
     
     passwordChangeSuccess: () => {
       success('🔐 Senha alterada com sucesso!')
+    },
+    
+    resendSuccess: () => {
+      success('📧 Email de verificação reenviado! Verifique sua caixa de entrada e pasta de spam.')
+    },
+    
+    resendError: (customMessage?: string) => {
+      error(customMessage || '❌ Erro ao reenviar email. Tente novamente.')
     }
   }
 

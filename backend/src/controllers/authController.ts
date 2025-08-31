@@ -396,3 +396,52 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
     message: 'Password changed successfully'
   });
 });
+
+export const resendVerificationEmail = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  logger.info('Verification email resend requested', { email });
+
+  // Find user by email
+  const user = await db('users').where('email', email).first();
+  if (!user) {
+    // Don't reveal if user exists or not for security
+    return res.json({
+      message: 'Se uma conta com este email existir e não estiver verificada, um novo email de verificação foi enviado.'
+    });
+  }
+
+  // Check if user is already verified
+  if (user.is_verified) {
+    logger.info('Verification email resend attempted for already verified user', { userId: user.id, email });
+    return res.json({
+      message: 'Esta conta já está verificada. Você pode fazer login normalmente.'
+    });
+  }
+
+  // Generate new verification token
+  const verificationToken = generateVerificationToken();
+
+  // Update user with new verification token
+  await db('users').where('id', user.id).update({
+    verification_token: verificationToken,
+    updated_at: new Date()
+  });
+
+  // Send verification email (async, don't block response)
+  setImmediate(async () => {
+    try {
+      const emailService = (await import('../services/emailService')).default;
+      await emailService.sendVerificationEmail(email, user.name, verificationToken);
+      logger.info('Verification email resent successfully', { userId: user.id, email });
+    } catch (error) {
+      logger.error('Failed to resend verification email', { error, email, userId: user.id });
+    }
+  });
+
+  logger.info('Verification email resend processed', { userId: user.id, email });
+
+  res.json({
+    message: 'Um novo email de verificação foi enviado. Verifique sua caixa de entrada e pasta de spam.'
+  });
+});

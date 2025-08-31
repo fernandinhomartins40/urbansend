@@ -60,6 +60,8 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [showResendOption, setShowResendOption] = useState(false)
+  const [resendEmail, setResendEmail] = useState('')
   const navigate = useNavigate()
   const { login } = useAuthStore()
   const toast = useToast()
@@ -134,9 +136,13 @@ export function Login() {
       setIsLogin(true)
       registerForm.reset()
       
+      // Guardar email para possível reenvio
+      setResendEmail(registerData.email)
+      setShowResendOption(true)
+      
       // Mostrar informação adicional sobre próximo passo
       setTimeout(() => {
-        toast.info('📧 Não recebeu o email? Verifique sua pasta de spam ou aguarde alguns minutos.', {
+        toast.info('📧 Não recebeu o email? Use a opção "Reenviar email de verificação" abaixo.', {
           duration: 6000
         })
       }, 2000)
@@ -162,6 +168,37 @@ export function Login() {
       } else {
         toast.auth.registerError('generic', errorMessage || 'Erro interno do servidor')
       }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const onResendVerification = async () => {
+    if (!resendEmail) {
+      toast.error('❌ Email não disponível. Tente se registrar novamente.')
+      return
+    }
+
+    setIsLoading(true)
+    
+    const loadingToast = toast.loading('📧 Reenviando email de verificação...')
+    
+    try {
+      await authApi.resendVerificationEmail(resendEmail)
+      toast.dismiss(loadingToast)
+      toast.auth.resendSuccess()
+      
+      // Informação adicional
+      setTimeout(() => {
+        toast.info('⏰ Pode levar alguns minutos para chegar. Verifique também sua pasta de spam.', {
+          duration: 5000
+        })
+      }, 1500)
+      
+    } catch (error: any) {
+      toast.dismiss(loadingToast)
+      const errorMessage = error.response?.data?.message || ''
+      toast.auth.resendError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -410,15 +447,39 @@ export function Login() {
               </button>
             </div>
 
-            {isLogin && (
-              <div className="text-center">
-                <Link 
-                  to="/forgot-password" 
-                  className="text-sm text-muted-foreground hover:text-primary"
-                >
-                  Esqueceu sua senha?
-                </Link>
-              </div>
+{isLogin && (
+              <>
+                <div className="text-center">
+                  <Link 
+                    to="/forgot-password" 
+                    className="text-sm text-muted-foreground hover:text-primary"
+                  >
+                    Esqueceu sua senha?
+                  </Link>
+                </div>
+                
+                {/* Opção de reenvio de verificação */}
+                {showResendOption && (
+                  <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-700 mb-2">
+                      📧 Registrado com sucesso! Não recebeu o email de verificação?
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onResendVerification}
+                      disabled={isLoading}
+                      className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                    >
+                      {isLoading ? 'Reenviando...' : 'Reenviar email de verificação'}
+                    </Button>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Email: {resendEmail}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
