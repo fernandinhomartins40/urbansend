@@ -52,37 +52,43 @@ const app = express();
 // Configure trust proxy for rate limiting compatibility
 app.set('trust proxy', 1);
 
-// SSL Configuration for production
+// Server Configuration
+const PORT = Env.getNumber('PORT', 3001); // HTTP port for development/internal
+const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443); // HTTPS port for production
+
 let server;
 let httpsServer;
-const PORT = Env.getNumber('PORT', 3000);
-const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443);
+let primaryServer; // The server that Socket.io will use
 
 if (Env.isProduction) {
   try {
+    // Load SSL certificates from Let's Encrypt
     const sslOptions = {
       key: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
       cert: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
     };
     
-    // Create HTTPS server
+    // Create HTTPS server with the Express app
     httpsServer = createHttpsServer(sslOptions, app);
+    primaryServer = httpsServer;
     
-    // Create HTTP server for redirects
-    server = createServer((req, res) => {
-      res.writeHead(301, { "Location": "https://" + req.headers['host'] + req.url });
-      res.end();
-    });
+    // Create HTTP server that serves the app on port 3001 (for internal/debug)
+    server = createServer(app);
+    
+    logger.info('✅ SSL certificates loaded successfully');
     
   } catch (error) {
-    logger.error('SSL certificate not found, falling back to HTTP', error);
+    logger.error('❌ SSL certificates not found, using HTTP only', error);
     server = createServer(app);
+    primaryServer = server;
   }
 } else {
+  // Development: only HTTP server
   server = createServer(app);
+  primaryServer = server;
 }
 
-const io = new Server(httpsServer || server, {
+const io = new Server(primaryServer, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"]
@@ -311,18 +317,42 @@ const startServer = async () => {
     logger.info('Database migrations completed');
 
     // Start servers
-    if (Env.isProduction && httpsServer) {
-      // Start HTTPS server on port 443
-      httpsServer.listen(HTTPS_PORT, () => {
-        logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
-        logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
-        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
-      });
-      
-      // Start HTTP redirect server on port 80
-      server.listen(80, () => {
-        logger.info(`↩️  HTTP Redirect Server running on port 80`);
-      });
+    if (Env.isProduction) {
+      if (httpsServer) {
+        // Production with SSL: Start HTTPS server on port 443
+        httpsServer.listen(HTTPS_PORT, () => {
+          logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
+          logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
+          logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'production')}`);
+        });
+        
+        // Also start HTTP server on port 3001 (internal/debug access)
+        server.listen(PORT, () => {
+          logger.info(`🔧 HTTP Server (internal) running on port ${PORT}`);
+        });
+        
+        // Create HTTP redirect server on port 80
+        const redirectServer = createServer((req, res) => {
+          const host = req.headers.host?.replace(/:\d+/, ''); // Remove port from host
+          const redirectUrl = `https://${host}${req.url}`;
+          
+          res.writeHead(301, { 
+            'Location': redirectUrl,
+            'Content-Type': 'text/plain'
+          });
+          res.end(`Redirecting to ${redirectUrl}`);
+        });
+        
+        redirectServer.listen(80, () => {
+          logger.info(`↩️  HTTP Redirect Server running on port 80 → HTTPS`);
+        });
+      } else {
+        // Production without SSL certificates: HTTP only on configured port
+        server.listen(PORT, () => {
+          logger.info(`🚀 HTTP Server running on port ${PORT} (SSL certificates not found)`);
+          logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
+        });
+      }
     } else {
       // Development: HTTP only
       server.listen(PORT, () => {
