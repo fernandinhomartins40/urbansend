@@ -250,7 +250,37 @@ if (Env.isProduction) {
   // Check if frontend directory exists
   if (fs.existsSync(frontendPath)) {
     logger.info(`Serving frontend from: ${frontendPath}`);
-    app.use(express.static(frontendPath));
+    
+    // Configure MIME types for static files
+    app.use(express.static(frontendPath, {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (path.endsWith('.mjs')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (path.endsWith('.jsx')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (path.endsWith('.ts')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (path.endsWith('.tsx')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (path.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (path.endsWith('.html')) {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        } else if (path.endsWith('.json')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        } else if (path.endsWith('.svg')) {
+          res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+        } else if (path.endsWith('.woff') || path.endsWith('.woff2')) {
+          res.setHeader('Content-Type', 'font/woff2');
+        } else if (path.endsWith('.ttf')) {
+          res.setHeader('Content-Type', 'font/ttf');
+        } else if (path.endsWith('.eot')) {
+          res.setHeader('Content-Type', 'application/vnd.ms-fontobject');
+        }
+      }
+    }));
     
     // Handle client-side routing (SPA)
     app.get('*', (req, res) => {
