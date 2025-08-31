@@ -29,7 +29,7 @@ class PerformanceMonitor {
     lastAlert: new Date(0)
   };
   private maxMetricsHistory = 1000;
-  private cleanupInterval: NodeJS.Timer | null = null;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.startCleanupInterval();

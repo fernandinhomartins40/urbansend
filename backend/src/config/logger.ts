@@ -15,7 +15,7 @@ const productionFormat = winston.format.combine(
   winston.format.errors({ stack: true }),
   winston.format.json(),
   winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
-    const logEntry = {
+    const logEntry: any = {
       timestamp,
       level: level.toUpperCase(),
       service,
@@ -90,9 +90,7 @@ if (Env.isProduction) {
     maxSize: '50m',
     maxFiles: '7', // Keep only 7 days of performance logs
     level: 'info',
-    format: productionFormat,
-    // Only log entries with performance data
-    filter: (info) => !!info.responseTime || !!info.performance
+    format: productionFormat
   }));
 
   // Security log for auth and security events
@@ -102,14 +100,7 @@ if (Env.isProduction) {
     maxSize: '50m',
     maxFiles: '90', // Keep security logs longer
     level: 'info',
-    format: productionFormat,
-    // Only log security-related entries
-    filter: (info) => {
-      return info.level === 'warn' || info.level === 'error' ||
-             info.message.includes('auth') || info.message.includes('security') ||
-             info.message.includes('login') || info.message.includes('register') ||
-             info.message.includes('blocked') || info.message.includes('rate limit');
-    }
+    format: productionFormat
   }));
 } else {
   // Development/staging transports

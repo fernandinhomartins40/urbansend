@@ -82,7 +82,6 @@ async function checkRedisHealth(): Promise<HealthCheck> {
       db: Env.getNumber('REDIS_DB', 0),
       connectTimeout: 5000,
       lazyConnect: true,
-      retryDelayOnFailover: 100,
       maxRetriesPerRequest: 1
     });
 
