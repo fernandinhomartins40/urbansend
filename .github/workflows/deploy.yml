@@ -44,6 +44,12 @@ jobs:
           
           echo "🏗️ Construindo frontend..."
           npm run build
+          
+          echo "📋 Verificando se build foi criado..."
+          ls -la frontend/dist/ || echo "❌ Build do frontend falhou"
+          
+          echo "📦 Verificando conteúdo do index.html..."
+          head -5 frontend/dist/index.html || echo "❌ index.html não encontrado"
 
       - name: 🔧 4️⃣ Install SSH Tools
         run: |
@@ -89,6 +95,18 @@ jobs:
           echo "✅ VPS configurada"
           SCRIPT
 
+      # ==================== UPLOAD FRONTEND BUILD ====================
+      - name: 🚀 5️⃣ Upload Frontend Build
+        run: |
+          echo "📤 Enviando build do frontend para VPS..."
+          
+          # Upload frontend build
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            frontend/dist/ $VPS_USER@$VPS_HOST:/var/www/ultrazend/frontend/
+          
+          echo "✅ Frontend build enviado com sucesso"
+
       # ==================== DEPLOY APLICAÇÃO ====================
       - name: 🚀 6️⃣ Deploy Application
         run: |
@@ -129,33 +147,19 @@ jobs:
           echo "🧹 Limpando devDependencies..."
           npm ci --only=production
           
-          # Voltar para root e configurar frontend
+          # Verificar frontend enviado via rsync
           cd /var/www/ultrazend
-          echo "🌐 Configurando frontend..."
+          echo "🌐 Verificando frontend enviado..."
           
-          # Criar diretório frontend se não existir
-          mkdir -p frontend
-          
-          # Verificar se existe build do frontend no repositório atual
-          echo "🔍 Verificando se frontend/dist existe..."
-          ls -la frontend/ || echo "Diretório frontend não existe"
-          
-          # Copiar frontend build se existir
-          if [ -d "frontend/dist" ] && [ "$(ls -A frontend/dist 2>/dev/null)" ]; then
-            echo "📦 Copiando build completo do frontend..."
-            cp -r frontend/dist/* frontend/ && echo "✅ Frontend copiado com sucesso"
+          # Verificar se arquivos do frontend foram recebidos corretamente
+          if [ -f "frontend/index.html" ]; then
+            echo "✅ Frontend React encontrado:"
+            ls -la frontend/index.html
+            head -5 frontend/index.html
           else
-            echo "⚠️ Frontend dist não encontrado ou vazio - usando aplicação React do repositório"
-            # Fazer build do frontend na VPS se necessário
-            if [ -f "frontend/package.json" ]; then
-              echo "🏗️ Fazendo build do frontend na VPS..."
-              cd frontend
-              npm ci && npm run build && cp -r dist/* . && echo "✅ Build do frontend concluído"
-              cd /var/www/ultrazend
-            else
-              echo "❌ Frontend não disponível - usando placeholder"
-              echo '<!DOCTYPE html><html><head><title>UltraZend</title><style>body{font-family:Arial;text-align:center;padding:50px;background:#f5f5f5}.container{max-width:600px;margin:0 auto;background:white;padding:40px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}h1{color:#333}p{color:#666}.api-link{display:inline-block;margin:20px 10px;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px}</style></head><body><div class="container"><h1>🚀 UltraZend</h1><p>Sistema de email marketing em produção</p><p>Frontend em desenvolvimento...</p><a href="/api-docs" class="api-link">📚 API</a><a href="/health" class="api-link">💚 Status</a></div></body></html>' > frontend/index.html
-            fi
+            echo "❌ Frontend não foi enviado corretamente"
+            mkdir -p frontend
+            echo '{"error": "Frontend build não encontrado"}' > frontend/error.json
           fi
           
           # Configurar permissões do banco
