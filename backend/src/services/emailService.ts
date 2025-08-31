@@ -442,7 +442,10 @@ class EmailService {
 
   async sendVerificationEmail(email: string, name: string, verificationToken: string): Promise<void> {
     try {
-      const verificationUrl = `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+      // Use environment-specific frontend URL
+      const frontendUrl = process.env['FRONTEND_URL'] || 
+        (process.env['NODE_ENV'] === 'production' ? 'https://ultrazend.com.br' : 'http://localhost:5173');
+      const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
       
       const htmlContent = `
         <!DOCTYPE html>
