@@ -184,7 +184,7 @@ if (!Env.isProduction) {
         token: user.verification_token,
         isVerified: user.is_verified,
         createdAt: user.created_at,
-        verifyUrl: `${process.env['FRONTEND_URL'] || (process.env['NODE_ENV'] === 'production' ? 'https://ultrazend.com.br' : 'http://localhost:5173')}/verify-email?token=${user.verification_token}`
+        verifyUrl: `${process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br'}/verify-email?token=${user.verification_token}`
       }))
     });
   }));

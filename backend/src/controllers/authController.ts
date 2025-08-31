@@ -58,6 +58,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     email,
     password_hash: passwordHash,
     verification_token: verificationToken,
+    verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     is_verified: false,
     plan_type: 'free',
     created_at: new Date(),
@@ -208,7 +209,10 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     tokenChanged: token !== normalizedToken
   });
   
-  const user = await db('users').where('verification_token', normalizedToken).first();
+  const user = await db('users')
+    .where('verification_token', normalizedToken)
+    .where('verification_token_expires', '>', new Date())
+    .first();
   
   if (!user) {
     // Debug: let's see what tokens we have in the database
@@ -266,6 +270,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   await db('users').where('id', user.id).update({
     is_verified: true,
     verification_token: null,
+    verification_token_expires: null,
     updated_at: new Date()
   });
 
@@ -558,6 +563,7 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   // Update user with new verification token
   await db('users').where('id', user.id).update({
     verification_token: verificationToken,
+    verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     updated_at: new Date()
   });
 

@@ -456,8 +456,7 @@ class EmailService {
       }
 
       // Use environment-specific frontend URL
-      const frontendUrl = process.env['FRONTEND_URL'] || 
-        (process.env['NODE_ENV'] === 'production' ? 'https://ultrazend.com.br' : 'http://localhost:5173');
+      const frontendUrl = process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br';
       const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
       
       logger.info('Generated verification URL', {
