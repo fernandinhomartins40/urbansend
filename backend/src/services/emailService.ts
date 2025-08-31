@@ -592,7 +592,7 @@ class EmailService {
       // Isso é um servidor de email, não um cliente!
       
       // Buscar usuário do sistema
-      const systemUser = await db('users').where('email', 'system@ultrazend.local').first();
+      const systemUser = await db('users').where('email', 'system@urbansend.local').first();
       if (!systemUser) {
         throw new Error('System user not found. Database migration may have failed.');
       }
