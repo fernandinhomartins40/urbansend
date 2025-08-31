@@ -1,6 +1,9 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { validateRequest } from '../middleware/validation';
 import { authenticateJWT } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
+import { Env } from '../utils/env';
+import db from '../config/database';
 import { 
   loginRateLimit, 
   registrationRateLimit, 
