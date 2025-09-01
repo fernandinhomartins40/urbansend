@@ -83,9 +83,30 @@ fi
 # Check if application exists
 ssh $SERVER_USER@$SERVER_HOST "[ -d '$DEPLOY_PATH' ] || exit 1" || error "Aplicação não encontrada no servidor"
 
-# Check local builds
-[ ! -f "backend/dist/index.js" ] && { cd backend && npm run build && cd ..; }
-[ ! -d "frontend/dist" ] && { cd frontend && npm run build && cd ..; }
+# Check and build if necessary
+if [ ! -f "backend/dist/index.js" ]; then
+    log "Backend build não encontrado, executando build..."
+    cd backend
+    if [ -f "package-lock.json" ]; then
+        npm ci
+    else
+        npm install
+    fi
+    npm run build
+    cd ..
+fi
+
+if [ ! -d "frontend/dist" ] || [ ! -f "frontend/dist/index.html" ]; then
+    log "Frontend build não encontrado, executando build..."
+    cd frontend
+    if [ -f "package-lock.json" ]; then
+        npm ci
+    else
+        npm install
+    fi
+    npm run build
+    cd ..
+fi
 
 # Validate builds
 [ ! -f "backend/dist/index.js" ] && error "Build do backend falhou"

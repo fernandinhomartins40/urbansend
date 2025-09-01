@@ -120,6 +120,10 @@ success "PASSO 2 concluído - Servidor configurado"
 # 3. DEPLOY APPLICATION FILES
 log "PASSO 3: Deploy dos arquivos da aplicação..."
 
+# Create deploy directories on server first
+log "Creating deployment directories..."
+ssh $SERVER_USER@$SERVER_HOST "mkdir -p $DEPLOY_PATH/{backend,frontend,data,logs,temp,uploads}"
+
 # Upload backend
 log "Uploading backend files..."
 rsync -avz --delete \
@@ -152,13 +156,25 @@ log "PASSO 4: Configuração no servidor..."
 ssh $SERVER_USER@$SERVER_HOST << EOF
 cd $DEPLOY_PATH/backend
 
-# Install dependencies
-npm ci --only=production
+# Install dependencies (use npm install if no package-lock.json)
+if [ -f "package-lock.json" ]; then
+    echo "Installing with npm ci..."
+    npm ci --only=production
+else
+    echo "Installing with npm install..."
+    npm install --only=production
+fi
 
-# Verify build exists
+# Verify build exists, create if needed
 if [ ! -f "dist/index.js" ]; then
     echo "Build não encontrado, executando npm run build..."
+    
+    # Install dev dependencies temporarily for build
+    npm install
     npm run build
+    
+    # Remove dev dependencies
+    npm prune --production
 fi
 
 # Run database migrations
