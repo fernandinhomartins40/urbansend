@@ -217,23 +217,38 @@ jobs:
           echo "✅ Docker images built successfully with tags: latest, $VERSION, $VERSION-$BUILD_NUMBER"
 
       # ===== SETUP SSH DEPLOY =====
-      - name: 🔑 Setup SSH Key
+      - name: 🔑 Setup SSH Connection
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
         run: |
+          # Install sshpass for password authentication
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          
+          # Setup known hosts
           mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H 31.97.162.155 >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          echo "✅ SSH setup completed"
 
       # ===== DEPLOY TO STAGING =====
       - name: 🚀 Deploy to Staging
         if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+        env:
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
         run: |
           echo "🚀 Deploying to staging environment..."
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Deploy via SSH with real commands
-          ssh root@31.97.162.155 << EOF
+          # Test SSH connection first
+          echo "🔍 Testing SSH connection..."
+          if ! sshpass -p "$VPS_PASSWORD" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@31.97.162.155 'echo "SSH connection successful"'; then
+            echo "❌ SSH connection failed. Please verify VPS_PASSWORD secret"
+            exit 1
+          fi
+          
+          # Deploy via SSH with password authentication
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no root@31.97.162.155 << EOF
             echo "🔄 Starting staging deployment..."
             cd /var/www/ultrazend
             
@@ -263,12 +278,24 @@ jobs:
       # ===== DEPLOY TO PRODUCTION =====
       - name: 🌟 Deploy to Production
         if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+        env:
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
         run: |
           echo "🌟 Deploying to production environment..."
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Deploy via SSH with real commands
-          ssh root@31.97.162.155 << EOF
+          # Test SSH connection first
+          echo "🔍 Testing SSH connection..."
+          if ! sshpass -p "$VPS_PASSWORD" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@31.97.162.155 'echo "SSH connection successful"'; then
+            echo "❌ SSH connection failed. Please check:"
+            echo "1. VPS_PASSWORD secret is correctly set"
+            echo "2. VPS is accessible and allows password authentication"
+            echo "3. Root login is enabled"
+            exit 1
+          fi
+          
+          # Deploy via SSH with password authentication
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no root@31.97.162.155 << EOF
             echo "🔄 Starting production deployment..."
             cd /var/www/ultrazend
             
@@ -313,13 +340,15 @@ jobs:
       # ===== POST-DEPLOY HEALTH CHECK =====
       - name: 🏥 Post-Deploy Health Check
         if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        env:
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
         run: |
           echo "🏥 Running comprehensive health checks..."
           
           # Wait for application to fully start
           sleep 20
           
-          ssh root@31.97.162.155 << 'EOF'
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no root@31.97.162.155 << 'EOF'
             echo "🔍 Checking application status..."
             pm2 status
             

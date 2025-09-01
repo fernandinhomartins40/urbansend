@@ -70,7 +70,17 @@ log_success "Builds locais verificados"
 
 # Deploy via SSH com cache busting completo
 log_info "Iniciando deploy no servidor..."
-ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP << EOF
+
+# Check if sshpass is available for password authentication
+if command -v sshpass >/dev/null 2>&1 && [ -n "${VPS_PASSWORD:-}" ]; then
+    log_info "Usando autenticação por senha..."
+    SSH_CMD="sshpass -p '$VPS_PASSWORD' ssh -o StrictHostKeyChecking=no"
+else
+    log_info "Usando autenticação por chave SSH..."
+    SSH_CMD="ssh -o StrictHostKeyChecking=no"
+fi
+
+$SSH_CMD $VPS_USER@$VPS_IP << EOF
 set -e
 
 echo "🔄 Iniciando deploy profissional..."
