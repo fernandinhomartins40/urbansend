@@ -315,24 +315,98 @@ jobs:
             
             # Clean install and build
             cd backend
+            echo "📦 Current directory: $(pwd)"
+            echo "📋 Contents before cleanup:"
+            ls -la || echo "Directory listing failed"
+            
+            # Clean install
             rm -rf node_modules package-lock.json || true
-            npm ci --only=production
-            npm run build
+            echo "📦 Installing production dependencies..."
+            npm ci --only=production --verbose
+            
+            # Install dev dependencies needed for build
+            echo "📦 Installing dev dependencies for build..."
+            npm install --save-dev typescript @types/node ts-node
+            
+            # Verify build exists or create it
+            if [ ! -f "dist/index.js" ]; then
+              echo "🔨 Building application..."
+              npm run build
+            fi
+            
+            # Verify build was successful
+            if [ ! -f "dist/index.js" ]; then
+              echo "❌ Build failed - dist/index.js not found"
+              exit 1
+            fi
             
             # Run migrations if needed
-            npm run migrate:latest || true
+            npm run migrate:latest || echo "⚠️ Migrations skipped"
+            
+            # Check current PM2 status
+            echo "📊 Current PM2 status before deploy:"
+            pm2 status || echo "No PM2 processes running"
+            
+            # Stop and delete existing process completely
+            pm2 stop ultrazend || true
+            pm2 delete ultrazend || true
+            pm2 flush || true
+            
+            # Wait for clean shutdown
+            sleep 5
+            
+            # Prepare environment
+            cd ..
+            echo "🔧 Preparing environment..."
+            
+            # Ensure required directories exist
+            mkdir -p /var/www/ultrazend/data
+            mkdir -p /var/www/ultrazend/logs
+            
+            # Check ecosystem config
+            echo "📋 Ecosystem config contents:"
+            head -20 ecosystem.config.js || echo "Config file not found"
+            
+            # Set environment variables
+            export NODE_ENV=production
+            export PORT=3001
             
             # Force reload with new version and clear all caches
-            cd ..
-            NODE_ENV=production pm2 start ecosystem.config.js --env production --force
+            echo "🚀 Starting application with PM2..."
+            pm2 start ecosystem.config.js --env production --force
             pm2 save
             
-            # Verify deployment
-            sleep 10
-            if pm2 status | grep -q ultrazend; then
-              echo "✅ Production deployment completed successfully with version $VERSION"
+            # Wait for startup
+            echo "⏳ Waiting for application startup..."
+            sleep 15
+            
+            # Check PM2 status after start
+            echo "📊 PM2 status after startup:"
+            pm2 status
+            
+            # Check logs for any startup errors
+            echo "📋 Recent logs:"
+            pm2 logs ultrazend --lines 10 --nostream || echo "No logs available"
+            
+            # Verify application is actually running
+            if pm2 status | grep -q "online"; then
+              echo "✅ Application started successfully"
             else
-              echo "❌ Production deployment failed"
+              echo "❌ Application failed to start - checking logs..."
+              pm2 logs ultrazend --lines 20 --nostream || echo "No logs available"
+              
+              # Attempt rollback if backup exists
+              if [ -d "backend/dist.backup.$TIMESTAMP" ]; then
+                echo "🔄 Attempting rollback..."
+                pm2 stop ultrazend || true
+                pm2 delete ultrazend || true
+                cd backend
+                rm -rf dist
+                mv dist.backup.$TIMESTAMP dist
+                cd ..
+                pm2 start ecosystem.config.js --env production
+                echo "✅ Rollback completed"
+              fi
               exit 1
             fi
           EOF

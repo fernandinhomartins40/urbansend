@@ -9,8 +9,13 @@ module.exports = {
     max_memory_restart: '1G',
     
     // Force restart on deploy to ensure cache clearing
-    restart_delay: 1000,
-    kill_timeout: 5000,
+    restart_delay: 2000,
+    kill_timeout: 8000,
+    listen_timeout: 8000,
+    
+    // Error handling
+    max_restarts: 5,
+    min_uptime: '10s',
     
     // Environment variables
     env: {
