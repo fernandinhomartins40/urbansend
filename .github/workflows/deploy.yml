@@ -172,6 +172,8 @@ jobs:
           
           # Configurar permissões do banco
           echo "🔧 Configurando permissões..."
+          mkdir -p /var/www/ultrazend/data
+          touch /var/www/ultrazend/data/database.sqlite
           chown -R www-data:www-data /var/www/ultrazend/data/ || true
           chmod 664 /var/www/ultrazend/data/database.sqlite || true
           
@@ -194,23 +196,39 @@ jobs:
           echo "🔍 Verificando status da aplicação..."
           pm2 status
           
-          # Verificar se aplicação está online
-          if pm2 list | grep -q "online"; then
-            echo "✅ Aplicação iniciada com sucesso"
-            
-            # Teste de conectividade
-            echo "🔍 Testando conectividade..."
-            curl -k -m 10 https://localhost:443/health || echo "Health check interno falhou"
-            
-            # Verificar portas
-            echo "🌐 Verificando portas..."
-            netstat -tlnp | grep -E ':(80|443|25)' || echo "Algumas portas não estão escutando"
-          else
-            echo "❌ Falha ao iniciar aplicação"
-            echo "📋 Logs da aplicação:"
-            pm2 logs ultrazend --lines 30 || echo "Sem logs disponíveis"
-            exit 1
-          fi
+          # Verificar se aplicação está online (com retry)
+          echo "🔍 Verificando status da aplicação (com retry)..."
+          for i in {1..5}; do
+            if pm2 list | grep -q "online"; then
+              echo "✅ Aplicação iniciada com sucesso (tentativa $i)"
+              
+              # Teste de conectividade
+              echo "🔍 Testando conectividade..."
+              if curl -f -s -m 10 http://localhost:3001/health > /dev/null; then
+                echo "✅ Health check passou"
+              else
+                echo "⚠️ Health check falhou, mas aplicação está online"
+              fi
+              
+              # Verificar portas
+              echo "🌐 Verificando portas..."
+              netstat -tlnp | grep -E ':(80|443|3001)' || echo "Algumas portas não estão escutando"
+              break
+            else
+              echo "⏳ Aguardando aplicação ficar online (tentativa $i/5)..."
+              if [ $i -eq 5 ]; then
+                echo "❌ Falha ao iniciar aplicação após 5 tentativas"
+                echo "📋 Status PM2:"
+                pm2 status
+                echo "📋 Logs da aplicação:"
+                pm2 logs ultrazend --lines 20 --nostream || echo "Sem logs disponíveis"
+                echo "📋 Logs do sistema:"
+                tail -n 10 /var/log/syslog | grep -i error || echo "Sem erros no syslog"
+                exit 1
+              fi
+              sleep 3
+            fi
+          done
           
           echo "🎉 Deploy concluído com sucesso!"
           DEPLOY
