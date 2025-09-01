@@ -51,9 +51,9 @@ export class DKIMManager {
 
   private async createDKIMTables() {
     try {
-      const hasDKIMTable = await db.schema.hasTable('dkim_configs');
+      const hasDKIMTable = await db.schema.hasTable('dkim_keys');
       if (!hasDKIMTable) {
-        await db.schema.createTable('dkim_configs', (table) => {
+        await db.schema.createTable('dkim_keys', (table) => {
           table.increments('id').primary();
           table.string('domain', 255).notNullable();
           table.string('selector', 100).notNullable().defaultTo('default');
@@ -101,7 +101,7 @@ export class DKIMManager {
 
   private async loadDKIMConfigs() {
     try {
-      const configs = await db('dkim_configs')
+      const configs = await db('dkim_keys')
         .where('is_active', true)
         .select('*');
 
@@ -165,7 +165,7 @@ export class DKIMManager {
       const dnsRecord = this.generateDNSRecord(publicKeyData, keySize);
 
       // Salvar configuração no banco
-      await db('dkim_configs')
+      await db('dkim_keys')
         .insert({
           domain,
           selector,
@@ -496,7 +496,7 @@ export class DKIMManager {
   ): Promise<string> {
     try {
       // Desativar configuração atual
-      await db('dkim_configs')
+      await db('dkim_keys')
         .where('domain', domain)
         .update({ is_active: false });
 
@@ -521,8 +521,8 @@ export class DKIMManager {
         recentSignatures,
         signaturesByDomain
       ] = await Promise.all([
-        db('dkim_configs').count('* as count').first(),
-        db('dkim_configs').where('is_active', true).count('* as count').first(),
+        db('dkim_keys').count('* as count').first(),
+        db('dkim_keys').where('is_active', true).count('* as count').first(),
         db('dkim_signature_logs')
           .where('signed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
           .count('* as count')
@@ -558,7 +558,7 @@ export class DKIMManager {
 
   public async exportDNSRecords(): Promise<string> {
     try {
-      const configs = await db('dkim_configs')
+      const configs = await db('dkim_keys')
         .where('is_active', true)
         .select('domain', 'selector', 'public_key', 'key_size');
 

@@ -36,12 +36,16 @@ ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP "
     git pull origin main
     
     echo '⚙️ Configurando ambiente de produção...'
-    cd backend
     
-    echo '📦 Instalando todas as dependências (incluindo devDependencies para build)...'
+    echo '🎨 Buildando frontend...'
+    cd frontend
     npm ci --production=false
+    npm run build
+    cd ..
     
-    echo '🔨 Compilando TypeScript...'
+    echo '🔨 Buildando backend...'
+    cd backend
+    npm ci --production=false
     npm run build
     
     echo '🗄️ Executando migrations...'
