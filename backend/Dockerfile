@@ -27,8 +27,8 @@ FROM base AS build
 WORKDIR /app
 COPY package*.json ./
 
-# Set npm to use Python 3
-RUN npm config set python python3
+# Set Python path for native module compilation
+ENV PYTHON=python3
 
 # Install dependencies with verbose logging for debugging
 RUN npm ci --omit=dev --verbose && npm cache clean --force
