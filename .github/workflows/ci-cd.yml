@@ -340,8 +340,22 @@ jobs:
               exit 1
             fi
             
-            # Run migrations if needed
-            npm run migrate:latest || echo "⚠️ Migrations skipped"
+            # Fix migration references and run migrations
+            echo "📊 Checking and fixing migration references..."
+            
+            # Check if there's a reference to the old migration name in the database
+            if [ -f "/var/www/ultrazend/data/database.sqlite" ]; then
+              # Update migration reference from old name to new consolidated name
+              sqlite3 /var/www/ultrazend/data/database.sqlite "
+                UPDATE knex_migrations 
+                SET name = '015_consolidate_schema_fixes.js'
+                WHERE name = '20250901191040_add_dkim_config_columns.js';
+              " 2>/dev/null || echo "Migration reference update not needed"
+            fi
+            
+            # Run database migrations
+            echo "📊 Running database migrations..."
+            npm run migrate:latest
             
             # Check current PM2 status
             echo "📊 Current PM2 status before deploy:"

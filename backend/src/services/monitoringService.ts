@@ -454,7 +454,10 @@ export class MonitoringService {
   }
 
   public async recordResponseTime(method: string, route: string, statusCode: number, duration: number): Promise<void> {
-    await this.recordMetric('http_request_duration_ms', duration, {
+    // Garantir que duration seja um número válido
+    const safeDuration = typeof duration === 'number' && !isNaN(duration) ? duration : 0;
+    
+    await this.recordMetric('http_request_duration_ms', safeDuration, {
       method,
       route,
       status_code: statusCode.toString()
@@ -467,7 +470,7 @@ export class MonitoringService {
     await this.dbRun(`
       INSERT INTO request_metrics (method, route, status_code, response_time_ms, memory_usage_mb)
       VALUES (?, ?, ?, ?, ?)
-    `, [method, route, statusCode, duration, memoryUsedMB]);
+    `, [method, route, statusCode, safeDuration, memoryUsedMB]);
   }
 
   // Middleware de performance
