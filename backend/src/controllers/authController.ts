@@ -81,7 +81,10 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // Send verification email (async, don't block response)
   setImmediate(async () => {
     try {
-      const emailService = (await import('../services/emailService')).default;
+      const { EmailServiceFactory } = await import('../services/EmailServiceFactory');
+      // const emailService = EmailServiceFactory.getService(TYPES.EmailService); // Temporarily disabled
+    const { EmailService } = await import('../services/emailService');
+    const emailService = new EmailService();
       await emailService.sendVerificationEmail(email, name, verificationToken);
       logger.info('Verification email sent successfully', { 
         email,
@@ -154,109 +157,44 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
 export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.body;
-
-  logger.info('Email verification attempt', { 
-    token: token ? 'present' : 'missing', 
-    tokenLength: token?.length,
-    requestBody: JSON.stringify(req.body),
-    headers: {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent']
-    }
-  });
-
-  if (!token) {
-    logger.warn('Verification token missing from request body');
-    throw createError('Verification token is required', 400);
+  
+  // Validação rigorosa do token
+  if (!token || typeof token !== 'string' || token.length !== 64) {
+    logger.warn('Invalid token format received', { 
+      token: token ? 'present' : 'missing', 
+      type: typeof token,
+      length: token?.length 
+    });
+    throw createError('Token de verificação inválido', 400);
   }
 
-  // Normalize token - remove whitespace, decode URL encoding, and ensure it's a string
-  let normalizedToken = String(token).trim();
-  
-  // Handle URL-encoded tokens (in case they come from URL parameters)
-  try {
-    const decodedToken = decodeURIComponent(normalizedToken);
-    if (decodedToken !== normalizedToken) {
-      logger.info('Token was URL encoded', {
-        originalToken: normalizedToken.substring(0, 8) + '...',
-        decodedToken: decodedToken.substring(0, 8) + '...'
-      });
-      normalizedToken = decodedToken;
-    }
-  } catch (decodeError) {
-    logger.warn('Failed to decode token, using original', { decodeError });
-  }
-  
-  // Remove any extra characters that might have been added
-  normalizedToken = normalizedToken.replace(/[^a-f0-9]/gi, '');
-  
-  // Validate token format (should be 64 hex characters)
-  if (!/^[a-f0-9]{64}$/i.test(normalizedToken)) {
-    logger.warn('Invalid token format detected', {
-      originalToken: token.substring(0, 8) + '...',
-      normalizedToken: normalizedToken.substring(0, 8) + '...',
-      tokenLength: normalizedToken.length,
+  // Verificar se é hexadecimal válido SEM normalização
+  if (!/^[a-f0-9]{64}$/i.test(token)) {
+    logger.warn('Token format validation failed', { 
+      tokenPreview: token.substring(0, 8) + '...',
       pattern: 'Expected 64 hex characters'
     });
+    throw createError('Formato de token inválido', 400);
   }
-  
-  logger.info('Searching for user with token', { 
-    tokenReceived: normalizedToken, 
-    tokenLength: normalizedToken.length,
-    originalToken: token,
-    originalLength: token.length,
-    tokenType: typeof token,
-    tokenChanged: token !== normalizedToken
-  });
-  
+
+  // Buscar usuário SEM qualquer normalização do token
   const user = await db('users')
-    .where('verification_token', normalizedToken)
+    .where('verification_token', token)
     .where('verification_token_expires', '>', new Date())
     .first();
   
   if (!user) {
-    // Debug: let's see what tokens we have in the database
-    const allTokens = await db('users')
-      .select('id', 'email', 'verification_token', 'created_at')
-      .whereNotNull('verification_token')
-      .where('is_verified', false);
-      
-    logger.warn('Invalid or expired verification token', { 
-      tokenReceived: normalizedToken.substring(0, 8) + '...',
-      tokenLength: normalizedToken.length,
-      originalToken: token.substring(0, 8) + '...',
-      originalTokenLength: token.length,
-      availableTokensCount: allTokens.length,
-      availableTokens: allTokens.map(u => ({
-        id: u.id,
-        email: u.email,
-        token: u.verification_token?.substring(0, 8) + '...',
-        tokenLength: u.verification_token?.length,
-        exactMatch: u.verification_token === normalizedToken,
-        originalMatch: u.verification_token === token,
-        created: u.created_at
-      }))
+    logger.warn('Token not found or expired', { 
+      tokenPreview: token.substring(0, 8) + '...' 
     });
-    
-    // Try to find with original token as well in case normalization caused issues
-    const userWithOriginalToken = await db('users').where('verification_token', token).first();
-    if (userWithOriginalToken) {
-      logger.info('Found user with original token, normalization caused the issue', {
-        userId: userWithOriginalToken.id,
-        email: userWithOriginalToken.email
-      });
-    }
-    
-    throw createError('Invalid or expired verification token. Please request a new verification email.', 400);
+    throw createError('Token inválido ou expirado', 400);
   }
 
-  logger.info('User found for verification', { userId: user.id, email: user.email, isAlreadyVerified: user.is_verified });
-
-  // Check if user is already verified
+  // Verificação de segurança adicional
   if (user.is_verified) {
     logger.info('User already verified', { userId: user.id, email: user.email });
     return res.json({
-      message: 'Email already verified. You can proceed to login.',
+      message: 'Email já verificado. Você pode fazer login.',
       user: {
         id: user.id,
         name: user.name,
@@ -266,18 +204,41 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Update user verification status
-  await db('users').where('id', user.id).update({
-    is_verified: true,
-    verification_token: null,
-    verification_token_expires: null,
-    updated_at: new Date()
+  // Tabela audit_logs criada via migration 010_create_audit_logs.js
+
+  // Transação para verificação com auditoria
+  await db.transaction(async (trx) => {
+    await trx('users').where('id', user.id).update({
+      is_verified: true,
+      verification_token: null,
+      verification_token_expires: null,
+      email_verified_at: new Date(),
+      updated_at: new Date()
+    });
+
+    // Log de auditoria
+    try {
+      await trx('audit_logs').insert({
+        user_id: user.id,
+        action: 'email_verified',
+        details: JSON.stringify({ email: user.email }),
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent'),
+        timestamp: new Date()
+      });
+    } catch (auditError) {
+      // Log de auditoria falhou - não impedir a verificação
+      logger.warn('Could not insert audit log', { auditError: auditError instanceof Error ? auditError.message : auditError });
+    }
   });
 
-  logger.info('Email verified successfully', { userId: user.id, email: user.email });
+  logger.info('Email verified successfully', { 
+    userId: user.id, 
+    email: user.email 
+  });
 
-  return res.json({
-    message: 'Email verified successfully. You can now login.',
+  res.json({
+    message: 'Email verificado com sucesso! Você já pode fazer login.',
     user: {
       id: user.id,
       name: user.name,
@@ -584,7 +545,10 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   // Send verification email (async, don't block response)
   setImmediate(async () => {
     try {
-      const emailService = (await import('../services/emailService')).default;
+      const { EmailServiceFactory } = await import('../services/EmailServiceFactory');
+      // const emailService = EmailServiceFactory.getService(TYPES.EmailService); // Temporarily disabled
+    const { EmailService } = await import('../services/emailService');
+    const emailService = new EmailService();
       await emailService.sendVerificationEmail(email, user.name, verificationToken);
       logger.info('Verification email resent successfully', { 
         userId: user.id, 

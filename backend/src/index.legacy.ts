@@ -16,7 +16,7 @@ import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
 import UltraZendSMTPServer from './services/smtpServer';
-import SMTPDeliveryService from './services/smtpDelivery';
+import { SMTPDeliveryService } from './services/smtpDelivery';
 import './services/queueService'; // Initialize queue processors
 
 // Routes

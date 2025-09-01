@@ -1,339 +1,964 @@
-import Queue from 'bull';
-import Redis from 'ioredis';
+import Bull, { Queue, Job, JobOptions } from 'bull';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
-import emailService from './emailService';
-import webhookService from './webhookService';
+import db from '../config/database';
 
-// Redis connection
-const redisConnectionConfig = {
-  host: Env.get('REDIS_HOST', 'localhost'),
-  port: Env.getNumber('REDIS_PORT', 6379),
-  db: Env.getNumber('REDIS_DB', 0),
-  maxRetriesPerRequest: 3,
-  lazyConnect: true,
-  ...(Env.get('REDIS_PASSWORD') && { password: Env.get('REDIS_PASSWORD') })
-};
-
-const redis = new Redis(redisConnectionConfig);
-
-// Queue instances
-const redisConfig = {
-  host: Env.get('REDIS_HOST', 'localhost'),
-  port: Env.getNumber('REDIS_PORT', 6379),
-  db: Env.getNumber('REDIS_DB', 0),
-  ...(Env.get('REDIS_PASSWORD') && { password: Env.get('REDIS_PASSWORD') })
-};
-
-export const emailQueue = new Queue('email processing', {
-  redis: redisConfig,
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 50,
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000,
-    },
-  },
-});
-
-export const webhookQueue = new Queue('webhook processing', {
+export interface QueueConfig {
   redis: {
-    host: Env.get('REDIS_HOST', 'localhost'),
-    port: Env.getNumber('REDIS_PORT', 6379),
-    db: Env.getNumber('REDIS_DB', 0),
-    ...(Env.get('REDIS_PASSWORD') && { password: Env.get('REDIS_PASSWORD') })
-  },
-  defaultJobOptions: {
-    removeOnComplete: 50,
-    removeOnFail: 25,
-    attempts: 5,
-    backoff: {
-      type: 'exponential',
-      delay: 1000,
-    },
-  },
-});
+    host: string;
+    port: number;
+    password?: string;
+    db: number;
+    maxRetriesPerRequest: number;
+    retryDelayOnFailover: number;
+    lazyConnect: boolean;
+  };
+  defaultJobOptions: JobOptions;
+}
 
-export const analyticsQueue = new Queue('analytics processing', {
-  redis: {
-    host: Env.get('REDIS_HOST', 'localhost'),
-    port: Env.getNumber('REDIS_PORT', 6379),
-    db: Env.getNumber('REDIS_DB', 0),
-    ...(Env.get('REDIS_PASSWORD') && { password: Env.get('REDIS_PASSWORD') })
-  },
-  defaultJobOptions: {
-    removeOnComplete: 200,
-    removeOnFail: 50,
-    attempts: 2,
-    delay: 1000,
-  },
-});
+export interface QueueStats {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+  paused: boolean;
+}
 
-// Job interfaces
-interface EmailJob {
+export interface EmailJobData {
+  emailId?: number;
   from: string;
   to: string | string[];
   subject: string;
   html?: string;
   text?: string;
-  cc?: string | string[];
-  bcc?: string | string[];
-  replyTo?: string;
   attachments?: any[];
-  template_id?: number;
-  variables?: Record<string, any>;
-  tracking?: boolean;
-  userId: number;
-  apiKeyId?: number;
   priority?: number;
+  delay?: number;
+  userId?: number;
+  campaignId?: number;
+  templateId?: number;
+  metadata?: any;
 }
 
-interface WebhookJob {
-  webhookId: number;
-  event: string;
-  payload: any;
-  attempt?: number;
+export interface BatchEmailJobData {
+  emails: EmailJobData[];
+  batchId: string;
+  userId: number;
+  campaignId?: number;
+  totalEmails: number;
 }
 
-interface AnalyticsJob {
-  emailId: number;
+export interface WebhookJobData {
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  payload?: any;
   eventType: string;
-  data: any;
+  entityId: number;
+  userId: number;
+  retryCount?: number;
+  maxRetries?: number;
 }
 
-// Email Queue Processors
-emailQueue.process('send-email', 10, async (job) => {
-  const { data }: { data: EmailJob } = job;
-  
-  try {
-    logger.info('Processing email job', { jobId: job.id });
-    
-    const result = await emailService.sendEmail(data);
-    
-    // Trigger webhook if email sent successfully
-    await webhookQueue.add('email-sent', {
-      emailId: result.emailId,
-      event: 'email.sent',
-      payload: {
-        messageId: result.messageId,
-        to: data.to,
-        subject: data.subject,
-        sentAt: new Date().toISOString()
-      }
-    });
-    
-    return result;
-  } catch (error) {
-    logger.error('Email job failed', { 
-      jobId: job.id, 
-      error: error instanceof Error ? error.message : error 
-    });
-    throw error;
-  }
-});
+export interface AnalyticsJobData {
+  type: 'email_event' | 'campaign_summary' | 'domain_reputation' | 'user_engagement';
+  eventType?: string;
+  emailId?: string;
+  campaignId?: string;
+  userId?: string;
+  domain?: string;
+  timestamp: Date;
+  data: any;
+  metadata?: Record<string, any>;
+}
 
-emailQueue.process('send-batch-emails', 5, async (job) => {
-  const { emails }: { emails: EmailJob[] } = job.data;
-  
-  try {
-    logger.info('Processing batch email job', { jobId: job.id, count: emails.length });
-    
-    const results = await emailService.sendBatchEmails(emails);
-    
-    // Trigger webhooks for successful emails
-    for (const result of results) {
-      if (result.success && result.emailId) {
-        await webhookQueue.add('email-sent', {
-          emailId: result.emailId,
-          event: 'email.sent',
-          payload: {
-            messageId: result.messageId,
-            to: result.recipient,
-            sentAt: new Date().toISOString()
-          }
+export class QueueService {
+  private emailQueue: Queue;
+  private webhookQueue: Queue;
+  private analyticsQueue: Queue;
+  private redisConfig: any;
+  private isInitialized = false;
+
+  constructor() {
+    this.setupRedisConfig();
+    this.initializeQueues();
+    this.setupProcessors();
+    this.setupEventHandlers();
+    this.createQueueTables();
+  }
+
+  private setupRedisConfig(): void {
+    this.redisConfig = {
+      host: Env.get('REDIS_HOST', 'localhost'),
+      port: Env.getNumber('REDIS_PORT', 6379),
+      password: Env.get('REDIS_PASSWORD'),
+      db: Env.getNumber('REDIS_DB', 0),
+      maxRetriesPerRequest: 3,
+      retryDelayOnFailover: 1000,
+      lazyConnect: true,
+      retryDelayOnClusterDown: 300,
+      enableReadyCheck: false,
+      enableOfflineQueue: false
+    };
+  }
+
+  private initializeQueues(): void {
+    try {
+      // Email processing queue
+      this.emailQueue = new Bull('email-processing', {
+        redis: this.redisConfig,
+        defaultJobOptions: {
+          removeOnComplete: 100,
+          removeOnFail: 50,
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 2000
+          },
+          delay: 0,
+          jobId: undefined,
+          priority: 0,
+          repeat: undefined,
+          timeout: 300000 // 5 minutos
+        },
+        settings: {
+          stalledInterval: 30000,
+          maxStalledCount: 3
+        }
+      });
+
+      // Webhook processing queue
+      this.webhookQueue = new Bull('webhook-processing', {
+        redis: this.redisConfig,
+        defaultJobOptions: {
+          removeOnComplete: 50,
+          removeOnFail: 25,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000
+          },
+          timeout: 30000 // 30 segundos
+        },
+        settings: {
+          stalledInterval: 30000,
+          maxStalledCount: 2
+        }
+      });
+
+      // Analytics processing queue
+      this.analyticsQueue = new Bull('analytics-processing', {
+        redis: this.redisConfig,
+        defaultJobOptions: {
+          removeOnComplete: 200,
+          removeOnFail: 50,
+          attempts: 2,
+          backoff: {
+            type: 'fixed',
+            delay: 1000
+          },
+          timeout: 60000 // 1 minuto
+        },
+        settings: {
+          stalledInterval: 30000,
+          maxStalledCount: 1
+        }
+      });
+
+      logger.info('Queue service initialized', {
+        queues: ['email-processing', 'webhook-processing', 'analytics-processing']
+      });
+
+    } catch (error) {
+      logger.error('Failed to initialize queues', { error });
+      throw error;
+    }
+  }
+
+  private setupProcessors(): void {
+    try {
+      // Email processing jobs
+      this.emailQueue.process('send-email', 50, async (job: Job<EmailJobData>) => {
+        return this.processEmailJob(job);
+      });
+
+      this.emailQueue.process('send-batch', 10, async (job: Job<BatchEmailJobData>) => {
+        return this.processBatchEmailJob(job);
+      });
+
+      this.emailQueue.process('send-verification', 20, async (job: Job<EmailJobData>) => {
+        return this.processVerificationEmailJob(job);
+      });
+
+      this.emailQueue.process('send-template', 30, async (job: Job<EmailJobData>) => {
+        return this.processTemplateEmailJob(job);
+      });
+
+      // Webhook processing jobs
+      this.webhookQueue.process('send-webhook', 20, async (job: Job<WebhookJobData>) => {
+        return this.processWebhookJob(job);
+      });
+
+      this.webhookQueue.process('delivery-notification', 15, async (job: Job<WebhookJobData>) => {
+        return this.processDeliveryNotificationJob(job);
+      });
+
+      // Analytics processing jobs
+      this.analyticsQueue.process('update-analytics', 10, async (job: Job<AnalyticsJobData>) => {
+        return this.processAnalyticsJob(job);
+      });
+
+      this.analyticsQueue.process('email-opened', 25, async (job: Job<AnalyticsJobData>) => {
+        return this.processEmailOpenedJob(job);
+      });
+
+      this.analyticsQueue.process('email-clicked', 25, async (job: Job<AnalyticsJobData>) => {
+        return this.processEmailClickedJob(job);
+      });
+
+      logger.info('Queue processors configured');
+
+    } catch (error) {
+      logger.error('Failed to setup queue processors', { error });
+      throw error;
+    }
+  }
+
+  private setupEventHandlers(): void {
+    // Email queue events
+    this.emailQueue.on('completed', (job: Job, result: any) => {
+      logger.info('Email job completed', {
+        jobId: job.id,
+        jobName: job.name,
+        queue: 'email',
+        duration: Date.now() - job.processedOn!,
+        result: result?.messageId || 'success'
+      });
+    });
+
+    this.emailQueue.on('failed', (job: Job, err: Error) => {
+      logger.error('Email job failed', {
+        jobId: job.id,
+        jobName: job.name,
+        queue: 'email',
+        error: err.message,
+        attempts: job.attemptsMade,
+        maxAttempts: job.opts.attempts,
+        data: {
+          to: job.data.to,
+          subject: job.data.subject
+        }
+      });
+
+      // Registrar falha para análise posterior
+      this.recordJobFailure('email', job, err);
+    });
+
+    this.emailQueue.on('stalled', (job: Job) => {
+      logger.warn('Email job stalled', {
+        jobId: job.id,
+        jobName: job.name,
+        queue: 'email',
+        stallCount: job.opts.attempts
+      });
+    });
+
+    this.emailQueue.on('progress', (job: Job, progress: any) => {
+      logger.debug('Email job progress', {
+        jobId: job.id,
+        jobName: job.name,
+        progress
+      });
+    });
+
+    // Webhook queue events
+    this.webhookQueue.on('completed', (job: Job, result: any) => {
+      logger.info('Webhook job completed', {
+        jobId: job.id,
+        queue: 'webhook',
+        url: job.data.url,
+        duration: Date.now() - job.processedOn!,
+        statusCode: result?.statusCode
+      });
+    });
+
+    this.webhookQueue.on('failed', (job: Job, err: Error) => {
+      logger.error('Webhook job failed', {
+        jobId: job.id,
+        queue: 'webhook',
+        url: job.data.url,
+        error: err.message,
+        attempts: job.attemptsMade
+      });
+
+      this.recordJobFailure('webhook', job, err);
+    });
+
+    this.webhookQueue.on('stalled', (job: Job) => {
+      logger.warn('Webhook job stalled', {
+        jobId: job.id,
+        queue: 'webhook',
+        url: job.data.url
+      });
+    });
+
+    // Analytics queue events
+    this.analyticsQueue.on('completed', (job: Job) => {
+      logger.debug('Analytics job completed', {
+        jobId: job.id,
+        queue: 'analytics',
+        type: job.data.type
+      });
+    });
+
+    this.analyticsQueue.on('failed', (job: Job, err: Error) => {
+      logger.error('Analytics job failed', {
+        jobId: job.id,
+        queue: 'analytics',
+        type: job.data.type,
+        error: err.message,
+        attempts: job.attemptsMade
+      });
+    });
+
+    logger.info('Queue event handlers configured');
+  }
+
+  private async processEmailJob(job: Job<EmailJobData>): Promise<any> {
+    logger.info('Processing email job', {
+      jobId: job.id,
+      to: job.data.to,
+      subject: job.data.subject
+    });
+
+    try {
+      // Import dinamico para evitar dependências circulares
+      const { EmailService } = await import('./emailService');
+      const emailService = new EmailService();
+      
+      const result = await emailService.processEmailJob(job.data);
+      
+      // Atualizar progresso
+      job.progress(100);
+      
+      return result;
+    } catch (error) {
+      logger.error('Email job processing failed', {
+        jobId: job.id,
+        error: (error as Error).message,
+        data: job.data
+      });
+      throw error;
+    }
+  }
+
+  private async processBatchEmailJob(job: Job<BatchEmailJobData>): Promise<any> {
+    logger.info('Processing batch email job', {
+      jobId: job.id,
+      batchId: job.data.batchId,
+      totalEmails: job.data.totalEmails
+    });
+
+    try {
+      const { EmailService } = await import('./emailService');
+      const emailService = new EmailService();
+      
+      const results = [];
+      const totalEmails = job.data.emails.length;
+      
+      for (let i = 0; i < job.data.emails.length; i++) {
+        const emailData = job.data.emails[i];
+        
+        try {
+          const result = await emailService.processEmailJob(emailData);
+          results.push({ success: true, email: emailData.to, result });
+          
+          // Atualizar progresso
+          const progress = Math.round(((i + 1) / totalEmails) * 100);
+          job.progress(progress);
+          
+        } catch (error) {
+          logger.error('Batch email failed', {
+            batchId: job.data.batchId,
+            email: emailData.to,
+            error: (error as Error).message
+          });
+          results.push({ success: false, email: emailData.to, error: (error as Error).message });
+        }
+      }
+
+      // Registrar estatísticas do batch
+      await this.recordBatchStats(job.data.batchId, results);
+      
+      return {
+        batchId: job.data.batchId,
+        totalEmails,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results
+      };
+      
+    } catch (error) {
+      logger.error('Batch email job processing failed', {
+        jobId: job.id,
+        batchId: job.data.batchId,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
+  private async processVerificationEmailJob(job: Job<EmailJobData>): Promise<any> {
+    logger.info('Processing verification email job', {
+      jobId: job.id,
+      to: job.data.to
+    });
+
+    try {
+      const { EmailService } = await import('./emailService');
+      const emailService = new EmailService();
+      
+      const result = await emailService.sendVerificationEmail(job.data.to as string, job.data.metadata?.name || 'User', job.data.metadata?.token || '');
+      job.progress(100);
+      
+      return result;
+    } catch (error) {
+      logger.error('Verification email job failed', {
+        jobId: job.id,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
+  private async processTemplateEmailJob(job: Job<EmailJobData>): Promise<any> {
+    logger.info('Processing template email job', {
+      jobId: job.id,
+      to: job.data.to,
+      templateId: job.data.templateId
+    });
+
+    try {
+      const { EmailService } = await import('./emailService');
+      const emailService = new EmailService();
+      
+      const result = await emailService.processEmailJob(job.data);
+      job.progress(100);
+      
+      return result;
+    } catch (error) {
+      logger.error('Template email job failed', {
+        jobId: job.id,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
+  private async processWebhookJob(job: Job<WebhookJobData>): Promise<any> {
+    logger.info('Processing webhook job', {
+      jobId: job.id,
+      url: job.data.url,
+      eventType: job.data.eventType
+    });
+
+    try {
+      const { WebhookService } = await import('./webhookService');
+      const webhookService = new WebhookService();
+      
+      const result = await webhookService.processWebhookJob(job.data);
+      job.progress(100);
+      
+      return result;
+    } catch (error) {
+      logger.error('Webhook job failed', {
+        jobId: job.id,
+        url: job.data.url,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
+  private async processDeliveryNotificationJob(job: Job<WebhookJobData>): Promise<any> {
+    logger.info('Processing delivery notification job', {
+      jobId: job.id,
+      url: job.data.url
+    });
+
+    try {
+      const { WebhookService } = await import('./webhookService');
+      const webhookService = new WebhookService();
+      
+      const result = await webhookService.processDeliveryNotification(job.data);
+      job.progress(100);
+      
+      return result;
+    } catch (error) {
+      logger.error('Delivery notification job failed', {
+        jobId: job.id,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
+  private async processAnalyticsJob(job: Job<AnalyticsJobData>): Promise<any> {
+    logger.debug('Processing analytics job', {
+      jobId: job.id,
+      type: job.data.type
+    });
+
+    try {
+      const { AnalyticsService } = await import('./analyticsService');
+      const analyticsService = new AnalyticsService();
+      
+      const result = await analyticsService.processAnalyticsJob(job.data);
+      job.progress(100);
+      
+      return result;
+    } catch (error) {
+      logger.error('Analytics job failed', {
+        jobId: job.id,
+        type: job.data.type,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
+  private async processEmailOpenedJob(job: Job<AnalyticsJobData>): Promise<any> {
+    try {
+      const { AnalyticsService } = await import('./analyticsService');
+      const analyticsService = new AnalyticsService();
+      
+      return await analyticsService.processAnalyticsJob(job.data);
+    } catch (error) {
+      logger.error('Email opened job failed', { jobId: job.id, error: (error as Error).message });
+      throw error;
+    }
+  }
+
+  private async processEmailClickedJob(job: Job<AnalyticsJobData>): Promise<any> {
+    try {
+      const { AnalyticsService } = await import('./analyticsService');
+      const analyticsService = new AnalyticsService();
+      
+      return await analyticsService.processAnalyticsJob(job.data);
+    } catch (error) {
+      logger.error('Email clicked job failed', { jobId: job.id, error: (error as Error).message });
+      throw error;
+    }
+  }
+
+  // Public methods para adicionar jobs
+  public async addEmailJob(emailData: EmailJobData, options: JobOptions = {}): Promise<Job> {
+    try {
+      const jobOptions: JobOptions = {
+        priority: emailData.priority || 0,
+        delay: emailData.delay || 0,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 2000 },
+        ...options
+      };
+
+      const job = await this.emailQueue.add('send-email', emailData, jobOptions);
+      
+      logger.info('Email job added to queue', {
+        jobId: job.id,
+        to: emailData.to,
+        subject: emailData.subject,
+        priority: jobOptions.priority
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add email job', { error, emailData });
+      throw error;
+    }
+  }
+
+  public async addBatchEmailJob(emailsData: EmailJobData[], options: Partial<BatchEmailJobData> = {}): Promise<Job> {
+    try {
+      const batchId = options.batchId || `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const batchData: BatchEmailJobData = {
+        batchId,
+        emails: emailsData,
+        totalEmails: emailsData.length,
+        userId: options.userId || 0,
+        campaignId: options.campaignId
+      };
+
+      const job = await this.emailQueue.add('send-batch', batchData, {
+        priority: -10 // Lower priority for batch jobs
+      });
+
+      logger.info('Batch email job added to queue', {
+        jobId: job.id,
+        batchId,
+        totalEmails: emailsData.length
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add batch email job', { error });
+      throw error;
+    }
+  }
+
+  public async addVerificationEmailJob(emailData: EmailJobData): Promise<Job> {
+    try {
+      const job = await this.emailQueue.add('send-verification', emailData, {
+        priority: 10, // High priority for verification emails
+        attempts: 3
+      });
+
+      logger.info('Verification email job added to queue', {
+        jobId: job.id,
+        to: emailData.to
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add verification email job', { error });
+      throw error;
+    }
+  }
+
+  public async addTemplateEmailJob(emailData: EmailJobData): Promise<Job> {
+    try {
+      const job = await this.emailQueue.add('send-template', emailData, {
+        priority: emailData.priority || 5
+      });
+
+      logger.info('Template email job added to queue', {
+        jobId: job.id,
+        to: emailData.to,
+        templateId: emailData.templateId
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add template email job', { error });
+      throw error;
+    }
+  }
+
+  public async addWebhookJob(webhookData: WebhookJobData): Promise<Job> {
+    try {
+      const job = await this.webhookQueue.add('send-webhook', webhookData);
+
+      logger.info('Webhook job added to queue', {
+        jobId: job.id,
+        url: webhookData.url,
+        eventType: webhookData.eventType
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add webhook job', { error });
+      throw error;
+    }
+  }
+
+  public async addDeliveryNotificationJob(webhookData: WebhookJobData): Promise<Job> {
+    try {
+      const job = await this.webhookQueue.add('delivery-notification', webhookData, {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 2000 }
+      });
+
+      logger.info('Delivery notification job added to queue', {
+        jobId: job.id,
+        url: webhookData.url
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add delivery notification job', { error });
+      throw error;
+    }
+  }
+
+  public async addAnalyticsJob(analyticsData: AnalyticsJobData): Promise<Job> {
+    try {
+      const job = await this.analyticsQueue.add('update-analytics', analyticsData, {
+        delay: 1000 // Delay para batching de analytics
+      });
+
+      return job;
+    } catch (error) {
+      logger.error('Failed to add analytics job', { error });
+      throw error;
+    }
+  }
+
+  public async addEmailOpenedJob(analyticsData: AnalyticsJobData): Promise<Job> {
+    try {
+      const job = await this.analyticsQueue.add('email-opened', analyticsData);
+      return job;
+    } catch (error) {
+      logger.error('Failed to add email opened job', { error });
+      throw error;
+    }
+  }
+
+  public async addEmailClickedJob(analyticsData: AnalyticsJobData): Promise<Job> {
+    try {
+      const job = await this.analyticsQueue.add('email-clicked', analyticsData);
+      return job;
+    } catch (error) {
+      logger.error('Failed to add email clicked job', { error });
+      throw error;
+    }
+  }
+
+  // Queue management methods
+  public async getQueueStats(): Promise<Record<string, QueueStats>> {
+    try {
+      const [emailStats, webhookStats, analyticsStats] = await Promise.all([
+        this.getQueueStatsForQueue(this.emailQueue),
+        this.getQueueStatsForQueue(this.webhookQueue),
+        this.getQueueStatsForQueue(this.analyticsQueue)
+      ]);
+
+      return {
+        email: emailStats,
+        webhook: webhookStats,
+        analytics: analyticsStats
+      };
+    } catch (error) {
+      logger.error('Failed to get queue stats', { error });
+      throw error;
+    }
+  }
+
+  private async getQueueStatsForQueue(queue: Queue): Promise<QueueStats> {
+    const [waiting, active, completed, failed, delayed] = await Promise.all([
+      queue.getWaiting(),
+      queue.getActive(),
+      queue.getCompleted(),
+      queue.getFailed(),
+      queue.getDelayed()
+    ]);
+
+    return {
+      waiting: waiting.length,
+      active: active.length,
+      completed: completed.length,
+      failed: failed.length,
+      delayed: delayed.length,
+      paused: await queue.isPaused()
+    };
+  }
+
+  public async pauseQueues(): Promise<void> {
+    try {
+      await Promise.all([
+        this.emailQueue.pause(),
+        this.webhookQueue.pause(),
+        this.analyticsQueue.pause()
+      ]);
+      
+      logger.info('All queues paused');
+    } catch (error) {
+      logger.error('Failed to pause queues', { error });
+      throw error;
+    }
+  }
+
+  public async resumeQueues(): Promise<void> {
+    try {
+      await Promise.all([
+        this.emailQueue.resume(),
+        this.webhookQueue.resume(),
+        this.analyticsQueue.resume()
+      ]);
+      
+      logger.info('All queues resumed');
+    } catch (error) {
+      logger.error('Failed to resume queues', { error });
+      throw error;
+    }
+  }
+
+  public async pauseQueue(queueName: 'email' | 'webhook' | 'analytics'): Promise<void> {
+    try {
+      const queue = this.getQueueByName(queueName);
+      await queue.pause();
+      
+      logger.info(`Queue ${queueName} paused`);
+    } catch (error) {
+      logger.error(`Failed to pause queue ${queueName}`, { error });
+      throw error;
+    }
+  }
+
+  public async resumeQueue(queueName: 'email' | 'webhook' | 'analytics'): Promise<void> {
+    try {
+      const queue = this.getQueueByName(queueName);
+      await queue.resume();
+      
+      logger.info(`Queue ${queueName} resumed`);
+    } catch (error) {
+      logger.error(`Failed to resume queue ${queueName}`, { error });
+      throw error;
+    }
+  }
+
+  private getQueueByName(queueName: string): Queue {
+    switch (queueName) {
+      case 'email':
+        return this.emailQueue;
+      case 'webhook':
+        return this.webhookQueue;
+      case 'analytics':
+        return this.analyticsQueue;
+      default:
+        throw new Error(`Unknown queue: ${queueName}`);
+    }
+  }
+
+  public async cleanQueues(): Promise<void> {
+    try {
+      await Promise.all([
+        this.emailQueue.clean(24 * 60 * 60 * 1000, 'completed'),
+        this.emailQueue.clean(7 * 24 * 60 * 60 * 1000, 'failed'),
+        this.webhookQueue.clean(24 * 60 * 60 * 1000, 'completed'),
+        this.webhookQueue.clean(7 * 24 * 60 * 60 * 1000, 'failed'),
+        this.analyticsQueue.clean(6 * 60 * 60 * 1000, 'completed'), // 6 horas
+        this.analyticsQueue.clean(24 * 60 * 60 * 1000, 'failed')
+      ]);
+
+      logger.info('Queue cleanup completed');
+    } catch (error) {
+      logger.error('Queue cleanup failed', { error });
+    }
+  }
+
+  private async recordJobFailure(queueType: string, job: Job, error: Error): Promise<void> {
+    try {
+      await db('queue_job_failures').insert({
+        queue_type: queueType,
+        job_id: job.id?.toString(),
+        job_name: job.name,
+        job_data: JSON.stringify(job.data),
+        error_message: error.message,
+        error_stack: error.stack,
+        attempts_made: job.attemptsMade,
+        max_attempts: job.opts.attempts,
+        failed_at: new Date(),
+        created_at: new Date()
+      });
+    } catch (dbError) {
+      logger.error('Failed to record job failure', { dbError, jobId: job.id });
+    }
+  }
+
+  private async recordBatchStats(batchId: string, results: any[]): Promise<void> {
+    try {
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      await db('batch_email_stats').insert({
+        batch_id: batchId,
+        total_emails: results.length,
+        successful_emails: successful,
+        failed_emails: failed,
+        success_rate: (successful / results.length) * 100,
+        completed_at: new Date(),
+        created_at: new Date()
+      });
+    } catch (error) {
+      logger.error('Failed to record batch stats', { error, batchId });
+    }
+  }
+
+  private async createQueueTables(): Promise<void> {
+    try {
+      // Tabela para falhas de jobs
+      const hasJobFailuresTable = await db.schema.hasTable('queue_job_failures');
+      if (!hasJobFailuresTable) {
+        await db.schema.createTable('queue_job_failures', (table) => {
+          table.increments('id').primary();
+          table.string('queue_type', 50).notNullable();
+          table.string('job_id', 100).notNullable();
+          table.string('job_name', 100).notNullable();
+          table.text('job_data', 'longtext');
+          table.text('error_message').notNullable();
+          table.text('error_stack', 'longtext');
+          table.integer('attempts_made').defaultTo(0);
+          table.integer('max_attempts').defaultTo(1);
+          table.timestamp('failed_at').notNullable();
+          table.timestamps(true, true);
+
+          table.index(['queue_type', 'failed_at']);
+          table.index('job_id');
         });
       }
+
+      // Tabela para estatísticas de batch
+      const hasBatchStatsTable = await db.schema.hasTable('batch_email_stats');
+      if (!hasBatchStatsTable) {
+        await db.schema.createTable('batch_email_stats', (table) => {
+          table.increments('id').primary();
+          table.string('batch_id', 100).notNullable().unique();
+          table.integer('total_emails').notNullable();
+          table.integer('successful_emails').defaultTo(0);
+          table.integer('failed_emails').defaultTo(0);
+          table.decimal('success_rate', 5, 2).defaultTo(0);
+          table.timestamp('completed_at');
+          table.timestamps(true, true);
+
+          table.index('batch_id');
+          table.index('completed_at');
+        });
+      }
+
+      logger.info('Queue tables verified/created');
+    } catch (error) {
+      logger.error('Failed to create queue tables', { error });
     }
-    
-    return results;
-  } catch (error) {
-    logger.error('Batch email job failed', { 
-      jobId: job.id, 
-      error: error instanceof Error ? error.message : error 
-    });
-    throw error;
   }
-});
 
-// Webhook Queue Processors
-webhookQueue.process('email-sent', async (job) => {
-  const { data }: { data: WebhookJob } = job;
-  
-  try {
-    logger.info('Processing webhook job', { jobId: job.id, event: data.event });
-    
-    await webhookService.sendWebhook(data.event, data.payload);
-    
-    return { success: true };
-  } catch (error) {
-    logger.error('Webhook job failed', { 
-      jobId: job.id, 
-      error: error instanceof Error ? error.message : error 
-    });
-    throw error;
+  public async getHealth(): Promise<any> {
+    try {
+      const stats = await this.getQueueStats();
+      const isHealthy = !Object.values(stats).some(queueStats => 
+        queueStats.failed > 100 || queueStats.active > 1000
+      );
+
+      return {
+        healthy: isHealthy,
+        stats,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        healthy: false,
+        error: (error as Error).message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
-});
 
-webhookQueue.process('email-delivered', async (job) => {
-  const { data }: { data: WebhookJob } = job;
-  
-  try {
-    await webhookService.sendWebhook(data.event, data.payload);
-    return { success: true };
-  } catch (error) {
-    logger.error('Webhook job failed', { jobId: job.id, error });
-    throw error;
+  public async close(): Promise<void> {
+    try {
+      await Promise.all([
+        this.emailQueue.close(),
+        this.webhookQueue.close(),
+        this.analyticsQueue.close()
+      ]);
+
+      logger.info('Queue service closed');
+    } catch (error) {
+      logger.error('Failed to close queue service', { error });
+      throw error;
+    }
   }
-});
+}
 
-webhookQueue.process('email-opened', async (job) => {
-  const { data }: { data: WebhookJob } = job;
-  
-  try {
-    await webhookService.sendWebhook(data.event, data.payload);
-    return { success: true };
-  } catch (error) {
-    logger.error('Webhook job failed', { jobId: job.id, error });
-    throw error;
-  }
-});
-
-webhookQueue.process('email-clicked', async (job) => {
-  const { data }: { data: WebhookJob } = job;
-  
-  try {
-    await webhookService.sendWebhook(data.event, data.payload);
-    return { success: true };
-  } catch (error) {
-    logger.error('Webhook job failed', { jobId: job.id, error });
-    throw error;
-  }
-});
-
-webhookQueue.process('email-bounced', async (job) => {
-  const { data }: { data: WebhookJob } = job;
-  
-  try {
-    await webhookService.sendWebhook(data.event, data.payload);
-    return { success: true };
-  } catch (error) {
-    logger.error('Webhook job failed', { jobId: job.id, error });
-    throw error;
-  }
-});
-
-// Analytics Queue Processors
-analyticsQueue.process('process-analytics', async (job) => {
-  const { data }: { data: AnalyticsJob } = job;
-  
-  try {
-    logger.info('Processing analytics job', { jobId: job.id, data });
-    
-    // Process analytics data here
-    // This could involve aggregating data, updating metrics, etc.
-    
-    return { success: true };
-  } catch (error) {
-    logger.error('Analytics job failed', { jobId: job.id, error });
-    throw error;
-  }
-});
-
-// Queue event handlers
-emailQueue.on('completed', (job, result) => {
-  logger.info('Email job completed', { jobId: job.id, result });
-});
-
-emailQueue.on('failed', (job, err) => {
-  logger.error('Email job failed', { jobId: job.id, error: err.message });
-});
-
-webhookQueue.on('completed', (job, result) => {
-  logger.info('Webhook job completed', { jobId: job.id, result });
-});
-
-webhookQueue.on('failed', (job, err) => {
-  logger.error('Webhook job failed', { jobId: job.id, error: err.message });
-});
-
-analyticsQueue.on('completed', (job) => {
-  logger.info('Analytics job completed', { jobId: job.id });
-});
-
-analyticsQueue.on('failed', (job, err) => {
-  logger.error('Analytics job failed', { jobId: job.id, error: err.message });
-});
-
-// Helper functions to add jobs to queues
-export const addEmailJob = async (emailData: EmailJob, options?: any) => {
-  const priority = emailData.priority || 0;
-  return emailQueue.add('send-email', emailData, {
-    priority,
-    ...options
-  });
-};
-
-export const addBatchEmailJob = async (emails: EmailJob[], options?: any) => {
-  return emailQueue.add('send-batch-emails', { emails }, options);
-};
-
-export const addWebhookJob = async (event: string, payload: any, options?: any) => {
-  return webhookQueue.add(event, { event, payload }, options);
-};
-
-export const addAnalyticsJob = async (data: AnalyticsJob, options?: any) => {
-  return analyticsQueue.add('process-analytics', data, options);
-};
-
-// Queue monitoring and cleanup
-export const getQueueStats = async () => {
-  const [emailStats, webhookStats, analyticsStats] = await Promise.all([
-    emailQueue.getJobCounts(),
-    webhookQueue.getJobCounts(),
-    analyticsQueue.getJobCounts()
-  ]);
-
-  return {
-    email: emailStats,
-    webhook: webhookStats,
-    analytics: analyticsStats
-  };
-};
-
-// Graceful shutdown
-export const closeQueues = async () => {
-  await Promise.all([
-    emailQueue.close(),
-    webhookQueue.close(),
-    analyticsQueue.close(),
-    redis.disconnect()
-  ]);
-  logger.info('All queues closed');
-};
-
-// Initialize queues
-logger.info('Queue service initialized');
-
-export default {
-  emailQueue,
-  webhookQueue,
-  analyticsQueue,
-  addEmailJob,
-  addBatchEmailJob,
-  addWebhookJob,
-  addAnalyticsJob,
-  getQueueStats,
-  closeQueues
-};
+// Export singleton instance
+export const queueService = new QueueService();

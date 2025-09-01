@@ -1,0 +1,940 @@
+# OpenAPI 3.0 Specification for UltraZend SMTP API
+# Versão: 2.0.0 - FASE 7 IMPLEMENTAÇÃO COMPLETA
+# 
+# Esta é a documentação completa da API REST do UltraZend
+# Servidor SMTP profissional com sistema de envio de emails
+
+openapi: 3.0.3
+info:
+  title: UltraZend SMTP Server API
+  description: |
+    # 🚀 UltraZend SMTP Server API
+    
+    **Servidor SMTP profissional com API REST completa para envio e gerenciamento de emails.**
+    
+    ## 🌟 Funcionalidades
+    
+    - **Envio de emails** via API REST
+    - **Servidor SMTP** completo (MX + Submission)  
+    - **Autenticação JWT** com refresh tokens
+    - **Rate limiting** inteligente
+    - **Webhooks** para notificações
+    - **Analytics** em tempo real
+    - **Sistema de filas** Redis Bull
+    - **Monitoramento** Prometheus
+    - **Segurança** multicamadas
+    
+    ## 🔐 Autenticação
+    
+    A API utiliza **JWT Bearer tokens** para autenticação:
+    
+    ```bash
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         https://api.ultrazend.com.br/api/emails/send
+    ```
+    
+    ## 🚦 Rate Limiting
+    
+    - **API**: 1000 requests/hora por usuário
+    - **Email Send**: 10,000 emails/hora por usuário
+    - **Auth**: 10 tentativas/15min por IP
+    
+    ## 📧 SMTP Configuration
+    
+    **MX Server (recebimento):**
+    - Host: `mail.ultrazend.com.br`
+    - Port: `25`
+    
+    **Submission Server (envio autenticado):**
+    - Host: `mail.ultrazend.com.br`
+    - Port: `587`
+    - Security: `STARTTLS`
+    
+    ## 🔗 Links Úteis
+    
+    - **Dashboard**: https://www.ultrazend.com.br
+    - **Status Page**: https://status.ultrazend.com.br
+    - **Support**: suporte@ultrazend.com.br
+    - **Docs**: https://docs.ultrazend.com.br
+    
+  version: 2.0.0
+  contact:
+    name: Suporte UltraZend
+    email: suporte@ultrazend.com.br
+    url: https://www.ultrazend.com.br/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://www.ultrazend.com.br/terms
+
+servers:
+  - url: https://www.ultrazend.com.br/api
+    description: Produção
+  - url: https://staging.ultrazend.com.br/api
+    description: Staging
+  - url: http://localhost:3001/api
+    description: Desenvolvimento Local
+
+# ========================================
+# COMPONENTES REUTILIZÁVEIS
+# ========================================
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtido através do endpoint de login.
+        
+        Exemplo: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+    
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API Key para integração direta sem login.
+        
+        Exemplo: `X-API-Key: ultrazend_ak_1234567890abcdef`
+
+  schemas:
+    # === USER SCHEMAS ===
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        name:
+          type: string
+          example: "João Silva"
+        email:
+          type: string
+          format: email
+          example: "joao@example.com"
+        is_verified:
+          type: boolean
+          example: true
+        plan_type:
+          type: string
+          enum: [free, pro, business, enterprise]
+          example: "pro"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+      required:
+        - id
+        - name
+        - email
+        - is_verified
+    
+    UserRegistration:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "João Silva"
+        email:
+          type: string
+          format: email
+          example: "joao@example.com"
+        password:
+          type: string
+          minLength: 8
+          example: "senhaSegura123"
+        plan_type:
+          type: string
+          enum: [free, pro, business]
+          default: free
+          example: "free"
+      required:
+        - name
+        - email
+        - password
+    
+    UserLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "joao@example.com"
+        password:
+          type: string
+          example: "senhaSegura123"
+      required:
+        - email
+        - password
+    
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Login realizado com sucesso"
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            refresh_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            expires_in:
+              type: integer
+              example: 3600
+          required:
+            - access_token
+            - refresh_token
+            - expires_in
+      required:
+        - message
+        - user
+        - tokens
+
+    # === EMAIL SCHEMAS ===
+    Email:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 456
+        from:
+          type: string
+          format: email
+          example: "sender@ultrazend.com.br"
+        to:
+          type: string
+          format: email
+          example: "recipient@example.com"
+        subject:
+          type: string
+          example: "Bem-vindo ao UltraZend!"
+        status:
+          type: string
+          enum: [queued, processing, delivered, failed, bounced]
+          example: "delivered"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+        delivered_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-01-01T12:01:30.000Z"
+        message_id:
+          type: string
+          example: "msg-abc123def456"
+        error_message:
+          type: string
+          nullable: true
+          example: null
+      required:
+        - id
+        - from
+        - to
+        - subject
+        - status
+    
+    EmailSendRequest:
+      type: object
+      properties:
+        from:
+          type: string
+          format: email
+          example: "noreply@ultrazend.com.br"
+          description: "Endereço do remetente (deve estar autorizado)"
+        to:
+          type: string
+          format: email
+          example: "cliente@example.com"
+          description: "Endereço do destinatário"
+        subject:
+          type: string
+          maxLength: 200
+          example: "Bem-vindo ao nosso serviço!"
+          description: "Assunto do email"
+        html:
+          type: string
+          example: "<h1>Olá!</h1><p>Bem-vindo ao UltraZend!</p>"
+          description: "Conteúdo HTML do email"
+        text:
+          type: string
+          example: "Olá! Bem-vindo ao UltraZend!"
+          description: "Conteúdo em texto puro (fallback)"
+        reply_to:
+          type: string
+          format: email
+          example: "contato@ultrazend.com.br"
+          description: "Endereço para respostas"
+        cc:
+          type: array
+          items:
+            type: string
+            format: email
+          example: ["cc@example.com"]
+          description: "Destinatários em cópia"
+        bcc:
+          type: array
+          items:
+            type: string
+            format: email
+          example: ["bcc@example.com"]
+          description: "Destinatários em cópia oculta"
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailAttachment'
+          description: "Anexos do email"
+        template_id:
+          type: string
+          example: "welcome-template"
+          description: "ID do template a ser usado"
+        template_vars:
+          type: object
+          example: {"name": "João", "company": "ACME Inc"}
+          description: "Variáveis para o template"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["newsletter", "welcome"]
+          description: "Tags para categorização"
+        metadata:
+          type: object
+          example: {"campaign_id": "camp123", "source": "website"}
+          description: "Metadados personalizados"
+        scheduled_at:
+          type: string
+          format: date-time
+          example: "2025-01-02T09:00:00.000Z"
+          description: "Agendar envio para data/hora específica"
+        webhook_url:
+          type: string
+          format: uri
+          example: "https://yourapp.com/webhook/email-status"
+          description: "URL para receber notificações de status"
+      required:
+        - from
+        - to
+        - subject
+      oneOf:
+        - required: [html]
+        - required: [text]
+        - required: [template_id]
+    
+    EmailAttachment:
+      type: object
+      properties:
+        filename:
+          type: string
+          example: "documento.pdf"
+        content:
+          type: string
+          format: base64
+          example: "JVBERi0xLjQK..."
+        content_type:
+          type: string
+          example: "application/pdf"
+        size:
+          type: integer
+          example: 1024000
+          description: "Tamanho em bytes (máx: 25MB)"
+      required:
+        - filename
+        - content
+        - content_type
+
+    # === RESPONSE SCHEMAS ===
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operação realizada com sucesso"
+        data:
+          type: object
+          description: "Dados específicos da operação"
+      required:
+        - success
+        - message
+    
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Erro na validação dos dados"
+        code:
+          type: string
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          description: "Detalhes específicos do erro"
+        trace_id:
+          type: string
+          example: "req-abc123def456"
+      required:
+        - success
+        - error
+        - code
+
+    # === HEALTH CHECK SCHEMAS ===
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        version:
+          type: string
+          example: "2.0.0"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+        uptime:
+          type: integer
+          example: 86400
+          description: "Uptime em segundos"
+        services:
+          type: object
+          properties:
+            database:
+              $ref: '#/components/schemas/ServiceStatus'
+            redis:
+              $ref: '#/components/schemas/ServiceStatus'
+            smtp:
+              $ref: '#/components/schemas/ServiceStatus'
+            queue:
+              $ref: '#/components/schemas/ServiceStatus'
+          required:
+            - database
+            - redis
+            - smtp
+            - queue
+      required:
+        - status
+        - version
+        - timestamp
+        - services
+    
+    ServiceStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        response_time:
+          type: number
+          format: float
+          example: 15.5
+          description: "Tempo de resposta em ms"
+        last_check:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+        details:
+          type: object
+          description: "Detalhes específicos do serviço"
+      required:
+        - status
+        - response_time
+        - last_check
+
+  responses:
+    UnauthorizedError:
+      description: Token de acesso inválido ou expirado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Token de acesso inválido"
+            code: "UNAUTHORIZED"
+            trace_id: "req-abc123def456"
+    
+    ValidationError:
+      description: Erro de validação nos dados enviados
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Dados inválidos"
+            code: "VALIDATION_ERROR"
+            details:
+              email: ["Email é obrigatório"]
+              password: ["Senha deve ter pelo menos 8 caracteres"]
+            trace_id: "req-abc123def456"
+    
+    RateLimitError:
+      description: Limite de taxa excedido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Limite de taxa excedido"
+            code: "RATE_LIMIT_EXCEEDED"
+            details:
+              limit: 1000
+              window: "1 hour"
+              retry_after: 3600
+            trace_id: "req-abc123def456"
+    
+    ServerError:
+      description: Erro interno do servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Erro interno do servidor"
+            code: "INTERNAL_SERVER_ERROR"
+            trace_id: "req-abc123def456"
+
+# ========================================
+# ROTAS DA API
+# ========================================
+
+paths:
+  # === HEALTH CHECK ===
+  /health:
+    get:
+      tags:
+        - Health Check
+      summary: Verificar saúde do sistema
+      description: |
+        Retorna o status de saúde de todos os componentes do sistema.
+        
+        Este endpoint não requer autenticação e é usado para:
+        - Load balancer health checks
+        - Monitoramento de uptime
+        - Verificações de deploy
+      operationId: getHealth
+      responses:
+        '200':
+          description: Sistema saudável
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+              example:
+                status: "healthy"
+                version: "2.0.0"
+                timestamp: "2025-01-01T12:00:00.000Z"
+                uptime: 86400
+                services:
+                  database:
+                    status: "healthy"
+                    response_time: 5.2
+                    last_check: "2025-01-01T12:00:00.000Z"
+                  redis:
+                    status: "healthy"
+                    response_time: 1.8
+                    last_check: "2025-01-01T12:00:00.000Z"
+                  smtp:
+                    status: "healthy"
+                    response_time: 12.5
+                    last_check: "2025-01-01T12:00:00.000Z"
+                    details:
+                      mx_port: "open"
+                      submission_port: "open"
+                  queue:
+                    status: "healthy"
+                    response_time: 8.1
+                    last_check: "2025-01-01T12:00:00.000Z"
+                    details:
+                      pending_jobs: 5
+                      active_jobs: 2
+        '503':
+          description: Sistema com problemas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+
+  # === MÉTRICAS ===
+  /metrics:
+    get:
+      tags:
+        - Monitoring
+      summary: Métricas Prometheus
+      description: |
+        Retorna métricas em formato Prometheus para monitoramento.
+        
+        Métricas disponíveis:
+        - `ultrazend_emails_sent_total` - Total de emails enviados
+        - `ultrazend_emails_delivered_total` - Total de emails entregues  
+        - `ultrazend_emails_failed_total` - Total de emails falhados
+        - `ultrazend_smtp_connections_total` - Conexões SMTP
+        - `ultrazend_response_time_seconds` - Tempo de resposta
+        - `ultrazend_queue_size` - Tamanho das filas
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Métricas Prometheus
+          content:
+            text/plain:
+              example: |
+                # HELP ultrazend_emails_sent_total Total number of emails sent
+                # TYPE ultrazend_emails_sent_total counter
+                ultrazend_emails_sent_total{user_id="123",status="delivered"} 1250
+                ultrazend_emails_sent_total{user_id="123",status="failed"} 25
+                
+                # HELP ultrazend_response_time_seconds Response time in seconds
+                # TYPE ultrazend_response_time_seconds histogram
+                ultrazend_response_time_seconds_bucket{method="POST",route="/api/emails/send",status_code="200",le="0.1"} 850
+
+  # === AUTENTICAÇÃO ===
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Registrar novo usuário
+      description: |
+        Cria uma nova conta de usuário no sistema.
+        
+        Após o registro:
+        1. Um email de verificação será enviado
+        2. O usuário deve verificar o email antes de poder fazer login
+        3. O plano inicial é "free" com limitações
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+            example:
+              name: "João Silva"
+              email: "joao@example.com"
+              password: "senhaSegura123"
+              plan_type: "free"
+      responses:
+        '201':
+          description: Usuário registrado com sucesso
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          verification_sent:
+                            type: boolean
+                            example: true
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email já cadastrado
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Fazer login
+      description: |
+        Autentica um usuário e retorna tokens de acesso.
+        
+        **Requisitos:**
+        - Email deve estar verificado
+        - Credenciais válidas
+        
+        **Tokens retornados:**
+        - `access_token`: JWT para acessar a API (válido por 1 hora)
+        - `refresh_token`: Para renovar o access_token (válido por 7 dias)
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+            example:
+              email: "joao@example.com"
+              password: "senhaSegura123"
+      responses:
+        '200':
+          description: Login realizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Credenciais inválidas
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/verify-email:
+    post:
+      tags:
+        - Authentication
+      summary: Verificar email
+      description: |
+        Verifica o email do usuário usando o token enviado por email.
+        
+        Após a verificação, o usuário pode fazer login normalmente.
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                  example: "abc123def456789012345678901234567890123456789012345678901234"
+                  description: "Token de 64 caracteres recebido por email"
+              required:
+                - token
+      responses:
+        '200':
+          description: Email verificado com sucesso
+        '400':
+          description: Token inválido ou expirado
+
+  # === ENVIO DE EMAILS ===
+  /emails/send:
+    post:
+      tags:
+        - Email Sending
+      summary: Enviar email único
+      description: |
+        Envia um email para um destinatário específico.
+        
+        **Recursos suportados:**
+        - Templates dinâmicos
+        - Anexos (até 25MB total)
+        - Agendamento
+        - Webhooks de status
+        - Tags e metadados
+        - HTML + Text
+        
+        **Rate Limits:**
+        - 10,000 emails/hora (plano Pro)
+        - 1,000 emails/hora (plano Free)
+      operationId: sendEmail
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailSendRequest'
+            examples:
+              simple_email:
+                summary: Email simples
+                value:
+                  from: "noreply@ultrazend.com.br"
+                  to: "cliente@example.com"
+                  subject: "Bem-vindo!"
+                  html: "<h1>Olá!</h1><p>Bem-vindo ao nosso serviço.</p>"
+                  text: "Olá! Bem-vindo ao nosso serviço."
+              
+              template_email:
+                summary: Email com template
+                value:
+                  from: "noreply@ultrazend.com.br"
+                  to: "cliente@example.com"
+                  subject: "Bem-vindo, {{name}}!"
+                  template_id: "welcome-template"
+                  template_vars:
+                    name: "João"
+                    company: "ACME Inc"
+                  tags: ["welcome", "onboarding"]
+                  webhook_url: "https://myapp.com/webhook/email-status"
+      responses:
+        '202':
+          description: Email aceito para processamento
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email_id:
+                            type: string
+                            example: "email-abc123def456"
+                          message_id:
+                            type: string
+                            example: "msg-789xyz"
+                          status:
+                            type: string
+                            example: "queued"
+                          scheduled_for:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            example: null
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  # === GERENCIAMENTO DE EMAILS ===
+  /emails:
+    get:
+      tags:
+        - Email Management
+      summary: Listar emails enviados
+      description: |
+        Lista emails enviados pelo usuário com opções de filtro e ordenação.
+      operationId: listEmails
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Número da página
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Itens por página
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: status
+          in: query
+          description: Filtrar por status
+          schema:
+            type: string
+            enum: [queued, processing, delivered, failed, bounced]
+      responses:
+        '200':
+          description: Lista de emails
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Email'
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                        example: 1
+                      per_page:
+                        type: integer
+                        example: 25
+                      total:
+                        type: integer
+                        example: 250
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /emails/{emailId}:
+    get:
+      tags:
+        - Email Management
+      summary: Obter detalhes do email
+      description: Retorna informações detalhadas de um email específico
+      operationId: getEmail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: emailId
+          in: path
+          required: true
+          description: ID do email
+          schema:
+            type: string
+            example: "email-abc123def456"
+      responses:
+        '200':
+          description: Detalhes do email
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Email'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Email não encontrado
+
+# ========================================
+# TAGS PARA ORGANIZAÇÃO
+# ========================================
+
+tags:
+  - name: Health Check
+    description: Endpoints para verificação de saúde do sistema
+  
+  - name: Monitoring
+    description: Métricas e observabilidade do sistema
+  
+  - name: Authentication
+    description: Autenticação e autorização de usuários
+  
+  - name: Email Sending
+    description: Envio de emails via API REST
+  
+  - name: Email Management
+    description: Gerenciamento e consulta de emails enviados
+
+# ========================================
+# INFORMAÇÕES ADICIONAIS
+# ========================================
+
+externalDocs:
+  description: Documentação Completa do UltraZend
+  url: https://docs.ultrazend.com.br

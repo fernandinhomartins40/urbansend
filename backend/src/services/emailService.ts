@@ -5,8 +5,8 @@ import { validateEmailAddress, processTemplate, generateTrackingPixel, processLi
 import { generateTrackingId } from '../utils/crypto';
 import { sanitizeEmailHtml } from '../middleware/validation';
 import db from '../config/database';
-import SMTPDeliveryService from './smtpDelivery';
 import { Env } from '../utils/env';
+import { SMTPDeliveryService } from './smtpDelivery';
 
 interface EmailAttachment {
   filename: string;
@@ -32,15 +32,15 @@ interface SendEmailOptions {
   apiKeyId?: number;
 }
 
-class EmailService {
+export class EmailService {
   private transporter!: Transporter;
   private dkimPrivateKey: string | null = null;
   private smtpDelivery: SMTPDeliveryService;
 
   constructor() {
+    this.smtpDelivery = new SMTPDeliveryService();
     this.initializeTransporter();
     this.loadDkimKey();
-    this.smtpDelivery = new SMTPDeliveryService();
   }
 
   private initializeTransporter() {
@@ -85,560 +85,310 @@ class EmailService {
     }
   }
 
-  private async processEmailTemplate(templateId: number, variables: Record<string, any>): Promise<{
-    subject: string;
-    html?: string;
-    text?: string;
-  }> {
-    const template = await db('email_templates')
-      .where('id', templateId)
-      .first();
+  async sendVerificationEmail(email: string, name: string, token: string): Promise<void> {
+    logger.info('Sending verification email', { 
+      email, 
+      name, 
+      tokenLength: token.length,
+      tokenPreview: token.substring(0, 8) + '...'
+    });
 
-    if (!template) {
-      throw new Error('Email template not found');
-    }
+    // Implementação sem dependência circular
+    const emailData = this.buildVerificationEmail(email, name, token);
+    
+    // Usar SMTP delivery via injeção de dependência
+    await this.smtpDelivery.deliverEmail(emailData);
+    
+    logger.info('Verification email sent successfully', { email });
+  }
 
-    const result: { subject: string; html?: string; text?: string } = {
-      subject: processTemplate(template.subject, variables)
+  private buildVerificationEmail(email: string, name: string, token: string) {
+    const frontendUrl = Env.get('FRONTEND_URL', 'https://www.ultrazend.com.br');
+    const verificationUrl = `${frontendUrl}/verify-email?token=${token}`;
+    
+    return {
+      from: `noreply@${Env.get('SMTP_HOSTNAME', 'ultrazend.com.br')}`,
+      to: email,
+      subject: 'Verifique seu email - UltraZend',
+      html: this.generateVerificationEmailHTML(name, verificationUrl),
+      text: this.generateVerificationEmailText(name, verificationUrl)
     };
-    
-    if (template.html_content) {
-      const processedHtml = processTemplate(template.html_content, variables);
-      result.html = sanitizeEmailHtml(processedHtml);
-    }
-    
-    if (template.text_content) {
-      result.text = processTemplate(template.text_content, variables);
-    }
-    
-    return result;
   }
 
-  private async addTrackingToEmail(emailId: string, html: string): Promise<string> {
-    const trackingDomain = process.env['TRACKING_DOMAIN'] || 'localhost:3000';
-    
-    // Add tracking pixel
-    let trackedHtml = html + generateTrackingPixel(emailId, trackingDomain);
-    
-    // Process links for click tracking
-    trackedHtml = processLinksForTracking(trackedHtml, emailId, trackingDomain);
-    
-    return trackedHtml;
+  private generateVerificationEmailHTML(name: string, verificationUrl: string): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verifique seu email - UltraZend</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .logo { font-size: 24px; font-weight: bold; color: #4F46E5; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 10px; margin-bottom: 20px; }
+          .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; font-size: 12px; color: #666; margin-top: 30px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">UltraZend</div>
+        </div>
+        <div class="content">
+          <h2>Olá, ${name}!</h2>
+          <p>Obrigado por se registrar no UltraZend. Para completar seu cadastro, clique no botão abaixo para verificar seu email:</p>
+          <p style="text-align: center;">
+            <a href="${verificationUrl}" class="button">Verificar Email</a>
+          </p>
+          <p>Ou copie e cole este link no seu navegador:</p>
+          <p style="word-break: break-all; background: #eee; padding: 10px; border-radius: 5px;">
+            ${verificationUrl}
+          </p>
+          <p><strong>Este link expira em 24 horas.</strong></p>
+          <p>Se você não se cadastrou no UltraZend, ignore este email.</p>
+        </div>
+        <div class="footer">
+          <p>© 2024 UltraZend. Todos os direitos reservados.</p>
+        </div>
+      </body>
+      </html>
+    `;
   }
 
-  async sendEmail(options: SendEmailOptions): Promise<{
-    messageId: string;
-    emailId: number;
-    trackingId: string;
-  }> {
+  private generateVerificationEmailText(name: string, verificationUrl: string): string {
+    return `
+      Olá, ${name}!
+
+      Obrigado por se registrar no UltraZend. Para completar seu cadastro, acesse o link abaixo para verificar seu email:
+
+      ${verificationUrl}
+
+      Este link expira em 24 horas.
+
+      Se você não se cadastrou no UltraZend, ignore este email.
+
+      Atenciosamente,
+      Equipe UltraZend
+    `;
+  }
+
+  // Métodos para processamento de jobs (integração com filas)
+  async processEmailJob(jobData: any): Promise<any> {
+    logger.info('Processando job de email via fila', { jobData });
+
     try {
-      // Validate recipients
-      await this.validateRecipients(options.to);
-      
-      if (options.cc) {
-        await this.validateRecipients(options.cc);
-      }
-      
-      if (options.bcc) {
-        await this.validateRecipients(options.bcc);
-      }
-
-      let subject = options.subject;
-      let html = options.html ? sanitizeEmailHtml(options.html) : options.html;
-      let text = options.text;
-
-      // Process template if provided
-      if (options.template_id && options.variables) {
-        const processedTemplate = await this.processEmailTemplate(options.template_id, options.variables);
-        subject = processedTemplate.subject;
-        html = processedTemplate.html || html;
-        text = processedTemplate.text || text;
-      }
-
-      // Generate tracking ID
-      const trackingId = generateTrackingId();
-
-      // Create email record in database
-      const insertResult = await db('emails').insert({
-        user_id: options.userId,
-        api_key_id: options.apiKeyId,
-        template_id: options.template_id,
-        from_email: options.from,
-        to_email: Array.isArray(options.to) ? options.to.join(', ') : options.to,
-        subject,
-        html_content: html,
-        text_content: text,
-        status: 'queued',
-        created_at: new Date()
-      });
-      
-      const rawEmailId = insertResult[0];
-      const emailId = Array.isArray(rawEmailId) ? rawEmailId[0] : rawEmailId;
-      
-      if (!emailId) {
-        throw new Error('Failed to create email record in database');
-      }
-
-      // Add tracking if enabled and HTML content exists
-      if (options.tracking !== false && html) {
-        html = await this.addTrackingToEmail(trackingId, html);
-      }
-
-      // Prepare email options
-      const mailOptions = {
-        from: `${process.env['SMTP_FROM_NAME'] || 'UltraZend'} <${options.from}>`,
-        to: options.to,
-        cc: options.cc,
-        bcc: options.bcc,
-        replyTo: options.replyTo,
+      const {
+        emailId,
+        campaignId,
+        userId,
+        from,
+        to,
         subject,
         html,
         text,
-        attachments: options.attachments?.map(att => ({
-          filename: att.filename,
-          content: att.content,
-          contentType: att.contentType,
-          encoding: att.encoding || 'base64'
-        })),
-        headers: {
-          'X-Email-ID': emailId.toString(),
-          'X-Tracking-ID': trackingId
-        }
+        attachments,
+        trackingEnabled,
+        template,
+        variables,
+        priority
+      } = jobData;
+
+      // Validar destinatários
+      await this.validateRecipients(to);
+
+      // Processar template se fornecido
+      let processedHtml = html;
+      let processedText = text;
+      
+      if (template && variables) {
+        processedHtml = processTemplate(template.html, variables);
+        processedText = processTemplate(template.text, variables);
+      }
+
+      // Adicionar tracking se habilitado
+      if (trackingEnabled && emailId) {
+        const trackingPixel = generateTrackingPixel(emailId.toString(), 'open');
+        processedHtml = processedHtml + trackingPixel;
+        processedHtml = processLinksForTracking(processedHtml, emailId.toString(), 'click');
+      }
+
+      // Sanitizar HTML
+      if (processedHtml) {
+        processedHtml = sanitizeEmailHtml(processedHtml);
+      }
+
+      // Preparar dados para envio
+      const emailData = {
+        from,
+        to,
+        subject,
+        html: processedHtml,
+        text: processedText,
+        attachments
       };
 
-      // Send email
-      const info = await this.transporter.sendMail(mailOptions);
+      // Enviar via SMTP delivery
+      const result = await this.smtpDelivery.deliverEmail(emailData);
 
-      // Update email status
-      await db('emails')
-        .where('id', emailId)
-        .update({
-          status: 'sent',
-          sent_at: new Date()
-        });
-
-      // Log analytics event
-      await db('email_analytics').insert({
-        email_id: emailId,
-        event_type: 'sent',
-        timestamp: new Date()
+      // Registrar evento de envio
+      await this.recordEmailEvent(emailId, 'sent', {
+        campaignId,
+        userId,
+        recipientEmail: Array.isArray(to) ? to[0] : to,
+        domain: this.extractDomainFromEmail(Array.isArray(to) ? to[0] : to),
+        result
       });
 
-      logger.info('Email sent successfully', {
-        emailId,
-        messageId: info.messageId,
-        to: options.to
-      });
-
-      return {
-        messageId: info.messageId,
-        emailId: emailId as number,
-        trackingId
-      };
+      logger.info('Email enviado com sucesso via fila', { emailId, result });
+      return { success: true, emailId, result };
 
     } catch (error) {
-      logger.error('Failed to send email', { error, options });
+      logger.error('Erro ao processar job de email:', error);
+      
+      // Registrar falha se tivermos o emailId
+      if (jobData.emailId) {
+        await this.recordEmailEvent(jobData.emailId, 'failed', {
+          error: (error as Error).message,
+          campaignId: jobData.campaignId,
+          userId: jobData.userId
+        });
+      }
+
       throw error;
     }
   }
 
-  async sendBatchEmails(emails: SendEmailOptions[]): Promise<Array<{
-    success: boolean;
-    messageId?: string;
-    emailId?: number;
-    trackingId?: string;
-    error?: string;
-    recipient: string;
-  }>> {
-    const results = [];
+  async processBatchEmailJob(jobData: any): Promise<any> {
+    logger.info('Processando job de batch de emails via fila', { 
+      batchId: jobData.batchId,
+      emailCount: jobData.emails?.length 
+    });
 
-    for (const emailOptions of emails) {
-      try {
-        const result = await this.sendEmail(emailOptions);
-        results.push({
-          success: true,
-          messageId: result.messageId,
-          emailId: result.emailId,
-          trackingId: result.trackingId,
-          recipient: Array.isArray(emailOptions.to) ? emailOptions.to.join(', ') : emailOptions.to
+    try {
+      const { batchId, emails, template, variables, trackingEnabled } = jobData;
+      const results = [];
+      const errors = [];
+
+      // Processar emails em lotes menores para evitar sobrecarga
+      const batchSize = 10;
+      for (let i = 0; i < emails.length; i += batchSize) {
+        const batch = emails.slice(i, i + batchSize);
+        
+        const batchPromises = batch.map(async (emailData: any) => {
+          try {
+            // Processar cada email individual
+            const result = await this.processEmailJob({
+              ...emailData,
+              template,
+              variables: { ...variables, ...emailData.variables },
+              trackingEnabled
+            });
+            
+            results.push(result);
+            return result;
+          } catch (error) {
+            logger.error('Erro ao processar email no batch:', error);
+            errors.push({
+              emailId: emailData.emailId,
+              error: (error as Error).message
+            });
+            return null;
+          }
         });
-      } catch (error) {
-        results.push({
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          recipient: Array.isArray(emailOptions.to) ? emailOptions.to.join(', ') : emailOptions.to
-        });
+
+        await Promise.allSettled(batchPromises);
       }
-    }
 
-    return results;
+      // Registrar estatísticas do batch
+      await this.recordBatchStats(batchId, {
+        totalEmails: emails.length,
+        successCount: results.length,
+        errorCount: errors.length,
+        errors
+      });
+
+      logger.info('Batch de emails processado', {
+        batchId,
+        total: emails.length,
+        success: results.length,
+        errors: errors.length
+      });
+
+      return {
+        success: true,
+        batchId,
+        processed: emails.length,
+        successful: results.length,
+        failed: errors.length,
+        errors
+      };
+
+    } catch (error) {
+      logger.error('Erro ao processar batch de emails:', error);
+      throw error;
+    }
   }
 
-  async verifyTransporter(): Promise<boolean> {
+  private async recordEmailEvent(emailId: string, eventType: string, data: any): Promise<void> {
+    try {
+      // Enviar evento para AnalyticsService via Queue
+      const { QueueService } = await import('./queueService');
+      const queueService = new QueueService();
+
+      await queueService.addAnalyticsJob({
+        type: 'email_event',
+        emailId: emailId.toString(),
+        eventType,
+        campaignId: data.campaignId,
+        userId: data.userId?.toString(),
+        timestamp: new Date(),
+        data: {
+          recipientEmail: data.recipientEmail,
+          domain: data.domain,
+          result: data.result,
+          error: data.error
+        }
+      });
+
+    } catch (error) {
+      logger.error('Erro ao registrar evento de email:', error);
+    }
+  }
+
+  private async recordBatchStats(batchId: string, stats: any): Promise<void> {
+    try {
+      await db.raw(`
+        INSERT INTO batch_stats (
+          batch_id, total_emails, successful_emails, failed_emails,
+          error_details, created_at
+        ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+      `, [
+        batchId,
+        stats.totalEmails,
+        stats.successCount,
+        stats.errorCount,
+        JSON.stringify(stats.errors)
+      ]);
+    } catch (error) {
+      logger.error('Erro ao registrar estatísticas do batch:', error);
+    }
+  }
+
+  private extractDomainFromEmail(email: string): string {
+    return email.split('@')[1] || 'unknown';
+  }
+
+  // Método para teste de conexão
+  async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();
-      logger.info('SMTP transporter verified successfully');
+      logger.info('SMTP connection test successful');
       return true;
     } catch (error) {
-      logger.error('SMTP transporter verification failed', { error });
+      logger.error('SMTP connection test failed', { error });
       return false;
     }
   }
-
-  async trackEmailOpen(emailId: string, userAgent?: string, ipAddress?: string): Promise<void> {
-    try {
-      const email = await db('emails').where('id', emailId).first();
-      if (!email) {
-        logger.warn('Email not found for tracking', { emailId });
-        return;
-      }
-
-      // Update email opened timestamp if not already set
-      if (!email.opened_at) {
-        await db('emails')
-          .where('id', emailId)
-          .update({ opened_at: new Date() });
-      }
-
-      // Log analytics event
-      await db('email_analytics').insert({
-        email_id: emailId,
-        event_type: 'opened',
-        timestamp: new Date(),
-        user_agent: userAgent,
-        ip_address: ipAddress
-      });
-
-      logger.info('Email open tracked', { emailId });
-    } catch (error) {
-      logger.error('Failed to track email open', { error, emailId });
-    }
-  }
-
-  async trackEmailClick(emailId: string, url: string, userAgent?: string, ipAddress?: string): Promise<void> {
-    try {
-      const email = await db('emails').where('id', emailId).first();
-      if (!email) {
-        logger.warn('Email not found for tracking', { emailId });
-        return;
-      }
-
-      // Update email clicked timestamp if not already set
-      if (!email.clicked_at) {
-        await db('emails')
-          .where('id', emailId)
-          .update({ clicked_at: new Date() });
-      }
-
-      // Log analytics event
-      await db('email_analytics').insert({
-        email_id: emailId,
-        event_type: 'clicked',
-        timestamp: new Date(),
-        user_agent: userAgent,
-        ip_address: ipAddress,
-        metadata: JSON.stringify({ url })
-      });
-
-      logger.info('Email click tracked', { emailId, url });
-    } catch (error) {
-      logger.error('Failed to track email click', { error, emailId, url });
-    }
-  }
-
-  async handleBounce(emailId: string, bounceReason: string): Promise<void> {
-    try {
-      await db('emails')
-        .where('id', emailId)
-        .update({
-          status: 'bounced',
-          bounce_reason: bounceReason
-        });
-
-      // Log analytics event
-      await db('email_analytics').insert({
-        email_id: emailId,
-        event_type: 'bounced',
-        timestamp: new Date(),
-        metadata: JSON.stringify({ reason: bounceReason })
-      });
-
-      logger.info('Email bounce processed', { emailId, bounceReason });
-    } catch (error) {
-      logger.error('Failed to process email bounce', { error, emailId });
-    }
-  }
-
-  async sendInternalEmail(options: SendEmailOptions): Promise<{
-    emailId: number;
-    trackingId: string;
-  }> {
-    try {
-      // Validate recipients
-      await this.validateRecipients(options.to);
-      
-      // Generate tracking ID
-      const trackingId = generateTrackingId();
-
-      // Create email record in database as queued for real delivery
-      const insertResult = await db('emails').insert({
-        user_id: options.userId,
-        api_key_id: options.apiKeyId,
-        template_id: options.template_id,
-        from_email: options.from,
-        to_email: Array.isArray(options.to) ? options.to.join(', ') : options.to,
-        subject: options.subject,
-        html_content: options.html,
-        text_content: options.text,
-        status: 'queued', // Queue for real SMTP delivery
-        created_at: new Date()
-      });
-      
-      const rawEmailId = insertResult[0];
-      const emailId = Array.isArray(rawEmailId) ? rawEmailId[0] : rawEmailId;
-      
-      if (!emailId) {
-        throw new Error('Failed to create email record in database');
-      }
-
-      // Deliver email via real SMTP
-      const toEmail = Array.isArray(options.to) ? options.to[0] : options.to;
-      if (!toEmail) {
-        throw new Error('No recipient email provided');
-      }
-      
-      const delivered = await this.smtpDelivery.deliverEmail({
-        from: options.from,
-        to: toEmail,
-        subject: options.subject,
-        html: options.html || undefined,
-        text: options.text || undefined,
-        headers: {
-          'X-Email-ID': emailId.toString(),
-          'X-Tracking-ID': trackingId
-        }
-      }, emailId as number);
-
-      if (!delivered) {
-        throw new Error('Failed to deliver email via SMTP');
-      }
-
-      logger.info('Email delivered via real SMTP', {
-        emailId,
-        to: options.to,
-        subject: options.subject
-      });
-
-      return {
-        emailId: emailId as number,
-        trackingId
-      };
-
-    } catch (error) {
-      logger.error('Failed to send internal email', { error, options });
-      throw error;
-    }
-  }
-
-  async sendVerificationEmail(email: string, name: string, verificationToken: string): Promise<void> {
-    try {
-      logger.info('Sending verification email via SMTP delivery', { 
-        email,
-        name,
-        tokenLength: verificationToken.length,
-        tokenType: typeof verificationToken
-      });
-
-      // Validate token format
-      if (!verificationToken || typeof verificationToken !== 'string' || verificationToken.length !== 64) {
-        throw new Error(`Invalid verification token format: length=${verificationToken?.length}, type=${typeof verificationToken}`);
-      }
-
-      // Use environment-specific frontend URL
-      const frontendUrl = process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br';
-      const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
-      
-      logger.info('Generated verification URL', {
-        email,
-        frontendUrl,
-        verificationUrl: verificationUrl.substring(0, 100) + '...',
-        tokenInUrl: verificationUrl.includes(verificationToken)
-      });
-
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Verifique seu Email - Ultrazend</title>
-            <style>
-                body {
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    line-height: 1.6;
-                    color: #374151;
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background-color: #f9fafb;
-                }
-                .container {
-                    background-color: white;
-                    padding: 40px;
-                    border-radius: 12px;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 30px;
-                }
-                .logo {
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #6366f1;
-                    margin-bottom: 10px;
-                }
-                h1 {
-                    color: #1f2937;
-                    font-size: 24px;
-                    margin: 0 0 20px 0;
-                }
-                .button {
-                    display: inline-block;
-                    background-color: #6366f1;
-                    color: white;
-                    padding: 12px 32px;
-                    text-decoration: none;
-                    border-radius: 8px;
-                    font-weight: 500;
-                    margin: 20px 0;
-                    text-align: center;
-                }
-                .button:hover {
-                    background-color: #5855eb;
-                }
-                .footer {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px solid #e5e7eb;
-                    font-size: 14px;
-                    color: #6b7280;
-                    text-align: center;
-                }
-                .warning {
-                    background-color: #fef3c7;
-                    border: 1px solid #f59e0b;
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin: 20px 0;
-                    font-size: 14px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div class="logo">🚀 Ultrazend</div>
-                    <h1>Verifique seu Email</h1>
-                </div>
-                
-                <p>Olá <strong>${name}</strong>,</p>
-                
-                <p>Obrigado por se registrar no Ultrazend! Para completar seu cadastro e começar a usar nossa plataforma, você precisa verificar seu endereço de email.</p>
-                
-                <div style="text-align: center;">
-                    <a href="${verificationUrl}" class="button">Verificar Email</a>
-                </div>
-                
-                <p>Ou copie e cole o link abaixo no seu navegador:</p>
-                <p style="word-break: break-all; background-color: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
-                    ${verificationUrl}
-                </p>
-                
-                <div class="warning">
-                    <strong>⚠️ Importante:</strong> Este link de verificação expira em 24 horas. Se você não verificar seu email dentro deste período, precisará solicitar um novo link.
-                </div>
-                
-                <p>Se você não criou uma conta no Ultrazend, pode ignorar este email com segurança.</p>
-                
-                <div class="footer">
-                    <p>Esta é uma mensagem automática, por favor não responda este email.</p>
-                    <p>© 2025 Ultrazend. Todos os direitos reservados.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-      `;
-
-      const textContent = `
-        Olá ${name},
-
-        Obrigado por se registrar no Ultrazend!
-
-        Para completar seu cadastro, clique no link abaixo para verificar seu email:
-        ${verificationUrl}
-
-        Este link expira em 24 horas.
-
-        Se você não criou uma conta no Ultrazend, pode ignorar este email.
-
-        Atenciosamente,
-        Equipe Ultrazend
-      `;
-
-      // USAR SMTP DELIVERY DIRETAMENTE (SEM CIRCULAR DEPENDENCY)
-      const SMTPDeliveryService = (await import('./smtpDelivery')).default;
-      const smtpDelivery = new SMTPDeliveryService();
-      
-      // Buscar system user para usar ID correto
-      const systemUser = await db('users').where('email', 'system@ultrazend.local').first();
-      if (!systemUser) {
-        throw new Error('System user not found. Database migration may have failed.');
-      }
-
-      // Criar email record no banco para tracking
-      const insertResult = await db('emails').insert({
-        user_id: systemUser.id, // System user ID correto
-        from_email: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
-        to_email: email,
-        subject: 'Verifique seu email - Ultrazend',
-        html_content: htmlContent,
-        text_content: textContent,
-        status: 'queued',
-        created_at: new Date()
-      });
-
-      const emailId = Array.isArray(insertResult) ? insertResult[0] : insertResult;
-
-      // Entregar via SMTP direto
-      const delivered = await smtpDelivery.deliverEmail({
-        from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
-        to: email,
-        subject: 'Verifique seu email - Ultrazend',
-        html: htmlContent,
-        text: textContent,
-        headers: {
-          'X-Email-ID': emailId.toString(),
-          'X-Mailer': 'UltraZend SMTP Server'
-        }
-      }, emailId as number);
-
-      if (!delivered) {
-        throw new Error('Failed to deliver verification email via SMTP');
-      }
-
-      logger.info('Verification email sent successfully via SMTP delivery', { 
-        email, 
-        emailId,
-        delivered: true
-      });
-
-    } catch (error) {
-      logger.error('Failed to send verification email via SMTP delivery', { error, email });
-      throw error;
-    }
-  }
 }
-
-export const emailService = new EmailService();
-export default emailService;

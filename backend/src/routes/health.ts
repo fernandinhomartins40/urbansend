@@ -118,8 +118,8 @@ async function checkSMTPHealth(): Promise<HealthCheck> {
   const start = Date.now();
   try {
     // Import SMTP service dynamically to avoid circular dependencies
-    const { default: SMTPDelivery } = await import('../services/smtpDelivery');
-    const smtpDelivery = new SMTPDelivery();
+    const { SMTPDeliveryService } = await import('../services/smtpDelivery');
+    const smtpDelivery = new SMTPDeliveryService();
     
     // Test SMTP connection without sending email
     const testResult = await smtpDelivery.testConnection();

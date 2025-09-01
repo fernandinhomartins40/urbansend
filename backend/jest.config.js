@@ -9,8 +9,11 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
+    '!src/__tests__/**',
   ],
-  // setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  testTimeout: 30000,
-  verbose: true
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  testTimeout: 60000,
+  verbose: true,
+  maxWorkers: 4,
+  testSequencer: '@jest/test-sequencer'
 };

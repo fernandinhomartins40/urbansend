@@ -10,14 +10,19 @@ import { Server } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
 
+// import 'reflect-metadata'; // Required for Inversify
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { performanceMiddleware } from './middleware/performanceMonitoring';
+import { performanceMiddleware, performanceMonitor } from './middleware/performanceMonitoring';
+import { metricsMiddleware, healthCheckMiddleware, metricsEndpointMiddleware } from './middleware/monitoring';
+import { monitoringService } from './services/monitoringService';
+import { configureProductionApp } from './config/production';
+// import { EmailServiceFactory } from './services/EmailServiceFactory';
 import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
 import UltraZendSMTPServer from './services/smtpServer';
-import SMTPDeliveryService from './services/smtpDelivery';
+import { SMTPDeliveryService } from './services/smtpDelivery';
 import './services/queueService'; // Initialize queue processors
 
 // Routes
@@ -203,6 +208,11 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Monitoring middleware (before all other routes)
+app.use(healthCheckMiddleware());
+app.use(metricsEndpointMiddleware());
+app.use(metricsMiddleware());
+
 // Performance monitoring middleware (after body parsers, before routes)
 app.use(performanceMiddleware);
 
@@ -219,14 +229,48 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: Env.get('NODE_ENV', 'development')
-  });
+// Health check endpoint with performance monitoring
+app.get('/health', async (_req, res) => {
+  try {
+    const healthStatus = await monitoringService.getHealthStatus();
+    const performanceStats = performanceMonitor.getPerformanceStats();
+    
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: Env.get('NODE_ENV', 'development'),
+      services: healthStatus,
+      performance: performanceStats
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Performance statistics endpoint
+app.get('/api/performance', async (req, res) => {
+  try {
+    const performanceStats = performanceMonitor.getPerformanceStats();
+    const systemStats = await monitoringService.getSystemStats();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      performance: performanceStats,
+      system: systemStats,
+      uptime: Math.round(process.uptime())
+    });
+  } catch (error) {
+    logger.error('Error getting performance stats', { error });
+    res.status(500).json({
+      error: 'Failed to get performance statistics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // API Routes
@@ -344,6 +388,20 @@ app.use(errorHandler);
 // Database connection and server start
 const startServer = async () => {
   try {
+    // Apply production configuration if in production
+    if (Env.isProduction) {
+      logger.info('Applying production configuration...');
+      await configureProductionApp(app, [server, httpsServer].filter(Boolean), db.client);
+    }
+
+    // Initialize monitoring service
+    monitoringService.initialize();
+    logger.info('Monitoring service initialized');
+
+    // Initialize EmailServiceFactory (resolves circular dependencies)
+    // EmailServiceFactory.initialize();
+    // logger.info('EmailServiceFactory initialized');
+
     // Test database connection
     await db.raw('SELECT 1');
     logger.info('Database connected successfully');
@@ -400,7 +458,8 @@ const startServer = async () => {
 
     // Verificar Redis connection para queues
     try {
-      const queueService = await import('./services/queueService');
+      const { QueueService } = await import('./services/queueService');
+      const queueService = new QueueService();
       const stats = await queueService.getQueueStats();
       logger.info('📊 Queue service initialized successfully', stats);
     } catch (error) {
@@ -433,38 +492,76 @@ const startServer = async () => {
   }
 };
 
-// Graceful shutdown
-const gracefulShutdown = () => {
-  logger.info('Shutting down gracefully');
+// Enhanced graceful shutdown with performance monitoring cleanup
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}, starting graceful shutdown...`);
   
-  const closePromises = [];
-  
-  if (server) {
-    closePromises.push(new Promise((resolve) => {
-      server.close(() => {
-        logger.info('HTTP Server closed');
-        resolve(void 0);
-      });
-    }));
-  }
-  
-  if (httpsServer) {
-    closePromises.push(new Promise((resolve) => {
-      httpsServer.close(() => {
-        logger.info('HTTPS Server closed');
-        resolve(void 0);
-      });
-    }));
-  }
-  
-  Promise.all(closePromises).then(() => {
-    db.destroy();
+  try {
+    // Cleanup performance monitor
+    await performanceMonitor.destroy();
+    logger.info('Performance monitor cleaned up');
+    
+    // Shutdown monitoring service
+    await monitoringService.close();
+    logger.info('Monitoring service shutdown completed');
+    
+    const closePromises = [];
+    
+    if (server) {
+      closePromises.push(new Promise((resolve) => {
+        server.close(() => {
+          logger.info('HTTP Server closed');
+          resolve(void 0);
+        });
+      }));
+    }
+    
+    if (httpsServer) {
+      closePromises.push(new Promise((resolve) => {
+        httpsServer.close(() => {
+          logger.info('HTTPS Server closed');
+          resolve(void 0);
+        });
+      }));
+    }
+    
+    await Promise.all(closePromises);
+    
+    // Close database connection
+    await db.destroy();
+    logger.info('Database connection closed');
+    
+    logger.info('Graceful shutdown completed successfully');
     process.exit(0);
-  });
+  } catch (error) {
+    logger.error('Error during graceful shutdown', { error: error instanceof Error ? error.message : String(error) });
+    process.exit(1);
+  }
 };
 
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+// Enhanced shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Nodemon restart
+
+// Handle uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception detected', {
+    error: error.message,
+    stack: error.stack,
+    severity: 'CRITICAL'
+  });
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled promise rejection detected', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    promise: promise.toString(),
+    severity: 'HIGH'
+  });
+  gracefulShutdown('unhandledRejection');
+});
 
 startServer();
 

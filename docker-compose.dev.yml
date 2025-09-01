@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3001"    # API Server
+      - "25:25"        # SMTP MX Server
+      - "587:587"      # SMTP Submission Server
+      - "465:465"      # SMTP Secure Server
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./configs:/app/configs
+      - app_node_modules:/app/backend/node_modules
+      - frontend_node_modules:/app/frontend/node_modules
+      - app_data:/app/data
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - REDIS_URL=redis://redis:6379
+      - SMTP_HOSTNAME=mail.dev.ultrazend.local
+      - DATABASE_URL=/app/data/database.sqlite
+      - FRONTEND_URL=http://localhost:5173
+      - API_URL=http://localhost:3001/api
+      - JWT_SECRET=dev_jwt_secret_ultrazend_2024_32_chars_minimum_for_development
+      - JWT_REFRESH_SECRET=dev_jwt_refresh_secret_ultrazend_2024_32_chars_minimum
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=debug
+      - MONITORING_ENABLED=true
+      - HEALTH_CHECK_ENABLED=true
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - ultrazend-dev
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server 
+      --appendonly yes 
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+    volumes:
+      - redis_data:/data
+      - ./configs/redis.conf:/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - ultrazend-dev
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025"   # SMTP Server for testing
+      - "8025:8025"   # Web UI for viewing emails
+    environment:
+      - MH_HOSTNAME=mailhog.dev.ultrazend.local
+      - MH_STORAGE=maildir
+      - MH_MAILDIR_PATH=/maildir
+    volumes:
+      - mailhog_data:/maildir
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ultrazend-dev
+
+  # Database inspection tool
+  adminer:
+    image: adminer:4-standalone
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=app
+      - ADMINER_DESIGN=pepa-linha
+    depends_on:
+      - app
+    profiles:
+      - tools
+    networks:
+      - ultrazend-dev
+
+  # Redis inspection tool
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=ultrazend-dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - ultrazend-dev
+
+  # SMTP testing tool
+  smtp-test:
+    image: python:3.11-alpine
+    volumes:
+      - ./scripts/smtp-test.py:/app/smtp-test.py:ro
+    working_dir: /app
+    command: tail -f /dev/null  # Keep container running
+    depends_on:
+      - app
+    profiles:
+      - tools
+    networks:
+      - ultrazend-dev
+
+volumes:
+  redis_data:
+    driver: local
+  mailhog_data:
+    driver: local
+  app_data:
+    driver: local
+  app_node_modules:
+    driver: local
+  frontend_node_modules:
+    driver: local
+
+networks:
+  ultrazend-dev:
+    driver: bridge
+    name: ultrazend-dev-network

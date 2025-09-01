@@ -2,6 +2,7 @@ import axios from 'axios';
 import { logger } from '../config/logger';
 import { createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
+import { WebhookJobData } from './queueService';
 
 interface WebhookPayload {
   event: string;
@@ -10,7 +11,7 @@ interface WebhookPayload {
   webhook_id: string;
 }
 
-class WebhookService {
+export class WebhookService {
   async sendWebhook(event: string, payload: any, webhookId?: number): Promise<void> {
     try {
       let webhooks;
@@ -313,6 +314,346 @@ class WebhookService {
     } catch (error) {
       logger.error('Failed to get webhook stats', { error, webhookId });
       return null;
+    }
+  }
+
+  // Novos métodos para processamento de jobs da fila
+  async processWebhookJob(jobData: WebhookJobData): Promise<any> {
+    try {
+      logger.info('Processing webhook job', {
+        url: jobData.url,
+        eventType: jobData.eventType,
+        entityId: jobData.entityId
+      });
+
+      const response = await axios({
+        method: jobData.method,
+        url: jobData.url,
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'UltraZend-Webhook/1.0',
+          'X-Webhook-Event': jobData.eventType,
+          'X-Entity-ID': jobData.entityId.toString(),
+          ...jobData.headers
+        },
+        data: jobData.payload,
+        timeout: 30000,
+        validateStatus: (status) => status >= 200 && status < 400
+      });
+
+      // Registrar webhook bem-sucedido
+      await this.logWebhookDelivery(jobData, {
+        success: true,
+        statusCode: response.status,
+        responseBody: JSON.stringify(response.data).substring(0, 1000),
+        deliveredAt: new Date()
+      });
+
+      logger.info('Webhook job completed successfully', {
+        url: jobData.url,
+        statusCode: response.status
+      });
+
+      return {
+        success: true,
+        statusCode: response.status,
+        response: response.data
+      };
+
+    } catch (error) {
+      // Registrar webhook falhado
+      const errorData = {
+        success: false,
+        statusCode: axios.isAxiosError(error) ? error.response?.status : null,
+        errorMessage: (error as Error).message,
+        deliveredAt: new Date()
+      };
+
+      await this.logWebhookDelivery(jobData, errorData);
+
+      logger.error('Webhook job failed', {
+        url: jobData.url,
+        error: (error as Error).message,
+        statusCode: errorData.statusCode
+      });
+
+      throw error;
+    }
+  }
+
+  async processDeliveryNotification(jobData: WebhookJobData): Promise<any> {
+    try {
+      logger.info('Processing delivery notification webhook', {
+        url: jobData.url,
+        entityId: jobData.entityId
+      });
+
+      // Buscar dados do email para notificação
+      const emailData = await this.getEmailDeliveryData(jobData.entityId);
+      if (!emailData) {
+        throw new Error(`Email ${jobData.entityId} not found for delivery notification`);
+      }
+
+      const notificationPayload = {
+        event: 'email.delivered',
+        email_id: jobData.entityId,
+        message_id: emailData.message_id,
+        to: emailData.to_email,
+        subject: emailData.subject,
+        status: emailData.status,
+        delivered_at: emailData.delivered_at || new Date().toISOString(),
+        metadata: emailData.metadata ? JSON.parse(emailData.metadata) : {}
+      };
+
+      const response = await axios.post(jobData.url, notificationPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'UltraZend-Webhook/1.0',
+          'X-Webhook-Event': 'email.delivered',
+          'X-Email-ID': jobData.entityId.toString(),
+          ...jobData.headers
+        },
+        timeout: 30000,
+        validateStatus: (status) => status >= 200 && status < 400
+      });
+
+      // Registrar notificação bem-sucedida
+      await this.logWebhookDelivery(jobData, {
+        success: true,
+        statusCode: response.status,
+        responseBody: JSON.stringify(response.data).substring(0, 1000),
+        deliveredAt: new Date()
+      });
+
+      return {
+        success: true,
+        statusCode: response.status,
+        notificationSent: true
+      };
+
+    } catch (error) {
+      await this.logWebhookDelivery(jobData, {
+        success: false,
+        statusCode: axios.isAxiosError(error) ? error.response?.status : null,
+        errorMessage: (error as Error).message,
+        deliveredAt: new Date()
+      });
+
+      logger.error('Delivery notification webhook failed', {
+        url: jobData.url,
+        entityId: jobData.entityId,
+        error: (error as Error).message
+      });
+
+      throw error;
+    }
+  }
+
+  private async getEmailDeliveryData(emailId: number): Promise<any> {
+    try {
+      const email = await db('emails')
+        .where('id', emailId)
+        .select('id', 'message_id', 'to_email', 'subject', 'status', 'delivered_at', 'metadata')
+        .first();
+
+      return email;
+    } catch (error) {
+      logger.error('Failed to get email delivery data', { error, emailId });
+      return null;
+    }
+  }
+
+  private async logWebhookDelivery(jobData: WebhookJobData, result: any): Promise<void> {
+    try {
+      // Criar tabela de logs de webhook jobs se não existir
+      const hasWebhookJobLogsTable = await db.schema.hasTable('webhook_job_logs');
+      if (!hasWebhookJobLogsTable) {
+        await db.schema.createTable('webhook_job_logs', (table) => {
+          table.increments('id').primary();
+          table.string('url', 500).notNullable();
+          table.string('method', 10).notNullable();
+          table.string('event_type', 100).notNullable();
+          table.integer('entity_id').notNullable();
+          table.integer('user_id').notNullable();
+          table.json('payload');
+          table.json('headers');
+          table.boolean('success').notNullable();
+          table.integer('status_code');
+          table.text('response_body');
+          table.text('error_message');
+          table.timestamp('delivered_at').notNullable();
+          table.timestamps(true, true);
+
+          table.index(['event_type', 'delivered_at']);
+          table.index(['user_id', 'success']);
+          table.index('entity_id');
+        });
+      }
+
+      await db('webhook_job_logs').insert({
+        url: jobData.url,
+        method: jobData.method,
+        event_type: jobData.eventType,
+        entity_id: jobData.entityId,
+        user_id: jobData.userId,
+        payload: JSON.stringify(jobData.payload),
+        headers: JSON.stringify(jobData.headers || {}),
+        success: result.success,
+        status_code: result.statusCode,
+        response_body: result.responseBody,
+        error_message: result.errorMessage,
+        delivered_at: result.deliveredAt,
+        created_at: new Date()
+      });
+
+    } catch (error) {
+      logger.error('Failed to log webhook delivery', { error, jobData });
+    }
+  }
+
+  async getWebhookJobStats(userId?: number, days: number = 7): Promise<any> {
+    try {
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - days);
+
+      const hasWebhookJobLogsTable = await db.schema.hasTable('webhook_job_logs');
+      if (!hasWebhookJobLogsTable) {
+        return {
+          total_attempts: 0,
+          successful_deliveries: 0,
+          failed_deliveries: 0,
+          success_rate: 0,
+          events: {}
+        };
+      }
+
+      let query = db('webhook_job_logs')
+        .where('delivered_at', '>=', sinceDate);
+
+      if (userId) {
+        query = query.where('user_id', userId);
+      }
+
+      const stats = await query
+        .select(
+          db.raw('COUNT(*) as total_attempts'),
+          db.raw('SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_deliveries'),
+          db.raw('SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_deliveries')
+        )
+        .first();
+
+      const eventStats = await query.clone()
+        .select('event_type')
+        .count('* as count')
+        .sum(db.raw('CASE WHEN success = 1 THEN 1 ELSE 0 END as successful'))
+        .groupBy('event_type');
+
+      const events = eventStats.reduce((acc: any, stat: any) => {
+        acc[stat.event_type] = {
+          total: stat.count,
+          successful: stat.successful,
+          failed: stat.count - stat.successful
+        };
+        return acc;
+      }, {});
+
+      const statsData = stats as any;
+      const totalAttempts = Number(statsData?.total_attempts) || 0;
+      const successfulDeliveries = Number(statsData?.successful_deliveries) || 0;
+      
+      const successRate = totalAttempts > 0 
+        ? (successfulDeliveries / totalAttempts * 100).toFixed(2)
+        : '0';
+
+      return {
+        total_attempts: totalAttempts,
+        successful_deliveries: successfulDeliveries,
+        failed_deliveries: Number(statsData?.failed_deliveries) || 0,
+        success_rate: parseFloat(successRate),
+        events
+      };
+
+    } catch (error) {
+      logger.error('Failed to get webhook job stats', { error, userId });
+      return null;
+    }
+  }
+
+  async retryFailedWebhooks(hours: number = 24): Promise<number> {
+    try {
+      const sinceDate = new Date();
+      sinceDate.setHours(sinceDate.getHours() - hours);
+
+      const hasWebhookJobLogsTable = await db.schema.hasTable('webhook_job_logs');
+      if (!hasWebhookJobLogsTable) {
+        return 0;
+      }
+
+      // Buscar webhooks falhados nas últimas X horas
+      const failedWebhooks = await db('webhook_job_logs')
+        .where('success', false)
+        .where('delivered_at', '>=', sinceDate)
+        .where('status_code', '!=', 404) // Não retry 404s
+        .select('*');
+
+      let retriedCount = 0;
+
+      for (const webhook of failedWebhooks) {
+        try {
+          const jobData: WebhookJobData = {
+            url: webhook.url,
+            method: webhook.method,
+            eventType: webhook.event_type,
+            entityId: webhook.entity_id,
+            userId: webhook.user_id,
+            payload: JSON.parse(webhook.payload || '{}'),
+            headers: JSON.parse(webhook.headers || '{}'),
+            retryCount: (webhook.retry_count || 0) + 1
+          };
+
+          // Tentar reenviar
+          await this.processWebhookJob(jobData);
+          retriedCount++;
+
+        } catch (error) {
+          logger.warn('Retry webhook failed again', {
+            webhookId: webhook.id,
+            url: webhook.url,
+            error: (error as Error).message
+          });
+        }
+      }
+
+      logger.info('Webhook retry process completed', {
+        totalFailed: failedWebhooks.length,
+        retriedSuccessfully: retriedCount
+      });
+
+      return retriedCount;
+
+    } catch (error) {
+      logger.error('Failed to retry failed webhooks', { error });
+      return 0;
+    }
+  }
+
+  async cleanupWebhookJobLogs(daysToKeep: number = 30): Promise<void> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+      const hasWebhookJobLogsTable = await db.schema.hasTable('webhook_job_logs');
+      if (!hasWebhookJobLogsTable) {
+        return;
+      }
+
+      const deletedCount = await db('webhook_job_logs')
+        .where('delivered_at', '<', cutoffDate)
+        .del();
+
+      logger.info('Cleaned up old webhook job logs', { deletedCount, daysToKeep });
+    } catch (error) {
+      logger.error('Failed to cleanup webhook job logs', { error });
     }
   }
 }

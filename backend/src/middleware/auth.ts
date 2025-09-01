@@ -5,6 +5,7 @@ import { createError } from './errorHandler';
 import { Env } from '../utils/env';
 import { verifyApiKey, legacyHashApiKey } from '../utils/crypto';
 import db from '../config/database';
+import { logger } from '../config/logger';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -146,7 +147,7 @@ export const authenticateApiKey = async (
                 .where('id', key.id)
                 .update({ api_key_hash: newHash });
             } catch (error) {
-              console.error('Failed to migrate API key hash:', error);
+              logger.error('Failed to migrate API key hash:', error);
             }
           })();
           break;

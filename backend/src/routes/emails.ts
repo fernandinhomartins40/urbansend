@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { validateRequest, sendEmailSchema, paginationSchema, idParamSchema } from '../middleware/validation';
 import { authenticateJWT, authenticateApiKey, requirePermission } from '../middleware/auth';
 import { emailSendRateLimit } from '../middleware/rateLimiting';
-import { addEmailJob, addBatchEmailJob } from '../services/queueService';
+import { QueueService } from '../services/queueService';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 
@@ -17,7 +17,8 @@ router.post('/send',
   validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const emailData = { ...req.body, userId: req.user!.id, apiKeyId: req.apiKey?.id };
-    const job = await addEmailJob(emailData);
+    const queueService = new QueueService();
+    const job = await queueService.addEmailJob(emailData);
     
     res.status(202).json({
       message: 'Email queued for delivery',
@@ -40,7 +41,8 @@ router.post('/send-batch',
       apiKeyId: req.apiKey?.id
     }));
     
-    const job = await addBatchEmailJob(emailsWithUser);
+    const queueService = new QueueService();
+    const job = await queueService.addBatchEmailJob(emailsWithUser);
     
     res.status(202).json({
       message: 'Batch emails queued for delivery',

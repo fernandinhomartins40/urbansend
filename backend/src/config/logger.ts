@@ -3,142 +3,308 @@ import DailyRotateFile from 'winston-daily-rotate-file';
 import path from 'path';
 import { Env } from '../utils/env';
 
-const logLevel = Env.get('LOG_LEVEL', 'info');
-const logFilePath = Env.get('LOG_FILE_PATH', path.join(__dirname, '../../logs/app.log'));
-const logDir = path.dirname(logFilePath);
+interface LogEntry {
+  '@timestamp': string;
+  '@version': string;
+  level: string;
+  service: string;
+  environment: string;
+  version: string;
+  buildNumber: string;
+  hostname: string;
+  pid: number;
+  message: string;
+  requestId?: string;
+  userId?: string;
+  sessionId?: string;
+  correlationId?: string;
+  request?: {
+    method: string;
+    url: string;
+    ip: string;
+    userAgent: string;
+    headers?: Record<string, string>;
+  };
+  response?: {
+    statusCode: number;
+    contentLength?: number;
+  };
+  performance?: {
+    responseTime: number;
+    memoryUsage: NodeJS.MemoryUsage;
+    cpuUsage?: NodeJS.CpuUsage;
+  };
+  security?: {
+    action: string;
+    resource?: string;
+    outcome: 'success' | 'failure' | 'blocked';
+    reason?: string;
+    riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  };
+  business?: {
+    entity: string;
+    action: string;
+    entityId?: string;
+    metadata?: Record<string, any>;
+  };
+  error?: {
+    name: string;
+    message: string;
+    stack?: string;
+    code?: string;
+  };
+}
 
-// Enhanced production logging format with structured data
+const logLevel = Env.get('LOG_LEVEL', 'info');
+const logDir = path.join(__dirname, '../../logs');
+
+// Structured JSON format for production
 const productionFormat = winston.format.combine(
   winston.format.timestamp({
-    format: 'YYYY-MM-DD HH:mm:ss.SSS Z'
+    format: 'YYYY-MM-DD[T]HH:mm:ss.SSSZ'
   }),
   winston.format.errors({ stack: true }),
-  winston.format.json(),
-  winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
-    const logEntry: any = {
-      timestamp,
+  winston.format.printf(({ timestamp, level, message, ...meta }) => {
+    const logEntry: LogEntry = {
+      '@timestamp': String(timestamp),
+      '@version': '1',
       level: level.toUpperCase(),
-      service,
-      message,
+      service: 'ultrazend-backend',
+      environment: Env.get('NODE_ENV', 'development'),
+      version: Env.get('APP_VERSION', '1.0.0'),
+      buildNumber: Env.get('BUILD_NUMBER', 'unknown'),
+      hostname: require('os').hostname(),
+      pid: process.pid,
+      message: String(message),
       ...meta
     };
-    
-    // Add request context if available
-    if (meta.method && meta.url) {
-      logEntry.request = {
-        method: meta.method,
-        url: meta.url,
-        ip: meta.ip,
-        userAgent: meta.userAgent
-      };
-    }
-    
-    // Add performance data if available
-    if (meta.responseTime) {
-      logEntry.performance = {
-        responseTime: meta.responseTime,
-        memoryUsage: meta.memoryUsage
-      };
-    }
 
     return JSON.stringify(logEntry);
   })
 );
 
-// Development format for better readability
+// Human-readable format for development
 const developmentFormat = winston.format.combine(
   winston.format.timestamp({
-    format: 'YYYY-MM-DD HH:mm:ss'
+    format: 'YYYY-MM-DD HH:mm:ss.SSS'
   }),
   winston.format.errors({ stack: true }),
-  winston.format.colorize(),
-  winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
-    const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
-    return `${timestamp} [${service}] ${level}: ${message} ${metaStr}`;
+  winston.format.colorize({ all: true }),
+  winston.format.printf(({ timestamp, level, message, service, requestId, userId, ...meta }) => {
+    let logLine = `${timestamp} [${service}]`;
+    
+    if (requestId) logLine += ` [${requestId}]`;
+    if (userId) logLine += ` [user:${userId}]`;
+    
+    logLine += ` ${level}: ${message}`;
+    
+    if (Object.keys(meta).length > 0) {
+      logLine += `\n${JSON.stringify(meta, null, 2)}`;
+    }
+    
+    return logLine;
   })
 );
 
 // Create transports array
 const transports: winston.transport[] = [];
 
-// Production transports with daily rotation
 if (Env.isProduction) {
-  // Main application log with daily rotation
+  // Application logs with daily rotation
   transports.push(new DailyRotateFile({
-    filename: path.join(logDir, 'app-%DATE%.log'),
-    datePattern: Env.get('LOG_DATE_PATTERN', 'YYYY-MM-DD'),
-    maxSize: Env.get('LOG_MAX_SIZE', '100m'),
-    maxFiles: Env.get('LOG_MAX_FILES', '30'),
+    filename: path.join(logDir, 'application', 'app-%DATE%.log'),
+    datePattern: 'YYYY-MM-DD',
+    maxSize: '100m',
+    maxFiles: '30d',
     level: logLevel,
-    format: productionFormat
+    format: productionFormat,
+    auditFile: path.join(logDir, 'application', 'app-audit.json')
   }));
 
-  // Error log with daily rotation
+  // Error logs with extended retention
   transports.push(new DailyRotateFile({
-    filename: path.join(logDir, 'error-%DATE%.log'),
-    datePattern: Env.get('LOG_DATE_PATTERN', 'YYYY-MM-DD'),
-    maxSize: Env.get('LOG_MAX_SIZE', '100m'),
-    maxFiles: Env.get('LOG_MAX_FILES', '30'),
+    filename: path.join(logDir, 'errors', 'error-%DATE%.log'),
+    datePattern: 'YYYY-MM-DD',
+    maxSize: '100m',
+    maxFiles: '90d',
     level: 'error',
-    format: productionFormat
+    format: productionFormat,
+    auditFile: path.join(logDir, 'errors', 'error-audit.json')
   }));
 
-  // Performance log for detailed monitoring
+  // Security logs with extended retention
   transports.push(new DailyRotateFile({
-    filename: path.join(logDir, 'performance-%DATE%.log'),
+    filename: path.join(logDir, 'security', 'security-%DATE%.log'),
     datePattern: 'YYYY-MM-DD',
     maxSize: '50m',
-    maxFiles: '7', // Keep only 7 days of performance logs
+    maxFiles: '180d', // 6 months retention for security logs
     level: 'info',
-    format: productionFormat
+    format: productionFormat,
+    auditFile: path.join(logDir, 'security', 'security-audit.json')
   }));
 
-  // Security log for auth and security events
+  // Performance logs with shorter retention
   transports.push(new DailyRotateFile({
-    filename: path.join(logDir, 'security-%DATE%.log'),
+    filename: path.join(logDir, 'performance', 'perf-%DATE%.log'),
     datePattern: 'YYYY-MM-DD',
     maxSize: '50m',
-    maxFiles: '90', // Keep security logs longer
+    maxFiles: '7d', // Performance logs only kept for 7 days
     level: 'info',
-    format: productionFormat
+    format: productionFormat,
+    auditFile: path.join(logDir, 'performance', 'perf-audit.json')
+  }));
+
+  // Business event logs
+  transports.push(new DailyRotateFile({
+    filename: path.join(logDir, 'business', 'business-%DATE%.log'),
+    datePattern: 'YYYY-MM-DD',
+    maxSize: '100m',
+    maxFiles: '365d', // Business logs kept for 1 year
+    level: 'info',
+    format: productionFormat,
+    auditFile: path.join(logDir, 'business', 'business-audit.json')
   }));
 } else {
-  // Development/staging transports
-  transports.push(new winston.transports.File({ 
-    filename: logFilePath,
-    format: productionFormat
+  // Development file transport
+  transports.push(new winston.transports.File({
+    filename: path.join(logDir, 'app.log'),
+    level: logLevel,
+    format: productionFormat,
+    maxsize: 10 * 1024 * 1024, // 10MB
+    maxFiles: 5
   }));
-  
-  transports.push(new winston.transports.File({ 
-    filename: path.join(logDir, 'error.log'), 
+
+  // Development error transport
+  transports.push(new winston.transports.File({
+    filename: path.join(logDir, 'error.log'),
     level: 'error',
-    format: productionFormat
+    format: productionFormat,
+    maxsize: 10 * 1024 * 1024, // 10MB
+    maxFiles: 5
   }));
 }
 
+// Create logger instance
 const logger = winston.createLogger({
   level: logLevel,
-  format: Env.isProduction ? productionFormat : developmentFormat,
-  defaultMeta: { 
+  format: productionFormat,
+  defaultMeta: {
     service: 'ultrazend-backend',
-    environment: Env.get('NODE_ENV'),
+    environment: Env.get('NODE_ENV', 'development'),
     version: Env.get('APP_VERSION', '1.0.0'),
     buildNumber: Env.get('BUILD_NUMBER', 'unknown'),
     hostname: require('os').hostname(),
     pid: process.pid
   },
   transports,
-  // Exit on error only in development
-  exitOnError: !Env.isProduction
+  exitOnError: false, // Don't exit on handled exceptions
+  handleExceptions: true,
+  handleRejections: true
 });
 
+// Console transport for development
 if (!Env.isProduction) {
   logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
+    level: logLevel,
+    format: developmentFormat,
+    handleExceptions: true,
+    handleRejections: true
   }));
 }
 
-export { logger };
+// Structured logging helpers
+class Logger {
+  static request(requestId: string, method: string, url: string, ip: string, userAgent: string, headers?: Record<string, string>) {
+    logger.info('HTTP Request', {
+      requestId,
+      request: { method, url, ip, userAgent, headers }
+    });
+  }
+
+  static response(requestId: string, statusCode: number, responseTime: number, contentLength?: number) {
+    logger.info('HTTP Response', {
+      requestId,
+      response: { statusCode, contentLength },
+      performance: { 
+        responseTime,
+        memoryUsage: process.memoryUsage()
+      }
+    });
+  }
+
+  static security(action: string, outcome: 'success' | 'failure' | 'blocked', options: {
+    userId?: string;
+    requestId?: string;
+    resource?: string;
+    reason?: string;
+    riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+    ip?: string;
+  } = {}) {
+    const level = outcome === 'success' ? 'info' : 'warn';
+    logger[level](`Security Event: ${action}`, {
+      requestId: options.requestId,
+      userId: options.userId,
+      security: {
+        action,
+        resource: options.resource,
+        outcome,
+        reason: options.reason,
+        riskLevel: options.riskLevel || 'low'
+      },
+      request: options.ip ? { ip: options.ip } : undefined
+    });
+  }
+
+  static business(entity: string, action: string, options: {
+    entityId?: string;
+    userId?: string;
+    requestId?: string;
+    metadata?: Record<string, any>;
+  } = {}) {
+    logger.info(`Business Event: ${entity}.${action}`, {
+      requestId: options.requestId,
+      userId: options.userId,
+      business: {
+        entity,
+        action,
+        entityId: options.entityId,
+        metadata: options.metadata
+      }
+    });
+  }
+
+  static error(message: string, error: Error, options: {
+    requestId?: string;
+    userId?: string;
+    context?: Record<string, any>;
+  } = {}) {
+    logger.error(message, {
+      requestId: options.requestId,
+      userId: options.userId,
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        code: (error as any).code
+      },
+      ...options.context
+    });
+  }
+
+  static performance(operation: string, duration: number, options: {
+    requestId?: string;
+    metadata?: Record<string, any>;
+  } = {}) {
+    logger.info(`Performance: ${operation}`, {
+      requestId: options.requestId,
+      performance: {
+        operation,
+        duration,
+        memoryUsage: process.memoryUsage()
+      },
+      ...options.metadata
+    });
+  }
+}
+
+export { logger, Logger };

@@ -1,0 +1,19 @@
+# Git Flow Configuration for UltraZend
+# This file defines the branch naming convention for git-flow
+
+# Main branches
+[gitflow "branch"]
+    master = main
+    develop = develop
+
+# Supporting branches
+[gitflow "prefix"]
+    feature = feature/
+    release = release/
+    hotfix = hotfix/
+    bugfix = bugfix/
+    support = support/
+
+# Version tagging
+[gitflow "tag"]
+    version = v

@@ -5,15 +5,15 @@
  */
 
 import db from '../config/database';
-import SMTPDelivery from '../services/smtpDelivery';
+import { SMTPDeliveryService } from '../services/smtpDelivery';
 
 describe('Bounce Handling Tests', () => {
-  let smtpDelivery: SMTPDelivery;
+  let smtpDelivery: SMTPDeliveryService;
   
   beforeAll(async () => {
     // Setup test database
     await db.migrate.latest();
-    smtpDelivery = new SMTPDelivery();
+    smtpDelivery = new SMTPDeliveryService();
   });
 
   beforeEach(async () => {
@@ -48,7 +48,7 @@ describe('Bounce Handling Tests', () => {
           subject: 'Hard Bounce Test - Nonexistent Domain',
           html: '<p>This should bounce - domain does not exist</p>',
           text: 'This should bounce - domain does not exist'
-        }, emailId as number);
+        });
 
         // Should fail to deliver
         expect(result).toBe(false);
@@ -89,7 +89,7 @@ describe('Bounce Handling Tests', () => {
           subject: 'Hard Bounce Test - Nonexistent User',
           html: '<p>This should bounce - user does not exist</p>',
           text: 'This should bounce - user does not exist'
-        }, emailId as number);
+        });
 
         // Note: This test might succeed in test environment
         // In production, Gmail would reject this and it would bounce
