@@ -38,11 +38,14 @@ ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP "
     echo '⚙️ Configurando ambiente de produção...'
     cd backend
     
-    echo '📦 Instalando dependências de produção...'
-    npm install --only=production
+    echo '📦 Instalando todas as dependências (incluindo devDependencies para build)...'
+    npm ci --production=false
     
     echo '🔨 Compilando TypeScript...'
     npm run build
+    
+    echo '🗄️ Executando migrations...'
+    npm run migrate:latest
     
     echo '🔧 Configurando permissões...'
     chown -R www-data:www-data /var/www/ultrazend/data/ || true
