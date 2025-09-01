@@ -116,4 +116,155 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
   res.json({ activities });
 }));
 
+router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Redireciona para overview por compatibilidade
+  const { timeRange = '30d' } = req.query;
+  
+  let daysAgo = 30;
+  if (timeRange === '7d') daysAgo = 7;
+  if (timeRange === '90d') daysAgo = 90;
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysAgo);
+  
+  const stats = await db('emails')
+    .select(
+      db.raw('COUNT(*) as total_emails'),
+      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
+      db.raw('COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END) as opened'),
+      db.raw('COUNT(CASE WHEN status = "bounced" THEN 1 END) as bounced'),
+      db.raw('COUNT(CASE WHEN clicked_at IS NOT NULL THEN 1 END) as clicked')
+    )
+    .where('user_id', req.user!.id)
+    .where('created_at', '>=', startDate)
+    .first();
+
+  res.json({ stats });
+}));
+
+router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { timeRange = '30d' } = req.query;
+  
+  let daysAgo = 30;
+  let groupBy = 'DATE(created_at)';
+  
+  if (timeRange === '7d') {
+    daysAgo = 7;
+    groupBy = 'DATE(created_at)';
+  } else if (timeRange === '90d') {
+    daysAgo = 90;
+    groupBy = 'DATE(created_at)';
+  }
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysAgo);
+  
+  const chartData = await db('emails')
+    .select(
+      db.raw(`${groupBy} as date`),
+      db.raw('COUNT(*) as emails'),
+      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
+      db.raw('COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END) as opened')
+    )
+    .where('user_id', req.user!.id)
+    .where('created_at', '>=', startDate)
+    .groupBy('date')
+    .orderBy('date');
+
+  res.json({ chartData });
+}));
+
+router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { timeRange = '30d' } = req.query;
+  
+  let daysAgo = 30;
+  if (timeRange === '7d') daysAgo = 7;
+  if (timeRange === '90d') daysAgo = 90;
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysAgo);
+  
+  const topEmails = await db('emails')
+    .select(
+      'subject',
+      db.raw('COUNT(*) as total_sent'),
+      db.raw('COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END) as opened'),
+      db.raw('COUNT(CASE WHEN clicked_at IS NOT NULL THEN 1 END) as clicked')
+    )
+    .where('user_id', req.user!.id)
+    .where('created_at', '>=', startDate)
+    .groupBy('subject')
+    .orderBy('total_sent', 'desc')
+    .limit(10);
+
+  const topEmailsWithRates = topEmails.map(email => ({
+    ...email,
+    open_rate: (email as any).total_sent > 0 ? 
+      Math.round(((email as any).opened / (email as any).total_sent) * 100 * 100) / 100 : 0,
+    click_rate: (email as any).total_sent > 0 ? 
+      Math.round(((email as any).clicked / (email as any).total_sent) * 100 * 100) / 100 : 0
+  }));
+
+  res.json({ topEmails: topEmailsWithRates });
+}));
+
+router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { page = '1', limit = '20', status, search } = req.query;
+  const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+  
+  let query = db('emails')
+    .where('user_id', req.user!.id);
+    
+  if (status && status !== 'all') {
+    query = query.where('status', status as string);
+  }
+  
+  if (search) {
+    query = query.where(function() {
+      this.where('to_email', 'like', `%${search}%`)
+          .orWhere('subject', 'like', `%${search}%`);
+    });
+  }
+  
+  const emails = await query
+    .select('*')
+    .orderBy('created_at', 'desc')
+    .limit(parseInt(limit as string))
+    .offset(offset);
+    
+  const total = await query.clone().count('* as count').first();
+
+  res.json({ 
+    emails, 
+    pagination: {
+      total: (total as any)?.count || 0,
+      page: parseInt(page as string),
+      limit: parseInt(limit as string)
+    }
+  });
+}));
+
+router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const domainsStats = await db('emails')
+    .select(
+      db.raw('SUBSTR(from_email, INSTR(from_email, "@") + 1) as domain'),
+      db.raw('COUNT(*) as total_emails'),
+      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
+      db.raw('COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END) as opened')
+    )
+    .where('user_id', req.user!.id)
+    .groupBy('domain')
+    .orderBy('total_emails', 'desc');
+
+  const domainsWithRates = domainsStats.map(domain => ({
+    ...domain,
+    delivery_rate: (domain as any).total_emails > 0 ? 
+      Math.round(((domain as any).delivered / (domain as any).total_emails) * 100 * 100) / 100 : 0,
+    open_rate: (domain as any).total_emails > 0 ? 
+      Math.round(((domain as any).opened / (domain as any).total_emails) * 100 * 100) / 100 : 0
+  }));
+
+  res.json({ domains: domainsWithRates });
+}));
+
 export default router;

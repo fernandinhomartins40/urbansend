@@ -10,20 +10,14 @@ import { Server } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
 
-// import 'reflect-metadata'; // Required for Inversify
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { performanceMiddleware, performanceMonitor } from './middleware/performanceMonitoring';
 import { metricsMiddleware, healthCheckMiddleware, metricsEndpointMiddleware } from './middleware/monitoring';
 import { monitoringService } from './services/monitoringService';
-// import { configureProductionApp } from './config/production';
-// import { EmailServiceFactory } from './services/EmailServiceFactory';
 import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
-import UltraZendSMTPServer from './services/smtpServer';
-import { SMTPDeliveryService } from './services/smtpDelivery';
-import './services/queueService'; // Initialize queue processors
 
 // Routes
 import authRoutes from './routes/auth';
@@ -36,16 +30,15 @@ import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
 
-// Load environment variables from configs directory
+// Load environment variables
 const configPath = path.resolve(process.cwd(), 'configs', '.env.production');
 dotenv.config({ path: configPath });
 
-// Fallback to development if production config doesn't exist
 if (process.env.NODE_ENV !== 'production') {
-  dotenv.config(); // This loads .env from root for development
+  dotenv.config();
 }
 
-// CORS allowed origins - load from environment variables for security
+// CORS allowed origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
   process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
   [
@@ -56,41 +49,32 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS ?
 
 const app = express();
 
-// Configure trust proxy for rate limiting compatibility
-app.set('trust proxy', 1);
-
 // Server Configuration
-const PORT = Env.getNumber('PORT', 3001); // HTTP port for development/internal
-const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443); // HTTPS port for production
+const PORT = Env.getNumber('PORT', 3001);
+const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443);
 
 let server;
 let httpsServer;
-let primaryServer; // The server that Socket.io will use
+let primaryServer;
 
 if (Env.isProduction) {
   try {
-    // Load SSL certificates from Let's Encrypt
     const sslOptions = {
       key: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
       cert: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
     };
     
-    // Create HTTPS server with the Express app
     httpsServer = createHttpsServer(sslOptions, app);
     primaryServer = httpsServer;
-    
-    // Create HTTP server that serves the app on port 3001 (for internal/debug)
     server = createServer(app);
     
     logger.info('✅ SSL certificates loaded successfully');
-    
   } catch (error) {
     logger.error('❌ SSL certificates not found, using HTTP only', error);
     server = createServer(app);
     primaryServer = server;
   }
 } else {
-  // Development: only HTTP server
   server = createServer(app);
   primaryServer = server;
 }
@@ -101,6 +85,9 @@ const io = new Server(primaryServer, {
     methods: ["GET", "POST"]
   }
 });
+
+// Configure trust proxy
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet({
@@ -142,15 +129,13 @@ app.use(helmet({
   xssFilter: true
 }));
 
-// CORS configuration - secure implementation
+// CORS configuration
 app.use('/api', cors({
   origin: (origin: string | undefined, callback: Function) => {
-    // In development, allow requests with no origin (like Postman, mobile apps)
     if (!origin && Env.isDevelopment) {
       return callback(null, true);
     }
     
-    // In production, ALWAYS require origin header for API routes
     if (!origin && Env.isProduction) {
       logger.warn('CORS: Request blocked - missing origin header', { 
         timestamp: new Date().toISOString() 
@@ -158,12 +143,10 @@ app.use('/api', cors({
       return callback(new Error('Origin header é obrigatório'));
     }
     
-    // Check if origin is in allowed list
     if (origin && allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     
-    // Log blocked request for security monitoring
     logger.warn('CORS: Blocked request from unauthorized origin', { 
       origin, 
       allowedOrigins,
@@ -175,29 +158,24 @@ app.use('/api', cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
-  // Security headers
   optionsSuccessStatus: 200,
   preflightContinue: false,
-  // Prevent credential leaks
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: Env.getNumber('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutes
-  max: Env.getNumber('RATE_LIMIT_MAX_REQUESTS', 500), // Increased from 100 to 500
+  windowMs: Env.getNumber('RATE_LIMIT_WINDOW_MS', 900000),
+  max: Env.getNumber('RATE_LIMIT_MAX_REQUESTS', 500),
   message: {
     error: 'Too many requests from this IP, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip failing requests to avoid issues with proxy setup
   skip: (req) => {
-    // Skip rate limiting in development environment
     if (Env.isDevelopment) {
       return true;
     }
-    // Skip rate limiting if there are issues with IP detection
     return false;
   },
 });
@@ -208,15 +186,13 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Monitoring middleware (before all other routes)
+// Monitoring middleware
 app.use(healthCheckMiddleware());
 app.use(metricsEndpointMiddleware());
 app.use(metricsMiddleware());
-
-// Performance monitoring middleware (after body parsers, before routes)
 app.use(performanceMiddleware);
 
-// Cookie parsing with secure settings
+// Cookie parsing
 app.use(cookieParser(Env.get('COOKIE_SECRET', 'fallback-secret')));
 
 // Logging middleware
@@ -229,7 +205,7 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check endpoint with performance monitoring
+// Health check endpoint
 app.get('/health', async (_req, res) => {
   try {
     const healthStatus = await monitoringService.getHealthStatus();
@@ -291,11 +267,9 @@ setupSwagger(app);
 if (Env.isProduction) {
   const frontendPath = path.resolve(__dirname, '../../frontend');
   
-  // Check if frontend directory exists
   if (fs.existsSync(frontendPath)) {
     logger.info(`Serving frontend from: ${frontendPath}`);
     
-    // Configure MIME types for static files
     app.use(express.static(frontendPath, {
       setHeaders: (res, path) => {
         if (path.endsWith('.js')) {
@@ -326,9 +300,7 @@ if (Env.isProduction) {
       }
     }));
     
-    // Handle client-side routing (SPA)
     app.get('*', (req, res) => {
-      // Don't serve index.html for API routes
       if (req.path.startsWith('/api/') || req.path.startsWith('/docs')) {
         return res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
       }
@@ -343,7 +315,6 @@ if (Env.isProduction) {
   } else {
     logger.warn(`Frontend directory not found at: ${frontendPath}`);
     
-    // Fallback route for missing frontend
     app.get('/', (req, res) => {
       res.json({
         message: 'UltraZend API Server',
@@ -356,7 +327,6 @@ if (Env.isProduction) {
     });
   }
 } else {
-  // Development mode - show API info
   app.get('/', (req, res) => {
     res.json({
       message: 'UltraZend API Server - Development',
@@ -378,56 +348,122 @@ io.on('connection', (socket) => {
   });
 });
 
-// Make io available in request object
 app.set('io', io);
 
 // Error handling middleware
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Database connection and server start
+// 🔧 SEQUENTIAL INITIALIZATION TO AVOID DATABASE LOCKS
+const initializeServices = async () => {
+  logger.info('🔄 Starting sequential service initialization...');
+
+  // Step 1: Initialize basic monitoring
+  try {
+    monitoringService.initialize();
+    logger.info('✅ Monitoring service initialized');
+  } catch (error) {
+    logger.warn('⚠️ Monitoring service failed, continuing...', { error: (error as Error).message });
+  }
+
+  // Step 2: Test database connection and run migrations
+  try {
+    await db.raw('SELECT 1');
+    logger.info('✅ Database connected successfully');
+
+    await db.migrate.latest();
+    logger.info('✅ Database migrations completed');
+  } catch (error) {
+    logger.error('❌ Database initialization failed', { error: (error as Error).message });
+    throw error;
+  }
+
+  // Step 3: Initialize services that need database tables (SEQUENTIAL)
+  const services = [
+    {
+      name: 'Queue Service',
+      init: async () => {
+        const { QueueService } = await import('./services/queueService');
+        const queueService = new QueueService();
+        const stats = await queueService.getQueueStats();
+        logger.info('✅ Queue service initialized', stats);
+      }
+    },
+    {
+      name: 'SMTP Server',
+      init: async () => {
+        try {
+          const UltraZendSMTPServer = (await import('./services/smtpServer')).default;
+          const smtpServer = new UltraZendSMTPServer();
+          await smtpServer.start();
+          logger.info('✅ SMTP Server initialized');
+        } catch (error) {
+          if ((error as any).code === 'EADDRINUSE') {
+            logger.warn('⚠️ SMTP ports already in use, continuing without SMTP server...', { 
+              error: (error as Error).message 
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+    },
+    {
+      name: 'Email Queue Processor',
+      init: async () => {
+        const { SMTPDeliveryService } = await import('./services/smtpDelivery');
+        const smtpDelivery = new SMTPDeliveryService();
+        
+        const processQueue = async () => {
+          try {
+            await smtpDelivery.processEmailQueue();
+          } catch (error) {
+            logger.error('Error in queue processing:', error);
+          }
+        };
+        
+        setInterval(processQueue, 30000);
+        logger.info('✅ Email queue processor started (30s intervals)');
+      }
+    }
+  ];
+
+  // Initialize services sequentially with delay to prevent locks
+  for (const service of services) {
+    try {
+      await service.init();
+      // Small delay between service initializations
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      logger.warn(`⚠️ ${service.name} failed to initialize, continuing...`, { 
+        error: (error as Error).message 
+      });
+    }
+  }
+
+  logger.info('✅ All services initialization completed');
+};
+
 const startServer = async () => {
   try {
-    // Apply production configuration if in production
-    if (Env.isProduction) {
-      logger.info('Applying production configuration...');
-      // await configureProductionApp(app, [server, httpsServer].filter(Boolean), db.client);
-    }
-
-    // Initialize monitoring service
-    monitoringService.initialize();
-    logger.info('Monitoring service initialized');
-
-    // Initialize EmailServiceFactory (resolves circular dependencies)
-    // EmailServiceFactory.initialize();
-    // logger.info('EmailServiceFactory initialized');
-
-    // Test database connection
-    await db.raw('SELECT 1');
-    logger.info('Database connected successfully');
-
-    // Run migrations
-    await db.migrate.latest();
-    logger.info('Database migrations completed');
+    // Initialize services sequentially
+    await initializeServices();
 
     // Start servers
     if (Env.isProduction) {
       if (httpsServer) {
-        // Production with SSL: Start HTTPS server on port 443
         httpsServer.listen(HTTPS_PORT, () => {
           logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
           logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
           logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'production')}`);
         });
         
-        // Also start HTTP server on port 3001 (internal/debug access)
         server.listen(PORT, () => {
           logger.info(`🔧 HTTP Server (internal) running on port ${PORT}`);
         });
         
-        // Create HTTP redirect server on port 80
         const redirectServer = createServer((req, res) => {
-          const host = req.headers.host?.replace(/:\d+/, ''); // Remove port from host
+          const host = req.headers.host?.replace(/:\d+/, '');
           const redirectUrl = `https://${host}${req.url}`;
           
           res.writeHead(301, { 
@@ -441,50 +477,18 @@ const startServer = async () => {
           logger.info(`↩️  HTTP Redirect Server running on port 80 → HTTPS`);
         });
       } else {
-        // Production without SSL certificates: HTTP only on configured port
         server.listen(PORT, () => {
           logger.info(`🚀 HTTP Server running on port ${PORT} (SSL certificates not found)`);
           logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
         });
       }
     } else {
-      // Development: HTTP only
       server.listen(PORT, () => {
         logger.info(`🚀 HTTP Server running on port ${PORT}`);
         logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
         logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
       });
     }
-
-    // Verificar Redis connection para queues
-    try {
-      const { QueueService } = await import('./services/queueService');
-      const queueService = new QueueService();
-      const stats = await queueService.getQueueStats();
-      logger.info('📊 Queue service initialized successfully', stats);
-    } catch (error) {
-      logger.warn('⚠️ Queue service not available, running without Redis queues', { error: error instanceof Error ? error.message : error });
-    }
-
-    // Start SMTP server
-    const smtpServer = new UltraZendSMTPServer();
-    await smtpServer.start();
-
-    // Start email queue processor
-    const smtpDelivery = new SMTPDeliveryService();
-    
-    // Process email queue every 30 seconds
-    const processQueue = async () => {
-      try {
-        await smtpDelivery.processEmailQueue();
-      } catch (error) {
-        logger.error('Error in queue processing:', error);
-      }
-    };
-    
-    // Start queue processor
-    setInterval(processQueue, 30000); // Process every 30 seconds
-    logger.info('📧 Email queue processor started (30s intervals)');
     
   } catch (error) {
     logger.error('Failed to start server:', error);
@@ -492,16 +496,14 @@ const startServer = async () => {
   }
 };
 
-// Enhanced graceful shutdown with performance monitoring cleanup
+// Enhanced graceful shutdown
 const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}, starting graceful shutdown...`);
   
   try {
-    // Cleanup performance monitor
     await performanceMonitor.destroy();
     logger.info('Performance monitor cleaned up');
     
-    // Shutdown monitoring service
     await monitoringService.close();
     logger.info('Monitoring service shutdown completed');
     
@@ -527,7 +529,6 @@ const gracefulShutdown = async (signal: string) => {
     
     await Promise.all(closePromises);
     
-    // Close database connection
     await db.destroy();
     logger.info('Database connection closed');
     
@@ -539,12 +540,11 @@ const gracefulShutdown = async (signal: string) => {
   }
 };
 
-// Enhanced shutdown handlers
+// Shutdown handlers
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Nodemon restart
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
-// Handle uncaught exceptions and unhandled rejections
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught exception detected', {
     error: error.message,
