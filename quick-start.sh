@@ -32,12 +32,12 @@ log "Email Admin: $ADMIN_EMAIL"
 echo ""
 
 # Check if we're running locally or on server
-if [ "$(hostname -I 2>/dev/null | grep -o '^[0-9.]*' | head -1)" = "$SERVER_HOST" ]; then
+if [ "$(hostname -I 2>/dev/null | grep -o '^[0-9.]*' | head -1 2>/dev/null)" = "$SERVER_HOST" ] 2>/dev/null; then
     LOCATION="SERVER"
     info "Executando no servidor de produção"
 else
-    LOCATION="LOCAL"
-    info "Executando localmente - algumas operações serão feitas via SSH"
+    LOCATION="LOCAL"  
+    info "Executando localmente - operações serão feitas via SSH"
 fi
 
 # Step 1: Local Build and Validation

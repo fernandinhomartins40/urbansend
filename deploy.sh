@@ -1,220 +1,248 @@
 #!/bin/bash
 
-# 🚀 ULTRAZEND ENTERPRISE DEPLOYMENT SCRIPT
-# Deploy enterprise-grade Node.js application to production VPS
-# =============================================================================
+# 🚀 ULTRAZEND - Master Deployment Script
+# Automatically chooses the right deployment strategy
 
-set -e
+set -euo pipefail
 
-# Configuration variables
-VPS_HOST="${VPS_HOST:-31.97.162.155}"
-VPS_USER="${VPS_USER:-root}"
+# Configuration
+SERVER_HOST="31.97.162.155"
+SERVER_USER="root"
 DEPLOY_PATH="/var/www/ultrazend"
-APP_DOMAIN="${APP_DOMAIN:-www.ultrazend.com.br}"
 
-# Color codes for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+PURPLE='\033[0;35m'
+NC='\033[0m'
 
-# Logging functions
-log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
-}
+log() { echo -e "${BLUE}[DEPLOY] $1${NC}"; }
+success() { echo -e "${GREEN}[SUCCESS] $1${NC}"; }
+error() { echo -e "${RED}[ERROR] $1${NC}"; exit 1; }
+warning() { echo -e "${YELLOW}[WARNING] $1${NC}"; }
+info() { echo -e "${PURPLE}[INFO] $1${NC}"; }
 
-log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
-log_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-echo "🚀 ULTRAZEND ENTERPRISE DEPLOYMENT"
-echo "==================================="
-log_info "Deploying to: $VPS_HOST"
-log_info "Domain: $APP_DOMAIN"
-log_info "Deploy path: $DEPLOY_PATH"
+echo "🚀 ULTRAZEND - MASTER DEPLOYMENT"
+echo "================================="
+log "Servidor: $SERVER_HOST"
+log "Analisando ambiente..."
 echo ""
 
-# 1. Pre-deployment checks
-log_info "Running pre-deployment checks..."
-
-# Check if backend build exists
-if [ ! -f "backend/dist/index.js" ]; then
-    log_warning "Backend dist not found, building..."
-    cd backend && npm run build && cd ..
-fi
-
-# Check if frontend build exists
-if [ ! -d "frontend/dist" ]; then
-    log_error "Frontend build not found! Please run 'npm run build' in frontend directory"
-    exit 1
-fi
-
-log_success "Pre-deployment checks completed"
-
-# 2. Create deployment directory structure on VPS
-log_info "Creating enterprise directory structure..."
-ssh $VPS_USER@$VPS_HOST << 'EOF'
-# Create main directories
-mkdir -p /var/www/ultrazend/{backend,frontend,data,logs,backup,ssl}
-
-# Create log subdirectories for structured logging
-mkdir -p /var/www/ultrazend/logs/{app,error,security,access,performance}
-
-# Create data subdirectories
-mkdir -p /var/www/ultrazend/data/{database,uploads,cache}
-
-# Create backup subdirectories
-mkdir -p /var/www/ultrazend/backup/{daily,weekly,monthly}
-
-# Set proper permissions
-chown -R www-data:www-data /var/www/ultrazend
-chmod -R 755 /var/www/ultrazend
-chmod -R 644 /var/www/ultrazend/logs
-chmod 755 /var/www/ultrazend/logs
-EOF
-
-log_success "Directory structure created"
-
-# 3. Upload backend files
-log_info "Uploading backend application..."
-rsync -avz --delete \
-    --exclude=node_modules \
-    --exclude=.git \
-    --exclude=*.log \
-    --exclude=.env \
-    --exclude=database.sqlite \
-    backend/ $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/
-
-log_success "Backend uploaded"
-
-# 4. Upload frontend build
-log_info "Uploading frontend build..."
-rsync -avz --delete frontend/dist/ $VPS_USER@$VPS_HOST:$DEPLOY_PATH/frontend/
-
-log_success "Frontend uploaded"
-
-# 5. Upload configuration files
-log_info "Uploading enterprise configuration..."
-
-# Upload ecosystem config
-scp ecosystem.config.js $VPS_USER@$VPS_HOST:$DEPLOY_PATH/
-
-# Upload production environment config
-scp configs/.env.production $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/.env
-
-# Upload nginx config if it exists
-if [ -f "configs/nginx-ssl.conf" ]; then
-    scp configs/nginx-ssl.conf $VPS_USER@$VPS_HOST:/tmp/ultrazend-nginx.conf
-    log_success "Nginx configuration uploaded"
-fi
-
-log_success "Configuration files uploaded"
-
-# 6. Install dependencies and setup services
-log_info "Installing dependencies and setting up enterprise services..."
-ssh $VPS_USER@$VPS_HOST << EOF
-cd $DEPLOY_PATH/backend
-
-# Install Node.js dependencies
-log_info "Installing Node.js dependencies..."
-npm ci --only=production
-
-# Verify build exists
-if [ ! -f "dist/index.js" ]; then
-    log_warning "dist/index.js not found, building on server..."
-    npm run build
-fi
-
-# Install PM2 globally if not exists
-if ! command -v pm2 &> /dev/null; then
-    log_info "Installing PM2..."
-    npm install -g pm2
-fi
-
-# Install winston-daily-rotate-file if not present (enterprise logging)
-if ! npm list winston-daily-rotate-file --depth=0 &> /dev/null; then
-    log_info "Installing enterprise logging dependencies..."
-    npm install winston-daily-rotate-file
-fi
-
-# Setup nginx configuration if provided
-if [ -f "/tmp/ultrazend-nginx.conf" ]; then
-    log_info "Configuring nginx..."
-    cp /tmp/ultrazend-nginx.conf /etc/nginx/sites-available/ultrazend
-    ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
-    
-    # Test nginx configuration
-    if nginx -t; then
-        systemctl reload nginx
-        log_success "Nginx configured and reloaded"
-    else
-        log_error "Nginx configuration test failed"
+# Function to detect deployment type needed
+detect_deployment_type() {
+    # Check if server is accessible
+    if ! ssh $SERVER_USER@$SERVER_HOST 'echo "test"' > /dev/null 2>&1; then
+        error "❌ Não foi possível conectar ao servidor $SERVER_HOST"
     fi
-fi
+    
+    # Check if application directory exists
+    if ssh $SERVER_USER@$SERVER_HOST "[ -d '$DEPLOY_PATH' ]" 2>/dev/null; then
+        # Check if application is running
+        if ssh $SERVER_USER@$SERVER_HOST 'pm2 jlist | jq -r ".[] | select(.name==\"ultrazend\") | .pm2_env.status"' 2>/dev/null | grep -q "online"; then
+            echo "UPDATE"
+        else
+            echo "FRESH"
+        fi
+    else
+        echo "FRESH"
+    fi
+}
 
-# Run database migrations
-log_info "Running database migrations..."
-npm run migrate:latest || log_warning "Migration failed or not needed"
+# Function to show deployment options
+show_menu() {
+    echo "Escolha o tipo de deployment:"
+    echo ""
+    echo "1) 🆕 Fresh Install    - Servidor limpo (primeira instalação)"
+    echo "2) 🔄 Update Deploy    - Atualizar aplicação existente" 
+    echo "3) 🤖 Auto Detect      - Detectar automaticamente"
+    echo "4) 🧪 Quick Start      - Setup completo automatizado"
+    echo "5) ❌ Cancelar"
+    echo ""
+    read -p "Selecione uma opção (1-5): " choice
+    
+    case $choice in
+        1) echo "FRESH" ;;
+        2) echo "UPDATE" ;;
+        3) echo "AUTO" ;;
+        4) echo "QUICKSTART" ;;
+        5) echo "CANCEL" ;;
+        *) echo "INVALID" ;;
+    esac
+}
 
-# Stop existing PM2 processes
-log_info "Stopping existing processes..."
-pm2 delete ultrazend 2>/dev/null || log_info "No existing process to stop"
+# Main deployment logic
+main() {
+    # Get deployment type
+    if [ "${1:-}" ]; then
+        deploy_type="$1"
+    else
+        deploy_type=$(show_menu)
+    fi
+    
+    case $deploy_type in
+        "AUTO")
+            log "🤖 Detectando tipo de deployment automaticamente..."
+            auto_type=$(detect_deployment_type)
+            info "Tipo detectado: $auto_type"
+            deploy_type="$auto_type"
+            ;;
+        "CANCEL")
+            log "Deploy cancelado pelo usuário"
+            exit 0
+            ;;
+        "INVALID")
+            error "Opção inválida selecionada"
+            ;;
+    esac
+    
+    # Pre-flight checks
+    log "🔍 Executando verificações pré-deploy..."
+    
+    # Check required scripts exist
+    case $deploy_type in
+        "FRESH")
+            [ ! -f "deploy-fresh-server.sh" ] && error "Script deploy-fresh-server.sh não encontrado"
+            script_to_run="deploy-fresh-server.sh"
+            ;;
+        "UPDATE")
+            [ ! -f "deploy-update.sh" ] && error "Script deploy-update.sh não encontrado"
+            script_to_run="deploy-update.sh"
+            ;;
+        "QUICKSTART")
+            [ ! -f "quick-start.sh" ] && error "Script quick-start.sh não encontrado"
+            script_to_run="quick-start.sh"
+            ;;
+        *)
+            error "Tipo de deploy inválido: $deploy_type"
+            ;;
+    esac
+    
+    # Check local builds exist
+    log "Verificando builds locais..."
+    local need_build=false
+    
+    if [ ! -f "backend/dist/index.js" ]; then
+        warning "Build do backend não encontrado"
+        need_build=true
+    fi
+    
+    if [ ! -d "frontend/dist" ] || [ ! -f "frontend/dist/index.html" ]; then
+        warning "Build do frontend não encontrado"
+        need_build=true
+    fi
+    
+    if [ "$need_build" = true ]; then
+        log "🔨 Executando builds necessários..."
+        
+        if [ ! -f "backend/dist/index.js" ]; then
+            log "Building backend..."
+            cd backend && npm run build && cd ..
+            success "✅ Backend build concluído"
+        fi
+        
+        if [ ! -d "frontend/dist" ] || [ ! -f "frontend/dist/index.html" ]; then
+            log "Building frontend..."
+            cd frontend && npm run build && cd ..
+            success "✅ Frontend build concluído"
+        fi
+    else
+        success "✅ Builds locais já estão prontos"
+    fi
+    
+    # Show deployment summary
+    echo ""
+    info "📋 RESUMO DO DEPLOYMENT:"
+    info "   Tipo: $deploy_type"
+    info "   Script: $script_to_run"
+    info "   Servidor: $SERVER_HOST"
+    info "   Timestamp: $(date)"
+    echo ""
+    
+    # Confirm deployment
+    if [ "${2:-}" != "--auto" ]; then
+        read -p "🚀 Confirma o deployment? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log "Deploy cancelado pelo usuário"
+            exit 0
+        fi
+    fi
+    
+    # Execute deployment
+    log "🚀 Iniciando deployment..."
+    echo ""
+    
+    # Make script executable and run it
+    chmod +x "$script_to_run"
+    ./"$script_to_run"
+    
+    # Post-deployment summary
+    echo ""
+    success "🎉 DEPLOYMENT MASTER CONCLUÍDO!"
+    echo "=============================="
+    success "✅ Script executado: $script_to_run"
+    success "✅ Tipo de deployment: $deploy_type"
+    
+    # Final verification
+    log "🔍 Verificação final..."
+    if curl -f -s -m 10 "https://www.ultrazend.com.br/health" > /dev/null 2>&1; then
+        success "✅ Aplicação acessível externamente"
+    elif ssh $SERVER_USER@$SERVER_HOST 'curl -f -s -m 5 http://localhost:3001/health > /dev/null' 2>/dev/null; then
+        warning "⚠️ Aplicação funcionando localmente, mas acesso externo pode estar com problemas"
+    else
+        warning "⚠️ Verificação de acesso falhou - verifique manualmente"
+    fi
+    
+    echo ""
+    info "🌐 URLs da aplicação:"
+    info "   Website: https://www.ultrazend.com.br"
+    info "   Health: https://www.ultrazend.com.br/health"
+    info "   API: https://www.ultrazend.com.br/api"
+    echo ""
+    
+    info "💡 COMANDOS ÚTEIS:"
+    info "   Status: ssh $SERVER_USER@$SERVER_HOST 'pm2 status'"
+    info "   Logs: ssh $SERVER_USER@$SERVER_HOST 'pm2 logs ultrazend'"
+    info "   Restart: ssh $SERVER_USER@$SERVER_HOST 'pm2 restart ultrazend'"
+    echo ""
+    
+    log "🎯 Deployment master finalizado!"
+}
 
-# Start application with PM2 using enterprise config
-log_info "Starting UltraZend Enterprise application..."
-pm2 start ../ecosystem.config.js --env production
+# Help function
+show_help() {
+    echo "ULTRAZEND - Master Deployment Script"
+    echo ""
+    echo "Usage: $0 [TYPE] [OPTIONS]"
+    echo ""
+    echo "TIPOS DE DEPLOYMENT:"
+    echo "  FRESH       Instalação completa em servidor limpo"
+    echo "  UPDATE      Atualização de aplicação existente"
+    echo "  AUTO        Detecta automaticamente o tipo necessário"
+    echo "  QUICKSTART  Setup completo automatizado"
+    echo ""
+    echo "OPTIONS:"
+    echo "  --auto      Executa sem confirmação interativa"
+    echo "  --help      Mostra esta ajuda"
+    echo ""
+    echo "EXEMPLOS:"
+    echo "  $0                    # Menu interativo"
+    echo "  $0 FRESH              # Instalação em servidor limpo"
+    echo "  $0 UPDATE             # Atualizar aplicação existente"
+    echo "  $0 AUTO               # Detecção automática"
+    echo "  $0 FRESH --auto       # Instalação sem confirmação"
+    echo ""
+}
 
-# Save PM2 configuration
-pm2 save
-
-# Setup PM2 startup script
-pm2 startup | grep -E '^sudo' | bash || log_warning "PM2 startup setup may have failed"
-
-log_success "Application started with PM2"
-EOF
-
-# 7. Post-deployment verification
-log_info "Running post-deployment verification..."
-ssh $VPS_USER@$VPS_HOST << EOF
-# Check PM2 status
-echo "PM2 Status:"
-pm2 status
-
-# Check if application is responding
-sleep 5
-if curl -f -s http://localhost:3001/health > /dev/null; then
-    log_success "Health check endpoint responding"
-else
-    log_warning "Health check endpoint not responding yet"
-fi
-
-# Check logs for any startup errors
-echo ""
-echo "Recent application logs:"
-pm2 logs ultrazend --lines 5 --nostream || echo "No recent logs"
-EOF
-
-echo ""
-log_success "🎉 ULTRAZEND ENTERPRISE DEPLOYMENT COMPLETED!"
-echo "=========================================="
-log_info "Application Status:"
-log_info "  • URL: https://$APP_DOMAIN"
-log_info "  • Health Check: https://$APP_DOMAIN/health"
-log_info "  • API Docs: https://$APP_DOMAIN/api-docs (if enabled)"
-echo ""
-log_warning "Next Steps:"
-log_warning "  1. Verify SSL certificates: certbot --nginx -d $APP_DOMAIN"
-log_warning "  2. Check application logs: ssh $VPS_USER@$VPS_HOST 'pm2 logs ultrazend'"
-log_warning "  3. Monitor health: curl https://$APP_DOMAIN/health"
-echo ""
-log_success "Enterprise deployment successful! 🚀"
+# Parse arguments
+case "${1:-}" in
+    "--help"|"-h"|"help")
+        show_help
+        exit 0
+        ;;
+    *)
+        main "$@"
+        ;;
+esac
