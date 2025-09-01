@@ -35,8 +35,8 @@ RUN npm ci --verbose
 
 COPY . .
 
-# Run migrations to create database
-RUN npm run migrate:latest
+# Create empty database file (migrations will run on startup)
+RUN touch database.sqlite
 
 RUN npm run build
 
