@@ -15,7 +15,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { performanceMiddleware, performanceMonitor } from './middleware/performanceMonitoring';
 import { metricsMiddleware, healthCheckMiddleware, metricsEndpointMiddleware } from './middleware/monitoring';
 import { monitoringService } from './services/monitoringService';
-import { configureProductionApp } from './config/production';
+// import { configureProductionApp } from './config/production';
 // import { EmailServiceFactory } from './services/EmailServiceFactory';
 import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
@@ -391,7 +391,7 @@ const startServer = async () => {
     // Apply production configuration if in production
     if (Env.isProduction) {
       logger.info('Applying production configuration...');
-      await configureProductionApp(app, [server, httpsServer].filter(Boolean), db.client);
+      // await configureProductionApp(app, [server, httpsServer].filter(Boolean), db.client);
     }
 
     // Initialize monitoring service

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache';
-import { Pool } from 'generic-pool';
+import { Pool, createPool } from 'generic-pool';
 import { createTransport, Transporter } from 'nodemailer';
 import { logger } from '../config/logger';
 import { monitoringService } from '../services/monitoringService';
@@ -144,7 +144,7 @@ class PerformanceMonitor {
       testOnReturn: false
     };
 
-    return new Pool(factory, opts);
+    return createPool(factory, opts);
   }
 
   private createDatabasePool(): Pool<any> {
@@ -170,7 +170,7 @@ class PerformanceMonitor {
       reapIntervalMillis: 1000
     };
 
-    return new Pool(factory, opts);
+    return createPool(factory, opts);
   }
 
   private setupCacheMetrics() {
