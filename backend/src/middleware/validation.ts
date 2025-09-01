@@ -171,7 +171,7 @@ export const registerSchema = z.object({
   name: z.string()
     .min(2, 'Nome deve ter pelo menos 2 caracteres')
     .max(100, 'Nome deve ter no máximo 100 caracteres')
-    .refine(name => /^[a-zA-ZÀ-ÿ\s]+$/.test(name), 'Nome deve conter apenas letras e espaços')
+    .refine(name => /^[a-zA-ZÀ-ÿ0-9\s.-]+$/.test(name), 'Nome deve conter apenas letras, números, espaços, pontos e hífens')
     .transform(name => name.trim()),
   email: emailSchema,
   password: passwordSchema

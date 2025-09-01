@@ -133,10 +133,32 @@ export function Login() {
     try {
       // Remove confirmPassword antes de enviar and ensure required fields
       const { confirmPassword, ...registerData } = data
-      if (!registerData.name || !registerData.email || !registerData.password) {
-        throw new Error('Nome, email e senha são obrigatórios')
+      
+      // Validação mais detalhada
+      if (!registerData.name?.trim()) {
+        throw new Error('Nome é obrigatório')
       }
-      await authApi.register({ name: registerData.name, email: registerData.email, password: registerData.password })
+      if (!registerData.email?.trim()) {
+        throw new Error('Email é obrigatório')
+      }
+      if (!registerData.password) {
+        throw new Error('Senha é obrigatória')
+      }
+      
+      // Log dos dados sendo enviados (sem a senha)
+      console.log('Enviando dados de registro:', {
+        name: registerData.name,
+        email: registerData.email,
+        passwordLength: registerData.password.length
+      })
+      
+      const response = await authApi.register({ 
+        name: registerData.name.trim(), 
+        email: registerData.email.trim(), 
+        password: registerData.password 
+      })
+      
+      console.log('Resposta do registro:', response)
       
       // Dismiss loading toast
       toast.dismiss(loadingToast)
@@ -160,9 +182,19 @@ export function Login() {
       // Dismiss loading toast
       toast.dismiss(loadingToast)
       
-      const errorMessage = error.response?.data?.message || ''
+      // Log detalhado do erro
+      console.error('Erro no registro:', {
+        error,
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      })
       
-      if (errorMessage.includes('already exists') || errorMessage.includes('exists')) {
+      const errorMessage = error.response?.data?.message || error.message || 'Erro desconhecido'
+      const statusCode = error.response?.status
+      
+      // Tratamento específico por código de status
+      if (statusCode === 409 || errorMessage.includes('already exists') || errorMessage.includes('exists')) {
         toast.auth.registerError('exists')
         // Sugerir ação
         setTimeout(() => {
@@ -170,6 +202,18 @@ export function Login() {
             duration: 4000
           })
         }, 1500)
+      } else if (statusCode === 400) {
+        if (errorMessage.includes('nome') || errorMessage.includes('name')) {
+          toast.error('❌ Nome inválido: deve conter apenas letras, números, espaços, pontos e hífens')
+        } else if (errorMessage.includes('senha') || errorMessage.includes('password')) {
+          toast.auth.registerError('password')
+        } else if (errorMessage.includes('email')) {
+          toast.error('❌ Email inválido: ' + errorMessage)
+        } else {
+          toast.auth.registerError('validation')
+        }
+      } else if (statusCode === 429) {
+        toast.error('⏰ Muitas tentativas. Tente novamente em alguns minutos.')
       } else if (errorMessage.includes('validation') || errorMessage.includes('invalid')) {
         toast.auth.registerError('validation')
       } else if (errorMessage.includes('password') || errorMessage.includes('senha')) {

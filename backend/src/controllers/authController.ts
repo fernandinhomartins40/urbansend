@@ -28,17 +28,29 @@ const getRefreshCookieOptions = () => ({
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password } = req.body;
 
+  logger.info('Registration attempt started', { 
+    email, 
+    name: name?.substring(0, 20) + '...', // Log partial name for debugging
+    passwordLength: password?.length,
+    requestIP: req.ip,
+    userAgent: req.get('User-Agent')?.substring(0, 100)
+  });
+
   // Check if user already exists
   const existingUser = await db('users').where('email', email).first();
   if (existingUser) {
+    logger.warn('Registration attempt with existing email', { email, requestIP: req.ip });
     throw createError('User with this email already exists', 409);
   }
 
   // Validate email address
+  logger.info('Validating email address', { email });
   const emailValidation = await validateEmailAddress(email);
   if (!emailValidation.isValid) {
+    logger.warn('Email validation failed', { email, reason: emailValidation.reason });
     throw createError(`Invalid email: ${emailValidation.reason}`, 400);
   }
+  logger.info('Email validation passed', { email, reason: emailValidation.reason });
 
   // Hash password
   const passwordHash = await hashPassword(password);
@@ -53,20 +65,35 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   });
 
   // Create user
-  const insertResult = await db('users').insert({
-    name,
-    email,
-    password_hash: passwordHash,
-    verification_token: verificationToken,
-    verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-    is_verified: false,
-    plan_type: 'free',
-    created_at: new Date(),
-    updated_at: new Date()
-  });
+  logger.info('Creating user in database', { email, name });
+  let insertResult;
+  let userId;
   
-  // SQLite returns the last inserted row ID
-  const userId = insertResult[0];
+  try {
+    insertResult = await db('users').insert({
+      name,
+      email,
+      password_hash: passwordHash,
+      verification_token: verificationToken,
+      verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      is_verified: false,
+      plan_type: 'free',
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+    
+    // SQLite returns the last inserted row ID
+    userId = insertResult[0];
+    logger.info('User created successfully in database', { userId, email });
+  } catch (dbError) {
+    logger.error('Database error during user creation', { 
+      error: dbError, 
+      email, 
+      name,
+      errorMessage: (dbError as Error).message 
+    });
+    throw createError('Database error during user creation', 500);
+  }
 
   // Verify the token was saved correctly
   const savedUser = await db('users').where('id', userId).first();

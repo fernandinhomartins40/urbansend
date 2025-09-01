@@ -24,10 +24,10 @@ export const loginRateLimit = createRateLimit(
   'Muitas tentativas de login. Tente novamente em 15 minutos.'
 );
 
-// Registration rate limiting - 5 attempts per hour
+// Registration rate limiting - 10 attempts per hour (mais flexível para debugging)
 export const registrationRateLimit = createRateLimit(
   60 * 60 * 1000, // 1 hour
-  5, // max attempts
+  10, // max attempts (aumentado de 5 para 10)
   'Muitas tentativas de registro. Tente novamente em 1 hora.'
 );
 
