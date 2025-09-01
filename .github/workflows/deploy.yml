@@ -123,20 +123,34 @@ jobs:
           pm2 stop ultrazend 2>/dev/null || echo "Nenhuma aplicação rodando"
           pm2 delete ultrazend 2>/dev/null || echo "Processo não existia"
           
-          # Garantir repositório Git atualizado
+          # Garantir repositório Git atualizado (preservando frontend build)
           echo "🔧 Configurando repositório Git..."
           if [ ! -d ".git" ]; then
             echo "📥 Clonando repositório (primeira vez)..."
             cd /var/www
+            # Backup do frontend se existir
+            if [ -d "ultrazend/frontend" ]; then
+              mv ultrazend/frontend /tmp/frontend-backup
+            fi
             rm -rf ultrazend
             git clone https://github.com/fernandinhomartins40/urbansend.git ultrazend
             cd ultrazend
+            # Restaurar frontend build se havia backup
+            if [ -d "/tmp/frontend-backup" ]; then
+              rm -rf frontend
+              mv /tmp/frontend-backup frontend
+            fi
           else
             echo "📦 Atualizando código do repositório..."
+            # Backup do frontend build antes do reset
+            cp -r frontend /tmp/frontend-backup || echo "Frontend não existe ainda"
             git config --global --add safe.directory /var/www/ultrazend || true
             git fetch origin
             git reset --hard origin/main
             git clean -fd
+            # Restaurar frontend build
+            rm -rf frontend
+            mv /tmp/frontend-backup frontend || echo "Backup não disponível"
           fi
           
           # Ir para backend e configurar
