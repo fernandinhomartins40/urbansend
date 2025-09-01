@@ -476,4 +476,75 @@ router.get('/liveness', (req: Request, res: Response) => {
  */
 router.get('/metrics', performanceReportMiddleware);
 
+/**
+ * @swagger
+ * /api/version:
+ *   get:
+ *     summary: Application version information
+ *     description: Returns comprehensive version and build information
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Version information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 version:
+ *                   type: string
+ *                   example: "1.0.0"
+ *                 buildNumber:
+ *                   type: string
+ *                   example: "123"
+ *                 commitSha:
+ *                   type: string
+ *                   example: "abc123"
+ *                 buildDate:
+ *                   type: string
+ *                   format: date-time
+ *                 environment:
+ *                   type: string
+ *                   example: "production"
+ *                 nodeVersion:
+ *                   type: string
+ *                   example: "18.17.0"
+ */
+router.get('/version', (req: Request, res: Response) => {
+  try {
+    const versionInfo = {
+      application: 'UltraZend SMTP Server',
+      version: Env.get('APP_VERSION', '1.0.0'),
+      buildNumber: Env.get('BUILD_NUMBER', 'unknown'),
+      commitSha: Env.get('COMMIT_SHA', 'unknown'),
+      buildDate: Env.get('BUILD_DATE', new Date().toISOString()),
+      environment: Env.get('NODE_ENV', 'development'),
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+      cacheBust: Env.get('CACHE_BUST', Date.now().toString())
+    };
+
+    logger.info('Version info requested', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      version: versionInfo.version,
+      build: versionInfo.buildNumber
+    });
+
+    res.json(versionInfo);
+  } catch (error) {
+    logger.error('Failed to get version info', {
+      error: (error as Error).message
+    });
+
+    res.status(500).json({
+      error: 'Failed to retrieve version information',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 export default router;

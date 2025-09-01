@@ -235,6 +235,7 @@ app.get('/api/performance', async (req, res) => {
 
 // API Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/version', healthRoutes); // Version endpoint shares health routes for consistency
 app.use('/api/auth', authRoutes);
 app.use('/api/keys', keysRoutes);
 app.use('/api/emails', emailsRoutes);

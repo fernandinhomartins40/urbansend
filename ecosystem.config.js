@@ -8,6 +8,10 @@ module.exports = {
     watch: false,
     max_memory_restart: '1G',
     
+    // Force restart on deploy to ensure cache clearing
+    restart_delay: 1000,
+    kill_timeout: 5000,
+    
     // Environment variables
     env: {
       NODE_ENV: 'production',
@@ -35,7 +39,24 @@ module.exports = {
       ENABLE_CORRELATION_IDS: true,
       HEALTH_CHECK_TIMEOUT: 5000,
       HSTS_MAX_AGE: 31536000,
-      CSP_REPORT_ONLY: false
+      CSP_REPORT_ONLY: false,
+      // Version info - updated automatically by CI/CD
+      APP_VERSION: '1.0.0',
+      BUILD_NUMBER: '1',
+      COMMIT_SHA: 'unknown',
+      BUILD_DATE: new Date().toISOString(),
+      // Cache busting
+      CACHE_BUST: Date.now().toString()
+    },
+    
+    // Staging environment
+    env_staging: {
+      NODE_ENV: 'staging',
+      PORT: 3001,
+      HTTPS_PORT: 443,
+      ENABLE_SWAGGER: true,
+      LOG_LEVEL: 'debug',
+      CACHE_BUST: Date.now().toString()
     },
     env_production: {
       NODE_ENV: 'production',
