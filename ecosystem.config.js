@@ -8,14 +8,12 @@ module.exports = {
     watch: false,
     max_memory_restart: '1G',
     
-    // Force restart on deploy to ensure cache clearing
-    restart_delay: 2000,
-    kill_timeout: 8000,
-    listen_timeout: 8000,
-    
-    // Error handling
-    max_restarts: 5,
-    min_uptime: '10s',
+    // Unified restart configuration
+    restart_delay: 3000,
+    kill_timeout: 10000,
+    listen_timeout: 10000,
+    max_restarts: 3,
+    min_uptime: '30s',
     
     // Environment variables
     env: {
@@ -85,13 +83,8 @@ module.exports = {
     // Process management (consistent with restart settings above)
     // kill_timeout and listen_timeout already defined above
     
-    // Auto restart on crashes
-    max_restarts: 3,
-    restart_delay: 4000,
-    
-    // Monitoring
-    min_uptime: '10s',
-    max_unstable_restarts: 5
+    // Monitoring and stability
+    max_unstable_restarts: 3
   }],
 
   // PM2 Deploy configuration
@@ -103,7 +96,7 @@ module.exports = {
       repo: 'https://github.com/fernandinhomartins40/ultrazend.git',
       path: '/var/www/ultrazend',
       'pre-deploy-local': '',
-      'post-deploy': 'cd backend && npm install --production && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy': 'cd backend && npm ci --only=production && npm run build && pm2 reload ecosystem.config.js --env production && sleep 10 && curl -f http://localhost:3001/health || exit 1',
       'pre-setup': 'mkdir -p /var/www/ultrazend/logs /var/www/ultrazend/data'
     }
   }

@@ -11,10 +11,18 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env.NODE_ENV === 'production' 
+          ? 'http://localhost:3001'
+          : 'http://localhost:3001',
         changeOrigin: true,
+        secure: false,
+        timeout: 30000,
+        headers: {
+          'Connection': 'keep-alive'
+        }
       },
     },
   },
