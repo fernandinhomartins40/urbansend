@@ -30,10 +30,14 @@ COPY package*.json ./
 # Set Python path for native module compilation
 ENV PYTHON=python3
 
-# Install dependencies with verbose logging for debugging
-RUN npm ci --omit=dev --verbose && npm cache clean --force
+# Install all dependencies for build (including dev deps for migrations)
+RUN npm ci --verbose
 
 COPY . .
+
+# Run migrations to create database
+RUN npm run migrate:latest
+
 RUN npm run build
 
 # Production stage - clean Alpine image without build dependencies
@@ -58,8 +62,8 @@ COPY --from=build /app/package*.json ./
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/migrations ./src/migrations
 
-# Copy database if it exists
-COPY --from=build /app/database.sqlite ./database.sqlite* 
+# Copy database
+COPY --from=build /app/database.sqlite ./database.sqlite
 
 # Create necessary directories
 RUN mkdir -p /app/data /app/logs /app/certificates && \
