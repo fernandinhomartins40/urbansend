@@ -17,45 +17,45 @@ const createRateLimit = (windowMs: number, max: number, message: string) => {
   });
 };
 
-// Login rate limiting - 15 attempts per 15 minutes
+// Login rate limiting - 50 attempts per 15 minutes (flexibilizado para testes)
 export const loginRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
-  15, // max attempts
+  50, // max attempts (aumentado de 15 para 50)
   'Muitas tentativas de login. Tente novamente em 15 minutos.'
 );
 
-// Registration rate limiting - 10 attempts per hour (mais flexível para debugging)
+// Registration rate limiting - 25 attempts per hour (flexibilizado para testes)
 export const registrationRateLimit = createRateLimit(
   60 * 60 * 1000, // 1 hour
-  10, // max attempts (aumentado de 5 para 10)
+  25, // max attempts (aumentado de 10 para 25)
   'Muitas tentativas de registro. Tente novamente em 1 hora.'
 );
 
-// Password reset rate limiting - 3 attempts per hour
+// Password reset rate limiting - 15 attempts per hour (flexibilizado para testes)
 export const passwordResetRateLimit = createRateLimit(
   60 * 60 * 1000, // 1 hour
-  3, // max attempts
+  15, // max attempts (aumentado de 3 para 15)
   'Muitas tentativas de reset de senha. Tente novamente em 1 hora.'
 );
 
-// General API rate limiting - 100 requests per 15 minutes
+// General API rate limiting - 500 requests per 15 minutes (flexibilizado para testes)
 export const apiRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
-  100, // max requests
+  500, // max requests (aumentado de 100 para 500)
   'Muitas requisições à API. Tente novamente em 15 minutos.'
 );
 
-// Email sending rate limiting - 10 emails per 10 minutes
+// Email sending rate limiting - 100 emails per 10 minutes (flexibilizado para testes)
 export const emailSendRateLimit = createRateLimit(
   10 * 60 * 1000, // 10 minutes
-  10, // max emails
+  100, // max emails (aumentado de 10 para 100)
   'Muitos emails enviados. Tente novamente em 10 minutos.'
 );
 
-// Verification resend rate limiting - 3 attempts per 10 minutes
+// Verification resend rate limiting - 20 attempts per 10 minutes (flexibilizado para testes)
 export const verificationResendRateLimit = createRateLimit(
   10 * 60 * 1000, // 10 minutes
-  3, // max attempts
+  20, // max attempts (aumentado de 3 para 20)
   'Muitas tentativas de reenvio. Tente novamente em 10 minutos.'
 );
 

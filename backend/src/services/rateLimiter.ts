@@ -29,11 +29,11 @@ export class RateLimiter {
   private authAttempts: Map<string, { count: number; lastAttempt: Date }> = new Map();
   private userLimits: Map<string, { count: number; resetTime: Date }> = new Map();
   
-  // Configurações padrão
+  // Configurações padrão (flexibilizadas para testes em VPS)
   private defaultConfig: ConnectionLimitConfig = {
-    maxConnections: 100,
+    maxConnections: 1000, // aumentado de 100 para 1000
     windowMs: 3600000, // 1 hora
-    maxAuthAttempts: 10,
+    maxAuthAttempts: 50, // aumentado de 10 para 50
     authWindowMs: 900000 // 15 minutos
   };
 
@@ -74,8 +74,8 @@ export class RateLimiter {
           table.string('type', 50).notNullable(); // 'ip', 'user'
           table.integer('max_connections').defaultTo(100);
           table.integer('max_auth_attempts').defaultTo(10);
-          table.integer('max_emails_per_hour').defaultTo(1000);
-          table.integer('max_emails_per_day').defaultTo(10000);
+          table.integer('max_emails_per_hour').defaultTo(5000);
+          table.integer('max_emails_per_day').defaultTo(50000);
           table.boolean('is_active').defaultTo(true);
           table.text('notes');
           table.timestamps(true, true);
@@ -196,8 +196,8 @@ export class RateLimiter {
 
       // Buscar configuração personalizada para este usuário
       const customConfig = await this.getCustomConfig(userId.toString(), 'user');
-      const maxEmailsPerHour = customConfig?.max_emails_per_hour || 1000;
-      const maxEmailsPerDay = customConfig?.max_emails_per_day || 10000;
+      const maxEmailsPerHour = customConfig?.max_emails_per_hour || 5000; // aumentado de 1000 para 5000
+      const maxEmailsPerDay = customConfig?.max_emails_per_day || 50000; // aumentado de 10000 para 50000
 
       // Verificar limite por hora
       const hourCount = await this.getCurrentCount(userKey, 'email', hourStart);

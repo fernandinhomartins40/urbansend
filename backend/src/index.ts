@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+// Rate limiting removido do nível global - aplicado apenas em endpoints específicos
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
@@ -163,24 +163,8 @@ app.use('/api', cors({
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: Env.getNumber('RATE_LIMIT_WINDOW_MS', 900000),
-  max: Env.getNumber('RATE_LIMIT_MAX_REQUESTS', 500),
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => {
-    if (Env.isDevelopment) {
-      return true;
-    }
-    return false;
-  },
-});
-
-app.use(limiter);
+// Rate limiting removido do nível global
+// Agora aplicado apenas em endpoints específicos que precisam de proteção
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));

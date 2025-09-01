@@ -232,8 +232,8 @@ class EnvironmentManager {
       legacyHeaders: false,
       trustProxy: true,
       skipSuccessfulRequests: config.RATE_LIMIT_SKIP_SUCCESSFUL_REQUESTS,
-      // Skip rate limiting in development for easier testing
-      skip: this.isDevelopment ? () => true : undefined
+      // Skip rate limiting in development and staging for easier testing
+      skip: (this.isDevelopment || this.isStaging) ? () => true : undefined
     };
   }
   
