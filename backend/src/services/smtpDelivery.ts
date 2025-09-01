@@ -4,6 +4,7 @@ import dns from 'dns';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import db from '../config/database';
+import { DKIMManager } from './dkimManager';
 
 interface MXRecord {
   exchange: string;
@@ -21,9 +22,11 @@ interface EmailData {
 
 export class SMTPDeliveryService {
   private connectionPool: Map<string, Transporter> = new Map();
+  private dkimManager: DKIMManager;
 
   constructor() {
-    logger.info('SMTPDeliveryService initialized');
+    this.dkimManager = new DKIMManager();
+    logger.info('SMTPDeliveryService initialized with DKIM support');
   }
 
   async deliverEmail(emailData: EmailData): Promise<boolean> {
@@ -34,11 +37,18 @@ export class SMTPDeliveryService {
     });
 
     try {
+      // Aplicar assinatura DKIM antes da entrega
+      const signedEmailData = await this.dkimManager.signEmail(emailData);
+      logger.info('Email signed with DKIM', {
+        hasDKIMSignature: !!signedEmailData.dkimSignature,
+        from: emailData.from
+      });
+
       const domain = emailData.to.split('@')[1];
       
       // Para desenvolvimento, usar transporter local
       if (Env.isDevelopment) {
-        return this.deliverViaLocalTransporter(emailData);
+        return this.deliverViaLocalTransporter(signedEmailData);
       }
 
       // Para produção, obter MX records e entregar diretamente
@@ -50,7 +60,7 @@ export class SMTPDeliveryService {
       // Tentar entrega em ordem de prioridade
       for (const mx of mxRecords) {
         try {
-          const success = await this.attemptDeliveryViaMX(emailData, mx.exchange);
+          const success = await this.attemptDeliveryViaMX(signedEmailData, mx.exchange);
           if (success) {
             logger.info('Email delivered successfully', {
               to: emailData.to,
@@ -79,7 +89,7 @@ export class SMTPDeliveryService {
     }
   }
 
-  private async deliverViaLocalTransporter(emailData: EmailData): Promise<boolean> {
+  private async deliverViaLocalTransporter(emailData: any): Promise<boolean> {
     try {
       const transporter = createTransport({
         host: Env.get('SMTP_HOST', 'localhost'),
@@ -88,8 +98,24 @@ export class SMTPDeliveryService {
         ignoreTLS: true
       });
 
-      await transporter.sendMail(emailData);
-      logger.info('Email delivered via local transporter', { to: emailData.to });
+      // Preparar dados do email com headers DKIM se disponível
+      const mailOptions = {
+        from: emailData.from,
+        to: emailData.to,
+        subject: emailData.subject,
+        html: emailData.html,
+        text: emailData.text,
+        headers: {
+          ...emailData.headers,
+          ...(emailData.dkimSignature && { 'DKIM-Signature': emailData.dkimSignature })
+        }
+      };
+
+      await transporter.sendMail(mailOptions);
+      logger.info('Email delivered via local transporter with DKIM', { 
+        to: emailData.to,
+        hasDKIMSignature: !!emailData.dkimSignature
+      });
       return true;
     } catch (error) {
       logger.error('Local delivery failed', { 
@@ -120,15 +146,29 @@ export class SMTPDeliveryService {
     });
   }
 
-  private async attemptDeliveryViaMX(emailData: EmailData, mxServer: string): Promise<boolean> {
+  private async attemptDeliveryViaMX(emailData: any, mxServer: string): Promise<boolean> {
     const transporter = await this.getTransporter(mxServer);
     
     try {
-      const result = await transporter.sendMail(emailData);
-      logger.info('Email delivered via MX', {
+      // Preparar dados do email com headers DKIM se disponível
+      const mailOptions = {
+        from: emailData.from,
+        to: emailData.to,
+        subject: emailData.subject,
+        html: emailData.html,
+        text: emailData.text,
+        headers: {
+          ...emailData.headers,
+          ...(emailData.dkimSignature && { 'DKIM-Signature': emailData.dkimSignature })
+        }
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      logger.info('Email delivered via MX with DKIM', {
         to: emailData.to,
         mxServer,
-        messageId: result.messageId
+        messageId: result.messageId,
+        hasDKIMSignature: !!emailData.dkimSignature
       });
       return true;
     } catch (error) {
