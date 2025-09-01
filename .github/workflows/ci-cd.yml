@@ -321,12 +321,10 @@ jobs:
             
             # Clean install
             rm -rf node_modules package-lock.json || true
-            echo "📦 Installing production dependencies..."
-            npm ci --only=production --verbose
+            echo "📦 Installing all dependencies for build..."
+            npm ci --verbose
             
-            # Install dev dependencies needed for build
-            echo "📦 Installing dev dependencies for build..."
-            npm install --save-dev typescript @types/node ts-node
+            # Build will be done with all dependencies available
             
             # Verify build exists or create it
             if [ ! -f "dist/index.js" ]; then

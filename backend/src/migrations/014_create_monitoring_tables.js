@@ -8,7 +8,7 @@ exports.up = function(knex) {
     table.string('method', 10).notNullable();
     table.string('route', 255).notNullable();
     table.integer('status_code').notNullable();
-    table.decimal('response_time_ms', 10, 2).notNullable();
+    table.decimal('response_time_ms', 10, 2).notNullable().defaultTo(0);
     table.decimal('memory_usage_mb', 10, 2);
     table.decimal('cpu_usage_percent', 5, 2);
     table.timestamp('timestamp').defaultTo(knex.fn.now());

@@ -55,8 +55,8 @@ module.exports = {
       directory: path.join(__dirname, 'src/migrations')
     },
     pool: {
-      min: 10,
-      max: 50,
+      min: 1,
+      max: 1, // SQLite is single-connection - multiple connections cause locks
       acquireTimeoutMillis: 30000,
       createTimeoutMillis: 30000,
       destroyTimeoutMillis: 5000,

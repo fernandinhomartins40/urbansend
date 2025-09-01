@@ -82,9 +82,8 @@ module.exports = {
     max_log_size: '10M',
     retain_log: 5, // Keep 5 rotated log files
     
-    // Process management
-    kill_timeout: 3000,
-    listen_timeout: 3000,
+    // Process management (consistent with restart settings above)
+    // kill_timeout and listen_timeout already defined above
     
     // Auto restart on crashes
     max_restarts: 3,
