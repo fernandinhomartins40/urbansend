@@ -99,7 +99,16 @@ export function Domains() {
   })
 
   const addMutation = useMutation({
-    mutationFn: (data: AddDomainForm) => domainApi.addDomain(data),
+    mutationFn: (data: AddDomainForm) => {
+      // Ensure required fields are present
+      if (!data.domain_name || !data.region) {
+        throw new Error('Nome do domínio e região são obrigatórios')
+      }
+      return domainApi.addDomain({
+        domain_name: data.domain_name,
+        region: data.region
+      })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['domains'] })
       setIsAdding(false)

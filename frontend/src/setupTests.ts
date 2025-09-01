@@ -1,13 +1,28 @@
 import '@testing-library/jest-dom'
-import { expect, afterEach, beforeAll, afterAll } from 'vitest'
+import { expect, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import { server } from './mocks/server'
+
+// Check if server exists before importing
+let server: any
+try {
+  const serverModule = await import('./mocks/server')
+  server = serverModule.server
+} catch (error) {
+  console.warn('MSW server not found, skipping server setup')
+}
 
 // Mock global objects
-global.ResizeObserver = require('resize-observer-polyfill')
+if (typeof globalThis !== 'undefined') {
+  ;(globalThis as any).ResizeObserver = class ResizeObserver {
+    constructor() {}
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+  }
+}
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+;(globalThis as any).IntersectionObserver = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
@@ -17,31 +32,30 @@ global.IntersectionObserver = class IntersectionObserver {
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 })
 
 // Mock scrollIntoView
-Element.prototype.scrollIntoView = jest.fn()
+Element.prototype.scrollIntoView = vi.fn()
 
-// Clean up after each test
-afterEach(() => {
-  cleanup()
-})
 
 // Start server before all tests
-beforeAll(() => server.listen())
+beforeAll(() => server?.listen())
 
 // Close server after all tests
-afterAll(() => server.close())
+afterAll(() => server?.close())
 
 // Reset handlers after each test
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  cleanup()
+  server?.resetHandlers()
+})

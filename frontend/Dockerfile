@@ -14,7 +14,7 @@ CMD ["npm", "run", "dev", "--", "--host"]
 FROM base AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 COPY . .
 RUN npm run build
 

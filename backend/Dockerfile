@@ -1,12 +1,17 @@
 # Multi-stage Dockerfile for UltraZend Backend
 FROM node:18-alpine AS base
 
-# Install necessary packages for production
+# Install necessary packages for production including build dependencies for sqlite3
 RUN apk add --no-cache \
     sqlite \
     curl \
     bash \
-    openssl
+    openssl \
+    python3 \
+    make \
+    g++ \
+    sqlite-dev \
+    libc6-compat
 
 # Development stage
 FROM base AS development
@@ -21,26 +26,40 @@ CMD ["npm", "run", "dev"]
 FROM base AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+
+# Set npm to use Python 3
+RUN npm config set python python3
+
+# Install dependencies with verbose logging for debugging
+RUN npm ci --omit=dev --verbose && npm cache clean --force
+
 COPY . .
 RUN npm run build
 
-# Production stage
-FROM base AS production
+# Production stage - clean Alpine image without build dependencies
+FROM node:18-alpine AS production
 WORKDIR /app
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    sqlite \
+    curl \
+    bash \
+    openssl \
+    libc6-compat
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S ultrazend -u 1001 -G nodejs
 
-# Copy production dependencies
+# Copy production dependencies and built application from build stage
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package*.json ./
-
-# Copy application files
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/migrations ./src/migrations
-COPY --from=build /app/database.sqlite ./database.sqlite
+
+# Copy database if it exists
+COPY --from=build /app/database.sqlite ./database.sqlite* 
 
 # Create necessary directories
 RUN mkdir -p /app/data /app/logs /app/certificates && \

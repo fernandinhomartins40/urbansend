@@ -102,24 +102,31 @@ export const useSmartPolling = ({
         return true
       }
       return false
-    },
-    onError: (error: Error) => {
-      onError?.(error)
+    }
+  })
+
+  // Handle success and error using useEffect
+  useEffect(() => {
+    if (query.isError && query.error) {
+      onError?.(query.error)
       // Increase interval on error
       const newInterval = Math.min(
         currentInterval * backoffMultiplier,
         maxInterval
       )
       setCurrentInterval(newInterval)
-    },
-    onSuccess: () => {
+    }
+  }, [query.isError, query.error, onError, currentInterval, backoffMultiplier, maxInterval])
+
+  useEffect(() => {
+    if (query.isSuccess) {
       // Reset error count and interval on success
       errorCountRef.current = 0
       if (currentInterval > baseInterval && isTabActive) {
         setCurrentInterval(baseInterval)
       }
     }
-  })
+  }, [query.isSuccess, currentInterval, baseInterval, isTabActive])
 
   // Expose polling control
   const pausePolling = () => {

@@ -93,13 +93,17 @@ export function Login() {
     const loadingToast = toast.loading('🔑 Fazendo login...')
     
     try {
-      const response = await authApi.login(data)
+      // Ensure required fields are present
+      if (!data.email || !data.password) {
+        throw new Error('Email e senha são obrigatórios')
+      }
+      const response = await authApi.login({ email: data.email, password: data.password })
       const { user, tokens } = response.data
       
       // Dismiss loading toast
       toast.dismiss(loadingToast)
       
-      login(user, tokens.access_token)
+      login(user)
       toast.auth.loginSuccess(user.name)
       navigate('/app')
     } catch (error: any) {
@@ -127,9 +131,12 @@ export function Login() {
     const loadingToast = toast.loading('👤 Criando sua conta...')
     
     try {
-      // Remove confirmPassword antes de enviar
+      // Remove confirmPassword antes de enviar and ensure required fields
       const { confirmPassword, ...registerData } = data
-      await authApi.register(registerData)
+      if (!registerData.name || !registerData.email || !registerData.password) {
+        throw new Error('Nome, email e senha são obrigatórios')
+      }
+      await authApi.register({ name: registerData.name, email: registerData.email, password: registerData.password })
       
       // Dismiss loading toast
       toast.dismiss(loadingToast)
@@ -188,7 +195,7 @@ export function Login() {
     try {
       await authApi.resendVerificationEmail(resendEmail)
       toast.dismiss(loadingToast)
-      toast.auth.resendSuccess()
+      toast.success('📧 Email de verificação reenviado com sucesso!')
       
       // Informação adicional
       setTimeout(() => {
@@ -200,7 +207,7 @@ export function Login() {
     } catch (error: any) {
       toast.dismiss(loadingToast)
       const errorMessage = error.response?.data?.message || ''
-      toast.auth.resendError(errorMessage)
+      toast.error('❌ Erro ao reenviar email: ' + errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -224,7 +231,7 @@ export function Login() {
     try {
       await authApi.resendVerificationEmail(resendFormEmail)
       toast.dismiss(loadingToast)
-      toast.auth.resendSuccess()
+      toast.success('📧 Email de verificação reenviado com sucesso!')
       
       // Limpar e fechar formulário
       setResendFormEmail('')
@@ -240,7 +247,7 @@ export function Login() {
     } catch (error: any) {
       toast.dismiss(loadingToast)
       const errorMessage = error.response?.data?.message || ''
-      toast.auth.resendError(errorMessage)
+      toast.error('❌ Erro ao reenviar email: ' + errorMessage)
     } finally {
       setIsLoading(false)
     }

@@ -35,7 +35,7 @@ export function Dashboard() {
     currentInterval
   } = useSmartPolling({
     queryKey: ['dashboard-stats'],
-    queryFn: async () => {
+    queryFn: async (): Promise<DashboardStats> => {
       const overviewResponse = await analyticsApi.getOverview()
       return overviewResponse.data.stats as DashboardStats
     },
@@ -52,7 +52,7 @@ export function Dashboard() {
     isLoading: activityLoading
   } = useSmartPolling({
     queryKey: ['recent-activity'],
-    queryFn: async () => {
+    queryFn: async (): Promise<RecentActivity[]> => {
       try {
         const recentResponse = await api.get('/analytics/recent-activity')
         return recentResponse.data.activities || []
@@ -67,7 +67,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (activityData) {
-      setRecentActivity(activityData)
+      setRecentActivity(activityData as RecentActivity[])
     }
   }, [activityData])
 
@@ -106,9 +106,9 @@ export function Dashboard() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalEmails?.toLocaleString() || '0'}</div>
+            <div className="text-2xl font-bold">{(stats as DashboardStats)?.totalEmails?.toLocaleString() || '0'}</div>
             <p className="text-xs text-muted-foreground">
-              {stats ? formatChangePercentage(stats.emailsChange) : '+0% em relação ao mês passado'}
+              {stats ? formatChangePercentage((stats as DashboardStats).emailsChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -119,9 +119,9 @@ export function Dashboard() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.deliveryRate?.toFixed(1) || '0'}%</div>
+            <div className="text-2xl font-bold">{(stats as DashboardStats)?.deliveryRate?.toFixed(1) || '0'}%</div>
             <p className="text-xs text-muted-foreground">
-              {stats ? formatChangePercentage(stats.deliveryChange) : '+0% em relação ao mês passado'}
+              {stats ? formatChangePercentage((stats as DashboardStats).deliveryChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -132,9 +132,9 @@ export function Dashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.openRate?.toFixed(1) || '0'}%</div>
+            <div className="text-2xl font-bold">{(stats as DashboardStats)?.openRate?.toFixed(1) || '0'}%</div>
             <p className="text-xs text-muted-foreground">
-              {stats ? formatChangePercentage(stats.openChange) : '+0% em relação ao mês passado'}
+              {stats ? formatChangePercentage((stats as DashboardStats).openChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>
@@ -145,9 +145,9 @@ export function Dashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.bounceRate?.toFixed(1) || '0'}%</div>
+            <div className="text-2xl font-bold">{(stats as DashboardStats)?.bounceRate?.toFixed(1) || '0'}%</div>
             <p className="text-xs text-muted-foreground">
-              {stats ? formatChangePercentage(-stats.bounceChange) : '+0% em relação ao mês passado'}
+              {stats ? formatChangePercentage(-(stats as DashboardStats).bounceChange) : '+0% em relação ao mês passado'}
             </p>
           </CardContent>
         </Card>

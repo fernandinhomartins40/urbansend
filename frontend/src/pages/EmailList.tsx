@@ -41,7 +41,7 @@ export function EmailList() {
     pausePolling,
     resumePolling
   } = useSmartPolling({
-    queryKey: ['emails', { search, statusFilter, page, limit }],
+    queryKey: ['emails', search, statusFilter, page.toString(), limit.toString()],
     queryFn: () => emailApi.getEmails({
       search,
       status: statusFilter === 'all' ? undefined : statusFilter,
@@ -58,8 +58,8 @@ export function EmailList() {
     }
   })
 
-  const emails = data?.data?.emails || []
-  const pagination = data?.data?.pagination || { page: 1, pages: 1, total: 0 }
+  const emails = (data as any)?.data?.emails || []
+  const pagination = (data as any)?.data?.pagination || { page: 1, pages: 1, total: 0 }
 
   const handleRefresh = () => {
     toast.promise(

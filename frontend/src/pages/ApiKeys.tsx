@@ -63,7 +63,16 @@ export function ApiKeys() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateApiKeyForm) => apiKeyApi.createApiKey(data),
+    mutationFn: (data: CreateApiKeyForm) => {
+      // Ensure required fields are present
+      if (!data.key_name || !data.permissions || data.permissions.length === 0) {
+        throw new Error('Nome e permissões são obrigatórios')
+      }
+      return apiKeyApi.createApiKey({
+        key_name: data.key_name,
+        permissions: data.permissions
+      })
+    },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
       setNewlyCreatedKey(response.data.key)
