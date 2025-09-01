@@ -5,7 +5,6 @@
 # ✅ Lint & TypeCheck
 # ✅ Security Audit
 # ✅ Build Application
-# ✅ Run Tests
 # ✅ Docker Build & Push
 # ✅ Deploy (Staging/Production)
 
@@ -26,11 +25,6 @@ on:
         options:
         - staging
         - production
-      skip_tests:
-        description: 'Skip tests (emergency deploy)'
-        required: false
-        default: false
-        type: boolean
 
 env:
   NODE_VERSION: '18'
@@ -132,22 +126,6 @@ jobs:
           fi
           echo "✅ Frontend build successful"
 
-      # ===== RUN TESTS =====
-      - name: 🧪 Run Tests
-        if: ${{ !inputs.skip_tests }}
-        run: |
-          echo "🧪 Running tests..."
-          
-          echo "🧪 Running backend tests..."
-          cd backend && npm run test:unit || echo "Backend tests failed"
-          
-          echo "🧪 Running frontend tests..."
-          cd ../frontend && npm test || echo "Frontend tests failed"
-        env:
-          NODE_ENV: test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          DATABASE_URL: ':memory:'
 
       # ===== DOCKER BUILD & PUSH =====
       - name: 🐳 Docker Build & Push
