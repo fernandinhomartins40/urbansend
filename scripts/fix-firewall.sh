@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# UrbanSend Firewall & Port Configuration Script
+# UltraZend Firewall & Port Configuration Script
 set -e
 
 VPS_IP="72.60.10.112"
@@ -10,7 +10,7 @@ FRONTEND_PORT="3011"
 REDIS_PORT="6380"
 REDIS_UI_PORT="8082"
 
-echo "🔥 Configuring firewall and ports for UrbanSend..."
+echo "🔥 Configuring firewall and ports for UltraZend..."
 
 sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_IP} "
 echo '🔍 Checking current firewall status...'
@@ -20,11 +20,11 @@ if command -v ufw &> /dev/null; then
     echo 'UFW Status:'
     ufw status
     
-    # Allow UrbanSend ports
-    echo '🔓 Opening UrbanSend ports in UFW...'
-    ufw allow ${BACKEND_PORT}/tcp comment 'UrbanSend Backend'
-    ufw allow ${FRONTEND_PORT}/tcp comment 'UrbanSend Frontend'  
-    ufw allow ${REDIS_UI_PORT}/tcp comment 'UrbanSend Redis UI'
+    # Allow UltraZend ports
+    echo '🔓 Opening UltraZend ports in UFW...'
+    ufw allow ${BACKEND_PORT}/tcp comment 'UltraZend Backend'
+    ufw allow ${FRONTEND_PORT}/tcp comment 'UltraZend Frontend'  
+    ufw allow ${REDIS_UI_PORT}/tcp comment 'UltraZend Redis UI'
     ufw allow 22/tcp comment 'SSH'
     ufw allow 80/tcp comment 'HTTP'
     ufw allow 443/tcp comment 'HTTPS'
@@ -40,8 +40,8 @@ fi
 echo '🔍 Checking iptables rules...'
 iptables -L -n | head -20
 
-# Add iptables rules for UrbanSend ports
-echo '🔓 Adding iptables rules for UrbanSend...'
+# Add iptables rules for UltraZend ports
+echo '🔓 Adding iptables rules for UltraZend...'
 iptables -I INPUT -p tcp --dport ${BACKEND_PORT} -j ACCEPT || true
 iptables -I INPUT -p tcp --dport ${FRONTEND_PORT} -j ACCEPT || true
 iptables -I INPUT -p tcp --dport ${REDIS_UI_PORT} -j ACCEPT || true
@@ -62,7 +62,7 @@ echo '🔍 Port status check...'
 netstat -tlnp | grep -E ':(${BACKEND_PORT}|${FRONTEND_PORT}|${REDIS_UI_PORT})' || echo 'Ports not yet bound - checking Docker...'
 
 echo '🐳 Docker containers status...'
-docker ps --filter 'name=urbansend_' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || echo 'No UrbanSend containers running'
+docker ps --filter 'name=ultrazend_' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || echo 'No UltraZend containers running'
 
 echo '🔍 Checking if applications are responding locally...'
 curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT}/health || echo 'Backend not responding locally'
@@ -81,16 +81,16 @@ echo 'Routing table:'
 ip route show
 
 echo '🔧 Restarting Docker to ensure port binding...'
-cd /var/www/urbansend || exit 1
-docker-compose -p urbansend down || true
+cd /var/www/ultrazend || exit 1
+docker-compose -p ultrazend down || true
 sleep 5
-docker-compose -p urbansend up -d || true
+docker-compose -p ultrazend up -d || true
 
 echo '⏳ Waiting for services to start...'
 sleep 30
 
 echo '🔍 Final status check...'
-docker-compose -p urbansend ps
+docker-compose -p ultrazend ps
 netstat -tlnp | grep -E ':(${BACKEND_PORT}|${FRONTEND_PORT}|${REDIS_UI_PORT})'
 
 echo '✅ Firewall and ports configured!'

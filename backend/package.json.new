@@ -1,5 +1,5 @@
 {
-  "name": "urbansend-backend",
+  "name": "ultrazend-backend",
   "version": "1.0.0",
   "description": "Clone profissional do Resend.com - Backend",
   "main": "dist/index.js",

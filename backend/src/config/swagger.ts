@@ -12,7 +12,7 @@ const options = {
       description: 'API completa para plataforma de email transacional - Clone do Resend.com',
       contact: {
         name: 'UltraZend Team',
-        email: 'support@urbansend.com'
+        email: 'support@ultrazend.com'
       }
     },
     servers: [

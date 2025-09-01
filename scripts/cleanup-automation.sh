@@ -13,15 +13,15 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_NAME="urbansend"
-APP_DIR="/var/www/urbansend"
-LOG_DIR="/var/www/urbansend/logs"
-DATA_DIR="/var/www/urbansend/data"
-BACKUP_DIR="/var/www/urbansend/backups"
+APP_NAME="ultrazend"
+APP_DIR="/var/www/ultrazend"
+LOG_DIR="/var/www/ultrazend/logs"
+DATA_DIR="/var/www/ultrazend/data"
+BACKUP_DIR="/var/www/ultrazend/backups"
 MAX_LOG_SIZE="50M"
 LOG_RETENTION_DAYS=7
 DB_BACKUP_RETENTION_DAYS=14
-CLEANUP_LOG="/var/www/urbansend/logs/cleanup.log"
+CLEANUP_LOG="/var/www/ultrazend/logs/cleanup.log"
 
 echo_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -100,7 +100,7 @@ cleanup_temp_files() {
     echo_info "Cleaning up temporary files..."
     
     # Remove temp files older than 1 day
-    find /tmp -name "*urbansend*" -type f -mtime +1 -delete 2>/dev/null || true
+    find /tmp -name "*ultrazend*" -type f -mtime +1 -delete 2>/dev/null || true
     find /tmp -name "pm2*" -type f -mtime +1 -delete 2>/dev/null || true
     
     # Clean up upload temp files if any

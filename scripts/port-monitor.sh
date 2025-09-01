@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # Configuration
 CRITICAL_PORTS=(25 80 443 3001)
 EXPECTED_PROCESSES=("smtpServer" "node" "node" "node")
-LOG_FILE="/var/www/urbansend/logs/port-monitor.log"
+LOG_FILE="/var/www/ultrazend/logs/port-monitor.log"
 
 echo_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -60,13 +60,13 @@ is_legitimate_process() {
     case $port in
         25)
             # SMTP server should be our application
-            if [[ $cmd == *"urbansend"* ]] || [[ $cmd == *"smtpServer"* ]]; then
+            if [[ $cmd == *"ultrazend"* ]] || [[ $cmd == *"smtpServer"* ]]; then
                 return 0
             fi
             ;;
         80|443|3001)
             # HTTP/HTTPS should be our Node.js application
-            if [[ $cmd == *"urbansend"* ]] || [[ $cmd == *"node"* ]] && [[ $cmd == *"/var/www/urbansend/"* ]]; then
+            if [[ $cmd == *"ultrazend"* ]] || [[ $cmd == *"node"* ]] && [[ $cmd == *"/var/www/ultrazend/"* ]]; then
                 return 0
             fi
             ;;
@@ -104,16 +104,16 @@ monitor_ports() {
     done
     
     # Check PM2 status
-    if pm2 describe urbansend > /dev/null 2>&1; then
-        local pm2_status=$(pm2 jlist | jq -r '.[] | select(.name=="urbansend") | .pm2_env.status' 2>/dev/null || echo "unknown")
+    if pm2 describe ultrazend > /dev/null 2>&1; then
+        local pm2_status=$(pm2 jlist | jq -r '.[] | select(.name=="ultrazend") | .pm2_env.status' 2>/dev/null || echo "unknown")
         if [ "$pm2_status" = "online" ]; then
-            echo_success "PM2 urbansend process: ONLINE"
+            echo_success "PM2 ultrazend process: ONLINE"
         else
-            echo_error "PM2 urbansend process: $pm2_status"
+            echo_error "PM2 ultrazend process: $pm2_status"
             alerts=$((alerts + 1))
         fi
     else
-        echo_error "PM2 urbansend process: NOT FOUND"
+        echo_error "PM2 ultrazend process: NOT FOUND"
         alerts=$((alerts + 1))
     fi
     
@@ -199,7 +199,7 @@ generate_report() {
 }
 
 # Ensure log directory exists
-mkdir -p /var/www/urbansend/logs
+mkdir -p /var/www/ultrazend/logs
 
 # Main script logic
 case "$1" in

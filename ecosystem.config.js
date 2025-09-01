@@ -75,7 +75,7 @@ module.exports = {
       user: 'root',
       host: '31.97.162.155',
       ref: 'origin/main',
-      repo: 'https://github.com/fernandinhomartins40/urbansend.git',
+      repo: 'https://github.com/fernandinhomartins40/ultrazend.git',
       path: '/var/www/ultrazend',
       'pre-deploy-local': '',
       'post-deploy': 'cd backend && npm install --production && npm run build && pm2 reload ecosystem.config.js --env production',

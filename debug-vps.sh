@@ -13,7 +13,7 @@ pm2 status
 
 echo ""
 echo "📋 2. Logs do PM2 (últimas 30 linhas):"
-pm2 logs urbansend --lines 30
+pm2 logs ultrazend --lines 30
 
 echo ""
 echo "📋 3. Verificando porta 3001:"
@@ -29,19 +29,19 @@ ps aux | grep node || echo "Nenhum processo Node.js rodando"
 
 echo ""
 echo "📋 6. Verificando arquivos de log:"
-ls -la /var/www/urbansend/logs/
+ls -la /var/www/ultrazend/logs/
 
 echo ""
 echo "📋 7. Verificando estrutura de diretórios:"
-ls -la /var/www/urbansend/
+ls -la /var/www/ultrazend/
 
 echo ""
 echo "📋 8. Verificando backend:"
-ls -la /var/www/urbansend/backend/
+ls -la /var/www/ultrazend/backend/
 
 echo ""
 echo "📋 9. Verificando .env:"
-ls -la /var/www/urbansend/backend/.env
+ls -la /var/www/ultrazend/backend/.env
 
 echo ""
 echo "📋 10. Testando conexão HTTP local:"

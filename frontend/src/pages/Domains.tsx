@@ -167,15 +167,15 @@ export function Domains() {
       {
         type: 'TXT',
         name: domain.domain_name,
-        value: `urbansend-verification=${Math.random().toString(36).substring(2, 15)}`,
+        value: `ultrazend-verification=${Math.random().toString(36).substring(2, 15)}`,
         ttl: 3600,
         description: 'Registro de verificação do domínio',
         status: domain.verification_status,
       },
       {
         type: 'CNAME',
-        name: `urbansend._domainkey.${domain.domain_name}`,
-        value: `urbansend._domainkey.${domain.region}.urbansend.com`,
+        name: `ultrazend._domainkey.${domain.domain_name}`,
+        value: `ultrazend._domainkey.${domain.region}.ultrazend.com`,
         ttl: 3600,
         description: 'Chave DKIM para autenticação de emails',
         status: domain.dkim_status,
@@ -183,7 +183,7 @@ export function Domains() {
       {
         type: 'TXT',
         name: domain.domain_name,
-        value: `v=spf1 include:${domain.region}.urbansend.com ~all`,
+        value: `v=spf1 include:${domain.region}.ultrazend.com ~all`,
         ttl: 3600,
         description: 'Registro SPF para autorização de envio',
         status: domain.spf_status,
@@ -191,7 +191,7 @@ export function Domains() {
       {
         type: 'TXT',
         name: `_dmarc.${domain.domain_name}`,
-        value: 'v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@urbansend.com',
+        value: 'v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@ultrazend.com',
         ttl: 3600,
         description: 'Política DMARC para proteção contra spoofing',
         status: domain.dmarc_status,

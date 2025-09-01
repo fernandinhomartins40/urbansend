@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # 🔐 Script para Configurar Secrets no GitHub
-# Repositório: https://github.com/fernandinhomartins40/urbansend/
+# Repositório: https://github.com/fernandinhomartins40/ultrazend/
 
-echo "🔐 Setup GitHub Secrets for UrbanSend Deploy"
+echo "🔐 Setup GitHub Secrets for UltraZend Deploy"
 echo "============================================="
 echo ""
 
@@ -20,7 +20,7 @@ log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
 # === INFORMAÇÕES ===
-REPO_URL="https://github.com/fernandinhomartins40/urbansend/"
+REPO_URL="https://github.com/fernandinhomartins40/ultrazend/"
 VPS_IP="72.60.10.112"
 DOMAIN="www.ultrazend.com.br"
 
@@ -71,10 +71,10 @@ log_success "Autenticado no GitHub"
 # === VERIFICAR REPOSITÓRIO ===
 log_info "Verificando acesso ao repositório..."
 
-if gh repo view fernandinhomartins40/urbansend &>/dev/null; then
+if gh repo view fernandinhomartins40/ultrazend &>/dev/null; then
     log_success "Acesso ao repositório confirmado"
 else
-    log_error "Sem acesso ao repositório fernandinhomartins40/urbansend"
+    log_error "Sem acesso ao repositório fernandinhomartins40/ultrazend"
     echo "Verifique se:"
     echo "1. O repositório existe"
     echo "2. Você tem permissões de admin/write"
@@ -134,7 +134,7 @@ fi
 log_info "Configurando secret no GitHub..."
 
 # Configurar VPS_PASSWORD
-if gh secret set VPS_PASSWORD --body "$VPS_PASSWORD" --repo fernandinhomartins40/urbansend; then
+if gh secret set VPS_PASSWORD --body "$VPS_PASSWORD" --repo fernandinhomartins40/ultrazend; then
     log_success "Secret VPS_PASSWORD configurado"
 else
     log_error "Falha ao configurar secret VPS_PASSWORD"
@@ -144,7 +144,7 @@ fi
 # === VERIFICAR SECRETS CONFIGURADOS ===
 log_info "Verificando secrets configurados..."
 
-SECRETS=$(gh secret list --repo fernandinhomartins40/urbansend)
+SECRETS=$(gh secret list --repo fernandinhomartins40/ultrazend)
 echo "$SECRETS"
 
 if echo "$SECRETS" | grep -q "VPS_PASSWORD"; then

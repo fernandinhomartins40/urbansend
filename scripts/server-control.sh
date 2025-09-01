@@ -13,9 +13,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_NAME="urbansend"
-APP_DIR="/var/www/urbansend"
-LOG_DIR="/var/www/urbansend/logs"
+APP_NAME="ultrazend"
+APP_DIR="/var/www/ultrazend"
+LOG_DIR="/var/www/ultrazend/logs"
 PID_FILE="/root/.pm2/pids/${APP_NAME}-0.pid"
 PORTS=(25 80 443 3001)
 
@@ -110,7 +110,7 @@ start_app() {
     
     # Ensure directories exist
     mkdir -p $LOG_DIR
-    mkdir -p /var/www/urbansend/data
+    mkdir -p /var/www/ultrazend/data
     
     # Start PM2 application
     cd $APP_DIR

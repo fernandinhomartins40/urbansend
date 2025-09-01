@@ -129,7 +129,7 @@ jobs:
             echo "📥 Clonando repositório (primeira vez)..."
             cd /var/www
             rm -rf ultrazend
-            git clone https://github.com/fernandinhomartins40/urbansend.git ultrazend
+            git clone https://github.com/fernandinhomartins40/ultrazend.git ultrazend
             cd ultrazend
           else
             echo "📦 Atualizando código do repositório..."

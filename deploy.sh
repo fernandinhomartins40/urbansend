@@ -9,7 +9,7 @@ set -e
 # Configuration variables
 VPS_HOST="${VPS_HOST:-31.97.162.155}"
 VPS_USER="${VPS_USER:-root}"
-DEPLOY_PATH="/var/www/urbansend"
+DEPLOY_PATH="/var/www/ultrazend"
 APP_DOMAIN="${APP_DOMAIN:-www.ultrazend.com.br}"
 
 # Color codes for output
@@ -64,22 +64,22 @@ log_success "Pre-deployment checks completed"
 log_info "Creating enterprise directory structure..."
 ssh $VPS_USER@$VPS_HOST << 'EOF'
 # Create main directories
-mkdir -p /var/www/urbansend/{backend,frontend,data,logs,backup,ssl}
+mkdir -p /var/www/ultrazend/{backend,frontend,data,logs,backup,ssl}
 
 # Create log subdirectories for structured logging
-mkdir -p /var/www/urbansend/logs/{app,error,security,access,performance}
+mkdir -p /var/www/ultrazend/logs/{app,error,security,access,performance}
 
 # Create data subdirectories
-mkdir -p /var/www/urbansend/data/{database,uploads,cache}
+mkdir -p /var/www/ultrazend/data/{database,uploads,cache}
 
 # Create backup subdirectories
-mkdir -p /var/www/urbansend/backup/{daily,weekly,monthly}
+mkdir -p /var/www/ultrazend/backup/{daily,weekly,monthly}
 
 # Set proper permissions
-chown -R www-data:www-data /var/www/urbansend
-chmod -R 755 /var/www/urbansend
-chmod -R 644 /var/www/urbansend/logs
-chmod 755 /var/www/urbansend/logs
+chown -R www-data:www-data /var/www/ultrazend
+chmod -R 755 /var/www/ultrazend
+chmod -R 644 /var/www/ultrazend/logs
+chmod 755 /var/www/ultrazend/logs
 EOF
 
 log_success "Directory structure created"
@@ -113,7 +113,7 @@ scp configs/.env.production $VPS_USER@$VPS_HOST:$DEPLOY_PATH/backend/.env
 
 # Upload nginx config if it exists
 if [ -f "configs/nginx-ssl.conf" ]; then
-    scp configs/nginx-ssl.conf $VPS_USER@$VPS_HOST:/tmp/urbansend-nginx.conf
+    scp configs/nginx-ssl.conf $VPS_USER@$VPS_HOST:/tmp/ultrazend-nginx.conf
     log_success "Nginx configuration uploaded"
 fi
 
@@ -147,10 +147,10 @@ if ! npm list winston-daily-rotate-file --depth=0 &> /dev/null; then
 fi
 
 # Setup nginx configuration if provided
-if [ -f "/tmp/urbansend-nginx.conf" ]; then
+if [ -f "/tmp/ultrazend-nginx.conf" ]; then
     log_info "Configuring nginx..."
-    cp /tmp/urbansend-nginx.conf /etc/nginx/sites-available/urbansend
-    ln -sf /etc/nginx/sites-available/urbansend /etc/nginx/sites-enabled/
+    cp /tmp/ultrazend-nginx.conf /etc/nginx/sites-available/ultrazend
+    ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
     rm -f /etc/nginx/sites-enabled/default
     
     # Test nginx configuration
@@ -168,7 +168,7 @@ npm run migrate:latest || log_warning "Migration failed or not needed"
 
 # Stop existing PM2 processes
 log_info "Stopping existing processes..."
-pm2 delete urbansend 2>/dev/null || log_info "No existing process to stop"
+pm2 delete ultrazend 2>/dev/null || log_info "No existing process to stop"
 
 # Start application with PM2 using enterprise config
 log_info "Starting UltraZend Enterprise application..."
@@ -201,7 +201,7 @@ fi
 # Check logs for any startup errors
 echo ""
 echo "Recent application logs:"
-pm2 logs urbansend --lines 5 --nostream || echo "No recent logs"
+pm2 logs ultrazend --lines 5 --nostream || echo "No recent logs"
 EOF
 
 echo ""
@@ -214,7 +214,7 @@ log_info "  • API Docs: https://$APP_DOMAIN/api-docs (if enabled)"
 echo ""
 log_warning "Next Steps:"
 log_warning "  1. Verify SSL certificates: certbot --nginx -d $APP_DOMAIN"
-log_warning "  2. Check application logs: ssh $VPS_USER@$VPS_HOST 'pm2 logs urbansend'"
+log_warning "  2. Check application logs: ssh $VPS_USER@$VPS_HOST 'pm2 logs ultrazend'"
 log_warning "  3. Monitor health: curl https://$APP_DOMAIN/health"
 echo ""
 log_success "Enterprise deployment successful! 🚀"

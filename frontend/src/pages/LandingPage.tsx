@@ -267,7 +267,7 @@ export function LandingPage() {
                     </p>
                     <div className="bg-gray-900 rounded-lg p-4 text-sm">
                       <code className="text-green-400">
-                        curl -X POST https://api.urbansend.com/send \<br />
+                        curl -X POST https://api.ultrazend.com/send \<br />
                         &nbsp;&nbsp;-H "Authorization: Bearer your-key" \<br />
                         &nbsp;&nbsp;-d {`'{"to": "user@example.com", "subject": "Welcome!"}'`}
                       </code>

@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 # Configuration
 SERVER_HOST="${SERVER_HOST:-31.97.162.155}"
 SERVER_USER="${SERVER_USER:-root}"
-APP_NAME="urbansend"
+APP_NAME="ultrazend"
 API_BASE_URL="https://www.ultrazend.com.br"
 LOCAL_CHECK="${1:-false}"
 
@@ -204,7 +204,7 @@ if [ "$LOCAL_CHECK" != "true" ]; then
         
         echo ""
         echo "=== Disk Usage ==="
-        df -h /var/www/urbansend 2>/dev/null || echo "Path not found"
+        df -h /var/www/ultrazend 2>/dev/null || echo "Path not found"
         
         echo ""
         echo "=== Memory Usage ==="
@@ -212,7 +212,7 @@ if [ "$LOCAL_CHECK" != "true" ]; then
         
         echo ""
         echo "=== Recent Logs ==="
-        tail -n 5 /var/www/urbansend/logs/app.log 2>/dev/null || echo "No app logs found"
+        tail -n 5 /var/www/ultrazend/logs/app.log 2>/dev/null || echo "No app logs found"
         
     ' 2>/dev/null)
     
