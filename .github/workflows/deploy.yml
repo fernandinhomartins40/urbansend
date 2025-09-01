@@ -39,17 +39,43 @@ jobs:
           echo "🏗️ Construindo backend..."
           npm run build
           
+          echo "✅ Verificando build do backend..."
+          if [ ! -f "dist/index.js" ]; then
+            echo "❌ ERRO: Build do backend falhou - dist/index.js não encontrado"
+            exit 1
+          fi
+          echo "✅ Backend build OK: $(ls -la dist/index.js)"
+          
           echo "📦 Instalando dependências do frontend..."
           cd ../frontend && npm ci
           
           echo "🏗️ Construindo frontend..."
           npm run build
           
-          echo "📋 Verificando se build foi criado..."
-          ls -la dist/ || echo "❌ Build do frontend falhou"
+          echo "✅ Verificando build do frontend..."
+          if [ ! -d "dist" ]; then
+            echo "❌ ERRO: Diretório dist/ não foi criado"
+            exit 1
+          fi
           
-          echo "📦 Verificando conteúdo do index.html..."
-          head -5 dist/index.html || echo "❌ index.html não encontrado"
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ ERRO: index.html não foi gerado"
+            exit 1
+          fi
+          
+          if [ ! -d "dist/assets" ]; then
+            echo "❌ ERRO: Diretório assets/ não foi criado"
+            exit 1
+          fi
+          
+          echo "✅ Frontend build OK:"
+          echo "   - index.html: $(ls -la dist/index.html | awk '{print $5}') bytes"
+          echo "   - Assets: $(ls -1 dist/assets/ | wc -l) arquivos"
+          echo "   - Verificando main.tsx compilado..."
+          grep -q "ReactDOM.createRoot" dist/index.html && echo "   ✅ React app detectado no HTML" || echo "   ⚠️ React app não detectado"
+          
+          echo "📋 Conteúdo do index.html:"
+          head -15 dist/index.html
 
       - name: 🔧 4️⃣ Install SSH Tools
         run: |
@@ -210,38 +236,67 @@ jobs:
           echo "🔍 Verificando status da aplicação..."
           pm2 status
           
-          # Verificar se aplicação está online (com retry)
-          echo "🔍 Verificando status da aplicação (com retry)..."
-          for i in {1..5}; do
+          # Verificar se aplicação está online (com retry e validação)
+          echo "🔍 Verificando status da aplicação (com retry e validação)..."
+          for i in {1..8}; do
             if pm2 list | grep -q "online"; then
-              echo "✅ Aplicação iniciada com sucesso (tentativa $i)"
+              echo "✅ Aplicação PM2 online (tentativa $i)"
               
-              # Teste de conectividade
+              # Aguardar inicialização completa
+              sleep 2
+              
+              # Teste de conectividade detalhado
               echo "🔍 Testando conectividade..."
               if curl -f -s -m 10 http://localhost:3001/health > /dev/null; then
                 echo "✅ Health check passou"
+                
+                # Verificar se frontend está sendo servido corretamente
+                echo "🌐 Verificando frontend..."
+                if curl -s -m 10 http://localhost:80 | grep -q "UltraZend"; then
+                  echo "✅ Frontend carregando corretamente"
+                elif curl -s -m 10 https://localhost:443 | grep -q "UltraZend" 2>/dev/null; then
+                  echo "✅ Frontend HTTPS carregando corretamente"  
+                else
+                  echo "⚠️ Frontend pode não estar carregando corretamente"
+                fi
+                
+                # Verificar arquivos críticos do frontend
+                if [ -f "/var/www/ultrazend/frontend/index.html" ] && [ -d "/var/www/ultrazend/frontend/assets" ]; then
+                  echo "✅ Arquivos do frontend presentes"
+                else
+                  echo "❌ Arquivos do frontend ausentes!"
+                  ls -la /var/www/ultrazend/frontend/
+                fi
+                
+                echo "✅ Deploy validado com sucesso!"
+                break
               else
-                echo "⚠️ Health check falhou, mas aplicação está online"
+                echo "⚠️ Health check falhou na tentativa $i"
               fi
-              
-              # Verificar portas
-              echo "🌐 Verificando portas..."
-              netstat -tlnp | grep -E ':(80|443|3001)' || echo "Algumas portas não estão escutando"
-              break
             else
-              echo "⏳ Aguardando aplicação ficar online (tentativa $i/5)..."
-              if [ $i -eq 5 ]; then
-                echo "❌ Falha ao iniciar aplicação após 5 tentativas"
-                echo "📋 Status PM2:"
-                pm2 status
-                echo "📋 Logs da aplicação:"
-                pm2 logs ultrazend --lines 20 --nostream || echo "Sem logs disponíveis"
-                echo "📋 Logs do sistema:"
-                tail -n 10 /var/log/syslog | grep -i error || echo "Sem erros no syslog"
-                exit 1
-              fi
-              sleep 3
+              echo "⏳ Aguardando aplicação ficar online (tentativa $i/8)..."
             fi
+            
+            if [ $i -eq 8 ]; then
+              echo "❌ FALHA CRÍTICA: Aplicação não ficou online após 8 tentativas"
+              echo ""
+              echo "📋 DIAGNÓSTICO COMPLETO:"
+              echo "--- PM2 Status ---"
+              pm2 status
+              echo "--- PM2 Logs ---"
+              pm2 logs ultrazend --lines 30 --nostream || echo "Sem logs PM2 disponíveis"
+              echo "--- Portas ---"
+              netstat -tlnp | grep -E ':(80|443|3001)' || echo "Nenhuma porta escutando"
+              echo "--- Processos Node.js ---"
+              ps aux | grep node | head -5 || echo "Nenhum processo Node.js"
+              echo "--- Estrutura de Arquivos ---"
+              ls -la /var/www/ultrazend/ || echo "Diretório não existe"
+              ls -la /var/www/ultrazend/frontend/ || echo "Frontend não existe"
+              echo "--- Logs do Sistema ---"
+              tail -n 15 /var/log/syslog | grep -i error || echo "Sem erros no syslog"
+              exit 1
+            fi
+            sleep 4
           done
           
           echo "🎉 Deploy concluído com sucesso!"
