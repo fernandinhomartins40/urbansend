@@ -485,10 +485,22 @@ jobs:
           exit 1
         fi
         
+        # Verificar e corrigir arquivo .env
         if [ -f 'backend/.env' ]; then
           echo '✅ backend/.env presente'
+        elif [ -f 'backend/.env.production' ]; then
+          echo '🔧 backend/.env não encontrado, mas .env.production existe'
+          echo '🔄 Copiando .env.production para .env...'
+          cp backend/.env.production backend/.env
+          chmod 600 backend/.env
+          chown www-data:www-data backend/.env
+          echo '✅ backend/.env criado a partir de .env.production'
         else
-          echo '❌ backend/.env não encontrado'
+          echo '❌ Nem backend/.env nem backend/.env.production encontrados'
+          echo '📋 Arquivos disponíveis no backend:'
+          ls -la backend/ | head -10
+          echo '📋 Procurando arquivos .env* no diretório:'
+          find . -name ".env*" -type f || echo 'Nenhum arquivo .env encontrado'
           exit 1
         fi
         
