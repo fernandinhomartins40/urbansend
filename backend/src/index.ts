@@ -56,6 +56,16 @@ const loadEnvConfig = () => {
 
 loadEnvConfig();
 
+// Early logging for debugging
+logger.info('🚀 UltraZend Backend Starting...', {
+  nodeVersion: process.version,
+  platform: process.platform,
+  arch: process.arch,
+  cwd: process.cwd(),
+  env: process.env.NODE_ENV,
+  databaseUrl: process.env.DATABASE_URL
+});
+
 // CORS allowed origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
   process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
@@ -522,6 +532,8 @@ const initializeServices = async () => {
 
 const startServer = async () => {
   try {
+    logger.info('🔧 Starting server initialization...');
+    
     // Initialize services sequentially
     await initializeServices();
 
@@ -567,7 +579,11 @@ const startServer = async () => {
     }
     
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error('❌ CRITICAL: Failed to start server', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     process.exit(1);
   }
 };

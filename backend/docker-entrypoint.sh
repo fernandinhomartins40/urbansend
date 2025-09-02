@@ -1,26 +1,24 @@
 #!/bin/bash
 set -e
 
-# Corrigir permissões dos volumes montados
-echo "🔧 Corrigindo permissões dos volumes..."
+echo "🚀 UltraZend Docker Entrypoint - Starting..."
+echo "Arguments: $@"
+echo "User: $(whoami) ($(id))"
+echo "Node version: $(node --version)"
+echo "NPM version: $(npm --version)"
 
-# Criar diretórios de logs necessários se não existirem
+# Create necessary directories
+echo "📁 Creating directories..."
 mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions
 mkdir -p /app/data
 
-# Corrigir permissões (precisa ser feito após mount dos volumes)
-if [ "$(id -u)" = "0" ]; then
-    # Se rodando como root, mudar ownership e depois executar como ultrazend
-    chown -R ultrazend:nodejs /app/logs /app/data
-    chmod -R 755 /app/logs /app/data
-    echo "✅ Permissões corrigidas pelo root"
-    # Executar comando como usuário ultrazend
-    exec su ultrazend -c "$*"
-else
-    # Já é usuário ultrazend, só corrigir permissões possíveis
-    chmod -R 755 /app/logs /app/data 2>/dev/null || echo "⚠️ Não foi possível corrigir todas as permissões"
-    echo "✅ Iniciando aplicação como ultrazend"
-fi
+# Fix permissions for volumes
+echo "🔧 Setting permissions..."
+chown -R root:root /app/logs /app/data /app 2>/dev/null || echo "⚠️ Permission setting skipped"
+chmod -R 755 /app/logs /app/data
 
-# Executar comando passado como parâmetro
+echo "✅ Setup complete - Starting application"
+echo "Command: $@"
+
+# Execute the main command
 exec "$@"

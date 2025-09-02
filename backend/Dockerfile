@@ -1,17 +1,24 @@
-# Multi-stage Dockerfile for UltraZend Backend
-FROM node:18-alpine AS base
+# Multi-stage Dockerfile for UltraZend Backend - OPTIMIZED FOR NATIVE DEPS
+FROM node:18-bullseye-slim AS base
 
-# Install necessary packages for production including build dependencies for sqlite3
-RUN apk add --no-cache \
-    sqlite \
+# Install system dependencies for native modules (bcrypt, sqlite3, sharp)
+RUN apt-get update && apt-get install -y \
     curl \
-    bash \
-    openssl \
+    ca-certificates \
+    sqlite3 \
+    libsqlite3-dev \
     python3 \
+    python3-pip \
     make \
     g++ \
-    sqlite-dev \
-    libc6-compat
+    gcc \
+    libc6-dev \
+    libvips-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python for native module compilation
+ENV PYTHON=python3
 
 # Development stage
 FROM base AS development
@@ -25,13 +32,17 @@ CMD ["npm", "run", "dev"]
 # Build stage
 FROM base AS build
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
 
-# Set Python path for native module compilation
-ENV PYTHON=python3
+# Configure npm for native dependencies
+RUN npm config set python python3 && \
+    npm config set prefer-offline false && \
+    npm config set audit-level moderate
 
-# Install all dependencies for build (including dev deps for migrations)
-RUN npm ci --verbose
+# Install all dependencies with verbose logging
+RUN npm ci --verbose --no-audit
 
 COPY . .
 
@@ -40,17 +51,19 @@ RUN touch ultrazend.sqlite
 
 RUN npm run build
 
-# Production stage - clean Alpine image without build dependencies
-FROM node:18-alpine AS production
+# Production stage - Debian slim with runtime deps
+FROM node:18-bullseye-slim AS production
 WORKDIR /app
 
-# Install only runtime dependencies
-RUN apk add --no-cache \
-    sqlite \
+# Install runtime dependencies for native modules
+RUN apt-get update && apt-get install -y \
     curl \
-    bash \
-    openssl \
-    libc6-compat
+    ca-certificates \
+    sqlite3 \
+    libsqlite3-0 \
+    libvips42 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
