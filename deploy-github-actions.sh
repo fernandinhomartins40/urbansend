@@ -183,9 +183,35 @@ rsync -avz --delete \
 
 # Deploy config files
 log "Enviando arquivos de configuração..."
-scp -o StrictHostKeyChecking=no configs/.env.production $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/backend/.env
-scp -o StrictHostKeyChecking=no ecosystem.config.js $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
+
+# Verify local config files exist before sending
+log "Verificando arquivos de configuração locais..."
+if [ ! -f "configs/.env.production" ]; then
+    error "❌ Arquivo configs/.env.production não encontrado localmente"
+fi
+if [ ! -f "ecosystem.config.js" ]; then
+    error "❌ Arquivo ecosystem.config.js não encontrado localmente"
+fi
+success "✅ Arquivos de configuração locais encontrados"
+
+# Send .env file with verification
+log "Enviando .env de produção..."
+if scp -o StrictHostKeyChecking=no configs/.env.production $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/backend/.env; then
+    success "✅ .env enviado com sucesso"
+else
+    error "❌ Falha ao enviar .env"
+fi
+
+# Send ecosystem config
+log "Enviando ecosystem.config.js..."
+if scp -o StrictHostKeyChecking=no ecosystem.config.js $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/; then
+    success "✅ ecosystem.config.js enviado com sucesso"
+else
+    error "❌ Falha ao enviar ecosystem.config.js"
+fi
+
 # Send both nginx configs
+log "Enviando configurações nginx..."
 scp -o StrictHostKeyChecking=no configs/nginx-http.conf $SERVER_USER@$SERVER_HOST:/tmp/ultrazend-nginx-http.conf
 scp -o StrictHostKeyChecking=no configs/nginx-ssl.conf $SERVER_USER@$SERVER_HOST:/tmp/ultrazend-nginx-ssl.conf
 
@@ -196,6 +222,36 @@ log "PASSO 6: Configuração no servidor..."
 
 ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << EOF
 cd $DEPLOY_PATH/backend
+
+# Verify and fix .env file
+echo "🔍 Verificando arquivos essenciais..."
+if [ ! -f ".env" ]; then
+    echo "⚠️ Arquivo .env não encontrado, verificando .env.production..."
+    if [ -f ".env.production" ]; then
+        echo "🔧 Copiando .env.production para .env..."
+        cp .env.production .env
+        chmod 600 .env
+        chown www-data:www-data .env
+        echo "✅ Arquivo .env criado a partir de .env.production"
+    else
+        echo "❌ CRÍTICO: Nem .env nem .env.production encontrados em $DEPLOY_PATH/backend/"
+        echo "📋 Conteúdo do diretório backend:"
+        ls -la
+        echo "📋 Verificando arquivos .env* em todo o deploy:"
+        find $DEPLOY_PATH -name ".env*" -type f || echo "Nenhum arquivo .env encontrado"
+        exit 1
+    fi
+else
+    echo "✅ Arquivo .env encontrado"
+fi
+
+if [ ! -f "dist/index.js" ]; then
+    echo "❌ CRÍTICO: Arquivo dist/index.js não encontrado"
+    echo "📋 Conteúdo do diretório dist:"
+    ls -la dist/ || echo "Diretório dist não existe"
+    exit 1
+fi
+echo "✅ Arquivo dist/index.js encontrado"
 
 # Install production dependencies
 echo "📦 Instalando dependências de produção..."
@@ -340,9 +396,26 @@ else
     exit 1
 fi
 
-# Set proper permissions
+# Set proper permissions and verify critical files
+echo "🔐 Configurando permissões..."
 chown -R www-data:www-data $DEPLOY_PATH
 chmod +x $DEPLOY_PATH/backend/dist/index.js
+
+# Final .env permissions check (may have been set earlier)
+if [ -f "$DEPLOY_PATH/backend/.env" ]; then
+    chmod 600 $DEPLOY_PATH/backend/.env
+    chown www-data:www-data $DEPLOY_PATH/backend/.env
+    echo "✅ Permissões finais do .env configuradas (600)"
+fi
+
+# Verify ecosystem.config.js
+if [ -f "$DEPLOY_PATH/ecosystem.config.js" ]; then
+    chmod 644 $DEPLOY_PATH/ecosystem.config.js
+    echo "✅ ecosystem.config.js configurado"
+else
+    echo "❌ CRÍTICO: ecosystem.config.js não encontrado"
+    exit 1
+fi
 
 echo "✅ Configuração no servidor concluída"
 EOF
