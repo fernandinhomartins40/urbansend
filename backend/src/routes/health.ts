@@ -76,13 +76,12 @@ async function checkDatabaseHealth(): Promise<HealthCheck> {
 async function checkRedisHealth(): Promise<HealthCheck> {
   const start = Date.now();
   try {
-    const redis = new IORedis({
-      host: Env.get('REDIS_HOST', 'localhost'),
-      port: Env.getNumber('REDIS_PORT', 6379),
-      db: Env.getNumber('REDIS_DB', 0),
+    const redisUrl = Env.get('REDIS_URL', 'redis://127.0.0.1:6379');
+    const redis = new IORedis(redisUrl, {
       connectTimeout: 5000,
       lazyConnect: true,
-      maxRetriesPerRequest: 1
+      maxRetriesPerRequest: 1,
+      retryDelayOnFailover: 100
     });
 
     await redis.ping();

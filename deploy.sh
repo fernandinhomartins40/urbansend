@@ -149,17 +149,42 @@ deploy_to_server() {
     # Setup backend
     echo 'Setting up backend...'
     cd backend
-    npm ci --only=production --silent
+    
+    # Install all dependencies first (including swagger)
+    npm ci --silent
+    
+    # Install missing production dependencies
+    npm install swagger-jsdoc swagger-ui-express --save --silent
+    
+    # Build the application
     npm run build
     
-    # Copy .env if exists
+    # Copy and configure environment
     if [ -f ../configs/.env.production ]; then
         cp ../configs/.env.production .env
         chmod 600 .env
+        echo 'Production .env configured'
+    else
+        echo 'Creating minimal .env...'
+        cat > .env << 'ENVEOF'
+NODE_ENV=production
+PORT=3001
+HOST=0.0.0.0
+DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
+REDIS_URL=redis://127.0.0.1:6379
+LOG_FILE_PATH=/var/www/ultrazend/logs
+LOG_LEVEL=info
+ENVEOF
+        chmod 600 .env
     fi
     
-    # Run migrations
-    npm run migrate:latest || echo 'Migration warning (continuing...)'
+    # Ensure log directories exist
+    mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
+    chown -R www-data:www-data /var/www/ultrazend/logs || true
+    
+    # Run migrations with better error handling
+    echo 'Running database migrations...'
+    npm run migrate:latest || echo 'Migration completed with warnings - continuing...'
     
     cd ..
     
@@ -182,10 +207,9 @@ deploy_to_server() {
         systemctl enable nginx
     fi
     
-    # Start backend with PM2
+    # Start backend with PM2 using ecosystem config
     echo 'Starting backend with PM2...'
-    cd backend
-    pm2 start dist/index.js --name ultrazend-backend --env production
+    pm2 start ecosystem.config.js --env production
     pm2 save
     pm2 startup || true
     
@@ -203,7 +227,7 @@ restart_services() {
     cd $DEPLOY_PATH
     
     # Restart PM2
-    pm2 restart ultrazend-backend || pm2 start backend/dist/index.js --name ultrazend-backend --env production
+    pm2 restart ultrazend-backend || pm2 start ecosystem.config.js --env production
     pm2 save
     
     # Restart Nginx

@@ -56,7 +56,9 @@ interface LogEntry {
 }
 
 const logLevel = Env.get('LOG_LEVEL', 'info');
-const logDir = path.join(__dirname, '../../logs');
+const logDir = Env.isProduction 
+  ? Env.get('LOG_FILE_PATH', '/var/www/ultrazend/logs')
+  : path.join(__dirname, '../../logs');
 
 // Structured JSON format for production
 const productionFormat = winston.format.combine(
