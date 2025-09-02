@@ -22,7 +22,7 @@ services:
       - PORT=3001
       - REDIS_URL=redis://redis:6379
       - SMTP_HOSTNAME=mail.dev.ultrazend.local
-      - DATABASE_URL=/app/data/database.sqlite
+      - DATABASE_URL=/app/data/ultrazend.sqlite
       - FRONTEND_URL=http://localhost:5173
       - API_URL=http://localhost:3001/api
       - JWT_SECRET=dev_jwt_secret_ultrazend_2024_32_chars_minimum_for_development

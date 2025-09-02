@@ -37,7 +37,7 @@ export class MonitoringService {
   private metricsCleanupInterval?: NodeJS.Timeout;
 
   constructor(database?: Database) {
-    this.db = database || new Database('./database.sqlite');
+    this.db = database || new Database('./ultrazend.sqlite');
     this.dbRun = promisify(this.db.run.bind(this.db));
     this.dbGet = promisify(this.db.get.bind(this.db));
     this.dbAll = promisify(this.db.all.bind(this.db));

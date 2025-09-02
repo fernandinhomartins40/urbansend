@@ -165,7 +165,7 @@ check_pm2_status() {
 check_database() {
     log "Verificando banco de dados..."
     
-    local db_path="$APP_PATH/data/database.sqlite"
+    local db_path="$APP_PATH/data/ultrazend.sqlite"
     local db_status="UNKNOWN"
     local db_size=0
     

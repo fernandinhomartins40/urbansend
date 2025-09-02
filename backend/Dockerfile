@@ -36,7 +36,7 @@ RUN npm ci --verbose
 COPY . .
 
 # Create empty database file (migrations will run on startup)
-RUN touch database.sqlite
+RUN touch ultrazend.sqlite
 
 RUN npm run build
 
@@ -61,9 +61,10 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/migrations ./src/migrations
+COPY --from=build /app/knexfile.js ./knexfile.js
 
 # Copy database
-COPY --from=build /app/database.sqlite ./database.sqlite
+COPY --from=build /app/ultrazend.sqlite ./ultrazend.sqlite
 
 # Create necessary directories
 RUN mkdir -p /app/data /app/logs /app/certificates && \

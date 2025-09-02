@@ -9,7 +9,7 @@ set -euo pipefail
 APP_NAME="ultrazend"
 APP_PATH="/var/www/ultrazend"
 BACKUP_PATH="/var/backups/ultrazend"
-DB_PATH="$APP_PATH/data/database.sqlite"
+DB_PATH="$APP_PATH/data/ultrazend.sqlite"
 S3_BUCKET="ultrazend-backups" # Optional: configure for cloud backup
 RETENTION_DAYS=30
 MAX_BACKUPS=50
@@ -158,7 +158,7 @@ restore_backup() {
         log "Restaurando banco de dados..."
         rm -f "${DB_PATH}.backup" 2>/dev/null || true
         cp "$DB_PATH" "${DB_PATH}.backup" 2>/dev/null || true
-        cp "$extracted_dir/data/database.sqlite" "$DB_PATH" 2>/dev/null || true
+        cp "$extracted_dir/data/ultrazend.sqlite" "$DB_PATH" 2>/dev/null || true
         chown www-data:www-data "$DB_PATH"
     fi
     
