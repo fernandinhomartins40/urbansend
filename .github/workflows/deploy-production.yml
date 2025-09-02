@@ -1,4 +1,4 @@
-name: 🚀 Deploy UltraZend Production (Unified)
+name: 🚀 Deploy UltraZend Production (Docker Only)
 
 concurrency:
   group: ultrazend-production-deploy
@@ -103,8 +103,8 @@ jobs:
         fi
         
         echo ""
-        echo "🔧 Configurações:"
-        ls -la configs/ ecosystem.config.js 2>/dev/null || echo "⚠️ Arquivos de configuração não encontrados"
+        echo "🔧 Configurações Docker:"
+        ls -la configs/ docker-compose.prod.yml setup-server.sh deploy.sh 2>/dev/null || echo "⚠️ Arquivos de configuração não encontrados"
 
     - name: 🏗️ Preparar Backend (sem build local)
       run: |
@@ -177,8 +177,13 @@ jobs:
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
         apt-get install -y nodejs > /dev/null 2>&1
         
-        echo '📦 Instalando PM2...'
-        npm install -g pm2 > /dev/null 2>&1
+        echo '🐳 Instalando Docker...'
+        curl -fsSL https://get.docker.com | sh > /dev/null 2>&1
+        systemctl start docker && systemctl enable docker
+        
+        echo '🐳 Instalando Docker Compose...'
+        curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
         
         echo '🌐 Instalando Nginx e utilitários...'
         apt-get install -y nginx certbot python3-certbot-nginx jq net-tools > /dev/null 2>&1
@@ -192,7 +197,8 @@ jobs:
         echo '✅ Versões instaladas:'
         node --version
         npm --version
-        pm2 --version
+        docker --version
+        docker-compose --version
         nginx -v
         "
 
@@ -202,16 +208,20 @@ jobs:
         echo "=================================="
         
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        # Parar TUDO antes do backup
-        echo '🛑 Parando todos os serviços...'
-        pm2 stop all 2>/dev/null || echo 'Nenhum PM2 rodando'
-        pm2 delete all 2>/dev/null || echo 'Nenhum PM2 para deletar'
-        pm2 kill 2>/dev/null || echo 'PM2 daemon já parado'
-        
-        # Parar containers Docker se existirem
+        # Parar TUDO antes do backup - foco em Docker
+        echo '🛑 Parando todos os serviços Docker...'
+        cd ${{ env.APP_DIR }} 2>/dev/null || true
+        docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes 2>/dev/null || echo 'Nenhum Docker Compose rodando'
         docker stop \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container rodando'
         docker rm \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container para remover'
         docker system prune -f 2>/dev/null || echo 'Docker cleanup feito'
+        
+        # Remover PM2 completamente se ainda existir
+        echo '🗑️ Removendo PM2 (se existir)...'
+        pm2 stop all 2>/dev/null || true
+        pm2 delete all 2>/dev/null || true
+        pm2 kill 2>/dev/null || true
+        npm uninstall -g pm2 2>/dev/null || true
         
         # Criar backup se aplicação existir
         if [ -d '${{ env.APP_DIR }}' ]; then
@@ -440,42 +450,32 @@ jobs:
         chown -R www-data:www-data ${{ env.APP_DIR }}
         chmod +x ${{ env.APP_DIR }}/backend/dist/index.js
         
-        # Verificar se ecosystem.config.js existe
-        if [ -f 'ecosystem.config.js' ]; then
-          echo '✅ ecosystem.config.js encontrado'
-          cat ecosystem.config.js | head -10
+        # Verificar se docker-compose.prod.yml existe
+        if [ -f 'docker-compose.prod.yml' ]; then
+          echo '✅ docker-compose.prod.yml encontrado'
+          cat docker-compose.prod.yml | head -15
         else
-          echo '❌ ecosystem.config.js não encontrado'
+          echo '❌ docker-compose.prod.yml não encontrado'
           exit 1
         fi
         
         echo '✅ Aplicação configurada no servidor'
         "
 
-    - name: 🚀 Deploy with Unified Script
+    - name: 🚀 Deploy with Docker Only
       run: |
-        echo "🚀 Using new unified deployment script..."
-        echo "========================================"
+        echo "🚀 Executando deploy Docker-only..."
+        echo "================================="
         
-        # Transfer unified deploy script
-        echo "📤 Transferring deploy script..."
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no deploy.sh ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:/tmp/
-        
-        # Execute unified deploy
-        echo "🎯 Executing unified deployment..."
+        # Execute Docker deployment directly
+        echo "🐳 Iniciando deployment Docker..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
         
-        # Make script executable
-        chmod +x /tmp/deploy.sh
-        
-        # Run deployment with auto-detected method
-        /tmp/deploy.sh pm2 --auto
-        
         # Verificar estado inicial
         echo '📋 Estado inicial dos serviços:'
-        echo 'PM2 Status:'
-        pm2 jlist || echo 'PM2 sem processos'
+        echo 'Docker Status:'
+        docker ps || echo 'Nenhum container rodando'
         echo 'Nginx Status:'
         systemctl is-active nginx || echo 'Nginx inativo'
         
@@ -502,14 +502,14 @@ jobs:
           exit 1
         fi
         
-        # Verificar arquivos essenciais antes do PM2
-        echo '🔍 Verificando arquivos essenciais...'
-        if [ -f 'ecosystem.config.js' ]; then
-          echo '✅ ecosystem.config.js presente'
-          echo 'Conteúdo do ecosystem.config.js (primeiras 15 linhas):'
-          head -15 ecosystem.config.js
+        # Verificar arquivos essenciais para Docker
+        echo '🔍 Verificando arquivos essenciais Docker...'
+        if [ -f 'docker-compose.prod.yml' ]; then
+          echo '✅ docker-compose.prod.yml presente'
+          echo 'Configuração Docker Compose (primeiras 20 linhas):'
+          head -20 docker-compose.prod.yml
         else
-          echo '❌ ecosystem.config.js não encontrado'
+          echo '❌ docker-compose.prod.yml não encontrado'
           exit 1
         fi
         
@@ -565,51 +565,43 @@ jobs:
         
         echo '✅ Configuração .env concluída com fallback robusto'
         
-        # Iniciar aplicação com PM2 com verificações detalhadas
-        echo '🚀 Iniciando aplicação com PM2...'
+        # Iniciar aplicação com Docker Compose
+        echo '🚀 Iniciando aplicação com Docker Compose...'
         
-        # Set NODE_ENV explicitly to ensure database works properly
-        export NODE_ENV=production
+        # Parar containers existentes primeiro
+        echo '🛑 Parando containers existentes...'
+        docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || echo 'Nenhum container para parar'
         
-        # Primeiro, tentar iniciar em modo verboso
-        if pm2 start ecosystem.config.js --env production --name ultrazend --update-env; then
-          echo '✅ Comando PM2 executado'
+        # Build e inicialização
+        echo '🔨 Building Docker images...'
+        docker-compose -f docker-compose.prod.yml build --no-cache
+        
+        echo '🚀 Iniciando containers Docker...'
+        if docker-compose -f docker-compose.prod.yml up -d; then
+          echo '✅ Containers Docker iniciados'
           
           # Aguardar alguns segundos para estabilizar
-          echo 'Aguardando estabilização (10s)...'
-          sleep 10
+          echo 'Aguardando estabilização (15s)...'
+          sleep 15
           
-          # Verificar se realmente iniciou
-          if pm2 jlist | jq -r '.[] | select(.name==\"ultrazend\") | .pm2_env.status' | grep -q 'online'; then
-            echo '✅ Aplicação confirmada como online'
+          # Verificar se containers estão rodando
+          echo '🔍 Verificando status dos containers:'
+          docker-compose -f docker-compose.prod.yml ps
+          
+          # Verificar se aplicação está respondendo
+          echo '🏥 Teste de conectividade interna...'
+          if docker-compose -f docker-compose.prod.yml exec -T ultrazend-backend curl -sf http://localhost:3001/health; then
+            echo '✅ Aplicação respondendo internamente'
           else
-            echo '❌ Aplicação não está online'
-            echo 'Status detalhado do PM2:'
-            pm2 status
-            echo 'Logs da aplicação:'
-            pm2 logs ultrazend --lines 20 --nostream || echo 'Sem logs disponíveis'
-            exit 1
+            echo '⚠️ Aplicação pode não estar totalmente pronta - verificando logs...'
+            docker-compose -f docker-compose.prod.yml logs --tail=20 ultrazend-backend
           fi
         else
-          echo '❌ Falha ao executar comando PM2 start'
-          echo 'Tentando diagnóstico...'
-          echo 'Diretório atual:'
-          pwd
-          echo 'Arquivos no diretório:'
-          ls -la
-          echo 'PM2 status atual:'
-          pm2 status
-          echo 'Tentando executar aplicação diretamente:'
-          cd backend && timeout 5s node dist/index.js || echo 'Falha ao executar diretamente'
+          echo '❌ Falha ao iniciar containers Docker'
+          echo 'Logs de erro:'
+          docker-compose -f docker-compose.prod.yml logs --tail=50
           exit 1
         fi
-        
-        # Salvar configuração PM2 e configurar startup
-        echo '💾 Salvando configuração PM2...'
-        pm2 save
-        
-        echo '⚡ Configurando inicialização automática...'
-        pm2 startup systemd -u root --hp /root | grep '^sudo' | bash || echo 'PM2 startup pode já estar configurado'
         
         # VERIFICAÇÃO DE VERSÃO DEPLOYADA
         echo '🔍 VERIFICANDO VERSÃO DEPLOYADA:'
@@ -622,11 +614,11 @@ jobs:
         # Status final detalhado
         echo '📊 STATUS FINAL DOS SERVIÇOS:'
         echo '==============================='
-        echo 'PM2 Status:'
-        pm2 status
+        echo 'Docker Containers Status:'
+        docker-compose -f docker-compose.prod.yml ps
         echo ''
-        echo 'PM2 Detailed:'
-        pm2 jlist | jq -r '.[] | select(.name==\"ultrazend\") | \"Name: \" + .name + \" | Status: \" + .pm2_env.status + \" | PID: \" + (.pid|tostring) + \" | Uptime: \" + .pm2_env.pm_uptime' || echo 'Erro ao obter detalhes PM2'
+        echo 'Docker Services Health:'
+        docker-compose -f docker-compose.prod.yml exec -T ultrazend-backend curl -sf http://localhost:3001/health || echo 'Health check interno falhou'
         echo ''
         echo 'Nginx Status:'
         systemctl is-active nginx && echo 'Nginx: ATIVO' || echo 'Nginx: INATIVO'
@@ -634,7 +626,7 @@ jobs:
         echo 'Portas em uso:'
         netstat -tlnp | grep -E ':(80|3001|443) ' || echo 'Nenhuma porta relevante encontrada'
         echo ''
-        echo '✅ Inicialização concluída com NOVA VERSÃO'
+        echo '✅ Inicialização Docker concluída com NOVA VERSÃO'
         "
 
     - name: 🏥 Health Check RÁPIDO
@@ -690,11 +682,14 @@ jobs:
         echo "📊 Status: ONLINE ✅"
         echo ""
         
-        # Verificação final dos serviços
+        # Verificação final dos serviços Docker
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
-        echo '📊 Status final PM2:'
-        pm2 jlist | jq -r '.[] | select(.name==\"ultrazend\") | \"Status: \" + .pm2_env.status + \" | PID: \" + (.pid|tostring) + \" | Uptime: \" + .pm2_env.pm_uptime'
+        echo '📊 Status final Docker:'
+        docker-compose -f docker-compose.prod.yml ps
+        echo ''
+        echo '🐳 Container details:'
+        docker ps --filter 'name=ultrazend' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
         echo ''
         echo '🌐 Status Nginx:'
         systemctl is-active nginx >/dev/null && echo '✅ Nginx: Active' || echo '❌ Nginx: Inactive'
@@ -721,13 +716,13 @@ jobs:
         echo ""
         echo "🔍 Coletando informações de diagnóstico..."
         
-        # Coletar logs detalhados
+        # Coletar logs detalhados Docker
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        echo '📋 Status PM2:'
-        pm2 status 2>/dev/null || echo 'PM2 não disponível'
+        echo '📋 Status Docker:'
+        docker ps 2>/dev/null || echo 'Docker não disponível'
         echo ''
         echo '📝 Logs da aplicação:'
-        pm2 logs ultrazend --lines 50 --nostream 2>/dev/null || echo 'Logs PM2 não disponíveis'
+        docker-compose -f docker-compose.prod.yml logs --tail=50 2>/dev/null || echo 'Logs Docker não disponíveis'
         echo ''
         echo '🌐 Status Nginx:'
         systemctl status nginx 2>/dev/null || echo 'Nginx não disponível'
