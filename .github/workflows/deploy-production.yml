@@ -106,9 +106,9 @@ jobs:
         echo "🔧 Configurações:"
         ls -la configs/ ecosystem.config.js 2>/dev/null || echo "⚠️ Arquivos de configuração não encontrados"
 
-    - name: 🏗️ Build Local do Backend
+    - name: 🏗️ Preparar Backend (sem build local)
       run: |
-        echo "🏗️ Iniciando build local do backend..."
+        echo "🏗️ Verificando estrutura do backend..."
         echo "======================================"
         
         if [ ! -d "backend" ]; then
@@ -118,33 +118,11 @@ jobs:
         
         cd backend
         
-        echo "📦 Instalando dependências do backend..."
-        if [ -f "package-lock.json" ]; then
-          npm ci
-        else
-          npm install
-        fi
-        echo "✅ Dependências instaladas com sucesso"
-        
-        echo "🔨 Compilando TypeScript..."
-        if npm run build; then
-          echo "✅ Build do backend concluído com sucesso"
-          echo "📊 Analisando build:"
-          ls -la dist/
-          echo "📈 Tamanho do build: $(du -sh dist/)"
-          echo "📝 Arquivos gerados: $(find dist/ -type f | wc -l)"
-          
-          # Verificar arquivo principal
-          if [ -f "dist/index.js" ]; then
-            echo "✅ index.js encontrado"
-          else
-            echo "❌ index.js não encontrado"
-            exit 1
-          fi
-        else
-          echo "❌ Falha no build do backend"
-          exit 1
-        fi
+        echo "✅ Backend estrutura OK - build será feito no servidor"
+        echo "📋 Arquivos principais:"
+        ls -la src/ | head -10
+        echo "📋 Package.json encontrado:"
+        head -10 package.json
 
     - name: ⚛️ Build Local do Frontend  
       run: |
@@ -339,13 +317,17 @@ jobs:
         rm -rf node_modules package-lock.json
         npm cache clean --force
         
-        # Instalar dependências de produção FORÇADAMENTE
-        echo '📦 Instalação FORÇADA de dependências...'
-        npm install --production --no-cache --force
+        # Instalar dependências de produção com comandos corretos
+        echo '📦 Instalação limpa de dependências...'
+        npm install --omit=dev
         
-        # Verificar se swagger foi instalado corretamente
+        # Verificar se dependências críticas foram instaladas
         echo '🔍 Verificando dependências críticas...'
-        npm list swagger-jsdoc swagger-ui-express || echo 'Swagger pode não estar instalado'
+        npm list swagger-jsdoc swagger-ui-express --depth=0 || echo 'Algumas dependências podem estar faltando'
+        
+        # EXECUTAR BUILD NO SERVIDOR
+        echo '🏗️ Executando build no servidor...'
+        npm run build
         
         # Verificar build detalhadamente
         echo '🔍 Verificando build...'
