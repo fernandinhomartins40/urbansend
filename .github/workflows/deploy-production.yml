@@ -331,46 +331,77 @@ jobs:
         
         cd ..
         
-        # Configurar Nginx com verificações detalhadas
-        echo '🌐 Configurando Nginx...'
-        if [ -f 'configs/nginx-ssl.conf' ]; then
-          echo 'Copiando configuração Nginx...'
-          cp configs/nginx-ssl.conf /etc/nginx/sites-available/ultrazend
-          ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+        # Etapa 1: Configurar Nginx HTTP temporário
+        echo '🌐 ETAPA 1: Configurando Nginx HTTP temporário...'
+        if [ -f 'configs/nginx-http.conf' ]; then
+          echo 'Copiando configuração HTTP temporária...'
+          cp configs/nginx-http.conf /etc/nginx/sites-available/ultrazend-http
+          ln -sf /etc/nginx/sites-available/ultrazend-http /etc/nginx/sites-enabled/
           rm -f /etc/nginx/sites-enabled/default
           
-          echo 'Testando configuração Nginx...'
+          echo 'Testando configuração HTTP...'
           if nginx -t; then
-            echo '✅ Configuração Nginx válida'
+            echo '✅ Configuração HTTP válida'
+            systemctl restart nginx
+            systemctl enable nginx
           else
-            echo '❌ Erro na configuração Nginx'
+            echo '❌ Erro na configuração HTTP'
             echo 'Logs do Nginx:'
             tail -20 /var/log/nginx/error.log 2>/dev/null || echo 'Sem logs de erro'
             exit 1
           fi
         else
-          echo '❌ Arquivo nginx-ssl.conf não encontrado'
+          echo '❌ Arquivo nginx-http.conf não encontrado'
           exit 1
         fi
         
-        # Configurar SSL com mais detalhes
-        if [ ! -f '/etc/letsencrypt/live/${{ env.DOMAIN }}/fullchain.pem' ]; then
-          echo '🔒 Configurando certificados SSL...'
-          systemctl stop nginx 2>/dev/null || true
+        # Etapa 2: Configurar certificados SSL
+        echo '🔒 ETAPA 2: Configurando certificados SSL...'
+        if [ ! -f "/etc/letsencrypt/live/${{ env.DOMAIN }}/fullchain.pem" ]; then
+          echo 'Obtendo certificados SSL...'
           
-          echo 'Executando certbot...'
-          if certbot certonly --standalone \
+          # Nginx precisa estar rodando para acme-challenge
+          systemctl start nginx
+          sleep 3
+          
+          if certbot certonly --webroot \
+            -w /var/www/html \
             -d ultrazend.com.br \
             -d ${{ env.DOMAIN }} \
             --non-interactive \
             --agree-tos \
             --email admin@ultrazend.com.br; then
-            echo '✅ SSL configurado com sucesso'
+            echo '✅ Certificados SSL obtidos com sucesso'
+            SSL_READY=true
           else
-            echo '⚠️  SSL falhou - continuando sem HTTPS'
+            echo '⚠️  Falha ao obter SSL - continuando com HTTP apenas'
+            SSL_READY=false
           fi
         else
           echo '✅ Certificados SSL já existem'
+          SSL_READY=true
+        fi
+        
+        # Etapa 3: Aplicar configuração SSL se certificados estão disponíveis
+        echo '🔐 ETAPA 3: Aplicando configuração final...'
+        if [ "$SSL_READY" = "true" ] && [ -f 'configs/nginx-ssl.conf' ]; then
+          echo 'Aplicando configuração SSL completa...'
+          cp configs/nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+          ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+          rm -f /etc/nginx/sites-enabled/ultrazend-http
+          
+          echo 'Testando configuração SSL...'
+          if nginx -t; then
+            echo '✅ Configuração SSL válida'
+            systemctl reload nginx
+          else
+            echo '⚠️  Erro na configuração SSL - mantendo HTTP'
+            ln -sf /etc/nginx/sites-available/ultrazend-http /etc/nginx/sites-enabled/
+            rm -f /etc/nginx/sites-enabled/ultrazend
+            systemctl reload nginx
+          fi
+        else
+          echo 'Mantendo configuração HTTP (SSL não disponível)'
         fi
         
         # Definir permissões com verificação
