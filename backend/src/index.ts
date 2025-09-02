@@ -166,9 +166,26 @@ app.use('/api', cors({
 // Rate limiting removido do nível global
 // Agora aplicado apenas em endpoints específicos que precisam de proteção
 
-// Body parsing
+// Body parsing with error handling
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// JSON parsing error handler
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err instanceof SyntaxError && err.message.includes('JSON')) {
+    logger.error('JSON parsing error:', {
+      error: err.message,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Invalid JSON format in request body'
+    });
+  }
+  next(err);
+});
 
 // Monitoring middleware
 app.use(healthCheckMiddleware());

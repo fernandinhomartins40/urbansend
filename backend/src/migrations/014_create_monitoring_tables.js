@@ -3,7 +3,7 @@
  * @returns { Promise<void> }
  */
 exports.up = function(knex) {
-  return knex.schema.createTable('request_metrics', function (table) {
+  return knex.schema.createTableIfNotExists('request_metrics', function (table) {
     table.increments('id').primary();
     table.string('method', 10).notNullable();
     table.string('route', 255).notNullable();
