@@ -218,12 +218,23 @@ jobs:
         nginx -v
         "
 
-    - name: 🧹 Backup e Limpeza
+    - name: 🧹 Limpeza Completa e Backup
       run: |
-        echo "🧹 Backup da versão atual e limpeza..."
-        echo "======================================"
+        echo "🧹 Limpeza completa do ambiente..."
+        echo "=================================="
         
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        # Parar TUDO antes do backup
+        echo '🛑 Parando todos os serviços...'
+        pm2 stop all 2>/dev/null || echo 'Nenhum PM2 rodando'
+        pm2 delete all 2>/dev/null || echo 'Nenhum PM2 para deletar'
+        pm2 kill 2>/dev/null || echo 'PM2 daemon já parado'
+        
+        # Parar containers Docker se existirem
+        docker stop \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container rodando'
+        docker rm \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container para remover'
+        docker system prune -f 2>/dev/null || echo 'Docker cleanup feito'
+        
         # Criar backup se aplicação existir
         if [ -d '${{ env.APP_DIR }}' ]; then
           echo '📦 Criando backup da versão atual...'
@@ -232,45 +243,76 @@ jobs:
           cp -r ${{ env.APP_DIR }}/backend \"\$backup_dir/\" 2>/dev/null || true
           cp -r ${{ env.APP_DIR }}/frontend \"\$backup_dir/\" 2>/dev/null || true
           echo '✅ Backup criado em \$backup_dir'
+          
+          # LIMPEZA TOTAL - REMOVER TUDO
+          echo '🔥 Removendo aplicação anterior COMPLETAMENTE...'
+          rm -rf ${{ env.APP_DIR }}/backend/node_modules
+          rm -rf ${{ env.APP_DIR }}/frontend/node_modules
+          rm -rf ${{ env.APP_DIR }}/backend/dist
+          rm -rf ${{ env.APP_DIR }}/frontend/dist
+          rm -rf ${{ env.APP_DIR }}/.pm2
+          rm -rf ~/.pm2
+          rm -f ${{ env.APP_DIR }}/backend/package-lock.json
+          rm -f ${{ env.APP_DIR }}/frontend/package-lock.json
+          echo '✅ Limpeza completa realizada'
         else
-          echo 'ℹ️  Primeira instalação - sem backup necessário'
+          echo 'ℹ️  Primeira instalação - sem limpeza necessária'
         fi
         
-        echo '🛑 Parando aplicação existente...'
-        pm2 stop ultrazend 2>/dev/null && echo '✅ PM2 parado' || echo 'ℹ️  Nenhuma aplicação PM2 rodando'
-        pm2 delete ultrazend 2>/dev/null && echo '✅ PM2 removido' || echo 'ℹ️  Nenhuma aplicação PM2 para remover'
+        # Limpar cache do sistema
+        echo '🧹 Limpando cache do sistema...'
+        npm cache clean --force 2>/dev/null || echo 'NPM cache limpo'
+        apt-get autoremove -y 2>/dev/null || true
+        apt-get autoclean 2>/dev/null || true
         
-        echo '📁 Preparando diretório...'
+        echo '📁 Recriando diretórios...'
         mkdir -p ${{ env.APP_DIR }}/{backend,frontend,data,logs,uploads,temp}
         mkdir -p ${{ env.APP_DIR }}/data/{database,cache,sessions}
         mkdir -p /var/backups/ultrazend
-        echo '✅ Diretórios preparados'
+        echo '✅ Ambiente completamente limpo e preparado'
         "
 
-    - name: 📤 Transferir Código para VPS
+    - name: 📤 Transferência FORÇADA de Código
       run: |
-        echo "📤 Transferindo código para VPS..."
-        echo "=================================="
+        echo "📤 Transferindo código FORÇADAMENTE para VPS..."
+        echo "=============================================="
         
         echo "📊 Analisando arquivos a transferir..."
         echo "Tamanho total: $(du -sh . | cut -f1)"
+        echo "Commit atual: ${{ github.sha }}"
         
-        echo "🚀 Iniciando transferência..."
-        if sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --progress --delete \
+        echo "🔥 TRANSFERÊNCIA FORÇADA (substituindo TUDO)..."
+        if sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --progress --delete --force \
+          --checksum \
           --exclude='.git/' \
           --exclude='node_modules/' \
           --exclude='frontend/node_modules/' \
           --exclude='backend/node_modules/' \
+          --exclude='backend/dist/' \
+          --exclude='frontend/dist/' \
           --exclude='.claude/' \
           --exclude='__tests__/' \
           --exclude='coverage/' \
+          --exclude='**/package-lock.json' \
           -e "ssh -o StrictHostKeyChecking=no" \
           ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/; then
-          echo "✅ Código transferido com sucesso"
+          echo "✅ Código transferido FORÇADAMENTE com sucesso"
         else
-          echo "❌ Falha na transferência"
+          echo "❌ Falha na transferência forçada"
           exit 1
         fi
+        
+        echo "🔍 Verificando transferência..."
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        cd ${{ env.APP_DIR }}
+        echo '📋 Arquivos transferidos:'
+        ls -la
+        echo '📋 Backend transferido:'
+        ls -la backend/ | head -10
+        echo '📋 Frontend transferido:'
+        ls -la frontend/ | head -10
+        echo '✅ Transferência verificada'
+        "
 
     - name: 🔧 Configurar Aplicação no Servidor
       run: |
@@ -289,18 +331,21 @@ jobs:
         echo '📁 Estrutura configs:'
         ls -la configs/ 2>/dev/null || echo 'Configs não encontrados'
         
-        echo '🔧 Configurando backend...'
+        echo '🔧 Configurando backend LIMPO...'
         cd backend
         
-        # Instalar dependências de produção (incluindo swagger)
-        echo '📦 Instalando dependências de produção...'
-        if [ -f 'package-lock.json' ]; then
-          echo 'Usando npm ci...'
-          npm ci --production
-        else
-          echo 'Usando npm install...'
-          npm install --production
-        fi
+        # GARANTIR INSTALAÇÃO LIMPA
+        echo '🧹 Removendo qualquer cache/lock restante...'
+        rm -rf node_modules package-lock.json
+        npm cache clean --force
+        
+        # Instalar dependências de produção FORÇADAMENTE
+        echo '📦 Instalação FORÇADA de dependências...'
+        npm install --production --no-cache --force
+        
+        # Verificar se swagger foi instalado corretamente
+        echo '🔍 Verificando dependências críticas...'
+        npm list swagger-jsdoc swagger-ui-express || echo 'Swagger pode não estar instalado'
         
         # Verificar build detalhadamente
         echo '🔍 Verificando build...'
@@ -550,6 +595,14 @@ jobs:
         echo '⚡ Configurando inicialização automática...'
         pm2 startup systemd -u root --hp /root | grep '^sudo' | bash || echo 'PM2 startup pode já estar configurado'
         
+        # VERIFICAÇÃO DE VERSÃO DEPLOYADA
+        echo '🔍 VERIFICANDO VERSÃO DEPLOYADA:'
+        echo '================================='
+        echo 'Commit deployado: ${{ github.sha }}'
+        echo 'Branch: ${{ github.ref_name }}'
+        echo 'Data do deploy: $(date)'
+        echo ''
+        
         # Status final detalhado
         echo '📊 STATUS FINAL DOS SERVIÇOS:'
         echo '==============================='
@@ -565,7 +618,7 @@ jobs:
         echo 'Portas em uso:'
         netstat -tlnp | grep -E ':(80|3001|443) ' || echo 'Nenhuma porta relevante encontrada'
         echo ''
-        echo '✅ Inicialização concluída'
+        echo '✅ Inicialização concluída com NOVA VERSÃO'
         "
 
     - name: 🏥 Health Checks Inteligentes
