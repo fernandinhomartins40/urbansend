@@ -31,7 +31,7 @@ module.exports = {
       PORT: 3001,
       HTTPS_PORT: 443,
       HOST: '0.0.0.0',
-      DATABASE_URL: '/var/www/ultrazend/data/database.sqlite',
+      DATABASE_URL: '/var/www/ultrazend/backend/ultrazend.sqlite',
       FRONTEND_URL: 'https://www.ultrazend.com.br',
       API_BASE_URL: 'https://www.ultrazend.com.br',
       ALLOWED_ORIGINS: 'https://ultrazend.com.br,https://www.ultrazend.com.br',
