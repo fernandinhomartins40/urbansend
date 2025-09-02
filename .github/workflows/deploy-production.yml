@@ -317,17 +317,21 @@ jobs:
         rm -rf node_modules package-lock.json
         npm cache clean --force
         
-        # Instalar dependências de produção com comandos corretos
-        echo '📦 Instalação limpa de dependências...'
-        npm install --omit=dev
+        # Instalar TODAS as dependências (precisa dev deps para build)
+        echo '📦 Instalação completa de dependências (inclui dev para build)...'
+        npm install
         
         # Verificar se dependências críticas foram instaladas
         echo '🔍 Verificando dependências críticas...'
-        npm list swagger-jsdoc swagger-ui-express --depth=0 || echo 'Algumas dependências podem estar faltando'
+        npm list typescript swagger-jsdoc swagger-ui-express --depth=0 || echo 'Algumas dependências podem estar faltando'
         
         # EXECUTAR BUILD NO SERVIDOR
         echo '🏗️ Executando build no servidor...'
         npm run build
+        
+        # REMOVER DEPENDÊNCIAS DE DEV APÓS BUILD
+        echo '🧹 Removendo dependências de dev após build...'
+        npm prune --omit=dev
         
         # Verificar build detalhadamente
         echo '🔍 Verificando build...'
