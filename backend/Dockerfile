@@ -90,8 +90,8 @@ COPY --from=build --chown=nodeuser:nodegroup /app/ultrazend.sqlite ./ultrazend.s
 
 # Create necessary directories with correct structure and permissions
 RUN mkdir -p /app/data /app/logs /app/certificates && \
-    # Create subdirectories first as root
-    mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions && \
+    # Create all subdirectories needed by winston logger
+    mkdir -p /app/logs/application /app/logs/errors /app/logs/security /app/logs/performance /app/logs/business && \
     # Then set ownership to nodeuser
     chown -R nodeuser:nodegroup /app && \
     # Set permissive permissions for logs directory (nodeuser needs to create files)
