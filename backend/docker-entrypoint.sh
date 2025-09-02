@@ -9,12 +9,8 @@ echo "NPM version: $(npm --version)"
 
 # Verify directories exist (should have been created in Dockerfile)
 echo "📁 Ensuring directories exist..."
-if [ ! -d "/app/logs/application" ]; then
-    mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions || true
-fi
-if [ ! -d "/app/data" ]; then
-    mkdir -p /app/data || true
-fi
+# Skip directory creation - they should exist from Dockerfile with correct permissions
+# Creating them here can cause permission conflicts
 
 # Verify permissions (non-root user)
 echo "🔧 Checking permissions..."
