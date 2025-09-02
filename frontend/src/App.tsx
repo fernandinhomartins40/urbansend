@@ -77,6 +77,17 @@ function AppRoutes() {
                   </PublicRoute>
                 } 
               />
+              {/* Admin login redirect to regular login */}
+              <Route 
+                path="/admin/login" 
+                element={
+                  <PublicRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <Login />
+                    </Suspense>
+                  </PublicRoute>
+                } 
+              />
               <Route 
                 path="/verify-email" 
                 element={

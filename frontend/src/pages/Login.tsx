@@ -299,7 +299,7 @@ export function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-black via-primary-dark to-gray-900 p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-3xl">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center space-x-2 mb-4">
@@ -326,9 +326,9 @@ export function Login() {
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 lg:space-y-6">
             {isLogin ? (
-              <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
+              <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4 lg:space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -379,42 +379,45 @@ export function Login() {
                 </Button>
               </form>
             ) : (
-              <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="name"
-                      placeholder="Seu nome completo"
-                      className="pl-10"
-                      {...registerForm.register('name')}
-                    />
+              <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4 lg:space-y-6">
+                {/* Grid layout para telas maiores */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        id="name"
+                        placeholder="Seu nome completo"
+                        className="pl-10"
+                        {...registerForm.register('name')}
+                      />
+                    </div>
+                    {registerForm.formState.errors.name && (
+                      <p className="text-sm text-destructive">
+                        {registerForm.formState.errors.name.message}
+                      </p>
+                    )}
                   </div>
-                  {registerForm.formState.errors.name && (
-                    <p className="text-sm text-destructive">
-                      {registerForm.formState.errors.name.message}
-                    </p>
-                  )}
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      className="pl-10"
-                      {...registerForm.register('email')}
-                    />
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        className="pl-10"
+                        {...registerForm.register('email')}
+                      />
+                    </div>
+                    {registerForm.formState.errors.email && (
+                      <p className="text-sm text-destructive">
+                        {registerForm.formState.errors.email.message}
+                      </p>
+                    )}
                   </div>
-                  {registerForm.formState.errors.email && (
-                    <p className="text-sm text-destructive">
-                      {registerForm.formState.errors.email.message}
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
