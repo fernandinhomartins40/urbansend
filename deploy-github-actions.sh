@@ -218,11 +218,70 @@ echo "✅ Backend preparado"
 echo "🗄️ Executando migrações de banco..."
 npm run migrate:latest || echo "Migrations completed or not needed"
 
-# Configure Nginx - Start with HTTP only, then upgrade to SSL
+# Configure Nginx - Start with HTTP only, then upgrade to SSL  
 echo "🌐 ETAPA 1: Configurando Nginx HTTP temporário..."
 
+# ETAPA 1.0: Reset completo se nginx.conf principal tem problemas SSL
+echo "🚨 Verificando se nginx.conf principal tem configurações SSL problemáticas..."
+
+# Check if main nginx.conf or other configs have SSL issues
+if nginx -t 2>&1 | grep -q "ssl_certificate"; then
+    echo "❌ DETECTADO: Configurações SSL problemáticas no nginx.conf principal"
+    echo "🚨 Executando reset de emergência do Nginx..."
+    
+    # Full nginx reset
+    systemctl stop nginx 2>/dev/null || true
+    pkill -f nginx 2>/dev/null || true
+    
+    # Backup current config
+    backup_dir="/var/backups/nginx-emergency-\$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "\$backup_dir"
+    cp -r /etc/nginx "\$backup_dir/" 2>/dev/null || true
+    
+    # Clean nginx.conf
+    cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.ssl-problem-backup
+    
+    # Create minimal working nginx.conf
+    cat > /etc/nginx/nginx.conf << 'NGINX_CLEAN'
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+    
+    gzip on;
+    
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+NGINX_CLEAN
+
+    # Remove all SSL configurations
+    rm -rf /etc/nginx/sites-enabled/*
+    rm -rf /etc/nginx/sites-available/*
+    rm -f /etc/nginx/conf.d/*ssl* 2>/dev/null || true
+    
+    echo "✅ Reset de emergência concluído"
+fi
+
 # ETAPA 1.1: Limpar configurações SSL antigas que podem causar conflitos
-echo "🧹 Limpando configurações SSL antigas..."
+echo "🧹 Limpando configurações de sites antigas..."
 
 # Stop nginx first to avoid conflicts
 systemctl stop nginx 2>/dev/null || true
