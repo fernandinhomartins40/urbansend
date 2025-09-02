@@ -1,21 +1,22 @@
 # Multi-stage Dockerfile for UltraZend Backend - OPTIMIZED FOR NATIVE DEPS
 FROM node:18-bullseye-slim AS base
 
-# Install system dependencies for native modules (bcrypt, sqlite3, sharp)
-RUN apt-get update && apt-get install -y \
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     sqlite3 \
     libsqlite3-dev \
     python3 \
-    python3-pip \
     make \
     g++ \
     gcc \
     libc6-dev \
     libvips-dev \
     pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* /var/tmp/*
 
 # Set Python for native module compilation
 ENV PYTHON=python3
@@ -55,41 +56,47 @@ RUN npm run build
 FROM node:18-bullseye-slim AS production
 WORKDIR /app
 
-# Install runtime dependencies for native modules
-RUN apt-get update && apt-get install -y \
+# Install only runtime dependencies (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     sqlite3 \
     libsqlite3-0 \
     libvips42 \
+    && apt-get purge -y --auto-remove \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /tmp/* /var/tmp/* \
+    && rm -rf /usr/share/doc/* \
+    && rm -rf /usr/share/man/* \
+    && rm -rf /usr/share/info/*
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S ultrazend -u 1001 -G nodejs
+# Create non-root user with proper permissions
+RUN groupadd -r nodegroup --gid=1001 && \
+    useradd -r -g nodegroup --uid=1001 --home=/app --shell=/bin/bash nodeuser
 
-# Copy production dependencies and built application from build stage
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/src/migrations ./src/migrations
-COPY --from=build /app/knexfile.js ./knexfile.js
+# Copy only necessary files from build stage
+COPY --from=build --chown=nodeuser:nodegroup /app/node_modules ./node_modules
+COPY --from=build --chown=nodeuser:nodegroup /app/package*.json ./
+COPY --from=build --chown=nodeuser:nodegroup /app/dist ./dist
+COPY --from=build --chown=nodeuser:nodegroup /app/src/migrations ./src/migrations
+COPY --from=build --chown=nodeuser:nodegroup /app/knexfile.js ./knexfile.js
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
+# Copy entrypoint script with correct permissions
+COPY --chown=nodeuser:nodegroup docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Copy database
-COPY --from=build /app/ultrazend.sqlite ./ultrazend.sqlite
+# Copy database with correct ownership
+COPY --from=build --chown=nodeuser:nodegroup /app/ultrazend.sqlite ./ultrazend.sqlite
 
-# Create necessary directories with correct structure
-RUN mkdir -p /app/data /app/logs/application /app/logs/errors /app/logs/combined /app/certificates && \
-    chown -R ultrazend:nodejs /app && \
-    chmod -R 755 /app/logs
+# Create necessary directories with correct structure and permissions
+RUN mkdir -p /app/data /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions /app/certificates && \
+    chown -R nodeuser:nodegroup /app && \
+    chmod -R 755 /app/logs /app/data && \
+    chmod -R 750 /app/certificates
 
-# Keep as root to fix permissions on startup, then switch to ultrazend
-# USER ultrazend - will be handled by entrypoint script
+# Switch to non-root user
+USER nodeuser
 
 # Health check robusto (alinhado com nossas correções)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
