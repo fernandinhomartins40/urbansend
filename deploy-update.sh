@@ -30,24 +30,42 @@ error() { echo -e "${RED}[ERROR] $1${NC}" | tee -a "$LOG_FILE"; exit 1; }
 warning() { echo -e "${YELLOW}[WARNING] $1${NC}" | tee -a "$LOG_FILE"; }
 info() { echo -e "${PURPLE}[INFO] $1${NC}" | tee -a "$LOG_FILE"; }
 
-# Rollback function
+# Rollback function with robust error handling
 rollback() {
     warning "FALHA DETECTADA! Iniciando rollback automático..."
-    ssh $SERVER_USER@$SERVER_HOST << EOF
+    ssh $SERVER_USER@$SERVER_HOST << 'EOF'
 cd $DEPLOY_PATH
+
+echo "🔄 Iniciando processo de rollback..."
 if [ -d "backup-$DEPLOY_ID" ]; then
-    log "Parando aplicação..."
-    pm2 stop ultrazend 2>/dev/null || true
+    echo "📁 Backup encontrado: backup-$DEPLOY_ID"
     
-    log "Restaurando backup..."
+    echo "🛑 Parando aplicação gracefully..."
+    pm2 stop ultrazend 2>/dev/null || echo "PM2 não estava rodando"
+    pm2 delete ultrazend 2>/dev/null || echo "Processo PM2 não encontrado"
+    
+    echo "🗂️ Movendo versão falha para backup..."
     rm -rf backend.failed frontend.failed || true
-    mv backend backend.failed 2>/dev/null || true
-    mv frontend frontend.failed 2>/dev/null || true
+    mv backend backend.failed 2>/dev/null || echo "Backend não encontrado para backup"
+    mv frontend frontend.failed 2>/dev/null || echo "Frontend não encontrado para backup"
     
-    cp -r backup-$DEPLOY_ID/backend . || true
-    cp -r backup-$DEPLOY_ID/frontend . || true
+    echo "📋 Restaurando arquivos do backup..."
+    cp -r backup-$DEPLOY_ID/backend . || warning "Falha ao restaurar backend"
+    cp -r backup-$DEPLOY_ID/frontend . || warning "Falha ao restaurar frontend"
     
-    log "Reiniciando aplicação..."
+    # Restaurar configuração de .env com fallback
+    echo "⚙️ Restaurando configuração .env..."
+    if [ -f "backup-$DEPLOY_ID/.env" ]; then
+        cp backup-$DEPLOY_ID/.env backend/.env
+    elif [ -f "configs/.env.production" ]; then
+        cp configs/.env.production backend/.env
+    elif [ -f "backend/.env.production.deploy" ]; then
+        cp backend/.env.production.deploy backend/.env
+    else
+        warning "Nenhum arquivo .env encontrado para restaurar"
+    fi
+    
+    echo "🚀 Reiniciando aplicação com configuração anterior..."
     pm2 start ecosystem.config.js --env production
     
     # Cleanup

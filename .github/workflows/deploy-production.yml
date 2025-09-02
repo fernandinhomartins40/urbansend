@@ -516,24 +516,47 @@ jobs:
           exit 1
         fi
         
-        # Verificar e corrigir arquivo .env
+        # Configurar arquivos .env com fallback robusto (alinhado com correções)
+        echo '🔧 Configurando arquivos .env com estratégia de fallback...'
+        
+        # Tentar diferentes localizações de .env conforme nossa correção
+        ENV_CONFIGURED=false
+        
+        # 1. Verificar se já existe .env no backend
         if [ -f 'backend/.env' ]; then
-          echo '✅ backend/.env presente'
+          echo '✅ backend/.env já presente'
+          ENV_CONFIGURED=true
+        # 2. Tentar .env.production.deploy (nosso arquivo especial)
+        elif [ -f 'backend/.env.production.deploy' ]; then
+          echo '🔧 Usando .env.production.deploy...'
+          cp backend/.env.production.deploy backend/.env
+          chmod 600 backend/.env
+          chown www-data:www-data backend/.env
+          ENV_CONFIGURED=true
+        # 3. Tentar configs/.env.production
+        elif [ -f 'configs/.env.production' ]; then
+          echo '🔧 Copiando configs/.env.production para backend/.env...'
+          cp configs/.env.production backend/.env
+          chmod 600 backend/.env
+          chown www-data:www-data backend/.env
+          ENV_CONFIGURED=true
+        # 4. Tentar backend/.env.production
         elif [ -f 'backend/.env.production' ]; then
-          echo '🔧 backend/.env não encontrado, mas .env.production existe'
-          echo '🔄 Copiando .env.production para .env...'
+          echo '🔧 Copiando backend/.env.production para backend/.env...'
           cp backend/.env.production backend/.env
           chmod 600 backend/.env
           chown www-data:www-data backend/.env
-          echo '✅ backend/.env criado a partir de .env.production'
-        else
-          echo '❌ Nem backend/.env nem backend/.env.production encontrados'
-          echo '📋 Arquivos disponíveis no backend:'
-          ls -la backend/ | head -10
-          echo '📋 Procurando arquivos .env* no diretório:'
-          find . -name ".env*" -type f || echo 'Nenhum arquivo .env encontrado'
+          ENV_CONFIGURED=true
+        fi
+        
+        if [ "$ENV_CONFIGURED" = "false" ]; then
+          echo '❌ Nenhum arquivo .env encontrado em locais esperados'
+          echo '📋 Arquivos disponíveis:'
+          find . -name ".env*" -type f | head -10 || echo 'Nenhum arquivo .env encontrado'
           exit 1
         fi
+        
+        echo '✅ Configuração .env concluída com fallback robusto'
         
         # Iniciar aplicação com PM2 com verificações detalhadas
         echo '🚀 Iniciando aplicação com PM2...'

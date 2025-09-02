@@ -1,6 +1,29 @@
 // Load environment variables from .env file (conditional loading)
+const path = require('path');
+const fs = require('fs');
+
+// Try loading environment variables from different possible paths
+const envPaths = [
+  '/var/www/ultrazend/backend/.env',
+  '/var/www/ultrazend/configs/.env.production',
+  path.join(__dirname, 'configs', '.env.production')
+];
+
+let envLoaded = false;
 try {
-  require('dotenv').config({ path: '/var/www/ultrazend/backend/.env' });
+  const dotenv = require('dotenv');
+  for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      console.log(`✅ Loaded environment from: ${envPath}`);
+      envLoaded = true;
+      break;
+    }
+  }
+  
+  if (!envLoaded) {
+    console.warn('⚠️ No .env file found, using system environment variables');
+  }
 } catch (error) {
   console.warn('dotenv not available, using system environment variables');
 }
@@ -15,8 +38,9 @@ module.exports = {
     watch: false,
     max_memory_restart: '1G',
     
-    // Explicit env file loading
-    env_file: '/var/www/ultrazend/backend/.env',
+    // Explicit env file loading - alinhado com nossas correções de fallback
+    // O próprio código da aplicação já implementa fallback robusto
+    // env_file: '/var/www/ultrazend/backend/.env', // Removido para usar fallback interno
     
     // Unified restart configuration
     restart_delay: 3000,

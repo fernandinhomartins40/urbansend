@@ -30,13 +30,31 @@ import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
 
-// Load environment variables
-const configPath = path.resolve(process.cwd(), 'configs', '.env.production');
-dotenv.config({ path: configPath });
+// Load environment variables with fallback strategy
+const loadEnvConfig = () => {
+  // Try production config paths in order of preference
+  const envPaths = [
+    '/var/www/ultrazend/backend/.env',  // PM2 production path
+    path.resolve(process.cwd(), 'configs', '.env.production'),
+    path.resolve(process.cwd(), '.env.production'),
+    path.resolve(process.cwd(), '.env')
+  ];
 
-if (process.env.NODE_ENV !== 'production') {
-  dotenv.config();
-}
+  for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      logger.info(`✅ Loaded environment config from: ${envPath}`);
+      break;
+    }
+  }
+
+  // Always try to load local .env as fallback
+  if (process.env.NODE_ENV !== 'production') {
+    dotenv.config();
+  }
+};
+
+loadEnvConfig();
 
 // CORS allowed origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
@@ -57,20 +75,48 @@ let server;
 let httpsServer;
 let primaryServer;
 
+// SSL Certificate paths to try
+const sslCertPaths = [
+  {
+    key: '/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem',
+    cert: '/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem',
+    name: 'Let\'s Encrypt'
+  },
+  {
+    key: '/etc/ssl/private/ultrazend.com.br.key',
+    cert: '/etc/ssl/certs/ultrazend.com.br.crt', 
+    name: 'Custom SSL'
+  }
+];
+
 if (Env.isProduction) {
-  try {
-    const sslOptions = {
-      key: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
-      cert: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
-    };
-    
-    httpsServer = createHttpsServer(sslOptions, app);
-    primaryServer = httpsServer;
-    server = createServer(app);
-    
-    logger.info('✅ SSL certificates loaded successfully');
-  } catch (error) {
-    logger.error('❌ SSL certificates not found, using HTTP only', error);
+  let sslLoaded = false;
+  
+  // Try to load SSL certificates from different paths
+  for (const sslPath of sslCertPaths) {
+    try {
+      if (fs.existsSync(sslPath.key) && fs.existsSync(sslPath.cert)) {
+        const sslOptions = {
+          key: fs.readFileSync(sslPath.key),
+          cert: fs.readFileSync(sslPath.cert)
+        };
+        
+        httpsServer = createHttpsServer(sslOptions, app);
+        primaryServer = httpsServer;
+        server = createServer(app);
+        
+        logger.info(`✅ SSL certificates loaded successfully from ${sslPath.name}`);
+        sslLoaded = true;
+        break;
+      }
+    } catch (error) {
+      logger.warn(`⚠️ Failed to load SSL from ${sslPath.name}:`, error);
+    }
+  }
+  
+  // Fallback to HTTP if no SSL certificates found
+  if (!sslLoaded) {
+    logger.warn('⚠️ No SSL certificates found, running HTTP only');
     server = createServer(app);
     primaryServer = server;
   }
@@ -368,16 +414,44 @@ const initializeServices = async () => {
     logger.warn('⚠️ Monitoring service failed, continuing...', { error: (error as Error).message });
   }
 
-  // Step 2: Test database connection and run migrations
-  try {
-    await db.raw('SELECT 1');
-    logger.info('✅ Database connected successfully');
+  // Step 2: Test database connection and run migrations with retry logic
+  let dbRetries = 3;
+  let dbConnected = false;
+  
+  while (dbRetries > 0 && !dbConnected) {
+    try {
+      // Test basic connection
+      await db.raw('SELECT 1');
+      logger.info('✅ Database connected successfully');
+      dbConnected = true;
 
-    await db.migrate.latest();
-    logger.info('✅ Database migrations completed');
-  } catch (error) {
-    logger.error('❌ Database initialization failed', { error: (error as Error).message });
-    throw error;
+      // Run migrations with timeout
+      const migrationTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Migration timeout')), 30000)
+      );
+      
+      await Promise.race([
+        db.migrate.latest(),
+        migrationTimeout
+      ]);
+      
+      logger.info('✅ Database migrations completed');
+    } catch (error) {
+      dbRetries--;
+      logger.warn(`⚠️ Database attempt failed (${3-dbRetries}/3)`, { 
+        error: (error as Error).message,
+        retries: dbRetries 
+      });
+      
+      if (dbRetries > 0) {
+        // Wait 2 seconds before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        logger.error('❌ Database initialization failed after 3 attempts');
+        // Don't throw error - allow app to start without full DB functionality
+        logger.warn('⚠️ Starting server without full database functionality');
+      }
+    }
   }
 
   // Step 3: Initialize services that need database tables (SEQUENTIAL)
