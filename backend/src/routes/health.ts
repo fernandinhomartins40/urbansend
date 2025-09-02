@@ -80,8 +80,7 @@ async function checkRedisHealth(): Promise<HealthCheck> {
     const redis = new IORedis(redisUrl, {
       connectTimeout: 5000,
       lazyConnect: true,
-      maxRetriesPerRequest: 1,
-      retryDelayOnFailover: 100
+      maxRetriesPerRequest: 1
     });
 
     await redis.ping();
