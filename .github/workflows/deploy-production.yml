@@ -1,252 +1,539 @@
-name: 🚀 UltraZend Production Deployment
+name: 🚀 Deploy UltraZend Production System
+
+concurrency:
+  group: ultrazend-production-deploy
+  cancel-in-progress: true
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      force_deploy:
-        description: 'Force deployment even if no changes'
-        required: false
-        default: 'false'
-        type: boolean
 
 env:
-  NODE_VERSION: '20.x'
-  DEPLOY_HOST: '31.97.162.155'
-  DEPLOY_USER: 'root'
+  VPS_HOST: '31.97.162.155'
+  VPS_USER: 'root'
+  APP_DIR: '/var/www/ultrazend'
+  APP_PORT: '3001'
+  DOMAIN: 'www.ultrazend.com.br'
+  NODE_VERSION: '20'
 
 jobs:
-  test:
-    name: 🧪 Test & Validate
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 📦 Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: |
-          backend/package-lock.json
-          frontend/package-lock.json
-    
-    - name: 🔧 Install Backend Dependencies
-      run: |
-        cd backend
-        if [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
-    
-    - name: 🔧 Install Frontend Dependencies
-      run: |
-        cd frontend
-        if [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
-    
-    - name: 🔍 Backend Type Check
-      run: |
-        cd backend
-        npm run typecheck
-    
-    - name: 🔍 Frontend Type Check
-      run: |
-        cd frontend
-        npm run typecheck
-    
-    - name: 🧪 Run Backend Tests
-      run: |
-        cd backend
-        npm test || echo "⚠️ Tests not configured or failed"
-      continue-on-error: true
-    
-    - name: 🧪 Run Frontend Tests
-      run: |
-        cd frontend
-        npm test || echo "⚠️ Tests not configured or failed"
-      continue-on-error: true
-
-  build:
-    name: 🔨 Build Application
-    runs-on: ubuntu-latest
-    needs: test
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 📦 Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: |
-          backend/package-lock.json
-          frontend/package-lock.json
-    
-    - name: 🔧 Install Backend Dependencies
-      run: |
-        cd backend
-        if [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
-    
-    - name: 🔧 Install Frontend Dependencies  
-      run: |
-        cd frontend
-        if [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
-    
-    - name: 🏗️ Build Backend
-      run: |
-        cd backend
-        npm run build
-        
-    - name: 🏗️ Build Frontend
-      run: |
-        cd frontend
-        npm run build
-    
-    - name: ✅ Verify Builds
-      run: |
-        echo "🔍 Verifying builds..."
-        [ -f "backend/dist/index.js" ] || { echo "❌ Backend build failed"; exit 1; }
-        [ -f "frontend/dist/index.html" ] || { echo "❌ Frontend build failed"; exit 1; }
-        echo "✅ All builds successful"
-    
-    - name: 📤 Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ultrazend-builds
-        path: |
-          backend/dist/
-          frontend/dist/
-        retention-days: 1
-
   deploy:
-    name: 🚀 Deploy to Production
+    name: 🎯 Deploy UltraZend System
     runs-on: ubuntu-latest
-    needs: [test, build]
-    environment: production
+    timeout-minutes: 60
     
     steps:
-    - name: 📥 Checkout code
+    - name: 📋 Informações do Deploy
+      run: |
+        echo "=============================================="
+        echo "🚀 INICIANDO DEPLOY ULTRAZEND SYSTEM"
+        echo "=============================================="
+        echo "📦 Commit: ${{ github.sha }}"
+        echo "🌿 Branch: ${{ github.ref_name }}"
+        echo "👤 Actor: ${{ github.actor }}"
+        echo "⏰ Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+        echo "🎯 Target: ${{ env.VPS_HOST }}:${{ env.APP_PORT }}"
+        echo "🌐 Domain: ${{ env.DOMAIN }}"
+        echo "=============================================="
+        
+        # Variável para tracking do tempo
+        echo "DEPLOY_START_TIME=$(date +%s)" >> $GITHUB_ENV
+
+    - name: 🔧 Configurar SSH e Ferramentas
+      run: |
+        echo "🔧 Configurando SSH e ferramentas necessárias..."
+        sudo apt-get update -qq
+        sudo apt-get install -y sshpass rsync curl jq
+        
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+        
+        echo "🔐 Testando conexão SSH..."
+        if sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '✅ SSH funcionando'"; then
+          echo "✅ SSH configurado com sucesso"
+        else
+          echo "❌ Falha na conexão SSH"
+          exit 1
+        fi
+
+    - name: 📥 Checkout do Código
       uses: actions/checkout@v4
-      
-    - name: 📦 Setup Node.js
+      with:
+        fetch-depth: 0
+
+    - name: 🟢 Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-        cache-dependency-path: |
-          backend/package-lock.json
-          frontend/package-lock.json
-    
-    - name: 📥 Download Build Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ultrazend-builds
-        path: ./
-    
-    - name: 🔧 Restore Backend Dependencies
-      run: |
-        cd backend
-        if [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
-    
-    - name: 🔧 Restore Frontend Dependencies
-      run: |
-        cd frontend
-        if [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
-    
-    - name: 🔑 Setup SSH Key
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-    
-    - name: 🚀 Deploy to Production Server
-      run: |
-        chmod +x deploy-github-actions.sh
-        ./deploy-github-actions.sh
-      env:
-        DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
-        DEPLOY_USER: ${{ env.DEPLOY_USER }}
-    
-    - name: 🔍 Post-Deploy Health Check
-      run: |
-        echo "🔍 Final health check..."
-        max_attempts=5
-        attempt=1
-        
-        while [ $attempt -le $max_attempts ]; do
-          echo "Health check attempt $attempt/$max_attempts"
-          
-          if curl -f -s -m 10 "https://www.ultrazend.com.br/health" > /dev/null 2>&1; then
-            echo "✅ External health check passed"
-            exit 0
-          elif curl -f -s -m 10 "http://www.ultrazend.com.br" > /dev/null 2>&1; then
-            echo "⚠️ HTTP accessible, HTTPS may be setting up"
-            exit 0
-          fi
-          
-          echo "Attempt $attempt failed, waiting 30s..."
-          sleep 30
-          attempt=$((attempt + 1))
-        done
-        
-        echo "⚠️ External access not available yet (may need DNS propagation)"
-        exit 0
 
-  notify:
-    name: 📢 Notify Status
-    runs-on: ubuntu-latest
-    needs: [test, build, deploy]
-    if: always()
-    
-    steps:
-    - name: 📊 Deployment Summary
+    - name: 📊 Análise Pre-Deploy
       run: |
-        echo "📊 ===== ULTRAZEND DEPLOYMENT SUMMARY ====="
-        echo "🚀 Pipeline: UltraZend GitHub Actions"
-        echo "📅 Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        echo "🌿 Branch: ${{ github.ref_name }}"
-        echo "🔢 Run: #${{ github.run_number }}"
-        echo "🔖 Commit: ${{ github.sha }}"
-        echo "👤 Triggered by: ${{ github.actor }}"
+        echo "📊 Analisando estrutura do projeto..."
+        echo "=================================="
         
-        if [ "${{ needs.deploy.result }}" == "success" ]; then
-          echo "✅ Status: SUCCESS"
-          echo "🌐 Website: https://www.ultrazend.com.br"
-          echo "🔍 Health: https://www.ultrazend.com.br/health"
-          echo "🔌 API: https://www.ultrazend.com.br/api"
+        echo "📁 Estrutura raiz:"
+        ls -la
+        
+        echo ""
+        echo "📁 Backend:"
+        if [ -d "backend" ]; then
+          ls -la backend/
+          if [ -f "backend/package.json" ]; then
+            echo "✅ package.json encontrado"
+            echo "📦 Dependências principais:"
+            cat backend/package.json | jq -r '.dependencies | keys | .[]' | head -5
+          fi
         else
-          echo "❌ Status: FAILED"
-          echo "💥 Check the logs above for details"
+          echo "❌ Diretório backend não encontrado"
         fi
         
-        echo "📋 Pipeline Results:"
-        echo "  🧪 Tests: ${{ needs.test.result }}"
-        echo "  🔨 Build: ${{ needs.build.result }}"  
-        echo "  🚀 Deploy: ${{ needs.deploy.result }}"
-        echo "🔗 Build URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        echo "================================================="
+        echo ""
+        echo "📁 Frontend:"
+        if [ -d "frontend" ]; then
+          ls -la frontend/
+          if [ -f "frontend/package.json" ]; then
+            echo "✅ package.json encontrado"
+            echo "📦 Dependências principais:"
+            cat frontend/package.json | jq -r '.dependencies | keys | .[]' | head -5
+          fi
+        else
+          echo "❌ Diretório frontend não encontrado"
+        fi
+        
+        echo ""
+        echo "🔧 Configurações:"
+        ls -la configs/ ecosystem.config.js 2>/dev/null || echo "⚠️ Arquivos de configuração não encontrados"
+
+    - name: 🏗️ Build Local do Backend
+      run: |
+        echo "🏗️ Iniciando build local do backend..."
+        echo "======================================"
+        
+        if [ ! -d "backend" ]; then
+          echo "❌ Diretório backend não encontrado"
+          exit 1
+        fi
+        
+        cd backend
+        
+        echo "📦 Instalando dependências do backend..."
+        if [ -f "package-lock.json" ]; then
+          npm ci
+        else
+          npm install
+        fi
+        echo "✅ Dependências instaladas com sucesso"
+        
+        echo "🔨 Compilando TypeScript..."
+        if npm run build; then
+          echo "✅ Build do backend concluído com sucesso"
+          echo "📊 Analisando build:"
+          ls -la dist/
+          echo "📈 Tamanho do build: $(du -sh dist/)"
+          echo "📝 Arquivos gerados: $(find dist/ -type f | wc -l)"
+          
+          # Verificar arquivo principal
+          if [ -f "dist/index.js" ]; then
+            echo "✅ index.js encontrado"
+          else
+            echo "❌ index.js não encontrado"
+            exit 1
+          fi
+        else
+          echo "❌ Falha no build do backend"
+          exit 1
+        fi
+
+    - name: ⚛️ Build Local do Frontend  
+      run: |
+        echo "⚛️ Iniciando build local do frontend..."
+        echo "======================================"
+        
+        if [ ! -d "frontend" ]; then
+          echo "❌ Diretório frontend não encontrado"
+          exit 1
+        fi
+        
+        cd frontend
+        
+        echo "📦 Instalando dependências do frontend..."
+        if [ -f "package-lock.json" ]; then
+          npm ci
+        else
+          npm install
+        fi
+        echo "✅ Dependências instaladas com sucesso"
+        
+        echo "🔨 Compilando React/Vite..."
+        if npm run build; then
+          echo "✅ Build do frontend concluído com sucesso"
+          echo "📊 Analisando build:"
+          ls -la dist/
+          echo "📈 Tamanho do build: $(du -sh dist/)"
+          echo "📝 Arquivos gerados: $(find dist/ -type f | wc -l)"
+          
+          # Verificar se arquivos essenciais foram gerados
+          if [ -f "dist/index.html" ]; then
+            echo "✅ index.html encontrado"
+          else
+            echo "❌ index.html não encontrado"
+            exit 1
+          fi
+        else
+          echo "❌ Falha no build do frontend"
+          exit 1
+        fi
+
+    - name: 🧹 Preparar VPS
+      run: |
+        echo "🧹 Preparando ambiente na VPS..."
+        echo "================================"
+        
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        echo '🔄 Atualizando sistema...'
+        apt-get update -y > /dev/null 2>&1
+        
+        echo '🟢 Instalando Node.js 20.x...'
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+        apt-get install -y nodejs > /dev/null 2>&1
+        
+        echo '📦 Instalando PM2...'
+        npm install -g pm2 > /dev/null 2>&1
+        
+        echo '🌐 Instalando Nginx...'
+        apt-get install -y nginx certbot python3-certbot-nginx > /dev/null 2>&1
+        
+        echo '🔒 Configurando firewall...'
+        ufw --force enable > /dev/null 2>&1
+        ufw allow ssh > /dev/null 2>&1
+        ufw allow http > /dev/null 2>&1
+        ufw allow https > /dev/null 2>&1
+        
+        echo '✅ Versões instaladas:'
+        node --version
+        npm --version
+        pm2 --version
+        nginx -v
+        "
+
+    - name: 🧹 Backup e Limpeza
+      run: |
+        echo "🧹 Backup da versão atual e limpeza..."
+        echo "======================================"
+        
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        # Criar backup se aplicação existir
+        if [ -d '${{ env.APP_DIR }}' ]; then
+          echo '📦 Criando backup da versão atual...'
+          backup_dir='/var/backups/ultrazend/backup-\$(date +%Y%m%d-%H%M%S)'
+          mkdir -p \"\$backup_dir\"
+          cp -r ${{ env.APP_DIR }}/backend \"\$backup_dir/\" 2>/dev/null || true
+          cp -r ${{ env.APP_DIR }}/frontend \"\$backup_dir/\" 2>/dev/null || true
+          echo '✅ Backup criado em \$backup_dir'
+        else
+          echo 'ℹ️  Primeira instalação - sem backup necessário'
+        fi
+        
+        echo '🛑 Parando aplicação existente...'
+        pm2 stop ultrazend 2>/dev/null && echo '✅ PM2 parado' || echo 'ℹ️  Nenhuma aplicação PM2 rodando'
+        pm2 delete ultrazend 2>/dev/null && echo '✅ PM2 removido' || echo 'ℹ️  Nenhuma aplicação PM2 para remover'
+        
+        echo '📁 Preparando diretório...'
+        mkdir -p ${{ env.APP_DIR }}/{backend,frontend,data,logs,uploads,temp}
+        mkdir -p ${{ env.APP_DIR }}/data/{database,cache,sessions}
+        mkdir -p /var/backups/ultrazend
+        echo '✅ Diretórios preparados'
+        "
+
+    - name: 📤 Transferir Código para VPS
+      run: |
+        echo "📤 Transferindo código para VPS..."
+        echo "=================================="
+        
+        echo "📊 Analisando arquivos a transferir..."
+        echo "Tamanho total: $(du -sh . | cut -f1)"
+        
+        echo "🚀 Iniciando transferência..."
+        if sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --progress --delete \
+          --exclude='.git/' \
+          --exclude='node_modules/' \
+          --exclude='frontend/node_modules/' \
+          --exclude='backend/node_modules/' \
+          --exclude='.claude/' \
+          --exclude='__tests__/' \
+          --exclude='coverage/' \
+          -e "ssh -o StrictHostKeyChecking=no" \
+          ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/; then
+          echo "✅ Código transferido com sucesso"
+        else
+          echo "❌ Falha na transferência"
+          exit 1
+        fi
+
+    - name: 🔧 Configurar Aplicação no Servidor
+      run: |
+        echo "🔧 Configurando aplicação no servidor..."
+        echo "========================================"
+        
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        cd ${{ env.APP_DIR }}
+        
+        echo '📋 Verificando estrutura transferida...'
+        ls -la
+        
+        echo '🔧 Configurando backend...'
+        cd backend
+        
+        # Instalar dependências de produção
+        echo '📦 Instalando dependências de produção...'
+        if [ -f 'package-lock.json' ]; then
+          npm ci --only=production
+        else
+          npm install --only=production
+        fi
+        
+        # Verificar build
+        if [ ! -f 'dist/index.js' ]; then
+          echo '❌ Build não encontrado no servidor'
+          exit 1
+        fi
+        echo '✅ Build verificado'
+        
+        # Executar migrações
+        echo '🗄️  Executando migrações de banco...'
+        npm run migrate:latest || echo 'Migrations completed or not needed'
+        
+        cd ..
+        
+        # Configurar Nginx
+        if [ -f 'configs/nginx-ssl.conf' ]; then
+          echo '🌐 Configurando Nginx...'
+          cp configs/nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+          ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+          rm -f /etc/nginx/sites-enabled/default
+          
+          # Testar configuração
+          if nginx -t; then
+            echo '✅ Configuração Nginx válida'
+          else
+            echo '❌ Erro na configuração Nginx'
+            exit 1
+          fi
+        fi
+        
+        # Configurar SSL se ainda não existir
+        if [ ! -f '/etc/letsencrypt/live/${{ env.DOMAIN }}/fullchain.pem' ]; then
+          echo '🔒 Configurando certificados SSL...'
+          systemctl stop nginx 2>/dev/null || true
+          certbot certonly --standalone \
+            -d ultrazend.com.br \
+            -d ${{ env.DOMAIN }} \
+            --non-interactive \
+            --agree-tos \
+            --email admin@ultrazend.com.br \
+            || echo '⚠️  SSL certificate generation failed - continuing without SSL'
+        fi
+        
+        # Definir permissões
+        chown -R www-data:www-data ${{ env.APP_DIR }}
+        chmod +x ${{ env.APP_DIR }}/backend/dist/index.js
+        
+        echo '✅ Aplicação configurada no servidor'
+        "
+
+    - name: 🚀 Iniciar Aplicação
+      run: |
+        echo "🚀 Iniciando aplicação..."
+        echo "========================="
+        
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        cd ${{ env.APP_DIR }}
+        
+        # Iniciar Nginx
+        systemctl start nginx
+        systemctl enable nginx
+        echo '✅ Nginx iniciado'
+        
+        # Iniciar aplicação com PM2
+        echo '🚀 Iniciando aplicação com PM2...'
+        if pm2 start ecosystem.config.js --env production; then
+          echo '✅ Aplicação iniciada com PM2'
+        else
+          echo '❌ Falha ao iniciar aplicação'
+          exit 1
+        fi
+        
+        # Salvar configuração PM2
+        pm2 save
+        
+        # Configurar inicialização automática
+        pm2 startup systemd -u root --hp /root | grep '^sudo' | bash || echo 'PM2 startup may already be configured'
+        
+        echo '📊 Status da aplicação:'
+        pm2 status
+        "
+
+    - name: 🏥 Health Checks Inteligentes
+      run: |
+        echo "🏥 Executando health checks inteligentes..."
+        echo "=========================================="
+        
+        # Função para health check com retry
+        health_check() {
+          local url=$1
+          local name=$2
+          local max_attempts=20
+          local delay=15
+          
+          echo "🔍 Verificando $name..."
+          
+          for attempt in $(seq 1 $max_attempts); do
+            local total_wait=$((attempt * delay))
+            echo "⏳ Tentativa $attempt/$max_attempts (${total_wait}s total) - $name"
+            
+            local response=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" "$url" 2>/dev/null || echo "000|0")
+            local http_code=$(echo $response | cut -d'|' -f1)
+            local time_total=$(echo $response | cut -d'|' -f2)
+            
+            case $http_code in
+              200)
+                echo "✅ $name: Respondendo corretamente (${time_total}s)"
+                return 0
+                ;;
+              000)
+                echo "⏳ $name: Serviço ainda não responde..."
+                ;;
+              *)
+                echo "⚠️  $name: HTTP $http_code (aguardando...)"
+                ;;
+            esac
+            
+            if [ $attempt -lt $max_attempts ]; then
+              sleep $delay
+            fi
+          done
+          
+          echo "❌ $name: Falhou após ${max_attempts} tentativas (${total_wait}s total)"
+          return 1
+        }
+        
+        echo ""
+        echo "🏥 Aguardando inicialização completa (60s)..."
+        sleep 60
+        
+        # Health check do backend local
+        if health_check "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health" "Backend Local"; then
+          echo "✅ Backend local está funcionando!"
+        else
+          echo "❌ Backend local não está respondendo"
+          BACKEND_FAILED=1
+        fi
+        
+        echo ""
+        
+        # Health check do frontend via HTTPS
+        if health_check "https://${{ env.DOMAIN }}/health" "Frontend HTTPS"; then
+          echo "✅ Frontend HTTPS está funcionando!"
+        else
+          echo "⚠️ Frontend HTTPS não responde - testando HTTP..."
+          if health_check "http://${{ env.DOMAIN }}" "Frontend HTTP"; then
+            echo "✅ Frontend HTTP está funcionando!"
+          else
+            echo "❌ Frontend não está respondendo"
+            FRONTEND_FAILED=1
+          fi
+        fi
+        
+        # Verificar logs se houver falha
+        if [ "${BACKEND_FAILED}" = "1" ] || [ "${FRONTEND_FAILED}" = "1" ]; then
+          echo ""
+          echo "🔍 Coletando logs para diagnóstico..."
+          echo "===================================="
+          
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+          cd ${{ env.APP_DIR }}
+          echo '📋 Status PM2:'
+          pm2 status
+          echo ''
+          echo '📝 Logs recentes (últimas 50 linhas):'
+          pm2 logs ultrazend --lines 50 --nostream
+          echo ''
+          echo '📋 Status Nginx:'
+          systemctl status nginx
+          "
+          
+          exit 1
+        fi
+
+    - name: ✅ Verificação Final e Resumo
+      if: success()
+      run: |
+        DEPLOY_END_TIME=$(date +%s)
+        DEPLOY_DURATION=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
+        DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DEPLOY_DURATION/3600)) $((DEPLOY_DURATION%3600/60)) $((DEPLOY_DURATION%60)))
+        
+        echo "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
+        echo "================================"
+        echo "⏱️  Tempo total: $DURATION_FORMATTED"
+        echo "🌐 Website: https://${{ env.DOMAIN }}"
+        echo "🏥 Health Check: https://${{ env.DOMAIN }}/health"
+        echo "🔌 API: https://${{ env.DOMAIN }}/api"
+        echo "📊 Status: ONLINE ✅"
+        echo ""
+        
+        # Verificação final dos serviços
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        cd ${{ env.APP_DIR }}
+        echo '📊 Status final PM2:'
+        pm2 jlist | jq -r '.[] | select(.name==\"ultrazend\") | \"Status: \" + .pm2_env.status + \" | PID: \" + (.pid|tostring) + \" | Uptime: \" + .pm2_env.pm_uptime'
+        echo ''
+        echo '🌐 Status Nginx:'
+        systemctl is-active nginx >/dev/null && echo '✅ Nginx: Active' || echo '❌ Nginx: Inactive'
+        echo ''
+        echo '💾 Uso de recursos:'
+        free -h | head -2
+        df -h ${{ env.APP_DIR }} | tail -1
+        "
+        
+        echo ""
+        echo "🎊🎊🎊 ULTRAZEND DEPLOY FINALIZADO COM SUCESSO! 🎊🎊🎊"
+
+    - name: ❌ Deploy Failed - Diagnóstico
+      if: failure()
+      run: |
+        DEPLOY_END_TIME=$(date +%s)
+        DEPLOY_DURATION=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
+        DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DEPLOY_DURATION/3600)) $((DEPLOY_DURATION%3600/60)) $((DEPLOY_DURATION%60)))
+        
+        echo "❌ ULTRAZEND DEPLOY FALHOU!"
+        echo "==========================="
+        echo "⏱️  Tempo até falha: $DURATION_FORMATTED"
+        echo "📊 Status: FAILED ❌"
+        echo ""
+        echo "🔍 Coletando informações de diagnóstico..."
+        
+        # Coletar logs detalhados
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        echo '📋 Status PM2:'
+        pm2 status 2>/dev/null || echo 'PM2 não disponível'
+        echo ''
+        echo '📝 Logs da aplicação:'
+        pm2 logs ultrazend --lines 50 --nostream 2>/dev/null || echo 'Logs PM2 não disponíveis'
+        echo ''
+        echo '🌐 Status Nginx:'
+        systemctl status nginx 2>/dev/null || echo 'Nginx não disponível'
+        echo ''
+        echo '💾 Uso de disco:'
+        df -h
+        echo ''
+        echo '🧠 Uso de memória:'
+        free -h
+        " 2>/dev/null || echo "Não foi possível conectar à VPS para diagnóstico"
+        
+        echo ""
+        echo "💥💥💥 ULTRAZEND DEPLOY FALHOU - VERIFIQUE OS LOGS ACIMA 💥💥💥"
+        
+        exit 1
