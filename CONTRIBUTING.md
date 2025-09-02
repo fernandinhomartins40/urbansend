@@ -61,10 +61,9 @@ git flow hotfix finish 1.2.1
 ## 🛠️ Development Setup
 
 ### Prerequisites
-- Node.js 18+
-- Docker & Docker Compose
+- Node.js 20+
 - Git
-- Redis (via Docker)
+- Redis (for development)
 
 ### Quick Start
 ```bash
@@ -72,8 +71,9 @@ git flow hotfix finish 1.2.1
 git clone https://github.com/your-org/ultrazend.git
 cd ultrazend
 
-# Setup development environment
-docker-compose -f docker-compose.dev.yml up -d
+# Install Redis (Ubuntu/Debian)
+sudo apt install redis-server
+sudo systemctl start redis
 
 # Install dependencies
 cd backend && npm install

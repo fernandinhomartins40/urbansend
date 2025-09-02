@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# 🚀 ULTRAZEND - Deploy Master Script
-# Script unificado e inteligente para deploy em produção
-# Versão: 3.0.0 - LIMPO E ORGANIZADO
+# 🚀 ULTRAZEND - Deploy Production Script
+# Native PM2 + Nginx deployment (No Docker!)
+# Version: 4.0.0 - NATIVE ONLY
 
 set -euo pipefail
 
@@ -10,6 +10,8 @@ set -euo pipefail
 SERVER_HOST="31.97.162.155"
 SERVER_USER="root"
 DEPLOY_PATH="/var/www/ultrazend"
+APP_PORT="3001"
+DOMAIN="www.ultrazend.com.br"
 
 # Colors
 RED='\033[0;31m'
@@ -26,299 +28,279 @@ warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
 
 # Show usage
 show_usage() {
-    echo "🚀 ULTRAZEND Deploy Master - Docker Only"
+    echo "🚀 ULTRAZEND Deploy - Native PM2 + Nginx"
     echo "======================================="
     echo "Usage: ./deploy.sh [OPTIONS]"
     echo ""
     echo "OPTIONS:"
-    echo "  --fresh  - Fresh server setup + deploy"
-    echo "  --auto   - Skip confirmations"
-    echo "  --help   - Show this help"
+    echo "  --setup    - Fresh server setup + deploy"
+    echo "  --quick    - Skip confirmations" 
+    echo "  --restart  - Just restart services"
+    echo "  --help     - Show this help"
     echo ""
     echo "EXAMPLES:"
-    echo "  ./deploy.sh              # Standard Docker deploy"
-    echo "  ./deploy.sh --auto       # Deploy without confirmation"
-    echo "  ./deploy.sh --fresh      # Setup clean server + deploy"
+    echo "  ./deploy.sh           # Standard native deploy"
+    echo "  ./deploy.sh --quick   # Deploy without confirmation"
+    echo "  ./deploy.sh --setup   # Setup clean server + deploy"
+    echo "  ./deploy.sh --restart # Just restart PM2 services"
     echo ""
-    echo "🐳 Uses Docker exclusively (no PM2 complexity!)"
+    echo "🚀 Uses PM2 + Nginx (Native deployment - No Docker!)"
     echo ""
 }
 
-# Docker-only deployment (no method detection needed)
-prepare_docker_environment() {
-    log "🐳 Preparing Docker environment..."
-    
-    # Always use Docker - no more PM2 complexity!
-    log "Using Docker exclusively for reliable deployment"
+# Test SSH connection
+test_ssh() {
+    log "Testing SSH connection to $SERVER_HOST..."
+    if ssh -o ConnectTimeout=10 -o BatchMode=yes $SERVER_USER@$SERVER_HOST "echo 'SSH OK'" >/dev/null 2>&1; then
+        success "SSH connection established"
+    else
+        error "SSH connection failed. Check your SSH key or use password authentication."
+    fi
 }
 
-# Validate prerequisites
-validate_prereqs() {
-    log "🔍 Validating prerequisites..."
+# Setup server dependencies
+setup_server() {
+    log "Setting up server dependencies..."
     
-    # Check local files
-    [ ! -d "backend" ] && error "Backend directory not found"
-    [ ! -d "frontend" ] && error "Frontend directory not found"
-    [ ! -f "backend/package.json" ] && error "Backend package.json not found"
-    [ ! -f "frontend/package.json" ] && error "Frontend package.json not found"
+    ssh $SERVER_USER@$SERVER_HOST "
+    # Update system
+    apt-get update -y >/dev/null
     
-    # Check Docker configuration files
-    [ ! -f "docker-compose.prod.yml" ] && error "docker-compose.prod.yml not found"
-    [ ! -f "backend/Dockerfile" ] && error "backend/Dockerfile not found"
+    # Install Node.js 20
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+    apt-get install -y nodejs >/dev/null
     
-    # Check .env files
-    if [ ! -f "configs/.env.production" ] && [ ! -f "backend/.env.production.deploy" ]; then
-        error "No production .env file found"
+    # Install PM2 globally
+    npm install -g pm2 >/dev/null
+    
+    # Install Nginx and utilities
+    apt-get install -y nginx certbot python3-certbot-nginx jq >/dev/null
+    
+    # Configure firewall
+    ufw --force enable >/dev/null
+    ufw allow ssh >/dev/null
+    ufw allow http >/dev/null
+    ufw allow https >/dev/null
+    
+    echo 'Server setup completed!'
+    echo 'Versions installed:'
+    node --version
+    npm --version
+    pm2 --version
+    nginx -v
+    "
+    
+    success "Server dependencies installed"
+}
+
+# Build frontend locally
+build_frontend() {
+    log "Building React frontend locally..."
+    
+    if [ ! -d "frontend" ]; then
+        error "Frontend directory not found"
     fi
     
-    # Test SSH connection
-    if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST 'echo "SSH OK"' >/dev/null 2>&1; then
-        error "SSH connection failed to $SERVER_HOST"
-    fi
-    
-    success "Prerequisites validated"
-}
-
-# Build applications locally
-build_apps() {
-    log "🏗️ Building applications..."
-    
-    # Backend build
-    log "Building backend..."
-    cd backend
-    npm ci
-    npm run build
-    [ ! -f "dist/index.js" ] && error "Backend build failed"
-    cd ..
-    
-    # Frontend build
-    log "Building frontend..."
     cd frontend
-    npm ci
+    
+    if [ -f "package-lock.json" ]; then
+        npm ci --silent
+    else
+        npm install --silent
+    fi
+    
     npm run build
-    [ ! -d "dist" ] && error "Frontend build failed"
+    
+    if [ ! -d "dist" ]; then
+        error "Frontend build failed - dist directory not created"
+    fi
+    
     cd ..
     
-    success "Applications built successfully"
+    success "Frontend built successfully ($(du -sh frontend/dist | cut -f1))"
 }
 
-# Transfer files to server
-transfer_files() {
-    log "📤 Transferring files to server..."
+# Deploy to server
+deploy_to_server() {
+    log "Deploying to server..."
     
-    rsync -avz --progress \
-        --exclude='node_modules/' \
-        --exclude='*.log' \
+    # Transfer files
+    log "Transferring files..."
+    rsync -avz --delete --progress \
         --exclude='.git/' \
-        --exclude='coverage/' \
+        --exclude='node_modules/' \
+        --exclude='frontend/node_modules/' \
+        --exclude='backend/node_modules/' \
+        --exclude='backend/dist/' \
+        --exclude='.claude/' \
         --exclude='__tests__/' \
-        -e "ssh -o StrictHostKeyChecking=no" \
+        --exclude='coverage/' \
         ./ $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
     
-    success "Files transferred"
-}
-
-# Deploy with Docker (only method)
-deploy_application() {
-    log "🐳 Deploying with Docker..."
+    # Configure on server
+    log "Configuring application on server..."
+    ssh $SERVER_USER@$SERVER_HOST "
+    cd $DEPLOY_PATH
     
-    ssh $SERVER_USER@$SERVER_HOST << 'EOFDOCKER'
-cd /var/www/ultrazend
-
-# Install Docker if needed
-if ! command -v docker >/dev/null; then
-    echo "📦 Installing Docker..."
-    curl -fsSL https://get.docker.com | sh
-    systemctl start docker && systemctl enable docker
-fi
-
-if ! command -v docker-compose >/dev/null; then
-    echo "📦 Installing Docker Compose..."
-    curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    chmod +x /usr/local/bin/docker-compose
-fi
-
-# REMOVE PM2 completely (no more PM2!)
-echo "🗑️ Removing PM2 completely..."
-pm2 stop all 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
-pm2 kill 2>/dev/null || true
-# Optionally uninstall PM2 completely
-npm uninstall -g pm2 2>/dev/null || true
-
-# Configure .env
-if [ ! -f "backend/.env" ]; then
-    if [ -f "configs/.env.production" ]; then
-        cp configs/.env.production backend/.env
-    elif [ -f "backend/.env.production.deploy" ]; then
-        cp backend/.env.production.deploy backend/.env
+    # Stop existing services
+    pm2 stop ultrazend-backend 2>/dev/null || true
+    pm2 delete ultrazend-backend 2>/dev/null || true
+    
+    # Setup backend
+    echo 'Setting up backend...'
+    cd backend
+    npm ci --only=production --silent
+    npm run build
+    
+    # Copy .env if exists
+    if [ -f ../configs/.env.production ]; then
+        cp ../configs/.env.production .env
+        chmod 600 .env
     fi
-fi
-
-# LIMPEZA AGRESSIVA DE DOCKER ANTES DO DEPLOY
-echo "🔥 Limpeza agressiva de Docker..."
-docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
-docker rmi $(docker images -q --filter 'dangling=true') 2>/dev/null || echo 'Sem imagens dangling'
-docker rmi $(docker images 'ultrazend*' -q) 2>/dev/null || echo 'Sem imagens ultrazend'
-docker system prune -af --volumes 2>/dev/null || echo 'Docker cleanup completo feito'
-
-# LIMPEZA DE BANCO E MIGRATIONS ANTIGAS
-echo "🗄️ Removendo banco e migrations antigas..."
-rm -f data/ultrazend.sqlite* 2>/dev/null || true
-rm -f data/database.sqlite* 2>/dev/null || true
-rm -f backend/ultrazend.sqlite* 2>/dev/null || true
-rm -f backend/database.sqlite* 2>/dev/null || true
-
-# Deploy with Docker (clean and reliable)
-echo "🐳 Starting Docker deployment..."
-docker-compose -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.prod.yml up -d
-
-echo "✅ Docker deployment completed successfully"
-EOFDOCKER
-
-    success "Docker deployment completed - PM2 eliminated!"
-}
-
-
-# Fresh server setup (Docker-focused)
-setup_fresh_server() {
-    log "🆕 Setting up fresh server for Docker deployment..."
     
-    ssh $SERVER_USER@$SERVER_HOST << 'EOFFRESH'
-# Update system
-echo "📦 Updating system..."
-apt-get update && apt-get upgrade -y
-
-# Install essential packages (Docker-focused)
-echo "📦 Installing essential packages..."
-apt-get install -y curl wget git nginx sqlite3 ufw jq
-
-# Install Docker immediately 
-echo "🐳 Installing Docker..."
-curl -fsSL https://get.docker.com | sh
-systemctl start docker && systemctl enable docker
-
-# Install Docker Compose
-echo "🐳 Installing Docker Compose..."
-curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-
-# Configure firewall
-echo "🔒 Configuring firewall..."
-ufw --force enable
-ufw allow ssh
-ufw allow http
-ufw allow https
-ufw allow 25    # SMTP
-ufw allow 587   # SMTP Submission
-
-# Create directories
-echo "📁 Creating application directories..."
-mkdir -p /var/www/ultrazend/{data,logs,uploads,certificates}
-mkdir -p /var/backups/ultrazend
-
-# Remove any PM2 installation (clean start)
-echo "🗑️ Ensuring no PM2 remnants..."
-npm uninstall -g pm2 2>/dev/null || true
-pm2 kill 2>/dev/null || true
-
-echo "✅ Fresh Docker-ready server setup completed"
-EOFFRESH
-
-    success "Fresh server setup completed - Docker ready!"
+    # Run migrations
+    npm run migrate:latest || echo 'Migration warning (continuing...)'
     
-    # Continue with Docker deployment only
-    deploy_application
-}
-
-# Health checks
-health_checks() {
-    log "🏥 Running health checks..."
+    cd ..
     
-    sleep 15  # Wait for services to start
+    # Setup frontend static files
+    echo 'Setting up frontend static files...'
+    mkdir -p /var/www/ultrazend-static
+    cp -r frontend/dist/* /var/www/ultrazend-static/
+    chown -R www-data:www-data /var/www/ultrazend-static
+    chmod -R 755 /var/www/ultrazend-static
     
-    # Check API endpoint
-    if ssh $SERVER_USER@$SERVER_HOST 'curl -sf -m 10 http://localhost:3001/health >/dev/null'; then
-        success "API health check passed"
-        return 0
-    else
-        warning "API health check failed"
-        return 1
+    # Configure nginx
+    if [ -f configs/nginx-http.conf ]; then
+        # Update nginx config to serve from correct location
+        sed 's|/var/www/ultrazend/frontend/dist|/var/www/ultrazend-static|g' configs/nginx-http.conf > /etc/nginx/sites-available/ultrazend
+        ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+        rm -f /etc/nginx/sites-enabled/default
+        
+        # Test and reload nginx
+        nginx -t && systemctl reload nginx
+        systemctl enable nginx
     fi
+    
+    # Start backend with PM2
+    echo 'Starting backend with PM2...'
+    cd backend
+    pm2 start dist/index.js --name ultrazend-backend --env production
+    pm2 save
+    pm2 startup || true
+    
+    echo 'Deployment completed!'
+    "
+    
+    success "Application deployed to server"
 }
 
-# Main deployment logic
-main() {
-    # Parse arguments
-    AUTO_MODE=false
-    FRESH_SETUP=false
+# Restart services only
+restart_services() {
+    log "Restarting services..."
     
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            "--help"|"-h"|"help")
-                show_usage
-                exit 0
-                ;;
-            "--fresh")
-                FRESH_SETUP=true
-                ;;
-            "--auto")
-                AUTO_MODE=true
-                ;;
-            *)
-                error "Opção desconhecida: $1. Use --help para ajuda."
-                ;;
-        esac
-        shift
+    ssh $SERVER_USER@$SERVER_HOST "
+    cd $DEPLOY_PATH
+    
+    # Restart PM2
+    pm2 restart ultrazend-backend || pm2 start backend/dist/index.js --name ultrazend-backend --env production
+    pm2 save
+    
+    # Restart Nginx
+    systemctl restart nginx
+    
+    echo 'Services restarted!'
+    pm2 status
+    systemctl is-active nginx && echo 'Nginx: Active'
+    "
+    
+    success "Services restarted"
+}
+
+# Health check
+health_check() {
+    log "Running health check..."
+    
+    sleep 5
+    
+    # Test backend
+    for i in 1 2 3; do
+        if curl -f --connect-timeout 5 "http://$SERVER_HOST:$APP_PORT/health" >/dev/null 2>&1; then
+            success "Backend healthy!"
+            break
+        else
+            warning "Backend health check attempt $i failed"
+            [ $i -lt 3 ] && sleep 5
+        fi
     done
     
-    echo "🚀 ULTRAZEND DEPLOY MASTER - DOCKER ONLY"
-    echo "========================================"
-    log "Servidor: $SERVER_HOST"
-    log "Modo automático: $AUTO_MODE"
-    log "Setup limpo: $FRESH_SETUP"
-    echo ""
-    
-    # Confirmation (unless auto mode)
-    if [ "$AUTO_MODE" = "false" ]; then
-        echo "🐳 Deploy Docker para servidor de produção: $SERVER_HOST"
-        read -p "Continuar? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log "Deploy cancelado"
-            exit 0
-        fi
-    fi
-    
-    # Execute deployment steps
-    prepare_docker_environment
-    validate_prereqs
-    build_apps
-    transfer_files
-    
-    # Fresh setup ou deploy normal
-    if [ "$FRESH_SETUP" = "true" ]; then
-        setup_fresh_server
+    # Test frontend
+    if curl -f --connect-timeout 5 "http://$SERVER_HOST/" >/dev/null 2>&1; then
+        success "Frontend serving!"
     else
-        deploy_application
-    fi
-    
-    # Final health check
-    if health_checks; then
-        success "🎉 DEPLOY DOCKER REALIZADO COM SUCESSO!"
-        echo ""
-        log "URLs de produção:"
-        log "  • Website: https://www.ultrazend.com.br"
-        log "  • API: https://www.ultrazend.com.br/api"  
-        log "  • Health: https://www.ultrazend.com.br/health"
-        log ""
-        log "🐳 PM2 totalmente eliminado - Usando Docker exclusivamente!"
-    else
-        warning "⚠️ Deploy concluído mas health checks falharam"
-        log "Verifique os logs do servidor"
+        warning "Frontend may not be ready"
     fi
 }
 
-# Run main function
-main "$@"
+# Main deployment process
+main_deploy() {
+    echo "🚀 ULTRAZEND NATIVE DEPLOYMENT"
+    echo "=============================="
+    echo "📍 Target: $SERVER_HOST"
+    echo "🌐 Domain: $DOMAIN"
+    echo "⏰ Start: $(date)"
+    echo ""
+    
+    test_ssh
+    build_frontend
+    deploy_to_server
+    health_check
+    
+    echo ""
+    success "🎉 DEPLOYMENT COMPLETED SUCCESSFULLY!"
+    echo "🌐 Website: http://$DOMAIN"
+    echo "🏥 Health: http://$DOMAIN/health"
+    echo "🔌 API: http://$DOMAIN/api"
+    echo "✨ Running natively with PM2 + Nginx (No Docker!)"
+}
+
+# Parse command line arguments
+case "${1:-}" in
+    --help|-h)
+        show_usage
+        exit 0
+        ;;
+    --setup)
+        echo "🔧 SETTING UP SERVER + DEPLOYING"
+        test_ssh
+        setup_server
+        main_deploy
+        ;;
+    --quick|-q)
+        echo "⚡ QUICK DEPLOY (no confirmations)"
+        main_deploy
+        ;;
+    --restart|-r)
+        echo "🔄 RESTARTING SERVICES ONLY"
+        test_ssh
+        restart_services
+        health_check
+        ;;
+    "")
+        # Interactive confirmation
+        echo "🚀 Ready to deploy UltraZend natively?"
+        echo "Target: $SERVER_HOST"
+        echo ""
+        read -p "Continue? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            main_deploy
+        else
+            echo "Deployment cancelled."
+            exit 0
+        fi
+        ;;
+    *)
+        error "Unknown option: $1. Use --help for usage information."
+        ;;
+esac

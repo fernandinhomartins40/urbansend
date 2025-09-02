@@ -29,9 +29,7 @@
     "clean": "rm -rf dist node_modules package-lock.json",
     "fresh-install": "npm run clean && npm install",
     "audit:security": "npm audit --audit-level=moderate",
-    "audit:deps": "npm-check-updates",
-    "docker:build": "docker build -t ultrazend-backend .",
-    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build"
+    "audit:deps": "npm-check-updates"
   },
   "dependencies": {
     "@types/cookie-parser": "^1.4.9",

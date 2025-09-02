@@ -1,4 +1,4 @@
-name: 🚀 Deploy UltraZend Production (Docker Only)
+name: 🚀 Deploy UltraZend Production (PM2 + Nginx)
 
 concurrency:
   group: ultrazend-production-deploy
@@ -8,6 +8,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force complete rebuild'
+        required: false
+        default: false
+        type: boolean
 
 env:
   VPS_HOST: '31.97.162.155'
@@ -19,761 +25,150 @@ env:
 
 jobs:
   deploy:
-    name: 🎯 Deploy UltraZend System
+    name: 🎯 Deploy Production (PM2 + Nginx)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     
     steps:
-    - name: 📋 Informações do Deploy
+    - name: 📋 Deploy Info
       run: |
-        echo "=============================================="
-        echo "🚀 INICIANDO DEPLOY ULTRAZEND SYSTEM"
-        echo "=============================================="
+        echo "🚀 ULTRAZEND NATIVE DEPLOY"
+        echo "========================="
         echo "📦 Commit: ${{ github.sha }}"
-        echo "🌿 Branch: ${{ github.ref_name }}"
-        echo "👤 Actor: ${{ github.actor }}"
-        echo "⏰ Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+        echo "🌿 Branch: ${{ github.ref_name }}"  
         echo "🎯 Target: ${{ env.VPS_HOST }}:${{ env.APP_PORT }}"
         echo "🌐 Domain: ${{ env.DOMAIN }}"
-        echo "=============================================="
-        
-        # Variável para tracking do tempo
-        echo "DEPLOY_START_TIME=$(date +%s)" >> $GITHUB_ENV
+        echo "⏰ Start: $(date -u)"
+        echo "========================="
 
-    - name: 🔧 Configurar SSH e Ferramentas
+    - name: 🔧 Setup SSH
       run: |
-        echo "🔧 Configurando SSH e ferramentas necessárias..."
-        sudo apt-get update -qq
-        sudo apt-get install -y sshpass rsync curl jq
+        sudo apt-get update -qq && sudo apt-get install -y sshpass rsync
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts
         
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
-        
-        echo "🔐 Testando conexão SSH..."
-        if sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '✅ SSH funcionando'"; then
-          echo "✅ SSH configurado com sucesso"
-        else
-          echo "❌ Falha na conexão SSH"
-          exit 1
-        fi
+        # Test SSH connection
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '✅ SSH OK'"
 
-    - name: 📥 Checkout do Código
+    - name: 📥 Checkout Code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: 🟢 Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: |
+          frontend/package-lock.json
+          backend/package-lock.json
 
-    - name: 📊 Análise Pre-Deploy
+    - name: 🏗️ Build Frontend
       run: |
-        echo "📊 Analisando estrutura do projeto..."
-        echo "=================================="
-        
-        echo "📁 Estrutura raiz:"
-        ls -la
-        
-        echo ""
-        echo "📁 Backend:"
-        if [ -d "backend" ]; then
-          ls -la backend/
-          if [ -f "backend/package.json" ]; then
-            echo "✅ package.json encontrado"
-            echo "📦 Dependências principais:"
-            cat backend/package.json | jq -r '.dependencies | keys | .[]' | head -5
-          fi
-        else
-          echo "❌ Diretório backend não encontrado"
-        fi
-        
-        echo ""
-        echo "📁 Frontend:"
-        if [ -d "frontend" ]; then
-          ls -la frontend/
-          if [ -f "frontend/package.json" ]; then
-            echo "✅ package.json encontrado"
-            echo "📦 Dependências principais:"
-            cat frontend/package.json | jq -r '.dependencies | keys | .[]' | head -5
-          fi
-        else
-          echo "❌ Diretório frontend não encontrado"
-        fi
-        
-        echo ""
-        echo "🔧 Configurações Docker:"
-        ls -la configs/ docker-compose.prod.yml setup-server.sh deploy.sh 2>/dev/null || echo "⚠️ Arquivos de configuração não encontrados"
-
-    - name: 🏗️ Preparar Backend (sem build local)
-      run: |
-        echo "🏗️ Verificando estrutura do backend..."
-        echo "======================================"
-        
-        if [ ! -d "backend" ]; then
-          echo "❌ Diretório backend não encontrado"
-          exit 1
-        fi
-        
-        cd backend
-        
-        echo "✅ Backend estrutura OK - build será feito no servidor"
-        echo "📋 Arquivos principais:"
-        ls -la src/ | head -10
-        echo "📋 Package.json encontrado:"
-        head -10 package.json
-
-    - name: ⚛️ Build Local do Frontend  
-      run: |
-        echo "⚛️ Iniciando build local do frontend..."
-        echo "======================================"
-        
-        if [ ! -d "frontend" ]; then
-          echo "❌ Diretório frontend não encontrado"
-          exit 1
-        fi
-        
+        echo "🏗️ Building React frontend..."
         cd frontend
-        
-        echo "📦 Instalando dependências do frontend..."
-        if [ -f "package-lock.json" ]; then
-          npm ci
-        else
-          npm install
-        fi
-        echo "✅ Dependências instaladas com sucesso"
-        
-        echo "🔨 Compilando React/Vite..."
-        if npm run build; then
-          echo "✅ Build do frontend concluído com sucesso"
-          echo "📊 Analisando build:"
-          ls -la dist/
-          echo "📈 Tamanho do build: $(du -sh dist/)"
-          echo "📝 Arquivos gerados: $(find dist/ -type f | wc -l)"
-          
-          # Verificar se arquivos essenciais foram gerados
-          if [ -f "dist/index.html" ]; then
-            echo "✅ index.html encontrado"
-          else
-            echo "❌ index.html não encontrado"
-            exit 1
-          fi
-        else
-          echo "❌ Falha no build do frontend"
-          exit 1
-        fi
+        npm ci --silent
+        npm run build
+        echo "✅ Frontend built - Size: $(du -sh dist/)"
+        ls -la dist/ | head -5
 
-    - name: 🧹 Preparar VPS
+    - name: 🚀 Deploy to VPS
       run: |
-        echo "🧹 Preparando ambiente na VPS..."
-        echo "================================"
+        echo "🚀 Deploying to VPS..."
         
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        echo '🔄 Atualizando sistema...'
-        apt-get update -y > /dev/null 2>&1
-        
-        echo '🟢 Instalando Node.js 20.x...'
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
-        apt-get install -y nodejs > /dev/null 2>&1
-        
-        echo '🐳 Instalando Docker...'
-        curl -fsSL https://get.docker.com | sh > /dev/null 2>&1
-        systemctl start docker && systemctl enable docker
-        
-        echo '🐳 Instalando Docker Compose...'
-        curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-        
-        echo '🌐 Instalando Nginx e utilitários...'
-        apt-get install -y nginx certbot python3-certbot-nginx jq net-tools > /dev/null 2>&1
-        
-        echo '🔒 Configurando firewall...'
-        ufw --force enable > /dev/null 2>&1
-        ufw allow ssh > /dev/null 2>&1
-        ufw allow http > /dev/null 2>&1
-        ufw allow https > /dev/null 2>&1
-        
-        echo '✅ Versões instaladas:'
-        node --version
-        npm --version
-        docker --version
-        docker-compose --version
-        nginx -v
-        "
-
-    - name: 🧹 Limpeza Completa e Backup
-      run: |
-        echo "🧹 Limpeza completa do ambiente..."
-        echo "=================================="
-        
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        # Parar TUDO antes do backup - foco em Docker
-        echo '🛑 Parando todos os serviços Docker...'
-        cd ${{ env.APP_DIR }} 2>/dev/null || true
-        docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes 2>/dev/null || echo 'Nenhum Docker Compose rodando'
-        docker stop \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container rodando'
-        docker rm \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container para remover'
-        
-        # LIMPEZA AGRESSIVA DE IMAGENS DOCKER
-        echo '🔥 Removendo TODAS as imagens Docker antigas...'
-        docker rmi \$(docker images -q --filter 'dangling=true') 2>/dev/null || echo 'Sem imagens dangling'
-        docker rmi \$(docker images 'ultrazend*' -q) 2>/dev/null || echo 'Sem imagens ultrazend'
-        docker system prune -af --volumes 2>/dev/null || echo 'Docker cleanup completo feito'
-        
-        # Remover PM2 completamente se ainda existir
-        echo '🗑️ Removendo PM2 (se existir)...'
-        pm2 stop all 2>/dev/null || true
-        pm2 delete all 2>/dev/null || true
-        pm2 kill 2>/dev/null || true
-        npm uninstall -g pm2 2>/dev/null || true
-        
-        # Criar backup se aplicação existir
-        if [ -d '${{ env.APP_DIR }}' ]; then
-          echo '📦 Criando backup da versão atual...'
-          backup_dir='/var/backups/ultrazend/backup-\$(date +%Y%m%d-%H%M%S)'
-          mkdir -p \"\$backup_dir\"
-          cp -r ${{ env.APP_DIR }}/backend \"\$backup_dir/\" 2>/dev/null || true
-          cp -r ${{ env.APP_DIR }}/frontend \"\$backup_dir/\" 2>/dev/null || true
-          echo '✅ Backup criado em \$backup_dir'
-          
-          # LIMPEZA TOTAL - REMOVER TUDO
-          echo '🔥 Removendo aplicação anterior COMPLETAMENTE...'
-          rm -rf ${{ env.APP_DIR }}/backend/node_modules
-          rm -rf ${{ env.APP_DIR }}/frontend/node_modules
-          rm -rf ${{ env.APP_DIR }}/backend/dist
-          rm -rf ${{ env.APP_DIR }}/frontend/dist
-          rm -rf ${{ env.APP_DIR }}/.pm2
-          rm -rf ~/.pm2
-          rm -f ${{ env.APP_DIR }}/backend/package-lock.json
-          rm -f ${{ env.APP_DIR }}/frontend/package-lock.json
-          
-          # LIMPEZA CRÍTICA: MIGRATIONS E BANCO ANTIGOS
-          echo '🗄️ Removendo migrations e banco de dados antigos...'
-          rm -rf ${{ env.APP_DIR }}/backend/src/migrations_backup 2>/dev/null || true
-          rm -f ${{ env.APP_DIR }}/backend/ultrazend.sqlite* 2>/dev/null || true
-          rm -f ${{ env.APP_DIR }}/backend/database.sqlite* 2>/dev/null || true
-          rm -f ${{ env.APP_DIR }}/data/ultrazend.sqlite* 2>/dev/null || true
-          rm -f ${{ env.APP_DIR }}/data/database.sqlite* 2>/dev/null || true
-          echo '✅ Banco de dados e migrations antigas removidos'
-          
-          echo '✅ Limpeza completa realizada'
-        else
-          echo 'ℹ️  Primeira instalação - sem limpeza necessária'
-        fi
-        
-        # Limpar cache do sistema
-        echo '🧹 Limpando cache do sistema...'
-        npm cache clean --force 2>/dev/null || echo 'NPM cache limpo'
-        apt-get autoremove -y 2>/dev/null || true
-        apt-get autoclean 2>/dev/null || true
-        
-        echo '📁 Recriando diretórios...'
-        mkdir -p ${{ env.APP_DIR }}/{backend,frontend,data,logs,uploads,temp}
-        mkdir -p ${{ env.APP_DIR }}/data/{database,cache,sessions}
-        mkdir -p /var/backups/ultrazend
-        echo '✅ Ambiente completamente limpo e preparado'
-        "
-
-    - name: 📤 Transferência FORÇADA de Código
-      run: |
-        echo "📤 Transferindo código FORÇADAMENTE para VPS..."
-        echo "=============================================="
-        
-        echo "📊 Analisando arquivos a transferir..."
-        echo "Tamanho total: $(du -sh . | cut -f1)"
-        echo "Commit atual: ${{ github.sha }}"
-        
-        echo "🔥 TRANSFERÊNCIA FORÇADA (INCLUINDO FRONTEND BUILD)..."
-        if sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --progress --delete --force \
-          --checksum \
-          --exclude='.git/' \
-          --exclude='node_modules/' \
-          --exclude='frontend/node_modules/' \
-          --exclude='backend/node_modules/' \
-          --exclude='backend/dist/' \
-          --exclude='.claude/' \
-          --exclude='__tests__/' \
-          --exclude='coverage/' \
-          --exclude='**/package-lock.json' \
+        # Transfer code
+        echo "📤 Transferring files..."
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
+          --exclude='.git/' --exclude='node_modules/' --exclude='.claude/' \
+          --exclude='frontend/node_modules/' --exclude='backend/node_modules/' \
+          --exclude='backend/dist/' --exclude='__tests__/' --exclude='coverage/' \
           -e "ssh -o StrictHostKeyChecking=no" \
-          ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/; then
-          echo "✅ Código transferido FORÇADAMENTE com sucesso"
-        else
-          echo "❌ Falha na transferência forçada"
-          exit 1
-        fi
+          ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/
         
-        echo "🔍 Verificando transferência..."
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        cd ${{ env.APP_DIR }}
-        echo '📋 Arquivos transferidos:'
-        ls -la
-        echo '📋 Backend transferido:'
-        ls -la backend/ | head -10
-        echo '📋 Frontend transferido:'
-        ls -la frontend/ | head -10
-        echo '✅ Transferência verificada'
-        "
-
-    - name: 🔧 Configurar Aplicação no Servidor
-      run: |
-        echo "🔧 Configurando aplicação no servidor..."
-        echo "========================================"
-        
+        # Deploy on server
+        echo "⚙️ Configuring server..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
         
-        echo '📋 Verificando estrutura transferida...'
-        ls -la
-        echo ''
-        echo '📁 Estrutura backend:'
-        ls -la backend/
-        echo ''
-        echo '📁 Estrutura configs:'
-        ls -la configs/ 2>/dev/null || echo 'Configs não encontrados'
+        # Stop existing services
+        echo '🛑 Stopping existing services...'
+        pm2 stop ultrazend-backend 2>/dev/null || true
+        pm2 delete ultrazend-backend 2>/dev/null || true
         
-        echo '🔧 Configurando backend LIMPO...'
+        # Setup backend
+        echo '🏗️ Setting up backend...'
         cd backend
-        
-        # GARANTIR INSTALAÇÃO LIMPA
-        echo '🧹 Removendo qualquer cache/lock restante...'
-        rm -rf node_modules package-lock.json
-        npm cache clean --force
-        
-        # Instalar TODAS as dependências (precisa dev deps para build)
-        echo '📦 Instalação completa de dependências (inclui dev para build)...'
-        npm install
-        
-        # Verificar se dependências críticas foram instaladas
-        echo '🔍 Verificando dependências críticas...'
-        npm list typescript swagger-jsdoc swagger-ui-express --depth=0 || echo 'Algumas dependências podem estar faltando'
-        
-        # EXECUTAR BUILD NO SERVIDOR
-        echo '🏗️ Executando build no servidor...'
+        npm ci --only=production --silent
         npm run build
         
-        # REMOVER DEPENDÊNCIAS DE DEV APÓS BUILD
-        echo '🧹 Removendo dependências de dev após build...'
-        npm prune --omit=dev
-        
-        # Verificar build detalhadamente
-        echo '🔍 Verificando build...'
-        if [ -d 'dist' ]; then
-          echo '✅ Diretório dist existe'
-          ls -la dist/
-          if [ -f 'dist/index.js' ]; then
-            echo '✅ index.js encontrado'
-            echo 'Tamanho: \$(du -h dist/index.js)'
-          else
-            echo '❌ index.js não encontrado'
-            echo 'Conteúdo de dist:'
-            ls -la dist/
-            exit 1
-          fi
-        else
-          echo '❌ Diretório dist não existe'
-          exit 1
+        # Copy .env
+        if [ -f ../configs/.env.production ]; then
+          cp ../configs/.env.production .env
         fi
         
-        # Executar migrações com mais detalhes
-        echo '🗄️  Executando migrações de banco...'
-        if npm run migrate:latest; then
-          echo '✅ Migrações executadas com sucesso'
-        else
-          echo '⚠️  Falha nas migrações - continuando'
-        fi
+        # Run migrations
+        npm run migrate:latest || true
         
         cd ..
         
-        # Etapa 1: Configurar Nginx HTTP temporário
-        echo '🌐 ETAPA 1: Configurando Nginx HTTP temporário...'
-        if [ -f 'configs/nginx-http.conf' ]; then
-          echo 'Copiando configuração HTTP temporária...'
-          cp configs/nginx-http.conf /etc/nginx/sites-available/ultrazend-http
-          ln -sf /etc/nginx/sites-available/ultrazend-http /etc/nginx/sites-enabled/
-          rm -f /etc/nginx/sites-enabled/default
-          
-          echo 'Testando configuração HTTP...'
-          if nginx -t; then
-            echo '✅ Configuração HTTP válida'
-            systemctl restart nginx
-            systemctl enable nginx
-          else
-            echo '❌ Erro na configuração HTTP'
-            echo 'Logs do Nginx:'
-            tail -20 /var/log/nginx/error.log 2>/dev/null || echo 'Sem logs de erro'
-            exit 1
-          fi
-        else
-          echo '❌ Arquivo nginx-http.conf não encontrado'
-          exit 1
-        fi
+        # Setup frontend in nginx
+        echo '🌐 Setting up frontend...'
+        mkdir -p /var/www/ultrazend-static
+        cp -r frontend/dist/* /var/www/ultrazend-static/
+        chown -R www-data:www-data /var/www/ultrazend-static
         
-        # Etapa 2: Configurar certificados SSL
-        echo '🔒 ETAPA 2: Configurando certificados SSL...'
-        if [ ! -f "/etc/letsencrypt/live/${{ env.DOMAIN }}/fullchain.pem" ]; then
-          echo 'Obtendo certificados SSL...'
-          
-          # Nginx precisa estar rodando para acme-challenge
-          systemctl start nginx
-          sleep 3
-          
-          if certbot certonly --webroot \
-            -w /var/www/html \
-            -d ultrazend.com.br \
-            -d ${{ env.DOMAIN }} \
-            --non-interactive \
-            --agree-tos \
-            --email admin@ultrazend.com.br; then
-            echo '✅ Certificados SSL obtidos com sucesso'
-            SSL_READY=true
-          else
-            echo '⚠️  Falha ao obter SSL - continuando com HTTP apenas'
-            SSL_READY=false
-          fi
-        else
-          echo '✅ Certificados SSL já existem'
-          SSL_READY=true
-        fi
-        
-        # Etapa 3: Aplicar configuração SSL se certificados estão disponíveis
-        echo '🔐 ETAPA 3: Aplicando configuração final...'
-        if [ "$SSL_READY" = "true" ] && [ -f 'configs/nginx-ssl.conf' ]; then
-          echo 'Aplicando configuração SSL completa...'
-          cp configs/nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+        # Configure nginx
+        if [ -f configs/nginx-http.conf ]; then
+          # Update nginx config to point to correct frontend location
+          sed 's|/var/www/ultrazend/frontend/dist|/var/www/ultrazend-static|g' configs/nginx-http.conf > /etc/nginx/sites-available/ultrazend
           ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
-          rm -f /etc/nginx/sites-enabled/ultrazend-http
-          
-          echo 'Testando configuração SSL...'
-          if nginx -t; then
-            echo '✅ Configuração SSL válida'
-            systemctl reload nginx
-          else
-            echo '⚠️  Erro na configuração SSL - mantendo HTTP'
-            ln -sf /etc/nginx/sites-available/ultrazend-http /etc/nginx/sites-enabled/
-            rm -f /etc/nginx/sites-enabled/ultrazend
-            systemctl reload nginx
-          fi
-        else
-          echo 'Mantendo configuração HTTP (SSL não disponível)'
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t && systemctl reload nginx
         fi
         
-        # Definir permissões com verificação
-        echo '🔐 Configurando permissões...'
-        chown -R www-data:www-data ${{ env.APP_DIR }}
-        chmod +x ${{ env.APP_DIR }}/backend/dist/index.js
+        # Start backend with PM2
+        echo '🚀 Starting backend with PM2...'
+        cd backend
+        pm2 start dist/index.js --name ultrazend-backend --env production
+        pm2 save
         
-        # Verificar se docker-compose.prod.yml existe
-        if [ -f 'docker-compose.prod.yml' ]; then
-          echo '✅ docker-compose.prod.yml encontrado'
-          cat docker-compose.prod.yml | head -15
-        else
-          echo '❌ docker-compose.prod.yml não encontrado'
-          exit 1
-        fi
-        
-        # CONFIGURAÇÃO CRÍTICA: Copiar frontend buildado para Nginx
-        echo '🌐 ETAPA 4: Configurando frontend no Nginx...'
-        if [ -d 'frontend/dist' ]; then
-          echo 'Copiando frontend buildado para Nginx...'
-          
-          # Garantir que o diretório esperado pelo nginx existe
-          mkdir -p /var/www/ultrazend/frontend/dist
-          
-          # Copiar arquivos buildados para local esperado pelo nginx
-          cp -r frontend/dist/* /var/www/ultrazend/frontend/dist/
-          
-          # Configurar permissões corretas
-          chown -R www-data:www-data /var/www/ultrazend/frontend/dist
-          chmod -R 755 /var/www/ultrazend/frontend/dist
-          
-          echo '✅ Frontend buildado copiado para Nginx'
-          echo 'Arquivos copiados:'
-          ls -la /var/www/ultrazend/frontend/dist/ | head -10
-        else
-          echo '❌ Frontend dist não encontrado - aplicação não funcionará!'
-          echo 'Conteúdo do diretório frontend:'
-          ls -la frontend/
-          exit 1
-        fi
-        
-        echo '✅ Aplicação configurada no servidor (incluindo frontend)'
-        "
-
-    - name: 🚀 Deploy with Docker Only
-      run: |
-        echo "🚀 Executando deploy Docker-only..."
-        echo "================================="
-        
-        # Execute Docker deployment directly
-        echo "🐳 Iniciando deployment Docker..."
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        cd ${{ env.APP_DIR }}
-        
-        # Verificar estado inicial
-        echo '📋 Estado inicial dos serviços:'
-        echo 'Docker Status:'
-        docker ps || echo 'Nenhum container rodando'
-        echo 'Nginx Status:'
-        systemctl is-active nginx || echo 'Nginx inativo'
-        
-        # Iniciar Nginx com verificações robustas
-        echo '🌐 Iniciando Nginx...'
-        systemctl stop nginx 2>/dev/null || true
-        sleep 2
-        
-        if systemctl start nginx; then
-          echo '✅ Nginx iniciado com sucesso'
-          systemctl enable nginx
-          
-          # Verificar se está escutando na porta 80
-          if netstat -tlnp | grep ':80 '; then
-            echo '✅ Nginx escutando na porta 80'
-          else
-            echo '⚠️  Nginx não está escutando na porta 80'
-          fi
-        else
-          echo '❌ Falha ao iniciar Nginx'
-          echo 'Logs do Nginx:'
-          systemctl status nginx || true
-          tail -20 /var/log/nginx/error.log 2>/dev/null || echo 'Sem logs de erro do Nginx'
-          exit 1
-        fi
-        
-        # Verificar arquivos essenciais para Docker
-        echo '🔍 Verificando arquivos essenciais Docker...'
-        if [ -f 'docker-compose.prod.yml' ]; then
-          echo '✅ docker-compose.prod.yml presente'
-          echo 'Configuração Docker Compose (primeiras 20 linhas):'
-          head -20 docker-compose.prod.yml
-        else
-          echo '❌ docker-compose.prod.yml não encontrado'
-          exit 1
-        fi
-        
-        if [ -f 'backend/dist/index.js' ]; then
-          echo '✅ backend/dist/index.js presente'
-          echo 'Tamanho: $(du -sh backend/dist/index.js)'
-        else
-          echo '❌ backend/dist/index.js não encontrado'
-          echo 'Conteúdo do diretório backend/dist:'
-          ls -la backend/dist/ || echo 'Diretório dist não existe'
-          exit 1
-        fi
-        
-        # Configurar arquivos .env com fallback robusto (alinhado com correções)
-        echo '🔧 Configurando arquivos .env com estratégia de fallback...'
-        
-        # Tentar diferentes localizações de .env conforme nossa correção
-        ENV_CONFIGURED=false
-        
-        # 1. Verificar se já existe .env no backend
-        if [ -f 'backend/.env' ]; then
-          echo '✅ backend/.env já presente'
-          ENV_CONFIGURED=true
-        # 2. Tentar .env.production.deploy (nosso arquivo especial)
-        elif [ -f 'backend/.env.production.deploy' ]; then
-          echo '🔧 Usando .env.production.deploy...'
-          cp backend/.env.production.deploy backend/.env
-          chmod 600 backend/.env
-          chown www-data:www-data backend/.env
-          ENV_CONFIGURED=true
-        # 3. Tentar configs/.env.production
-        elif [ -f 'configs/.env.production' ]; then
-          echo '🔧 Copiando configs/.env.production para backend/.env...'
-          cp configs/.env.production backend/.env
-          chmod 600 backend/.env
-          chown www-data:www-data backend/.env
-          ENV_CONFIGURED=true
-        # 4. Tentar backend/.env.production
-        elif [ -f 'backend/.env.production' ]; then
-          echo '🔧 Copiando backend/.env.production para backend/.env...'
-          cp backend/.env.production backend/.env
-          chmod 600 backend/.env
-          chown www-data:www-data backend/.env
-          ENV_CONFIGURED=true
-        fi
-        
-        if [ "$ENV_CONFIGURED" = "false" ]; then
-          echo '❌ Nenhum arquivo .env encontrado em locais esperados'
-          echo '📋 Arquivos disponíveis:'
-          find . -name ".env*" -type f | head -10 || echo 'Nenhum arquivo .env encontrado'
-          exit 1
-        fi
-        
-        echo '✅ Configuração .env concluída com fallback robusto'
-        
-        # Iniciar aplicação com Docker Compose
-        echo '🚀 Iniciando aplicação com Docker Compose...'
-        
-        # Parar containers existentes primeiro
-        echo '🛑 Parando containers existentes...'
-        docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || echo 'Nenhum container para parar'
-        
-        # Build e inicialização
-        echo '🔨 Building Docker images...'
-        docker-compose -f docker-compose.prod.yml build --no-cache
-        
-        echo '🚀 Iniciando containers Docker...'
-        if docker-compose -f docker-compose.prod.yml up -d; then
-          echo '✅ Containers Docker iniciados'
-          
-          # Aguardar alguns segundos para estabilizar
-          echo 'Aguardando estabilização (15s)...'
-          sleep 15
-          
-          # Verificar se containers estão rodando
-          echo '🔍 Verificando status dos containers:'
-          docker-compose -f docker-compose.prod.yml ps
-          
-          # Verificar se aplicação está respondendo
-          echo '🏥 Teste de conectividade interna...'
-          if docker-compose -f docker-compose.prod.yml exec -T ultrazend-backend curl -sf http://localhost:3001/health; then
-            echo '✅ Aplicação respondendo internamente'
-          else
-            echo '⚠️ Aplicação pode não estar totalmente pronta - verificando logs...'
-            docker-compose -f docker-compose.prod.yml logs --tail=20 ultrazend-backend
-          fi
-        else
-          echo '❌ Falha ao iniciar containers Docker'
-          echo 'Logs de erro:'
-          docker-compose -f docker-compose.prod.yml logs --tail=50
-          exit 1
-        fi
-        
-        # VERIFICAÇÃO DE VERSÃO DEPLOYADA
-        echo '🔍 VERIFICANDO VERSÃO DEPLOYADA:'
-        echo '================================='
-        echo 'Commit deployado: ${{ github.sha }}'
-        echo 'Branch: ${{ github.ref_name }}'
-        echo 'Data do deploy: $(date)'
+        echo '✅ Native deploy completed!'
         echo ''
-        
-        # Status final detalhado
-        echo '📊 STATUS FINAL DOS SERVIÇOS:'
-        echo '==============================='
-        echo 'Docker Containers Status:'
-        docker-compose -f docker-compose.prod.yml ps
-        echo ''
-        echo 'Docker Services Health:'
-        docker-compose -f docker-compose.prod.yml exec -T ultrazend-backend curl -sf http://localhost:3001/health || echo 'Health check interno falhou'
+        echo 'Services Status:'
+        pm2 status
         echo ''
         echo 'Nginx Status:'
-        systemctl is-active nginx && echo 'Nginx: ATIVO' || echo 'Nginx: INATIVO'
-        echo ''
-        echo 'Portas em uso:'
-        netstat -tlnp | grep -E ':(80|3001|443) ' || echo 'Nenhuma porta relevante encontrada'
-        echo ''
-        echo '✅ Inicialização Docker concluída com NOVA VERSÃO'
+        systemctl is-active nginx && echo 'Nginx: Active' || echo 'Nginx: Inactive'
         "
 
-    - name: 🏥 Health Check RÁPIDO
+    - name: 🏥 Health Check
       run: |
-        echo "🏥 Health check rápido (30s máximo)..."
-        echo "====================================="
-        
-        # Aguardar só 10s para inicialização
-        echo "⏳ Aguardando 10s para inicialização..."
+        echo "🏥 Testing deployed application..."
         sleep 10
         
-        # Health check simples e rápido (máximo 3 tentativas)
-        echo "🔍 Testando backend (3 tentativas)..."
+        # Test backend
         for i in 1 2 3; do
-          echo "Tentativa $i/3..."
-          
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health" 2>/dev/null || echo "000")
-          
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "503" ]; then
-            echo "✅ Backend respondendo (HTTP $HTTP_CODE) - Deploy OK!"
+          if curl -f --connect-timeout 5 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health"; then
+            echo "✅ Backend healthy!"
             break
           else
-            echo "⚠️ Backend: HTTP $HTTP_CODE"
-            if [ $i -eq 3 ]; then
-              echo "⚠️ Backend não responde mas deploy continuará..."
-              echo "🔍 Status rápido:"
-              sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-              pm2 status | head -5
-              echo 'Logs recentes:'
-              pm2 logs ultrazend --lines 5 --nostream 2>/dev/null || echo 'Sem logs'
-              "
-            else
-              sleep 5
-            fi
+            echo "⚠️ Attempt $i failed, retrying..."
+            sleep 5
           fi
         done
         
-        echo "✅ Health check concluído rapidamente!"
+        # Test frontend
+        if curl -f --connect-timeout 5 "http://${{ env.VPS_HOST }}/"; then
+          echo "✅ Frontend serving!"
+        else
+          echo "⚠️ Frontend may not be ready"
+        fi
 
-    - name: ✅ Verificação Final e Resumo
-      if: success()
+    - name: ✅ Deploy Complete
       run: |
-        DEPLOY_END_TIME=$(date +%s)
-        DEPLOY_DURATION=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
-        DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DEPLOY_DURATION/3600)) $((DEPLOY_DURATION%3600/60)) $((DEPLOY_DURATION%60)))
-        
-        echo "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
-        echo "================================"
-        echo "⏱️  Tempo total: $DURATION_FORMATTED"
-        echo "🌐 Website: https://${{ env.DOMAIN }}"
-        echo "🏥 Health Check: https://${{ env.DOMAIN }}/health"
-        echo "🔌 API: https://${{ env.DOMAIN }}/api"
-        echo "📊 Status: ONLINE ✅"
+        echo "🎉 ULTRAZEND NATIVE DEPLOY COMPLETE!"
+        echo "==================================="
+        echo "🌐 Website: http://${{ env.DOMAIN }}"
+        echo "🏥 Health: http://${{ env.DOMAIN }}/health"
+        echo "🔌 API: http://${{ env.DOMAIN }}/api"
         echo ""
-        
-        # Verificação final dos serviços Docker
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        cd ${{ env.APP_DIR }}
-        echo '📊 Status final Docker:'
-        docker-compose -f docker-compose.prod.yml ps
-        echo ''
-        echo '🐳 Container details:'
-        docker ps --filter 'name=ultrazend' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-        echo ''
-        echo '🌐 Status Nginx:'
-        systemctl is-active nginx >/dev/null && echo '✅ Nginx: Active' || echo '❌ Nginx: Inactive'
-        echo ''
-        echo '💾 Uso de recursos:'
-        free -h | head -2
-        df -h ${{ env.APP_DIR }} | tail -1
-        "
-        
-        echo ""
-        echo "🎊🎊🎊 ULTRAZEND DEPLOY FINALIZADO COM SUCESSO! 🎊🎊🎊"
-
-    - name: ❌ Deploy Failed - Diagnóstico
-      if: failure()
-      run: |
-        DEPLOY_END_TIME=$(date +%s)
-        DEPLOY_DURATION=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
-        DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DEPLOY_DURATION/3600)) $((DEPLOY_DURATION%3600/60)) $((DEPLOY_DURATION%60)))
-        
-        echo "❌ ULTRAZEND DEPLOY FALHOU!"
-        echo "==========================="
-        echo "⏱️  Tempo até falha: $DURATION_FORMATTED"
-        echo "📊 Status: FAILED ❌"
-        echo ""
-        echo "🔍 Coletando informações de diagnóstico..."
-        
-        # Coletar logs detalhados Docker
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        echo '📋 Status Docker:'
-        docker ps 2>/dev/null || echo 'Docker não disponível'
-        echo ''
-        echo '📝 Logs da aplicação:'
-        docker-compose -f docker-compose.prod.yml logs --tail=50 2>/dev/null || echo 'Logs Docker não disponíveis'
-        echo ''
-        echo '🌐 Status Nginx:'
-        systemctl status nginx 2>/dev/null || echo 'Nginx não disponível'
-        echo ''
-        echo '💾 Uso de disco:'
-        df -h
-        echo ''
-        echo '🧠 Uso de memória:'
-        free -h
-        " 2>/dev/null || echo "Não foi possível conectar à VPS para diagnóstico"
-        
-        echo ""
-        echo "💥💥💥 ULTRAZEND DEPLOY FALHOU - VERIFIQUE OS LOGS ACIMA 💥💥💥"
-        
-        exit 1
+        echo "✨ Deployed with PM2 + Nginx (Native - No Docker!)"

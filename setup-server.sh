@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 🏗️ ULTRAZEND - Server Setup Script  
-# Configuração completa de servidor limpo para produção
+# Native PM2 + Nginx setup (No Docker!)
 
 set -euo pipefail
 
@@ -23,175 +23,189 @@ log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
 success() { echo -e "${GREEN}✅ $1${NC}"; }
 error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
-echo "🏗️ ULTRAZEND - Server Setup"
-echo "============================"
+echo "🏗️ ULTRAZEND - Native Server Setup"
+echo "=================================="
 log "Server: $SERVER_HOST"
 log "Domain: $SUBDOMAIN"
+log "Mode: PM2 + Nginx (Native - No Docker!)"
 echo ""
 
-# Test SSH connection
-log "Testing SSH connection..."
-if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST 'echo "SSH OK"' >/dev/null 2>&1; then
-    error "SSH connection failed"
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+   error "This script must be run as root"
 fi
-success "SSH connection established"
-
-# Server setup
-log "🔧 Setting up server environment..."
-
-ssh $SERVER_USER@$SERVER_HOST << 'EOFSETUP'
-echo "🔄 Starting server setup..."
 
 # Update system
-echo "📦 Updating system packages..."
-apt-get update && apt-get upgrade -y
+log "Updating system packages..."
+apt-get update -y
+apt-get upgrade -y
 
 # Install essential packages
-echo "📦 Installing essential packages..."
-apt-get install -y \
-    curl wget git unzip \
-    nginx sqlite3 \
-    ufw htop tree jq \
-    software-properties-common \
-    apt-transport-https ca-certificates gnupg lsb-release
+log "Installing essential packages..."
+apt-get install -y curl wget gnupg2 software-properties-common apt-transport-https ca-certificates lsb-release
 
-# Install Node.js 20
-echo "🟢 Installing Node.js 20..."
+# Install Node.js 20.x LTS
+log "Installing Node.js 20.x LTS..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt-get install -y nodejs
 
-# Install PM2
-echo "📦 Installing PM2..."
+# Install PM2 globally
+log "Installing PM2 process manager..."
 npm install -g pm2
 
-# Install Docker (optional)
-echo "🐳 Installing Docker..."
-curl -fsSL https://get.docker.com | sh
-systemctl start docker
-systemctl enable docker
-usermod -aG docker $USER
+# Install Nginx
+log "Installing Nginx..."
+apt-get install -y nginx
 
-# Install Docker Compose
-echo "🐳 Installing Docker Compose..."
-curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+# Install SSL tools
+log "Installing SSL certificate tools..."
+apt-get install -y certbot python3-certbot-nginx
+
+# Install Redis for caching/sessions
+log "Installing Redis..."
+apt-get install -y redis-server
+systemctl enable redis-server
+systemctl start redis-server
+
+# Install additional utilities
+log "Installing additional utilities..."
+apt-get install -y htop iotop nethogs git rsync jq unzip
 
 # Configure firewall
-echo "🔒 Configuring firewall..."
+log "Configuring UFW firewall..."
 ufw --force enable
 ufw allow ssh
 ufw allow http
 ufw allow https
-ufw allow 25    # SMTP
-ufw allow 587   # SMTP Submission
-ufw allow 465   # SMTP SSL
+ufw allow 25/tcp   # SMTP
+ufw allow 587/tcp  # SMTP submission
 
 # Create application directories
-echo "📁 Creating application directories..."
-mkdir -p /var/www/ultrazend/{backend,frontend,data,logs,uploads,certificates}
-mkdir -p /var/www/ultrazend/data/{database,cache,sessions}
+log "Creating application directories..."
+mkdir -p /var/www/ultrazend/{backend,frontend,data,logs,configs}
+mkdir -p /var/www/ultrazend-static
 mkdir -p /var/backups/ultrazend
 
-# Set permissions
-chown -R www-data:www-data /var/www/ultrazend
-chmod -R 755 /var/www/ultrazend
+# Set up log rotation
+log "Setting up log rotation..."
+cat > /etc/logrotate.d/ultrazend << EOF
+/var/www/ultrazend/logs/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    sharedscripts
+    postrotate
+        pm2 reload ultrazend-backend || true
+    endscript
+}
+EOF
 
-# Configure Nginx (basic config)
-echo "🌐 Configuring Nginx..."
-cat > /etc/nginx/sites-available/ultrazend << 'NGINXEOF'
-# ULTRAZEND - Basic HTTP Configuration
+# Configure Nginx basic setup
+log "Creating basic Nginx configuration..."
+cat > /etc/nginx/sites-available/default << 'EOF'
 server {
-    listen 80;
-    server_name ultrazend.com.br www.ultrazend.com.br;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
+    root /var/www/html;
+    index index.html index.htm index.nginx-debian.html;
     
-    # API proxy
-    location /api {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
+    server_name _;
     
-    # Health check
-    location /health {
-        proxy_pass http://localhost:3001;
-        proxy_set_header Host $host;
-    }
-    
-    # Static files
     location / {
-        root /var/www/ultrazend/frontend/dist;
-        try_files $uri $uri/ /index.html;
-        
-        # Cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
+        return 200 "UltraZend server is ready for deployment!";
+        add_header Content-Type text/plain;
     }
     
-    # Security
-    location ~ /\. {
-        deny all;
+    location /health {
+        return 200 "OK";
+        add_header Content-Type text/plain;
     }
 }
-NGINXEOF
+EOF
 
-# Enable site
-ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+# Enable and start services
+log "Enabling and starting services..."
+systemctl enable nginx
+systemctl start nginx
+systemctl enable redis-server
 
-# Test Nginx config
-nginx -t && systemctl reload nginx && systemctl enable nginx
+# Set up PM2 startup script
+log "Configuring PM2 startup..."
+pm2 startup systemd -u root --hp /root
 
-# Display system info
+# Configure system limits for Node.js
+log "Configuring system limits..."
+cat >> /etc/security/limits.conf << EOF
+# UltraZend limits
+root soft nofile 65536
+root hard nofile 65536
+* soft nofile 65536  
+* hard nofile 65536
+EOF
+
+# Optimize system for Node.js applications
+log "Optimizing system for Node.js..."
+cat >> /etc/sysctl.conf << EOF
+# UltraZend optimizations
+net.core.somaxconn = 65536
+net.ipv4.tcp_max_syn_backlog = 65536
+fs.file-max = 2097152
+vm.swappiness = 1
+EOF
+
+# Apply sysctl changes
+sysctl -p
+
+# Set directory permissions
+log "Setting directory permissions..."
+chown -R www-data:www-data /var/www/
+chmod -R 755 /var/www/
+
+# Clean up
+log "Cleaning up packages..."
+apt-get autoremove -y
+apt-get autoclean
+
+# Install security updates
+log "Installing security updates..."
+unattended-upgrades
+
+# Display installed versions
 echo ""
-echo "✅ SERVER SETUP COMPLETED!"
-echo "=========================="
-echo "System Info:"
-echo "OS: $(lsb_release -d | cut -f2)"
+success "Server setup completed successfully!"
+echo "======================================"
+echo "📊 Installed software versions:"
 echo "Node.js: $(node --version)"
-echo "npm: $(npm --version)"
+echo "npm: $(npm --version)" 
 echo "PM2: $(pm2 --version)"
-echo "Docker: $(docker --version | cut -d' ' -f3 | cut -d',' -f1)"
-echo "Docker Compose: $(docker-compose --version | cut -d' ' -f3 | cut -d',' -f1)"
-echo ""
-echo "🔒 Firewall status:"
-ufw status numbered
-echo ""
-echo "📁 Application directory:"
-ls -la /var/www/ultrazend/
+echo "Nginx: $(nginx -v 2>&1 | cut -d/ -f2)"
+echo "Redis: $(redis-server --version | cut -d' ' -f3)"
+echo "Certbot: $(certbot --version | cut -d' ' -f2)"
 echo ""
 
-echo "🎉 Server is ready for deployment!"
-echo "Next steps:"
-echo "1. Run: ./deploy.sh [pm2|docker]"
-echo "2. Setup SSL: certbot --nginx -d ultrazend.com.br -d www.ultrazend.com.br"
-EOFSETUP
+echo "🎯 Next steps:"
+echo "=============="
+echo "  1. Run deployment: ./deploy.sh"
+echo "  2. The deploy script will handle SSL certificates automatically"
+echo "  3. Monitor with: pm2 status && systemctl status nginx"
+echo ""
 
-success "🎉 Server setup completed successfully!"
+echo "🌐 Services status:"
+echo "=================="
+echo "  ✅ Nginx: $(systemctl is-active nginx)"
+echo "  ✅ Redis: $(systemctl is-active redis-server)"
+echo "  ✅ PM2: Ready for deployment"
+echo "  ✅ Firewall: $(ufw status | head -1)"
 echo ""
-echo "📋 What was installed:"
-echo "  ✅ Node.js 20 + npm"
-echo "  ✅ PM2 process manager"
-echo "  ✅ Docker + Docker Compose"
-echo "  ✅ Nginx web server"
-echo "  ✅ Security firewall (ufw)"
-echo "  ✅ Application directories"
-echo "  ✅ Basic Nginx configuration"
+
+echo "📋 Manual SSL setup (if needed):"
+echo "================================"
+echo "  certbot --nginx -d $DOMAIN -d $SUBDOMAIN \\"
+echo "    --email $ADMIN_EMAIL --agree-tos --non-interactive"
 echo ""
-echo "🚀 Next steps:"
-echo "  1. Run deployment: ./deploy.sh docker"
-echo "  2. Setup SSL certificates (after deployment)"
-echo "  3. Configure domain DNS to point to $SERVER_HOST"
-echo ""
+
+success "🎉 UltraZend server is ready for native PM2 + Nginx deployment!"

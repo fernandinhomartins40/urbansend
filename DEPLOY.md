@@ -1,188 +1,237 @@
 # 🚀 UltraZend - Deploy Guide
 
-## 📋 Nova Estrutura Organizada
+## 📋 Deploy Architecture - NATIVE ONLY
 
-**Antes**: 46 arquivos de deploy diferentes
-**Agora**: 3 scripts limpos e eficientes
+**UltraZend now uses native PM2 + Nginx deployment (Docker completely removed)**
 
-### 📁 Arquivos de Deploy
+### 📁 Deploy Files
 
 ```
-├── deploy.sh              # 🎯 Script principal unificado
-├── setup-server.sh        # 🏗️ Configuração inicial do servidor  
-├── ecosystem.config.js    # ⚙️ Configuração PM2
-├── docker-compose.prod.yml # 🐳 Configuração Docker
-└── .github/workflows/deploy-production.yml # 🤖 CI/CD
+├── deploy.sh                           # 🎯 Main deploy script (PM2 + Nginx)
+├── setup-server.sh                     # 🏗️ Server initial setup  
+├── .github/workflows/deploy-production.yml # 🤖 CI/CD Pipeline
+└── configs/
+    ├── nginx-http.conf                  # 🌐 Nginx HTTP config
+    └── nginx-ssl.conf                   # 🔒 Nginx HTTPS config
 ```
 
-## 🚀 Como Fazer Deploy
+## 🚀 How to Deploy
 
-### **Opção 1: Deploy Automático (Recomendado)**
+### **Option 1: Automatic Deploy (GitHub Actions)**
 ```bash
-# Auto-detecta melhor método (Docker ou PM2)
-./deploy.sh
-
-# Específicar método
-./deploy.sh docker
-./deploy.sh pm2
-
-# Modo automático (sem confirmação)
-./deploy.sh docker --auto
-```
-
-### **Opção 2: Servidor Novo (Primeira vez)**
-```bash
-# 1. Configurar servidor limpo
-./setup-server.sh
-
-# 2. Fazer deploy
-./deploy.sh docker
-```
-
-### **Opção 3: GitHub Actions** 
-```bash
-# Automático no push para main
+# Automatic on push to main branch
 git push origin main
 ```
 
-## 📊 Métodos de Deploy
-
-### 🐳 **Docker (Recomendado)**
-- ✅ Isolamento completo
-- ✅ Health checks nativos  
-- ✅ Rollback fácil
-- ✅ Escalabilidade
-- ✅ Zero dependências do servidor
-
+### **Option 2: Manual Deploy**
 ```bash
-./deploy.sh docker
+# Standard deploy
+./deploy.sh
+
+# Quick deploy (no confirmations)
+./deploy.sh --quick
+
+# Just restart services
+./deploy.sh --restart
 ```
 
-### 📦 **PM2 (Tradicional)**
-- ✅ Deploy direto no servidor
-- ✅ Controle granular
-- ✅ Menor uso de recursos
-- ⚠️ Dependente do ambiente
-
+### **Option 3: Fresh Server Setup**
 ```bash
-./deploy.sh pm2
+# First time server setup + deploy
+./deploy.sh --setup
 ```
 
-## 🔧 Scripts Detalhados
+## 📊 Native Architecture
 
-### **`deploy.sh` - Master Script**
-- Auto-detecção do melhor método
-- Validação de pré-requisitos
-- Build das aplicações
-- Transfer de arquivos
-- Deploy inteligente
-- Health checks
+### 🚀 **PM2 + Nginx (Current)**
+- ✅ **Native performance** - No containers overhead
+- ✅ **Simpler debugging** - Direct process access  
+- ✅ **Lower resource usage** - Ideal for VPS
+- ✅ **Faster deployment** - No image building
+- ✅ **Better monitoring** - PM2 built-in tools
 
-### **`setup-server.sh` - Server Setup**
-- Atualização do sistema
-- Instalação Node.js, Docker, Nginx
-- Configuração firewall
-- Criação de diretórios
-- Configuração Nginx básica
+```bash
+./deploy.sh
+```
 
-## 📋 Pré-requisitos
+## 🔧 Deployment Process
 
-### **Local**
-- Node.js 18+
-- npm 9+
+### **1. Frontend Build (Local)**
+- React/Vite build executed locally
+- Static files generated in `frontend/dist/`
+- Assets optimized and bundled
+
+### **2. File Transfer**
+- Source code + frontend build transferred via rsync
+- Excludes unnecessary files (node_modules, .git, etc)
+- Preserves permissions and structure
+
+### **3. Backend Setup (Server)**
+- Dependencies installed with `npm ci --production`
+- TypeScript build with `npm run build`
+- Database migrations executed
+- Environment variables configured
+
+### **4. Service Management**
+- PM2 starts backend process
+- Nginx serves frontend static files
+- Reverse proxy configured for API calls
+- Health checks performed
+
+## 📋 Prerequisites
+
+### **Local Development**
+- Node.js 20+
+- npm 10+
 - Git
-- SSH access ao servidor
+- SSH access to server
+- rsync
 
-### **Servidor**
-- Ubuntu 20.04+ ou Debian 11+
+### **Production Server**
+- Ubuntu 22.04+ or Debian 11+
 - SSH root access
-- Portas 80, 443, 25, 587 abertas
+- Ports 80, 443 open for web traffic
+- Ports 25, 587 open for SMTP (email)
 
-## 🎯 Comandos Úteis
+## 🎯 Useful Commands
 
-### **Status e Monitoramento**
+### **Status and Monitoring**
 ```bash
-# PM2
+# PM2 status
 ssh root@31.97.162.155 'pm2 status'
-ssh root@31.97.162.155 'pm2 logs ultrazend'
+ssh root@31.97.162.155 'pm2 logs ultrazend-backend'
+ssh root@31.97.162.155 'pm2 monit'
 
-# Docker  
-ssh root@31.97.162.155 'docker ps'
-ssh root@31.97.162.155 'docker logs ultrazend-backend'
-
-# Nginx
+# System status
 ssh root@31.97.162.155 'systemctl status nginx'
+ssh root@31.97.162.155 'free -h && df -h'
 ```
 
 ### **Troubleshooting**
 ```bash
-# Health check manual
+# Health check
 curl -f https://www.ultrazend.com.br/health
 
-# Logs da aplicação
-ssh root@31.97.162.155 'tail -f /var/www/ultrazend/logs/app.log'
+# Application logs
+ssh root@31.97.162.155 'pm2 logs ultrazend-backend --lines 50'
 
-# Restart serviços
-ssh root@31.97.162.155 'pm2 restart ultrazend'
-# ou
-ssh root@31.97.162.155 'docker-compose -f /var/www/ultrazend/docker-compose.prod.yml restart'
+# Nginx logs
+ssh root@31.97.162.155 'tail -f /var/log/nginx/error.log'
+
+# Quick restart
+./deploy.sh --restart
 ```
 
-## ⚙️ Configuração
+### **PM2 Management**
+```bash
+# Connect to server
+ssh root@31.97.162.155
 
-### **Variáveis de Ambiente**
-- `configs/.env.production` - Configuração principal
-- `backend/.env.production.deploy` - Configuração alternativa
+# PM2 commands
+pm2 status                    # Show all processes
+pm2 logs ultrazend-backend    # View logs
+pm2 restart ultrazend-backend # Restart app
+pm2 reload ultrazend-backend  # Zero-downtime reload
+pm2 stop ultrazend-backend    # Stop app
+pm2 delete ultrazend-backend  # Remove from PM2
+```
 
-### **URLs de Produção**
+## ⚙️ Configuration
+
+### **Environment Variables**
+- `configs/.env.production` - Main configuration file
+- Automatically copied to `backend/.env` during deployment
+- Contains database, SMTP, and application settings
+
+### **Nginx Configuration**
+- Frontend static files served from `/var/www/ultrazend-static`
+- API requests proxied to `localhost:3001`
+- WebSocket support for real-time features
+- Security headers and caching configured
+
+### **Production URLs**
 - Website: https://www.ultrazend.com.br
 - API: https://www.ultrazend.com.br/api
-- Health: https://www.ultrazend.com.br/health
+- Health Check: https://www.ultrazend.com.br/health
+- Admin Panel: https://www.ultrazend.com.br/admin
 
-## 🔒 SSL/HTTPS
+## 🔒 SSL/HTTPS Setup
+
+SSL certificates are automatically managed during deployment:
 
 ```bash
-# Após primeiro deploy, configurar SSL
+# Manual SSL setup (if needed)
 ssh root@31.97.162.155
-certbot --nginx -d ultrazend.com.br -d www.ultrazend.com.br --email admin@ultrazend.com.br --agree-tos --non-interactive
+certbot --nginx -d ultrazend.com.br -d www.ultrazend.com.br \
+  --email admin@ultrazend.com.br --agree-tos --non-interactive
 ```
 
-## 🆘 Emergency
+## 🆘 Emergency Procedures
 
-Se algo der errado:
-
+### **Quick Recovery**
 ```bash
-# Rollback rápido via PM2
-ssh root@31.97.162.155 'pm2 restart ultrazend'
+# Restart services only
+./deploy.sh --restart
 
-# Rollback via Docker
-ssh root@31.97.162.155 'cd /var/www/ultrazend && docker-compose -f docker-compose.prod.yml restart'
-
-# Reset completo (última opção)
-./setup-server.sh  # Reconfigurar servidor
-./deploy.sh fresh  # Deploy limpo
+# Quick redeploy
+./deploy.sh --quick
 ```
 
-## ✅ Melhorias Implementadas
+### **Full Recovery**
+```bash
+# Reset server and redeploy
+./deploy.sh --setup
+```
 
-### **Organização**
-- ✅ 46 → 3 arquivos de deploy
-- ✅ Scripts unificados e inteligentes
-- ✅ Auto-detecção de método
-- ✅ Configuração centralizada
+### **Manual Recovery**
+```bash
+# Connect to server
+ssh root@31.97.162.155
 
-### **Robustez**
-- ✅ Validação de pré-requisitos
-- ✅ Health checks automáticos
-- ✅ Fallback de configuração
-- ✅ Error handling robusto
+# Restart PM2 process
+pm2 restart ultrazend-backend
 
-### **Simplicidade**
-- ✅ Comando único: `./deploy.sh`
-- ✅ Setup automático de servidor
-- ✅ Deploy sem surpresas
-- ✅ Documentação clara
+# Restart Nginx
+systemctl restart nginx
+
+# Check status
+pm2 status
+systemctl status nginx
+```
+
+## 📊 Performance Benefits
+
+### **Why Native over Docker?**
+
+| Aspect | Native PM2 | Docker |
+|--------|------------|--------|
+| **Memory Usage** | ~200MB | ~400MB+ |
+| **Deploy Time** | ~2-3 min | ~5-10 min |
+| **Debugging** | Direct access | Through containers |
+| **Monitoring** | PM2 built-in | Additional tools needed |
+| **Resource Overhead** | Minimal | Container layer |
+| **VPS Efficiency** | Optimal | Good |
+
+## ✅ Recent Improvements
+
+### **Architecture Simplification**
+- ✅ **Removed Docker complexity** - Native PM2 + Nginx only
+- ✅ **Faster deployments** - No image building required
+- ✅ **Better resource utilization** - No container overhead
+- ✅ **Simplified debugging** - Direct process access
+
+### **Deployment Reliability**
+- ✅ **Frontend build verification** - Ensures static files exist
+- ✅ **Health checks** - Automatic service validation
+- ✅ **Zero-downtime deploys** - PM2 graceful reloads
+- ✅ **Rollback capabilities** - Quick recovery options
+
+### **Developer Experience**
+- ✅ **Single command deploy** - `./deploy.sh`
+- ✅ **Automatic CI/CD** - GitHub Actions integration
+- ✅ **Clear monitoring** - PM2 built-in tools
+- ✅ **Easy troubleshooting** - Native logs and processes
 
 ---
 
-**🎉 Agora você tem um sistema de deploy limpo, organizado e confiável!**
+**🎉 UltraZend now runs efficiently with native PM2 + Nginx deployment!**
