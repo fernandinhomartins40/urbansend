@@ -1,5 +1,9 @@
-// Load environment variables from .env file
-require('dotenv').config({ path: '/var/www/ultrazend/backend/.env' });
+// Load environment variables from .env file (conditional loading)
+try {
+  require('dotenv').config({ path: '/var/www/ultrazend/backend/.env' });
+} catch (error) {
+  console.warn('dotenv not available, using system environment variables');
+}
 
 module.exports = {
   apps: [{
@@ -102,7 +106,7 @@ module.exports = {
       repo: 'https://github.com/fernandinhomartins40/ultrazend.git',
       path: '/var/www/ultrazend',
       'pre-deploy-local': '',
-      'post-deploy': 'cd backend && npm ci --only=production && npm run build && pm2 reload ecosystem.config.js --env production && sleep 10 && curl -f http://localhost:3001/health || exit 1',
+      'post-deploy': 'cd backend && npm ci --production && npm run build && pm2 reload ecosystem.config.js --env production && sleep 10 && curl -f http://localhost:3001/health || exit 1',
       'pre-setup': 'mkdir -p /var/www/ultrazend/logs /var/www/ultrazend/data'
     }
   }
