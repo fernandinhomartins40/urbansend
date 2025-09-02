@@ -7,10 +7,14 @@ echo "User: $(whoami) ($(id))"
 echo "Node version: $(node --version)"
 echo "NPM version: $(npm --version)"
 
-# Create necessary directories (user already has permissions)
+# Verify directories exist (should have been created in Dockerfile)
 echo "📁 Ensuring directories exist..."
-mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions
-mkdir -p /app/data
+if [ ! -d "/app/logs/application" ]; then
+    mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions || true
+fi
+if [ ! -d "/app/data" ]; then
+    mkdir -p /app/data || true
+fi
 
 # Verify permissions (non-root user)
 echo "🔧 Checking permissions..."

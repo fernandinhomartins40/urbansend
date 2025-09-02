@@ -89,10 +89,12 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 COPY --from=build --chown=nodeuser:nodegroup /app/ultrazend.sqlite ./ultrazend.sqlite
 
 # Create necessary directories with correct structure and permissions
-RUN mkdir -p /app/data /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions /app/certificates && \
+RUN mkdir -p /app/data /app/logs /app/certificates && \
     chown -R nodeuser:nodegroup /app && \
     chmod -R 755 /app/logs /app/data && \
-    chmod -R 750 /app/certificates
+    chmod -R 750 /app/certificates && \
+    # Create subdirectories as nodeuser
+    su nodeuser -c 'mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions'
 
 # Switch to non-root user
 USER nodeuser
