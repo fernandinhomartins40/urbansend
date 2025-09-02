@@ -90,11 +90,14 @@ COPY --from=build --chown=nodeuser:nodegroup /app/ultrazend.sqlite ./ultrazend.s
 
 # Create necessary directories with correct structure and permissions
 RUN mkdir -p /app/data /app/logs /app/certificates && \
+    # Create subdirectories first as root
+    mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions && \
+    # Then set ownership to nodeuser
     chown -R nodeuser:nodegroup /app && \
-    chmod -R 755 /app/logs /app/data && \
-    chmod -R 750 /app/certificates && \
-    # Create subdirectories as nodeuser
-    su nodeuser -c 'mkdir -p /app/logs/application /app/logs/errors /app/logs/combined /app/logs/exceptions'
+    # Set permissive permissions for logs directory (nodeuser needs to create files)
+    chmod -R 775 /app/logs && \
+    chmod -R 755 /app/data && \
+    chmod -R 750 /app/certificates
 
 # Switch to non-root user
 USER nodeuser
