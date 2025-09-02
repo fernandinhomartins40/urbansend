@@ -510,8 +510,11 @@ jobs:
         # Iniciar aplicação com PM2 com verificações detalhadas
         echo '🚀 Iniciando aplicação com PM2...'
         
+        # Set NODE_ENV explicitly to ensure database works properly
+        export NODE_ENV=production
+        
         # Primeiro, tentar iniciar em modo verboso
-        if pm2 start ecosystem.config.js --env production --name ultrazend; then
+        if pm2 start ecosystem.config.js --env production --name ultrazend --update-env; then
           echo '✅ Comando PM2 executado'
           
           # Aguardar alguns segundos para estabilizar

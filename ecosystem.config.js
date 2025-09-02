@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config({ path: '/var/www/ultrazend/backend/.env' });
+
 module.exports = {
   apps: [{
     name: 'ultrazend',
@@ -7,6 +10,9 @@ module.exports = {
     autorestart: true,
     watch: false,
     max_memory_restart: '1G',
+    
+    // Explicit env file loading
+    env_file: '/var/www/ultrazend/backend/.env',
     
     // Unified restart configuration
     restart_delay: 3000,

@@ -508,9 +508,11 @@ cd $DEPLOY_PATH
 pm2 stop ultrazend 2>/dev/null || echo "No existing process to stop"
 pm2 delete ultrazend 2>/dev/null || echo "No existing process to delete"
 
-# Start application
+# Start application with explicit environment configuration
 echo "🚀 Iniciando aplicação..."
-pm2 start ecosystem.config.js --env production
+# Set NODE_ENV explicitly to ensure database works properly
+export NODE_ENV=production
+pm2 start ecosystem.config.js --env production --update-env
 
 # Save PM2 configuration
 pm2 save
