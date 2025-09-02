@@ -219,18 +219,58 @@ echo "🗄️ Executando migrações de banco..."
 npm run migrate:latest || echo "Migrations completed or not needed"
 
 # Configure Nginx - Start with HTTP only, then upgrade to SSL
-echo "🌐 Configurando Nginx (HTTP temporário)..."
+echo "🌐 ETAPA 1: Configurando Nginx HTTP temporário..."
 
-# Use HTTP config first (before SSL certificates exist)
+# ETAPA 1.1: Limpar configurações SSL antigas que podem causar conflitos
+echo "🧹 Limpando configurações SSL antigas..."
+
+# Stop nginx first to avoid conflicts
+systemctl stop nginx 2>/dev/null || true
+
+# Backup current config if exists
+if [ -f "/etc/nginx/sites-available/ultrazend" ]; then
+    echo "📦 Backup da configuração atual..."
+    cp /etc/nginx/sites-available/ultrazend "/tmp/ultrazend-nginx-backup-\$(date +%Y%m%d-%H%M%S).conf"
+fi
+
+# Remove old configurations that might have SSL references
+echo "🗑️ Removendo configurações antigas..."
+rm -f /etc/nginx/sites-enabled/ultrazend
+rm -f /etc/nginx/sites-enabled/default
+
+# ETAPA 1.2: Apply clean HTTP config
+echo "📝 Aplicando configuração HTTP limpa..."
 if [ -f "/tmp/ultrazend-nginx-http.conf" ]; then
     cp /tmp/ultrazend-nginx-http.conf /etc/nginx/sites-available/ultrazend
     ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
+    
+    # Verify no SSL references in HTTP config
+    if grep -q "ssl_certificate" /etc/nginx/sites-available/ultrazend; then
+        echo "❌ ERRO: Configuração HTTP contém referências SSL!"
+        grep -n "ssl" /etc/nginx/sites-available/ultrazend
+        exit 1
+    fi
+    
+    # Create webroot directory for Let's Encrypt
+    mkdir -p /var/www/html
+    chown -R www-data:www-data /var/www/html
+    echo "<h1>UltraZend Server</h1>" > /var/www/html/index.html
     
     # Test nginx HTTP config
+    echo "🧪 Testando configuração HTTP..."
     if nginx -t; then
         echo "✅ Configuração Nginx HTTP válida"
-        systemctl reload nginx || systemctl restart nginx
+        systemctl start nginx
+        systemctl enable nginx
+        
+        # Verify nginx started successfully
+        if systemctl is-active --quiet nginx; then
+            echo "✅ Nginx iniciado com HTTP"
+        else
+            echo "❌ Nginx falhou ao iniciar"
+            systemctl status nginx
+            exit 1
+        fi
     else
         echo "❌ Erro na configuração Nginx HTTP"
         nginx -t
@@ -251,7 +291,7 @@ EOF
 success "PASSO 6 concluído - Servidor configurado"
 
 # 7. SSL CERTIFICATES (if first time)
-log "PASSO 7: Verificando certificados SSL..."
+log "🔒 ETAPA 2: Verificando certificados SSL..."
 
 ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << EOF
 if [ ! -f "/etc/letsencrypt/live/$SUBDOMAIN/fullchain.pem" ]; then
@@ -321,7 +361,7 @@ if ! systemctl is-active --quiet nginx; then
 fi
 EOF
 
-success "PASSO 7 concluído - SSL verificado"
+success "🔒 ETAPA 2 concluída - SSL verificado"
 
 # 8. START/RESTART APPLICATION
 log "PASSO 8: Iniciando aplicação..."
