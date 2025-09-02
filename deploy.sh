@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# 🚀 ULTRAZEND - Master Deployment Script
-# Automatically chooses the right deployment strategy
+# 🚀 ULTRAZEND - Deploy Master Script
+# Script unificado e inteligente para deploy em produção
+# Versão: 3.0.0 - LIMPO E ORGANIZADO
 
 set -euo pipefail
 
@@ -15,234 +16,296 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
 NC='\033[0m'
 
-log() { echo -e "${BLUE}[DEPLOY] $1${NC}"; }
-success() { echo -e "${GREEN}[SUCCESS] $1${NC}"; }
-error() { echo -e "${RED}[ERROR] $1${NC}"; exit 1; }
-warning() { echo -e "${YELLOW}[WARNING] $1${NC}"; }
-info() { echo -e "${PURPLE}[INFO] $1${NC}"; }
+# Logging
+log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
+success() { echo -e "${GREEN}✅ $1${NC}"; }
+error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
+warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
 
-echo "🚀 ULTRAZEND - MASTER DEPLOYMENT"
-echo "================================="
-log "Servidor: $SERVER_HOST"
-log "Analisando ambiente..."
-echo ""
-
-# Function to detect deployment type needed
-detect_deployment_type() {
-    # Check if server is accessible
-    if ! ssh $SERVER_USER@$SERVER_HOST 'echo "test"' > /dev/null 2>&1; then
-        error "❌ Não foi possível conectar ao servidor $SERVER_HOST"
-    fi
-    
-    # Check if application directory exists
-    if ssh $SERVER_USER@$SERVER_HOST "[ -d '$DEPLOY_PATH' ]" 2>/dev/null; then
-        # Check if application is running
-        if ssh $SERVER_USER@$SERVER_HOST 'pm2 jlist | jq -r ".[] | select(.name==\"ultrazend\") | .pm2_env.status"' 2>/dev/null | grep -q "online"; then
-            echo "UPDATE"
-        else
-            echo "FRESH"
-        fi
-    else
-        echo "FRESH"
-    fi
+# Show usage
+show_usage() {
+    echo "🚀 ULTRAZEND Deploy Master - Docker Only"
+    echo "======================================="
+    echo "Usage: ./deploy.sh [OPTIONS]"
+    echo ""
+    echo "OPTIONS:"
+    echo "  --fresh  - Fresh server setup + deploy"
+    echo "  --auto   - Skip confirmations"
+    echo "  --help   - Show this help"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  ./deploy.sh              # Standard Docker deploy"
+    echo "  ./deploy.sh --auto       # Deploy without confirmation"
+    echo "  ./deploy.sh --fresh      # Setup clean server + deploy"
+    echo ""
+    echo "🐳 Uses Docker exclusively (no PM2 complexity!)"
+    echo ""
 }
 
-# Function to show deployment options
-show_menu() {
-    echo "Escolha o tipo de deployment:"
-    echo ""
-    echo "1) 🆕 Fresh Install    - Servidor limpo (primeira instalação)"
-    echo "2) 🔄 Update Deploy    - Atualizar aplicação existente" 
-    echo "3) 🤖 Auto Detect      - Detectar automaticamente"
-    echo "4) 🧪 Quick Start      - Setup completo automatizado"
-    echo "5) ❌ Cancelar"
-    echo ""
-    read -p "Selecione uma opção (1-5): " choice
+# Docker-only deployment (no method detection needed)
+prepare_docker_environment() {
+    log "🐳 Preparing Docker environment..."
     
-    case $choice in
-        1) echo "FRESH" ;;
-        2) echo "UPDATE" ;;
-        3) echo "AUTO" ;;
-        4) echo "QUICKSTART" ;;
-        5) echo "CANCEL" ;;
-        *) echo "INVALID" ;;
-    esac
+    # Always use Docker - no more PM2 complexity!
+    log "Using Docker exclusively for reliable deployment"
+}
+
+# Validate prerequisites
+validate_prereqs() {
+    log "🔍 Validating prerequisites..."
+    
+    # Check local files
+    [ ! -d "backend" ] && error "Backend directory not found"
+    [ ! -d "frontend" ] && error "Frontend directory not found"
+    [ ! -f "backend/package.json" ] && error "Backend package.json not found"
+    [ ! -f "frontend/package.json" ] && error "Frontend package.json not found"
+    
+    # Check Docker configuration files
+    [ ! -f "docker-compose.prod.yml" ] && error "docker-compose.prod.yml not found"
+    [ ! -f "backend/Dockerfile" ] && error "backend/Dockerfile not found"
+    
+    # Check .env files
+    if [ ! -f "configs/.env.production" ] && [ ! -f "backend/.env.production.deploy" ]; then
+        error "No production .env file found"
+    fi
+    
+    # Test SSH connection
+    if ! ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST 'echo "SSH OK"' >/dev/null 2>&1; then
+        error "SSH connection failed to $SERVER_HOST"
+    fi
+    
+    success "Prerequisites validated"
+}
+
+# Build applications locally
+build_apps() {
+    log "🏗️ Building applications..."
+    
+    # Backend build
+    log "Building backend..."
+    cd backend
+    npm ci
+    npm run build
+    [ ! -f "dist/index.js" ] && error "Backend build failed"
+    cd ..
+    
+    # Frontend build
+    log "Building frontend..."
+    cd frontend
+    npm ci
+    npm run build
+    [ ! -d "dist" ] && error "Frontend build failed"
+    cd ..
+    
+    success "Applications built successfully"
+}
+
+# Transfer files to server
+transfer_files() {
+    log "📤 Transferring files to server..."
+    
+    rsync -avz --progress \
+        --exclude='node_modules/' \
+        --exclude='*.log' \
+        --exclude='.git/' \
+        --exclude='coverage/' \
+        --exclude='__tests__/' \
+        -e "ssh -o StrictHostKeyChecking=no" \
+        ./ $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
+    
+    success "Files transferred"
+}
+
+# Deploy with Docker (only method)
+deploy_application() {
+    log "🐳 Deploying with Docker..."
+    
+    ssh $SERVER_USER@$SERVER_HOST << 'EOFDOCKER'
+cd /var/www/ultrazend
+
+# Install Docker if needed
+if ! command -v docker >/dev/null; then
+    echo "📦 Installing Docker..."
+    curl -fsSL https://get.docker.com | sh
+    systemctl start docker && systemctl enable docker
+fi
+
+if ! command -v docker-compose >/dev/null; then
+    echo "📦 Installing Docker Compose..."
+    curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+fi
+
+# REMOVE PM2 completely (no more PM2!)
+echo "🗑️ Removing PM2 completely..."
+pm2 stop all 2>/dev/null || true
+pm2 delete all 2>/dev/null || true
+pm2 kill 2>/dev/null || true
+# Optionally uninstall PM2 completely
+npm uninstall -g pm2 2>/dev/null || true
+
+# Configure .env
+if [ ! -f "backend/.env" ]; then
+    if [ -f "configs/.env.production" ]; then
+        cp configs/.env.production backend/.env
+    elif [ -f "backend/.env.production.deploy" ]; then
+        cp backend/.env.production.deploy backend/.env
+    fi
+fi
+
+# Deploy with Docker (clean and reliable)
+echo "🐳 Starting Docker deployment..."
+docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
+docker-compose -f docker-compose.prod.yml build --no-cache
+docker-compose -f docker-compose.prod.yml up -d
+
+echo "✅ Docker deployment completed successfully"
+EOFDOCKER
+
+    success "Docker deployment completed - PM2 eliminated!"
+}
+
+
+# Fresh server setup (Docker-focused)
+setup_fresh_server() {
+    log "🆕 Setting up fresh server for Docker deployment..."
+    
+    ssh $SERVER_USER@$SERVER_HOST << 'EOFFRESH'
+# Update system
+echo "📦 Updating system..."
+apt-get update && apt-get upgrade -y
+
+# Install essential packages (Docker-focused)
+echo "📦 Installing essential packages..."
+apt-get install -y curl wget git nginx sqlite3 ufw jq
+
+# Install Docker immediately 
+echo "🐳 Installing Docker..."
+curl -fsSL https://get.docker.com | sh
+systemctl start docker && systemctl enable docker
+
+# Install Docker Compose
+echo "🐳 Installing Docker Compose..."
+curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+
+# Configure firewall
+echo "🔒 Configuring firewall..."
+ufw --force enable
+ufw allow ssh
+ufw allow http
+ufw allow https
+ufw allow 25    # SMTP
+ufw allow 587   # SMTP Submission
+
+# Create directories
+echo "📁 Creating application directories..."
+mkdir -p /var/www/ultrazend/{data,logs,uploads,certificates}
+mkdir -p /var/backups/ultrazend
+
+# Remove any PM2 installation (clean start)
+echo "🗑️ Ensuring no PM2 remnants..."
+npm uninstall -g pm2 2>/dev/null || true
+pm2 kill 2>/dev/null || true
+
+echo "✅ Fresh Docker-ready server setup completed"
+EOFFRESH
+
+    success "Fresh server setup completed - Docker ready!"
+    
+    # Continue with Docker deployment only
+    deploy_application
+}
+
+# Health checks
+health_checks() {
+    log "🏥 Running health checks..."
+    
+    sleep 15  # Wait for services to start
+    
+    # Check API endpoint
+    if ssh $SERVER_USER@$SERVER_HOST 'curl -sf -m 10 http://localhost:3001/health >/dev/null'; then
+        success "API health check passed"
+        return 0
+    else
+        warning "API health check failed"
+        return 1
+    fi
 }
 
 # Main deployment logic
 main() {
-    # Get deployment type
-    if [ "${1:-}" ]; then
-        deploy_type="$1"
-    else
-        deploy_type=$(show_menu)
-    fi
+    # Parse arguments
+    AUTO_MODE=false
+    FRESH_SETUP=false
     
-    case $deploy_type in
-        "AUTO")
-            log "🤖 Detectando tipo de deployment automaticamente..."
-            auto_type=$(detect_deployment_type)
-            info "Tipo detectado: $auto_type"
-            deploy_type="$auto_type"
-            ;;
-        "CANCEL")
-            log "Deploy cancelado pelo usuário"
-            exit 0
-            ;;
-        "INVALID")
-            error "Opção inválida selecionada"
-            ;;
-    esac
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            "--help"|"-h"|"help")
+                show_usage
+                exit 0
+                ;;
+            "--fresh")
+                FRESH_SETUP=true
+                ;;
+            "--auto")
+                AUTO_MODE=true
+                ;;
+            *)
+                error "Opção desconhecida: $1. Use --help para ajuda."
+                ;;
+        esac
+        shift
+    done
     
-    # Pre-flight checks
-    log "🔍 Executando verificações pré-deploy..."
-    
-    # Check required scripts exist
-    case $deploy_type in
-        "FRESH")
-            [ ! -f "deploy-fresh-server.sh" ] && error "Script deploy-fresh-server.sh não encontrado"
-            script_to_run="deploy-fresh-server.sh"
-            ;;
-        "UPDATE")
-            [ ! -f "deploy-update.sh" ] && error "Script deploy-update.sh não encontrado"
-            script_to_run="deploy-update.sh"
-            ;;
-        "QUICKSTART")
-            [ ! -f "quick-start.sh" ] && error "Script quick-start.sh não encontrado"
-            script_to_run="quick-start.sh"
-            ;;
-        *)
-            error "Tipo de deploy inválido: $deploy_type"
-            ;;
-    esac
-    
-    # Check local builds exist
-    log "Verificando builds locais..."
-    local need_build=false
-    
-    if [ ! -f "backend/dist/index.js" ]; then
-        warning "Build do backend não encontrado"
-        need_build=true
-    fi
-    
-    if [ ! -d "frontend/dist" ] || [ ! -f "frontend/dist/index.html" ]; then
-        warning "Build do frontend não encontrado"
-        need_build=true
-    fi
-    
-    if [ "$need_build" = true ]; then
-        log "🔨 Executando builds necessários..."
-        
-        if [ ! -f "backend/dist/index.js" ]; then
-            log "Building backend..."
-            cd backend && npm run build && cd ..
-            success "✅ Backend build concluído"
-        fi
-        
-        if [ ! -d "frontend/dist" ] || [ ! -f "frontend/dist/index.html" ]; then
-            log "Building frontend..."
-            cd frontend && npm run build && cd ..
-            success "✅ Frontend build concluído"
-        fi
-    else
-        success "✅ Builds locais já estão prontos"
-    fi
-    
-    # Show deployment summary
-    echo ""
-    info "📋 RESUMO DO DEPLOYMENT:"
-    info "   Tipo: $deploy_type"
-    info "   Script: $script_to_run"
-    info "   Servidor: $SERVER_HOST"
-    info "   Timestamp: $(date)"
+    echo "🚀 ULTRAZEND DEPLOY MASTER - DOCKER ONLY"
+    echo "========================================"
+    log "Servidor: $SERVER_HOST"
+    log "Modo automático: $AUTO_MODE"
+    log "Setup limpo: $FRESH_SETUP"
     echo ""
     
-    # Confirm deployment
-    if [ "${2:-}" != "--auto" ]; then
-        read -p "🚀 Confirma o deployment? (y/N): " -n 1 -r
+    # Confirmation (unless auto mode)
+    if [ "$AUTO_MODE" = "false" ]; then
+        echo "🐳 Deploy Docker para servidor de produção: $SERVER_HOST"
+        read -p "Continuar? (y/N): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log "Deploy cancelado pelo usuário"
+            log "Deploy cancelado"
             exit 0
         fi
     fi
     
-    # Execute deployment
-    log "🚀 Iniciando deployment..."
-    echo ""
+    # Execute deployment steps
+    prepare_docker_environment
+    validate_prereqs
+    build_apps
+    transfer_files
     
-    # Make script executable and run it
-    chmod +x "$script_to_run"
-    ./"$script_to_run"
-    
-    # Post-deployment summary
-    echo ""
-    success "🎉 DEPLOYMENT MASTER CONCLUÍDO!"
-    echo "=============================="
-    success "✅ Script executado: $script_to_run"
-    success "✅ Tipo de deployment: $deploy_type"
-    
-    # Final verification
-    log "🔍 Verificação final..."
-    if curl -f -s -m 10 "https://www.ultrazend.com.br/health" > /dev/null 2>&1; then
-        success "✅ Aplicação acessível externamente"
-    elif ssh $SERVER_USER@$SERVER_HOST 'curl -f -s -m 5 http://localhost:3001/health > /dev/null' 2>/dev/null; then
-        warning "⚠️ Aplicação funcionando localmente, mas acesso externo pode estar com problemas"
+    # Fresh setup ou deploy normal
+    if [ "$FRESH_SETUP" = "true" ]; then
+        setup_fresh_server
     else
-        warning "⚠️ Verificação de acesso falhou - verifique manualmente"
+        deploy_application
     fi
     
-    echo ""
-    info "🌐 URLs da aplicação:"
-    info "   Website: https://www.ultrazend.com.br"
-    info "   Health: https://www.ultrazend.com.br/health"
-    info "   API: https://www.ultrazend.com.br/api"
-    echo ""
-    
-    info "💡 COMANDOS ÚTEIS:"
-    info "   Status: ssh $SERVER_USER@$SERVER_HOST 'pm2 status'"
-    info "   Logs: ssh $SERVER_USER@$SERVER_HOST 'pm2 logs ultrazend'"
-    info "   Restart: ssh $SERVER_USER@$SERVER_HOST 'pm2 restart ultrazend'"
-    echo ""
-    
-    log "🎯 Deployment master finalizado!"
+    # Final health check
+    if health_checks; then
+        success "🎉 DEPLOY DOCKER REALIZADO COM SUCESSO!"
+        echo ""
+        log "URLs de produção:"
+        log "  • Website: https://www.ultrazend.com.br"
+        log "  • API: https://www.ultrazend.com.br/api"  
+        log "  • Health: https://www.ultrazend.com.br/health"
+        log ""
+        log "🐳 PM2 totalmente eliminado - Usando Docker exclusivamente!"
+    else
+        warning "⚠️ Deploy concluído mas health checks falharam"
+        log "Verifique os logs do servidor"
+    fi
 }
 
-# Help function
-show_help() {
-    echo "ULTRAZEND - Master Deployment Script"
-    echo ""
-    echo "Usage: $0 [TYPE] [OPTIONS]"
-    echo ""
-    echo "TIPOS DE DEPLOYMENT:"
-    echo "  FRESH       Instalação completa em servidor limpo"
-    echo "  UPDATE      Atualização de aplicação existente"
-    echo "  AUTO        Detecta automaticamente o tipo necessário"
-    echo "  QUICKSTART  Setup completo automatizado"
-    echo ""
-    echo "OPTIONS:"
-    echo "  --auto      Executa sem confirmação interativa"
-    echo "  --help      Mostra esta ajuda"
-    echo ""
-    echo "EXEMPLOS:"
-    echo "  $0                    # Menu interativo"
-    echo "  $0 FRESH              # Instalação em servidor limpo"
-    echo "  $0 UPDATE             # Atualizar aplicação existente"
-    echo "  $0 AUTO               # Detecção automática"
-    echo "  $0 FRESH --auto       # Instalação sem confirmação"
-    echo ""
-}
-
-# Parse arguments
-case "${1:-}" in
-    "--help"|"-h"|"help")
-        show_help
-        exit 0
-        ;;
-    *)
-        main "$@"
-        ;;
-esac
+# Run main function
+main "$@"

@@ -1,222 +1,129 @@
+# 🚀 UltraZend - Production Docker Compose
+# Substitui completamente PM2 com orquestração Docker robusta
+
 version: '3.8'
 
 services:
-  # Backend UltraZend SMTP Server
+  # Backend Application
   ultrazend-backend:
-    build:
+    build: 
       context: ./backend
-      dockerfile: Dockerfile
       target: production
-    image: ultrazend/ultrazend-smtp-backend:latest
+    image: ultrazend/backend:latest
+    container_name: ultrazend-backend
+    
+    # Restart policy (substitui PM2 restart)
     restart: unless-stopped
-    ports:
-      - "3001:3001"  # API
-      - "25:25"      # SMTP
-      - "587:587"    # SMTP Submission
-      - "465:465"    # SMTPS
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    # Environment variables
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - SMTP_PORT=25
-      - SMTP_SUBMISSION_PORT=587
-      - SMTPS_PORT=465
+      - HOST=0.0.0.0
+      - DATABASE_URL=/app/data/ultrazend.sqlite
+      # Load additional env vars from file
     env_file:
-      - ./backend/.env.production
+      - ./configs/.env.production
+    
+    # Ports
+    ports:
+      - "3001:3001"    # API
+      - "25:25"        # SMTP MX
+      - "587:587"      # SMTP Submission
+      - "465:465"      # SMTP SSL (se necessário)
+    
+    # Volumes for persistent data
     volumes:
-      - ultrazend_data:/app/data
-      - ultrazend_logs:/app/logs
-      - ultrazend_certs:/app/certificates
-      - ./backend/src/migrations:/app/src/migrations:ro
-    networks:
-      - ultrazend-network
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./certificates:/app/certificates
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # SSL certificates
+    
+    # Resource limits
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
           cpus: '0.5'
         reservations:
           memory: 256M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-
-  # Frontend UltraZend Dashboard
-  ultrazend-frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: production
-    image: ultrazend/ultrazend-smtp-frontend:latest
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - NODE_ENV=production
-      - VITE_API_BASE_URL=http://ultrazend-backend:3001/api
-      - VITE_APP_VERSION=2.0.0
-    env_file:
-      - ./frontend/.env.production
-    volumes:
-      - ultrazend_nginx_logs:/var/log/nginx
-      - ultrazend_certs:/etc/nginx/ssl:ro
+          cpus: '0.1'
+    
+    # Dependency on Redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    # Networks
     networks:
       - ultrazend-network
-    depends_on:
-      ultrazend-backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    
+    # Logging configuration
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
+        max-size: "50m"
         max-file: "3"
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
+        labels: "service=ultrazend-backend"
 
-  # Redis Cache/Queue
+  # Redis for queues and caching
   redis:
-    image: redis:7.2-alpine
+    image: redis:7-alpine
+    container_name: ultrazend-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - ultrazend_redis_data:/data
-      - ./configs/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    command: redis-server /usr/local/etc/redis/redis.conf
-    networks:
-      - ultrazend-network
+    
+    # Redis configuration
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    
+    # Health check
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
+      start_period: 10s
+    
+    # Volumes for persistence
+    volumes:
+      - redis-data:/data
+    
+    # Resource limits
     deploy:
       resources:
         limits:
           memory: 256M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-
-  # Prometheus Monitoring
-  prometheus:
-    image: prom/prometheus:latest
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ultrazend_prometheus_data:/prometheus
-      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.enable-lifecycle'
+          cpus: '0.2'
+        reservations:
+          memory: 64M
+          cpus: '0.05'
+    
+    # Networks
     networks:
       - ultrazend-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    
+    # Logging
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
+        max-size: "10m"
+        max-file: "2"
 
-  # Grafana Dashboard
-  grafana:
-    image: grafana/grafana:latest
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=UltraZend2024!
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-    volumes:
-      - ultrazend_grafana_data:/var/lib/grafana
-      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
-    networks:
-      - ultrazend-network
-    depends_on:
-      - prometheus
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-
+# Networks
 networks:
   ultrazend-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+    name: ultrazend-network
 
+# Volumes
 volumes:
-  ultrazend_data:
-    driver: local
-  ultrazend_logs:
-    driver: local
-  ultrazend_certs:
-    driver: local
-  ultrazend_redis_data:
-    driver: local
-  ultrazend_prometheus_data:
-    driver: local
-  ultrazend_grafana_data:
-    driver: local
-  ultrazend_nginx_logs:
-    driver: local
+  redis-data:
+    name: ultrazend-redis-data
+  # Data volume will be mapped to host directory

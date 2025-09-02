@@ -72,12 +72,18 @@ RUN mkdir -p /app/data /app/logs /app/certificates && \
 # Switch to non-root user
 USER ultrazend
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3001/api/health || exit 1
+# Health check robusto (alinhado com nossas correções)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD curl -f http://localhost:3001/health || curl -f http://localhost:3001/api/health || exit 1
+
+# Environment variables
+ENV NODE_ENV=production \
+    PORT=3001 \
+    HOST=0.0.0.0
 
 # Expose ports
 EXPOSE 3001 25 587 465
 
-# Start application
+# Start application diretamente (sem PM2)
+# Usa exec form para proper signal handling
 CMD ["node", "dist/index.js"]

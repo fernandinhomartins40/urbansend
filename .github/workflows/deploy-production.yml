@@ -1,4 +1,4 @@
-name: 🚀 Deploy UltraZend Production System
+name: 🚀 Deploy UltraZend Production (Unified)
 
 concurrency:
   group: ultrazend-production-deploy
@@ -452,18 +452,25 @@ jobs:
         echo '✅ Aplicação configurada no servidor'
         "
 
-    - name: 🚀 Iniciar Aplicação
+    - name: 🚀 Deploy with Unified Script
       run: |
-        echo "🚀 Iniciando aplicação..."
-        echo "========================="
+        echo "🚀 Using new unified deployment script..."
+        echo "========================================"
         
+        # Transfer unified deploy script
+        echo "📤 Transferring deploy script..."
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no deploy.sh ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:/tmp/
+        
+        # Execute unified deploy
+        echo "🎯 Executing unified deployment..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
         
-        # Parar processos existentes com verificação detalhada
-        echo '🛑 Parando processos existentes...'
-        pm2 stop ultrazend 2>/dev/null || echo 'Nenhum processo PM2 para parar'
-        pm2 delete ultrazend 2>/dev/null || echo 'Nenhum processo PM2 para deletar'
+        # Make script executable
+        chmod +x /tmp/deploy.sh
+        
+        # Run deployment with auto-detected method
+        /tmp/deploy.sh pm2 --auto
         
         # Verificar estado inicial
         echo '📋 Estado inicial dos serviços:'
