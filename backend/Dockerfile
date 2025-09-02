@@ -37,9 +37,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Configure npm for native dependencies
-RUN npm config set python python3 && \
-    npm config set prefer-offline false && \
+# Configure npm for native dependencies (Python já configurado via ENV)
+RUN npm config set prefer-offline false && \
     npm config set audit-level moderate
 
 # Install all dependencies with verbose logging
