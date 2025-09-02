@@ -62,22 +62,6 @@ module.exports = {
       CACHE_BUST: Date.now().toString()
     },
     
-    // Staging environment
-    env_staging: {
-      NODE_ENV: 'staging',
-      PORT: 3001,
-      HTTPS_PORT: 443,
-      ENABLE_SWAGGER: true,
-      LOG_LEVEL: 'debug',
-      CACHE_BUST: Date.now().toString()
-    },
-    env_production: {
-      NODE_ENV: 'production',
-      PORT: 3001,
-      HTTPS_PORT: 443,
-      ENABLE_SWAGGER: false,
-      LOG_LEVEL: 'warn'
-    },
     
     // Log configuration with rotation
     log_file: '/var/www/ultrazend/logs/app.log',

@@ -296,13 +296,10 @@ jobs:
         echo '📦 Instalando dependências de produção...'
         if [ -f 'package-lock.json' ]; then
           echo 'Usando npm ci...'
-          npm ci --only=production
-          echo '📦 Instalando dependências swagger necessárias...'
-          npm install swagger-jsdoc swagger-ui-express --save
+          npm ci --production
         else
           echo 'Usando npm install...'
-          npm install --only=production
-          npm install swagger-jsdoc swagger-ui-express --save
+          npm install --production
         fi
         
         # Verificar build detalhadamente
