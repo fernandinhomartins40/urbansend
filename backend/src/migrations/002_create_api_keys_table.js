@@ -1,27 +1,34 @@
-exports.up = function(knex) {
-  return knex.schema.createTable('api_keys', function(table) {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function(knex) {
+  await knex.schema.createTable('api_keys', function (table) {
     table.increments('id').primary();
-    table.integer('user_id').unsigned().notNullable()
-      .references('id').inTable('users').onDelete('CASCADE');
-    table.string('key_name', 100).notNullable();
-    table.string('api_key_hash', 255).notNullable().unique();
-    table.text('permissions').notNullable(); // JSON array
+    table.integer('user_id').unsigned().notNullable();
+    table.string('name', 255).notNullable();
+    table.string('key_hash', 255).notNullable().unique();
+    table.json('permissions').defaultTo('[]');
     table.boolean('is_active').defaultTo(true);
-    table.datetime('created_at').defaultTo(knex.fn.now());
-    table.datetime('last_used_at').nullable();
+    table.timestamp('last_used_at');
+    table.timestamp('expires_at');
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
     
-    // Indexes for performance
-    table.index(['user_id']);
-    table.index(['api_key_hash']);
-    table.index(['is_active']);
-    table.index(['created_at']);
-    table.index(['last_used_at']);
+    // Foreign key
+    table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
     
-    // Unique constraint
-    table.unique(['user_id', 'key_name']);
+    // Índices
+    table.index(['user_id'], 'idx_api_keys_user_id');
+    table.index(['key_hash'], 'idx_api_keys_hash');
+    table.index(['is_active'], 'idx_api_keys_active');
   });
 };
 
-exports.down = function(knex) {
-  return knex.schema.dropTable('api_keys');
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = async function(knex) {
+  await knex.schema.dropTableIfExists('api_keys');
 };

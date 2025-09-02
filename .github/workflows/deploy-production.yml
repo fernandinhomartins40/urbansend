@@ -214,7 +214,12 @@ jobs:
         docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes 2>/dev/null || echo 'Nenhum Docker Compose rodando'
         docker stop \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container rodando'
         docker rm \$(docker ps -aq) 2>/dev/null || echo 'Nenhum container para remover'
-        docker system prune -f 2>/dev/null || echo 'Docker cleanup feito'
+        
+        # LIMPEZA AGRESSIVA DE IMAGENS DOCKER
+        echo '🔥 Removendo TODAS as imagens Docker antigas...'
+        docker rmi \$(docker images -q --filter 'dangling=true') 2>/dev/null || echo 'Sem imagens dangling'
+        docker rmi \$(docker images 'ultrazend*' -q) 2>/dev/null || echo 'Sem imagens ultrazend'
+        docker system prune -af --volumes 2>/dev/null || echo 'Docker cleanup completo feito'
         
         # Remover PM2 completamente se ainda existir
         echo '🗑️ Removendo PM2 (se existir)...'
@@ -242,6 +247,16 @@ jobs:
           rm -rf ~/.pm2
           rm -f ${{ env.APP_DIR }}/backend/package-lock.json
           rm -f ${{ env.APP_DIR }}/frontend/package-lock.json
+          
+          # LIMPEZA CRÍTICA: MIGRATIONS E BANCO ANTIGOS
+          echo '🗄️ Removendo migrations e banco de dados antigos...'
+          rm -rf ${{ env.APP_DIR }}/backend/src/migrations_backup 2>/dev/null || true
+          rm -f ${{ env.APP_DIR }}/backend/ultrazend.sqlite* 2>/dev/null || true
+          rm -f ${{ env.APP_DIR }}/backend/database.sqlite* 2>/dev/null || true
+          rm -f ${{ env.APP_DIR }}/data/ultrazend.sqlite* 2>/dev/null || true
+          rm -f ${{ env.APP_DIR }}/data/database.sqlite* 2>/dev/null || true
+          echo '✅ Banco de dados e migrations antigas removidos'
+          
           echo '✅ Limpeza completa realizada'
         else
           echo 'ℹ️  Primeira instalação - sem limpeza necessária'

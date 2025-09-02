@@ -1,52 +1,55 @@
-exports.up = function(knex) {
-  return knex.schema.createTable('emails', function(table) {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function(knex) {
+  await knex.schema.createTable('emails', function (table) {
     table.increments('id').primary();
-    table.integer('user_id').unsigned().notNullable()
-      .references('id').inTable('users').onDelete('CASCADE');
-    table.integer('api_key_id').unsigned().nullable()
-      .references('id').inTable('api_keys').onDelete('SET NULL');
-    table.integer('template_id').unsigned().nullable()
-      .references('id').inTable('email_templates').onDelete('SET NULL');
-    
-    // Email content
-    table.string('from_email', 255).notNullable();
+    table.integer('user_id').unsigned().notNullable();
+    table.integer('api_key_id').unsigned();
+    table.integer('template_id').unsigned();
     table.string('to_email', 255).notNullable();
-    table.string('subject', 255).notNullable();
-    table.text('html_content').nullable();
-    table.text('text_content').nullable();
+    table.string('from_email', 255).notNullable();
+    table.string('reply_to', 255);
+    table.string('subject', 500).notNullable();
+    table.text('html_content');
+    table.text('text_content');
+    table.json('cc_emails').defaultTo('[]');
+    table.json('bcc_emails').defaultTo('[]');
+    table.json('attachments').defaultTo('[]');
+    table.json('variables').defaultTo('{}');
+    table.string('status', 50).defaultTo('pending');
+    table.string('tracking_id', 100);
+    table.boolean('tracking_enabled').defaultTo(false);
+    table.text('error_message');
+    table.timestamp('sent_at');
+    table.timestamp('delivered_at');
+    table.timestamp('opened_at');
+    table.timestamp('clicked_at');
+    table.timestamp('bounced_at');
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
     
-    // Status tracking
-    table.string('status', 50).defaultTo('queued');
-    table.datetime('sent_at').nullable();
-    table.datetime('delivered_at').nullable();
-    table.datetime('opened_at').nullable();
-    table.datetime('clicked_at').nullable();
+    // Foreign keys
+    table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
+    table.foreign('api_key_id').references('id').inTable('api_keys').onDelete('SET NULL');
+    table.foreign('template_id').references('id').inTable('email_templates').onDelete('SET NULL');
     
-    // Bounce handling
-    table.text('bounce_reason').nullable();
-    table.string('bounce_type', 20).nullable(); // hard, soft, block
-    
-    // Webhook and tracking
-    table.text('webhook_payload').nullable();
-    table.string('tracking_id', 255).nullable();
-    
-    // Timestamps
-    table.datetime('created_at').defaultTo(knex.fn.now());
-    
-    // Indexes for performance
-    table.index(['user_id']);
-    table.index(['api_key_id']);
-    table.index(['template_id']);
-    table.index(['status']);
-    table.index(['from_email']);
-    table.index(['to_email']);
-    table.index(['sent_at']);
-    table.index(['created_at']);
-    table.index(['tracking_id']);
-    table.index(['bounce_type']);
+    // Índices
+    table.index(['user_id'], 'idx_emails_user_id');
+    table.index(['api_key_id'], 'idx_emails_api_key_id');
+    table.index(['to_email'], 'idx_emails_to_email');
+    table.index(['status'], 'idx_emails_status');
+    table.index(['tracking_id'], 'idx_emails_tracking_id');
+    table.index(['sent_at'], 'idx_emails_sent_at');
+    table.index(['created_at'], 'idx_emails_created_at');
   });
 };
 
-exports.down = function(knex) {
-  return knex.schema.dropTable('emails');
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = async function(knex) {
+  await knex.schema.dropTableIfExists('emails');
 };

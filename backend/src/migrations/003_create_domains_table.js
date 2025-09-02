@@ -1,25 +1,37 @@
-exports.up = function(knex) {
-  return knex.schema.createTable('domains', function(table) {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function(knex) {
+  await knex.schema.createTable('domains', function (table) {
     table.increments('id').primary();
-    table.integer('user_id').unsigned().notNullable()
-      .references('id').inTable('users').onDelete('CASCADE');
-    table.string('domain_name', 253).notNullable();
-    table.string('verification_status', 50).defaultTo('pending');
-    table.text('dns_records').nullable(); // JSON
-    table.datetime('created_at').defaultTo(knex.fn.now());
-    table.datetime('verified_at').nullable();
+    table.integer('user_id').unsigned().notNullable();
+    table.string('domain', 255).notNullable();
+    table.boolean('is_verified').defaultTo(false);
+    table.string('verification_token', 255);
+    table.string('verification_method', 50).defaultTo('dns');
+    table.boolean('dkim_enabled').defaultTo(false);
+    table.boolean('spf_enabled').defaultTo(false);
+    table.boolean('dmarc_enabled').defaultTo(false);
+    table.timestamp('verified_at');
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
     
-    // Indexes for performance
-    table.index(['user_id']);
-    table.index(['domain_name']);
-    table.index(['verification_status']);
-    table.index(['created_at']);
+    // Foreign key
+    table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
     
-    // Unique constraint per user
-    table.unique(['user_id', 'domain_name']);
+    // Índices
+    table.index(['user_id'], 'idx_domains_user_id');
+    table.index(['domain'], 'idx_domains_domain');
+    table.index(['is_verified'], 'idx_domains_verified');
+    table.unique(['user_id', 'domain'], 'idx_domains_user_domain_unique');
   });
 };
 
-exports.down = function(knex) {
-  return knex.schema.dropTable('domains');
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = async function(knex) {
+  await knex.schema.dropTableIfExists('domains');
 };

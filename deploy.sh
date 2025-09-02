@@ -155,9 +155,22 @@ if [ ! -f "backend/.env" ]; then
     fi
 fi
 
+# LIMPEZA AGRESSIVA DE DOCKER ANTES DO DEPLOY
+echo "🔥 Limpeza agressiva de Docker..."
+docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
+docker rmi $(docker images -q --filter 'dangling=true') 2>/dev/null || echo 'Sem imagens dangling'
+docker rmi $(docker images 'ultrazend*' -q) 2>/dev/null || echo 'Sem imagens ultrazend'
+docker system prune -af --volumes 2>/dev/null || echo 'Docker cleanup completo feito'
+
+# LIMPEZA DE BANCO E MIGRATIONS ANTIGAS
+echo "🗄️ Removendo banco e migrations antigas..."
+rm -f data/ultrazend.sqlite* 2>/dev/null || true
+rm -f data/database.sqlite* 2>/dev/null || true
+rm -f backend/ultrazend.sqlite* 2>/dev/null || true
+rm -f backend/database.sqlite* 2>/dev/null || true
+
 # Deploy with Docker (clean and reliable)
 echo "🐳 Starting Docker deployment..."
-docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
 docker-compose -f docker-compose.prod.yml build --no-cache
 docker-compose -f docker-compose.prod.yml up -d
 

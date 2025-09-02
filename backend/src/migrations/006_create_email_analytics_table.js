@@ -1,29 +1,35 @@
-exports.up = function(knex) {
-  return knex.schema.createTable('email_analytics', function(table) {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function(knex) {
+  await knex.schema.createTable('email_analytics', function (table) {
     table.increments('id').primary();
-    table.integer('email_id').unsigned().notNullable()
-      .references('id').inTable('emails').onDelete('CASCADE');
+    table.integer('email_id').unsigned().notNullable();
+    table.string('event_type', 50).notNullable(); // 'open', 'click', 'bounce', 'delivery', 'unsubscribe'
+    table.string('tracking_id', 100);
+    table.string('link_url', 1000);
+    table.string('user_agent', 1000);
+    table.string('ip_address', 45);
+    table.string('location', 255);
+    table.json('metadata').defaultTo('{}');
+    table.timestamp('created_at').defaultTo(knex.fn.now());
     
-    // Event tracking
-    table.string('event_type', 50).notNullable(); // sent, delivered, opened, clicked, bounced, failed
-    table.datetime('timestamp').defaultTo(knex.fn.now());
+    // Foreign key
+    table.foreign('email_id').references('id').inTable('emails').onDelete('CASCADE');
     
-    // User tracking
-    table.string('user_agent', 500).nullable();
-    table.string('ip_address', 45).nullable(); // IPv4 or IPv6
-    
-    // Additional metadata
-    table.text('metadata').nullable(); // JSON
-    
-    // Indexes for performance
-    table.index(['email_id']);
-    table.index(['event_type']);
-    table.index(['timestamp']);
-    table.index(['ip_address']);
-    table.index(['email_id', 'event_type']);
+    // Índices
+    table.index(['email_id'], 'idx_analytics_email_id');
+    table.index(['event_type'], 'idx_analytics_event_type');
+    table.index(['tracking_id'], 'idx_analytics_tracking_id');
+    table.index(['created_at'], 'idx_analytics_created_at');
   });
 };
 
-exports.down = function(knex) {
-  return knex.schema.dropTable('email_analytics');
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = async function(knex) {
+  await knex.schema.dropTableIfExists('email_analytics');
 };

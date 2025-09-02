@@ -1,26 +1,34 @@
-exports.up = function(knex) {
-  return knex.schema.createTable('email_templates', function(table) {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function(knex) {
+  await knex.schema.createTable('email_templates', function (table) {
     table.increments('id').primary();
-    table.integer('user_id').unsigned().notNullable()
-      .references('id').inTable('users').onDelete('CASCADE');
-    table.string('template_name', 100).notNullable();
-    table.string('subject', 255).notNullable();
-    table.text('html_content').nullable();
-    table.text('text_content').nullable();
-    table.text('variables').nullable(); // JSON array
-    table.datetime('created_at').defaultTo(knex.fn.now());
-    table.datetime('updated_at').defaultTo(knex.fn.now());
+    table.integer('user_id').unsigned().notNullable();
+    table.string('name', 255).notNullable();
+    table.string('subject', 500).notNullable();
+    table.text('html_content');
+    table.text('text_content');
+    table.json('variables').defaultTo('[]');
+    table.boolean('is_active').defaultTo(true);
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
     
-    // Indexes for performance
-    table.index(['user_id']);
-    table.index(['template_name']);
-    table.index(['created_at']);
+    // Foreign key
+    table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
     
-    // Unique constraint per user
-    table.unique(['user_id', 'template_name']);
+    // Índices
+    table.index(['user_id'], 'idx_templates_user_id');
+    table.index(['name'], 'idx_templates_name');
+    table.index(['is_active'], 'idx_templates_active');
   });
 };
 
-exports.down = function(knex) {
-  return knex.schema.dropTable('email_templates');
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = async function(knex) {
+  await knex.schema.dropTableIfExists('email_templates');
 };
