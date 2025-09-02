@@ -292,14 +292,17 @@ jobs:
         echo '🔧 Configurando backend...'
         cd backend
         
-        # Instalar dependências de produção
+        # Instalar dependências de produção (incluindo swagger)
         echo '📦 Instalando dependências de produção...'
         if [ -f 'package-lock.json' ]; then
           echo 'Usando npm ci...'
           npm ci --only=production
+          echo '📦 Instalando dependências swagger necessárias...'
+          npm install swagger-jsdoc swagger-ui-express --save
         else
           echo 'Usando npm install...'
           npm install --only=production
+          npm install swagger-jsdoc swagger-ui-express --save
         fi
         
         # Verificar build detalhadamente

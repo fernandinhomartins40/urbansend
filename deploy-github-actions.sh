@@ -253,12 +253,15 @@ if [ ! -f "dist/index.js" ]; then
 fi
 echo "✅ Arquivo dist/index.js encontrado"
 
-# Install production dependencies
+# Install production dependencies (including swagger dependencies)
 echo "📦 Instalando dependências de produção..."
 if [ -f "package-lock.json" ]; then
     npm ci --only=production
+    # Install swagger dependencies that are needed in production
+    npm install swagger-jsdoc swagger-ui-express --save
 else
     npm install --only=production
+    npm install swagger-jsdoc swagger-ui-express --save
 fi
 
 # Ensure build exists
