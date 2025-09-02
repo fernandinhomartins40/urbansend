@@ -1,0 +1,172 @@
+name: 🚀 Deploy UltraZend Native (PM2 + Nginx)
+
+concurrency:
+  group: ultrazend-native-deploy
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force complete rebuild'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  VPS_HOST: '31.97.162.155'
+  VPS_USER: 'root'
+  APP_DIR: '/var/www/ultrazend'
+  APP_PORT: '3001'
+  DOMAIN: 'www.ultrazend.com.br'
+  NODE_VERSION: '20'
+
+jobs:
+  deploy-native:
+    name: 🎯 Deploy Native (PM2 + Nginx)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: 📋 Deploy Info
+      run: |
+        echo "🚀 ULTRAZEND NATIVE DEPLOY"
+        echo "========================="
+        echo "📦 Commit: ${{ github.sha }}"
+        echo "🌿 Branch: ${{ github.ref_name }}"  
+        echo "🎯 Target: ${{ env.VPS_HOST }}:${{ env.APP_PORT }}"
+        echo "🌐 Domain: ${{ env.DOMAIN }}"
+        echo "⏰ Start: $(date -u)"
+        echo "========================="
+
+    - name: 🔧 Setup SSH
+      run: |
+        sudo apt-get update -qq && sudo apt-get install -y sshpass rsync
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts
+        
+        # Test SSH connection
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '✅ SSH OK'"
+
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: |
+          frontend/package-lock.json
+          backend/package-lock.json
+
+    - name: 🏗️ Build Frontend
+      run: |
+        echo "🏗️ Building React frontend..."
+        cd frontend
+        npm ci --silent
+        npm run build
+        echo "✅ Frontend built - Size: $(du -sh dist/)"
+        ls -la dist/ | head -5
+
+    - name: 🚀 Deploy to VPS
+      run: |
+        echo "🚀 Deploying to VPS..."
+        
+        # Transfer code
+        echo "📤 Transferring files..."
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
+          --exclude='.git/' --exclude='node_modules/' --exclude='.claude/' \
+          --exclude='frontend/node_modules/' --exclude='backend/node_modules/' \
+          --exclude='backend/dist/' --exclude='__tests__/' --exclude='coverage/' \
+          -e "ssh -o StrictHostKeyChecking=no" \
+          ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/
+        
+        # Deploy on server
+        echo "⚙️ Configuring server..."
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+        cd ${{ env.APP_DIR }}
+        
+        # Stop existing services
+        echo '🛑 Stopping existing services...'
+        pm2 stop ultrazend-backend 2>/dev/null || true
+        pm2 delete ultrazend-backend 2>/dev/null || true
+        
+        # Setup backend
+        echo '🏗️ Setting up backend...'
+        cd backend
+        npm ci --only=production --silent
+        npm run build
+        
+        # Copy .env
+        if [ -f ../configs/.env.production ]; then
+          cp ../configs/.env.production .env
+        fi
+        
+        # Run migrations
+        npm run migrate:latest || true
+        
+        cd ..
+        
+        # Setup frontend in nginx
+        echo '🌐 Setting up frontend...'
+        mkdir -p /var/www/ultrazend-static
+        cp -r frontend/dist/* /var/www/ultrazend-static/
+        chown -R www-data:www-data /var/www/ultrazend-static
+        
+        # Configure nginx
+        if [ -f configs/nginx-http.conf ]; then
+          # Update nginx config to point to correct frontend location
+          sed 's|/var/www/ultrazend/frontend/dist|/var/www/ultrazend-static|g' configs/nginx-http.conf > /etc/nginx/sites-available/ultrazend
+          ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t && systemctl reload nginx
+        fi
+        
+        # Start backend with PM2
+        echo '🚀 Starting backend with PM2...'
+        cd backend
+        pm2 start dist/index.js --name ultrazend-backend --env production
+        pm2 save
+        
+        echo '✅ Native deploy completed!'
+        echo ''
+        echo 'Services Status:'
+        pm2 status
+        echo ''
+        echo 'Nginx Status:'
+        systemctl is-active nginx && echo 'Nginx: Active' || echo 'Nginx: Inactive'
+        "
+
+    - name: 🏥 Health Check
+      run: |
+        echo "🏥 Testing deployed application..."
+        sleep 10
+        
+        # Test backend
+        for i in 1 2 3; do
+          if curl -f --connect-timeout 5 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health"; then
+            echo "✅ Backend healthy!"
+            break
+          else
+            echo "⚠️ Attempt $i failed, retrying..."
+            sleep 5
+          fi
+        done
+        
+        # Test frontend
+        if curl -f --connect-timeout 5 "http://${{ env.VPS_HOST }}/"; then
+          echo "✅ Frontend serving!"
+        else
+          echo "⚠️ Frontend may not be ready"
+        fi
+
+    - name: ✅ Deploy Complete
+      run: |
+        echo "🎉 ULTRAZEND NATIVE DEPLOY COMPLETE!"
+        echo "==================================="
+        echo "🌐 Website: http://${{ env.DOMAIN }}"
+        echo "🏥 Health: http://${{ env.DOMAIN }}/health"
+        echo "🔌 API: http://${{ env.DOMAIN }}/api"
+        echo ""
+        echo "✨ Deployed with PM2 + Nginx (more efficient!)"

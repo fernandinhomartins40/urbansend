@@ -284,7 +284,7 @@ jobs:
         echo "Tamanho total: $(du -sh . | cut -f1)"
         echo "Commit atual: ${{ github.sha }}"
         
-        echo "🔥 TRANSFERÊNCIA FORÇADA (substituindo TUDO)..."
+        echo "🔥 TRANSFERÊNCIA FORÇADA (INCLUINDO FRONTEND BUILD)..."
         if sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --progress --delete --force \
           --checksum \
           --exclude='.git/' \
@@ -292,7 +292,6 @@ jobs:
           --exclude='frontend/node_modules/' \
           --exclude='backend/node_modules/' \
           --exclude='backend/dist/' \
-          --exclude='frontend/dist/' \
           --exclude='.claude/' \
           --exclude='__tests__/' \
           --exclude='coverage/' \
@@ -474,7 +473,32 @@ jobs:
           exit 1
         fi
         
-        echo '✅ Aplicação configurada no servidor'
+        # CONFIGURAÇÃO CRÍTICA: Copiar frontend buildado para Nginx
+        echo '🌐 ETAPA 4: Configurando frontend no Nginx...'
+        if [ -d 'frontend/dist' ]; then
+          echo 'Copiando frontend buildado para Nginx...'
+          
+          # Garantir que o diretório esperado pelo nginx existe
+          mkdir -p /var/www/ultrazend/frontend/dist
+          
+          # Copiar arquivos buildados para local esperado pelo nginx
+          cp -r frontend/dist/* /var/www/ultrazend/frontend/dist/
+          
+          # Configurar permissões corretas
+          chown -R www-data:www-data /var/www/ultrazend/frontend/dist
+          chmod -R 755 /var/www/ultrazend/frontend/dist
+          
+          echo '✅ Frontend buildado copiado para Nginx'
+          echo 'Arquivos copiados:'
+          ls -la /var/www/ultrazend/frontend/dist/ | head -10
+        else
+          echo '❌ Frontend dist não encontrado - aplicação não funcionará!'
+          echo 'Conteúdo do diretório frontend:'
+          ls -la frontend/
+          exit 1
+        fi
+        
+        echo '✅ Aplicação configurada no servidor (incluindo frontend)'
         "
 
     - name: 🚀 Deploy with Docker Only
