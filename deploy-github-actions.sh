@@ -185,7 +185,9 @@ rsync -avz --delete \
 log "Enviando arquivos de configuração..."
 scp -o StrictHostKeyChecking=no configs/.env.production $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/backend/.env
 scp -o StrictHostKeyChecking=no ecosystem.config.js $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
-scp -o StrictHostKeyChecking=no configs/nginx-ssl.conf $SERVER_USER@$SERVER_HOST:/tmp/ultrazend-nginx.conf
+# Send both nginx configs
+scp -o StrictHostKeyChecking=no configs/nginx-http.conf $SERVER_USER@$SERVER_HOST:/tmp/ultrazend-nginx-http.conf
+scp -o StrictHostKeyChecking=no configs/nginx-ssl.conf $SERVER_USER@$SERVER_HOST:/tmp/ultrazend-nginx-ssl.conf
 
 success "PASSO 5 concluído - Aplicação enviada"
 
@@ -216,20 +218,27 @@ echo "✅ Backend preparado"
 echo "🗄️ Executando migrações de banco..."
 npm run migrate:latest || echo "Migrations completed or not needed"
 
-# Configure Nginx
-if [ -f "/tmp/ultrazend-nginx.conf" ]; then
-    echo "🌐 Configurando Nginx..."
-    cp /tmp/ultrazend-nginx.conf /etc/nginx/sites-available/ultrazend
+# Configure Nginx - Start with HTTP only, then upgrade to SSL
+echo "🌐 Configurando Nginx (HTTP temporário)..."
+
+# Use HTTP config first (before SSL certificates exist)
+if [ -f "/tmp/ultrazend-nginx-http.conf" ]; then
+    cp /tmp/ultrazend-nginx-http.conf /etc/nginx/sites-available/ultrazend
     ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
     rm -f /etc/nginx/sites-enabled/default
     
-    # Test nginx config
+    # Test nginx HTTP config
     if nginx -t; then
-        echo "✅ Configuração Nginx válida"
+        echo "✅ Configuração Nginx HTTP válida"
+        systemctl reload nginx || systemctl restart nginx
     else
-        echo "❌ Erro na configuração Nginx"
+        echo "❌ Erro na configuração Nginx HTTP"
+        nginx -t
         exit 1
     fi
+else
+    echo "❌ Arquivo nginx-http.conf não encontrado"
+    exit 1
 fi
 
 # Set proper permissions
@@ -248,29 +257,68 @@ ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << EOF
 if [ ! -f "/etc/letsencrypt/live/$SUBDOMAIN/fullchain.pem" ]; then
     echo "🔒 Configurando certificados SSL..."
     
-    # Stop nginx for certificate generation
-    systemctl stop nginx 2>/dev/null || true
+    # Make sure nginx is running (needed for HTTP validation)
+    systemctl start nginx
+    systemctl enable nginx
     
-    # Get certificates
-    certbot certonly --standalone \
+    # Get certificates using webroot (nginx is already serving HTTP)
+    certbot certonly --webroot \
+        -w /var/www/html \
         -d $DOMAIN \
         -d $SUBDOMAIN \
         --non-interactive \
         --agree-tos \
         --email $ADMIN_EMAIL \
-        || echo "⚠️ SSL certificate generation failed - continuing without SSL"
+        || echo "⚠️ SSL certificate generation failed - continuing with HTTP only"
+    
+    # If certificates were generated successfully, switch to SSL config
+    if [ -f "/etc/letsencrypt/live/$SUBDOMAIN/fullchain.pem" ]; then
+        echo "🔒 Atualizando configuração Nginx para SSL..."
+        
+        if [ -f "/tmp/ultrazend-nginx-ssl.conf" ]; then
+            cp /tmp/ultrazend-nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+            
+            # Test SSL config
+            if nginx -t; then
+                echo "✅ Configuração SSL válida - aplicando..."
+                systemctl reload nginx
+                echo "✅ SSL configurado com sucesso"
+            else
+                echo "❌ Erro na configuração SSL - mantendo HTTP"
+                cp /tmp/ultrazend-nginx-http.conf /etc/nginx/sites-available/ultrazend
+                systemctl reload nginx
+            fi
+        fi
+    else
+        echo "⚠️ Certificados não foram gerados - mantendo HTTP"
+    fi
     
     # Setup auto-renewal
     (crontab -l 2>/dev/null; echo "0 3 * * * /usr/bin/certbot renew --quiet && systemctl reload nginx") | crontab -
     
-    echo "✅ SSL configurado"
 else
     echo "✅ Certificados SSL já existem"
+    
+    # If SSL exists but nginx is using HTTP config, upgrade to SSL
+    if [ -f "/tmp/ultrazend-nginx-ssl.conf" ] && ! grep -q "ssl_certificate" /etc/nginx/sites-available/ultrazend; then
+        echo "🔒 Atualizando para configuração SSL..."
+        cp /tmp/ultrazend-nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+        if nginx -t; then
+            systemctl reload nginx
+            echo "✅ Configuração SSL aplicada"
+        else
+            echo "❌ Erro na configuração SSL - revertendo"
+            cp /tmp/ultrazend-nginx-http.conf /etc/nginx/sites-available/ultrazend
+            systemctl reload nginx
+        fi
+    fi
 fi
 
-# Start nginx
-systemctl start nginx
+# Ensure nginx is running
 systemctl enable nginx
+if ! systemctl is-active --quiet nginx; then
+    systemctl start nginx
+fi
 EOF
 
 success "PASSO 7 concluído - SSL verificado"
