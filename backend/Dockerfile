@@ -63,15 +63,20 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/migrations ./src/migrations
 COPY --from=build /app/knexfile.js ./knexfile.js
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Copy database
 COPY --from=build /app/ultrazend.sqlite ./ultrazend.sqlite
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/logs /app/certificates && \
-    chown -R ultrazend:nodejs /app
+# Create necessary directories with correct structure
+RUN mkdir -p /app/data /app/logs/application /app/logs/errors /app/logs/combined /app/certificates && \
+    chown -R ultrazend:nodejs /app && \
+    chmod -R 755 /app/logs
 
-# Switch to non-root user
-USER ultrazend
+# Keep as root to fix permissions on startup, then switch to ultrazend
+# USER ultrazend - will be handled by entrypoint script
 
 # Health check robusto (alinhado com nossas correções)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
@@ -84,6 +89,9 @@ ENV NODE_ENV=production \
 
 # Expose ports
 EXPOSE 3001 25 587 465
+
+# Set entrypoint to handle permissions and user switching
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Start application diretamente (sem PM2)
 # Usa exec form para proper signal handling
