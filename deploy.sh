@@ -135,6 +135,8 @@ deploy_to_server() {
         --exclude='.claude/' \
         --exclude='__tests__/' \
         --exclude='coverage/' \
+        --include='configs/' \
+        --include='configs/**' \
         ./ $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
     
     # Configure on server
@@ -149,6 +151,19 @@ deploy_to_server() {
     # Setup backend
     echo 'Setting up backend...'
     cd backend
+    
+    # Remove old build files to ensure clean build
+    echo 'Removing old build files...'
+    rm -rf dist/ || true
+    
+    # Install Redis if not present
+    echo 'Ensuring Redis is available...'
+    if ! command -v redis-server &> /dev/null; then
+      echo 'Installing Redis...'
+      apt-get update -qq && apt-get install -y redis-server
+      systemctl enable redis-server
+      systemctl start redis-server
+    fi
     
     # Install all dependencies first (including swagger)
     npm ci --silent
