@@ -537,46 +537,19 @@ const startServer = async () => {
     // Initialize services sequentially
     await initializeServices();
 
-    // Start servers
-    if (Env.isProduction) {
-      if (httpsServer) {
-        httpsServer.listen(HTTPS_PORT, () => {
-          logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
-          logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
-          logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'production')}`);
-        });
-        
-        server.listen(PORT, () => {
-          logger.info(`🔧 HTTP Server (internal) running on port ${PORT}`);
-        });
-        
-        const redirectServer = createServer((req, res) => {
-          const host = req.headers.host?.replace(/:\d+/, '');
-          const redirectUrl = `https://${host}${req.url}`;
-          
-          res.writeHead(301, { 
-            'Location': redirectUrl,
-            'Content-Type': 'text/plain'
-          });
-          res.end(`Redirecting to ${redirectUrl}`);
-        });
-        
-        redirectServer.listen(80, () => {
-          logger.info(`↩️  HTTP Redirect Server running on port 80 → HTTPS`);
-        });
+    // Start server - Let Nginx handle SSL termination
+    server.listen(PORT, () => {
+      logger.info(`🚀 Server running on port ${PORT}`);
+      
+      if (Env.isProduction) {
+        logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
+        logger.info(`🔒 SSL handled by Nginx reverse proxy`);
       } else {
-        server.listen(PORT, () => {
-          logger.info(`🚀 HTTP Server running on port ${PORT} (SSL certificates not found)`);
-          logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
-        });
-      }
-    } else {
-      server.listen(PORT, () => {
-        logger.info(`🚀 HTTP Server running on port ${PORT}`);
         logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
-        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
-      });
-    }
+      }
+      
+      logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
+    });
     
   } catch (error) {
     logger.error('❌ CRITICAL: Failed to start server', {
