@@ -12,7 +12,6 @@ export interface AuthenticatedRequest extends Request {
     id: number;
     email: string;
     name: string;
-    plan_type: string;
   };
   apiKey?: {
     id: number;
@@ -66,7 +65,7 @@ export const authenticateJWT = async (
     const decoded = jwt.verify(token, Env.jwtSecret) as any;
     
     const user = await db('users')
-      .select('id', 'email', 'name', 'plan_type', 'is_verified')
+      .select('id', 'email', 'name', 'is_verified')
       .where('id', decoded.userId)
       .first();
 
@@ -82,7 +81,6 @@ export const authenticateJWT = async (
       id: user.id,
       email: user.email,
       name: user.name,
-      plan_type: user.plan_type
     };
 
     next();
@@ -118,7 +116,7 @@ export const authenticateApiKey = async (
 
     // First try to find API keys to verify against
     const apiKeys = await db('api_keys')
-      .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.name', 'users.plan_type')
+      .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.name')
       .join('users', 'api_keys.user_id', 'users.id')
       .where('api_keys.is_active', true);
 

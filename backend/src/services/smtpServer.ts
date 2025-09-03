@@ -347,10 +347,9 @@ class UltraZendSMTPServer {
     try {
       // Buscar usuário no banco de dados
       const user = await db('users')
-        .select('id', 'email', 'password_hash', 'is_active', 'is_verified')
+        .select('id', 'email', 'password', 'is_verified')
         .where('email', username)
-        .orWhere('username', username)
-        .first();
+          .first();
 
       if (!user) {
         return null;
@@ -362,7 +361,7 @@ class UltraZendSMTPServer {
       }
 
       // Verificar senha (assumindo que está hasheada)
-      const isValidPassword = await bcrypt.compare(password, user.password_hash);
+      const isValidPassword = await bcrypt.compare(password, user.password);
 
       if (!isValidPassword) {
         return null;

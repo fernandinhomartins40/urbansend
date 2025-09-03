@@ -6,7 +6,6 @@ interface User {
   name: string
   email: string
   is_verified: boolean
-  plan_type: string
 }
 
 interface AuthState {

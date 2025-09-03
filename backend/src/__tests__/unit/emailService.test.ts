@@ -18,8 +18,7 @@ describe('EmailService Unit Tests', () => {
   beforeAll(async () => {
     testUser = await createTestUser({
       email: 'emailservice-test@example.com',
-      is_verified: true,
-      plan_type: 'pro'
+      is_verified: true
     });
     
     testDb = testUtils.getTestDb();

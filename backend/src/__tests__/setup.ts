@@ -100,29 +100,28 @@ async function seedTestData(knex: any): Promise<void> {
     {
       name: 'Test User 1',
       email: 'test1@example.com',
-      password_hash: await bcrypt.hash('password123', 10),
+      password: await bcrypt.hash('password123', 10),
       is_verified: true,
-      plan_type: 'pro',
+      'pro',
       created_at: new Date(),
       updated_at: new Date()
     },
     {
       name: 'Test User 2',
       email: 'test2@example.com',
-      password_hash: await bcrypt.hash('password123', 10),
+      password: await bcrypt.hash('password123', 10),
       is_verified: false,
-      plan_type: 'free',
-      verification_token: 'a'.repeat(64), // 64 char hex token
-      verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      'free',
+      email_verification_token: 'a'.repeat(64), // 64 char hex token
       created_at: new Date(),
       updated_at: new Date()
     },
     {
       name: 'System User',
       email: 'system@test.local',
-      password_hash: await bcrypt.hash('system-password', 12),
+      password: await bcrypt.hash('system-password', 12),
       is_verified: true,
-      plan_type: 'system',
+      'system',
       created_at: new Date(),
       updated_at: new Date()
     }
@@ -266,9 +265,9 @@ export async function createTestUser(userData: Partial<any> = {}): Promise<any> 
   const defaultUser = {
     name: 'Test User',
     email: `test${Date.now()}@example.com`,
-    password_hash: await bcrypt.hash('password123', 10),
+    password: await bcrypt.hash('password123', 10),
     is_verified: true,
-    plan_type: 'free',
+    'free',
     created_at: new Date(),
     updated_at: new Date(),
     ...userData

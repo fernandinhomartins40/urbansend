@@ -73,11 +73,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     insertResult = await db('users').insert({
       name,
       email,
-      password_hash: passwordHash,
-      verification_token: verificationToken,
-      verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      password: passwordHash,
+      email_verification_token: verificationToken,
       is_verified: false,
-      plan_type: 'free',
       created_at: new Date(),
       updated_at: new Date()
     });
@@ -100,9 +98,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   logger.info('New user created with verification token', {
     userId,
     email,
-    savedTokenLength: savedUser.verification_token?.length,
-    savedTokenPreview: savedUser.verification_token?.substring(0, 8) + '...',
-    tokenMatchesGenerated: savedUser.verification_token === verificationToken
+    savedTokenLength: savedUser.email_verification_token?.length,
+    savedTokenPreview: savedUser.email_verification_token?.substring(0, 8) + '...',
+    tokenMatchesGenerated: savedUser.email_verification_token === verificationToken
   });
 
   // Send verification email (async, don't block response)
@@ -131,8 +129,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       id: userId,
       name,
       email,
-      is_verified: false,
-      plan_type: 'free'
+      is_verified: false
     }
   });
 });
@@ -147,7 +144,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Verify password
-  const isValidPassword = await verifyPassword(password, user.password_hash);
+  const isValidPassword = await verifyPassword(password, user.password);
   if (!isValidPassword) {
     throw createError('Invalid credentials', 401);
   }
@@ -176,8 +173,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      is_verified: user.is_verified,
-      plan_type: user.plan_type
+      is_verified: user.is_verified
     }
   });
 });
@@ -206,8 +202,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 
   // Buscar usuário SEM qualquer normalização do token
   const user = await db('users')
-    .where('verification_token', token)
-    .where('verification_token_expires', '>', new Date())
+    .where('email_verification_token', token)
     .first();
   
   if (!user) {
@@ -237,8 +232,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   await db.transaction(async (trx) => {
     await trx('users').where('id', user.id).update({
       is_verified: true,
-      verification_token: null,
-      verification_token_expires: null,
+      email_verification_token: null,
       email_verified_at: new Date(),
       updated_at: new Date()
     });
@@ -291,8 +285,8 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
 
   // Store reset token in database with expiration
   await db('users').where('id', user.id).update({
-    reset_token: resetToken,
-    reset_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    password_reset_token: resetToken,
+    password_reset_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     updated_at: new Date()
   });
 
@@ -318,8 +312,8 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
   // Verify token and find user
   const user = await db('users')
-    .where('reset_token', token)
-    .where('reset_token_expires', '>', new Date())
+    .where('password_reset_token', token)
+    .where('password_reset_expires', '>', new Date())
     .first();
 
   if (!user) {
@@ -331,9 +325,9 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
   // Update user password and clear reset token
   await db('users').where('id', user.id).update({
-    password_hash: passwordHash,
-    reset_token: null,
-    reset_token_expires: null,
+    password: passwordHash,
+    password_reset_token: null,
+    password_reset_expires: null,
     updated_at: new Date()
   });
 
@@ -377,7 +371,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     
     // Find user
     const user = await db('users')
-      .select('id', 'email', 'name', 'plan_type', 'is_verified')
+      .select('id', 'email', 'name', 'is_verified')
       .where('id', decoded.userId)
       .first();
 
@@ -401,8 +395,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
         id: user.id,
         name: user.name,
         email: user.email,
-        is_verified: user.is_verified,
-        plan_type: user.plan_type
+        is_verified: user.is_verified
       }
     });
   } catch (error) {
@@ -420,7 +413,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const user = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'plan_type', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'is_verified', 'created_at', 'updated_at')
     .where('id', req.user!.id)
     .first();
 
@@ -443,7 +436,7 @@ export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res:
   });
 
   const updatedUser = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'plan_type', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'is_verified', 'created_at', 'updated_at')
     .where('id', userId)
     .first();
 
@@ -460,13 +453,13 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
   const userId = req.user!.id;
 
   // Get current password hash
-  const user = await db('users').select('password_hash').where('id', userId).first();
+  const user = await db('users').select('password').where('id', userId).first();
   if (!user) {
     throw createError('User not found', 404);
   }
 
   // Verify current password
-  const isValidPassword = await verifyPassword(current_password, user.password_hash);
+  const isValidPassword = await verifyPassword(current_password, user.password);
   if (!isValidPassword) {
     throw createError('Current password is incorrect', 400);
   }
@@ -476,7 +469,7 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
 
   // Update password
   await db('users').where('id', userId).update({
-    password_hash: newPasswordHash,
+    password: newPasswordHash,
     updated_at: new Date()
   });
 
@@ -494,7 +487,7 @@ export const debugVerificationTokens = asyncHandler(async (req: Request, res: Re
   }
 
   const unverifiedUsers = await db('users')
-    .select('id', 'email', 'verification_token', 'is_verified', 'created_at')
+    .select('id', 'email', 'email_verification_token', 'is_verified', 'created_at')
     .where('is_verified', false)
     .limit(10);
 
@@ -503,8 +496,8 @@ export const debugVerificationTokens = asyncHandler(async (req: Request, res: Re
     users: unverifiedUsers.map(user => ({
       id: user.id,
       email: user.email,
-      tokenPreview: user.verification_token ? user.verification_token.substring(0, 8) + '...' : null,
-      tokenLength: user.verification_token?.length,
+      tokenPreview: user.email_verification_token ? user.email_verification_token.substring(0, 8) + '...' : null,
+      tokenLength: user.email_verification_token?.length,
       isVerified: user.is_verified,
       created: user.created_at
     }))
@@ -550,13 +543,12 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
     email,
     tokenLength: verificationToken.length,
     tokenPreview: verificationToken.substring(0, 8) + '...',
-    oldTokenPreview: user.verification_token ? user.verification_token.substring(0, 8) + '...' : 'null'
+    oldTokenPreview: user.email_verification_token ? user.email_verification_token.substring(0, 8) + '...' : 'null'
   });
 
   // Update user with new verification token
   await db('users').where('id', user.id).update({
-    verification_token: verificationToken,
-    verification_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    email_verification_token: verificationToken,
     updated_at: new Date()
   });
 
@@ -564,9 +556,9 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   const updatedUser = await db('users').where('id', user.id).first();
   logger.info('Token saved to database', {
     userId: user.id,
-    savedTokenLength: updatedUser.verification_token?.length,
-    savedTokenPreview: updatedUser.verification_token?.substring(0, 8) + '...',
-    tokenMatchesGenerated: updatedUser.verification_token === verificationToken
+    savedTokenLength: updatedUser.email_verification_token?.length,
+    savedTokenPreview: updatedUser.email_verification_token?.substring(0, 8) + '...',
+    tokenMatchesGenerated: updatedUser.email_verification_token === verificationToken
   });
 
   // Send verification email (async, don't block response)

@@ -20,7 +20,7 @@ const setupTestDatabase = async () => {
         name: 'System',
         email: 'system@ultrazend.com.br',
         password: 'system',
-        email_verified: true,
+        is_verified: true,
         created_at: new Date(),
         updated_at: new Date()
       });
@@ -106,8 +106,8 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
 
       expect(user).toBeDefined();
       expect(user.name).toBe(userData.name);
-      expect(user.email_verified).toBe(false);
-      expect(user.verification_token).toBeDefined();
+      expect(user.is_verified).toBe(false);
+      expect(user.email_verification_token).toBeDefined();
 
       // 3. Verificar se email foi criado no banco
       const email = await db('emails')
@@ -118,12 +118,12 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       expect(email).toBeDefined();
       expect(['delivered', 'queued', 'sent']).toContain(email.status);
       expect(email.html_content).toContain('Ultrazend');
-      expect(email.html_content).toContain(user.verification_token);
+      expect(email.html_content).toContain(user.email_verification_token);
 
       // 4. Testar link de verificação
       const verifyResponse = await request(app)
         .post('/api/auth/verify-email')
-        .send({ token: user.verification_token })
+        .send({ token: user.email_verification_token })
         .expect(200);
 
       expect(verifyResponse.body).toHaveProperty('message');
@@ -163,7 +163,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
         name: 'API Test User',
         email: 'apitest@ultrazend.com.br',
         password: 'password123',
-        email_verified: true,
+        is_verified: true,
         created_at: new Date(),
         updated_at: new Date()
       });
@@ -313,7 +313,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
         name: 'Password Reset Test',
         email: 'resettest@ultrazend.com.br',
         password: 'oldpassword123',
-        email_verified: true,
+        is_verified: true,
         created_at: new Date(),
         updated_at: new Date()
       });
@@ -341,8 +341,8 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
 
       // Verificar se token foi criado no usuário
       const updatedUser = await db('users').where('id', testUser.id).first();
-      expect(updatedUser.reset_token).toBeDefined();
-      expect(updatedUser.reset_token_expires).toBeDefined();
+      expect(updatedUser.password_reset_token).toBeDefined();
+      expect(updatedUser.password_reset_expires).toBeDefined();
     });
   });
 

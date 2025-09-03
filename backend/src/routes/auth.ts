@@ -172,8 +172,8 @@ router.post('/resend-verification',
 if (!Env.isProduction) {
   router.get('/debug/verification-tokens', asyncHandler(async (req: Request, res: Response) => {
     const users = await db('users')
-      .select('id', 'email', 'verification_token', 'is_verified', 'created_at')
-      .whereNotNull('verification_token')
+      .select('id', 'email', 'email_verification_token', 'is_verified', 'created_at')
+      .whereNotNull('email_verification_token')
       .orderBy('created_at', 'desc')
       .limit(10);
     
@@ -182,10 +182,10 @@ if (!Env.isProduction) {
       users: users.map(user => ({
         id: user.id,
         email: user.email,
-        token: user.verification_token,
+        token: user.email_verification_token,
         isVerified: user.is_verified,
         createdAt: user.created_at,
-        verifyUrl: `${process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br'}/verify-email?token=${user.verification_token}`
+        verifyUrl: `${process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br'}/verify-email?token=${user.email_verification_token}`
       }))
     });
   }));
