@@ -22,7 +22,7 @@ const getRefreshCookieOptions = () => ({
   secure: Env.isProduction,
   sameSite: 'strict' as const,
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  path: '/api/auth/refresh'
+  path: '/'
 });
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -378,7 +378,7 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
     httpOnly: true,
     secure: Env.isProduction,
     sameSite: 'strict',
-    path: '/api/auth/refresh'
+    path: '/'
   });
 
   res.json({
@@ -431,7 +431,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
       httpOnly: true,
       secure: Env.isProduction,
       sameSite: 'strict',
-      path: '/api/auth/refresh'
+      path: '/'
     });
     
     throw createError('Invalid refresh token', 401);

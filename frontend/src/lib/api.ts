@@ -33,7 +33,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config._retry) {
+      // Mark this request as a retry to prevent infinite loops
+      error.config._retry = true;
+      
+      // Don't try to refresh if this was already a refresh request
+      if (error.config.url?.includes('/auth/refresh')) {
+        // Refresh failed, redirect to login
+        if (window.location.pathname !== '/login') {
+          toast.error('Sua sessão expirou. Faça login novamente.')
+          // Use React Router navigation instead of direct location change
+          const event = new CustomEvent('auth:session-expired');
+          window.dispatchEvent(event);
+        }
+        return Promise.reject(error);
+      }
+      
       // Try to refresh token first
       try {
         await api.post('/auth/refresh')
@@ -47,6 +62,7 @@ api.interceptors.response.use(
           const event = new CustomEvent('auth:session-expired');
           window.dispatchEvent(event);
         }
+        return Promise.reject(refreshError);
       }
     }
     
