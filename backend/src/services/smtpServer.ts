@@ -41,16 +41,26 @@ class UltraZendSMTPServer {
   private isRunning = false;
 
   constructor(config: Partial<SMTPServerConfig> = {}) {
+    // CORREÇÃO: Config customizado tem precedência sobre variáveis de ambiente
     this.config = {
-      mxPort: Env.getNumber('SMTP_MX_PORT', 25),
-      submissionPort: Env.getNumber('SMTP_SUBMISSION_PORT', 587),
-      hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com'),
-      maxConnections: Env.getNumber('SMTP_MAX_CLIENTS', 100),
-      maxMessageSize: 50 * 1024 * 1024, // 50MB
-      authRequired: !Env.isDevelopment,
-      tlsEnabled: true,
-      ...config
+      mxPort: config.mxPort ?? Env.getNumber('SMTP_MX_PORT', 25),
+      submissionPort: config.submissionPort ?? Env.getNumber('SMTP_SUBMISSION_PORT', 587),
+      hostname: config.hostname ?? Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com'),
+      maxConnections: config.maxConnections ?? Env.getNumber('SMTP_MAX_CLIENTS', 100),
+      maxMessageSize: config.maxMessageSize ?? (50 * 1024 * 1024), // 50MB
+      authRequired: config.authRequired ?? !Env.isDevelopment,
+      tlsEnabled: config.tlsEnabled ?? true,
+      certPath: config.certPath,
+      keyPath: config.keyPath
     };
+
+    // DEBUG: Log da configuração final aplicada
+    logger.info('SMTPServer constructor - Configuração aplicada:', {
+      configRecebido: config,
+      configFinal: this.config,
+      envMXPort: Env.getNumber('SMTP_MX_PORT', 25),
+      envSubmissionPort: Env.getNumber('SMTP_SUBMISSION_PORT', 587)
+    });
 
     // Inicializar serviços
     this.securityManager = new SecurityManager();

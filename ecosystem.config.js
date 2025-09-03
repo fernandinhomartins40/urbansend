@@ -67,8 +67,14 @@ module.exports = {
       LOG_LEVEL: 'info',
       DATABASE_URL: '/var/www/ultrazend/backend/ultrazend.sqlite',
       REDIS_URL: 'redis://127.0.0.1:6379',
-      SMTP_HOST: '127.0.0.1',
-      SMTP_PORT: 587,
+      
+      // SMTP Configuration - ARQUITETURA DUAL ALINHADA
+      SMTP_HOST: '127.0.0.1',            // Postfix local
+      SMTP_PORT: 25,                     // Postfix MX (externo)
+      SMTP_MX_PORT: 2525,               // SMTPServer interno (não conflita)
+      SMTP_SUBMISSION_PORT: 587,        // SMTPServer submission (autenticado)
+      SMTP_HOSTNAME: 'mail.ultrazend.com.br',
+      
       FRONTEND_URL: 'https://www.ultrazend.com.br',
       API_BASE_URL: 'https://www.ultrazend.com.br/api'
     }

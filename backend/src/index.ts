@@ -30,6 +30,10 @@ import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
 
+// Global shutdown control - prevents double database destroy
+let isDatabaseClosed = false;
+let isShutdownInProgress = false;
+
 // Load environment variables with fallback strategy
 const loadEnvConfig = () => {
   // Try production config paths in order of preference
@@ -478,18 +482,37 @@ const initializeServices = async () => {
       name: 'SMTP Server',
       init: async () => {
         try {
+          // OPÇÃO 1 - ARQUITETURA DUAL: Portas diferentes para evitar conflito
           const UltraZendSMTPServer = (await import('./services/smtpServer')).default;
-          const smtpServer = new UltraZendSMTPServer();
+          
+          // Configuração robusta com portas específicas
+          const smtpServerConfig = {
+            mxPort: 2525,        // API/Aplicação (não conflita com Postfix:25)
+            submissionPort: 587,  // Submission padrão (autenticado)
+            hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br'),
+            maxConnections: Env.getNumber('SMTP_MAX_CLIENTS', 100),
+            authRequired: true,   // Sempre requer autenticação para segurança
+            tlsEnabled: true
+          };
+          
+          // DEBUG: Log da configuração sendo aplicada
+          logger.info('🔧 SMTP Server Config Applied', smtpServerConfig);
+          
+          const smtpServer = new UltraZendSMTPServer(smtpServerConfig);
           await smtpServer.start();
-          logger.info('✅ SMTP Server initialized');
+          
+          logger.info('✅ SMTP Server initialized - Dual Architecture', {
+            internal_mx: 2525,
+            submission: 587,
+            external_postfix: 25
+          });
+          
         } catch (error) {
-          if ((error as any).code === 'EADDRINUSE') {
-            logger.warn('⚠️ SMTP ports already in use, continuing without SMTP server...', { 
-              error: (error as Error).message 
-            });
-          } else {
-            throw error;
-          }
+          logger.error('❌ Failed to initialize SMTP Server', { 
+            error: (error as Error).message,
+            stack: (error as Error).stack
+          });
+          throw error; // Não mascarar erros - queremos saber se há problemas
         }
       }
     },
@@ -560,22 +583,57 @@ const startServer = async () => {
   }
 };
 
-// Enhanced graceful shutdown
+// Enhanced graceful shutdown with robust error handling
 const gracefulShutdown = async (signal: string) => {
+  // Prevent multiple shutdown attempts
+  if (isShutdownInProgress) {
+    logger.warn(`Graceful shutdown already in progress, ignoring ${signal}`);
+    return;
+  }
+  
+  isShutdownInProgress = true;
   logger.info(`Received ${signal}, starting graceful shutdown...`);
   
+  const shutdownTimeout = setTimeout(() => {
+    logger.error('Graceful shutdown timeout reached, forcing exit');
+    process.exit(1);
+  }, 30000); // 30 seconds timeout
+
   try {
-    await performanceMonitor.destroy();
-    logger.info('Performance monitor cleaned up');
+    // Cleanup performance monitor with timeout protection
+    try {
+      await Promise.race([
+        performanceMonitor.destroy(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Performance monitor timeout')), 5000))
+      ]);
+      logger.info('Performance monitor cleaned up');
+    } catch (error) {
+      logger.warn('Performance monitor cleanup failed, continuing...', { error: (error as Error).message });
+    }
     
-    await monitoringService.close();
-    logger.info('Monitoring service shutdown completed');
+    // Cleanup monitoring service with timeout protection
+    try {
+      await Promise.race([
+        monitoringService.close(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Monitoring service timeout')), 10000))
+      ]);
+      logger.info('Monitoring service shutdown completed');
+    } catch (error) {
+      logger.warn('Monitoring service cleanup failed, continuing...', { error: (error as Error).message });
+    }
     
+    // Close servers with timeout protection
     const closePromises = [];
     
     if (server) {
       closePromises.push(new Promise((resolve) => {
+        const serverTimeout = setTimeout(() => {
+          logger.warn('HTTP server close timeout, forcing...');
+          resolve(void 0);
+        }, 5000);
+        
         server.close(() => {
+          clearTimeout(serverTimeout);
           logger.info('HTTP Server closed');
           resolve(void 0);
         });
@@ -584,7 +642,13 @@ const gracefulShutdown = async (signal: string) => {
     
     if (httpsServer) {
       closePromises.push(new Promise((resolve) => {
+        const httpsTimeout = setTimeout(() => {
+          logger.warn('HTTPS server close timeout, forcing...');
+          resolve(void 0);
+        }, 5000);
+        
         httpsServer.close(() => {
+          clearTimeout(httpsTimeout);
           logger.info('HTTPS Server closed');
           resolve(void 0);
         });
@@ -593,12 +657,60 @@ const gracefulShutdown = async (signal: string) => {
     
     await Promise.all(closePromises);
     
-    await db.destroy();
-    logger.info('Database connection closed');
+    // CORREÇÃO FINAL: Database fechamento robusto com pool cleanup
+    try {
+      if (!isDatabaseClosed) {
+        // Aguardar operações pendentes antes de fechar
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Fechar pool de conexões gradualmente
+        const closePromise = (async () => {
+          try {
+            // Primeiro, parar de aceitar novas conexões
+            await db.raw('PRAGMA journal_mode=DELETE');
+            
+            // Aguardar operações pendentes
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Fechar pool
+            await db.destroy();
+            logger.info('Database connection pool closed successfully');
+          } catch (poolError) {
+            logger.warn('Pool close with issues, but completing shutdown...', { 
+              error: (poolError as Error).message 
+            });
+            // Forçar fechamento se necessário
+            try {
+              // @ts-ignore - forçar fechamento interno
+              if (db.client && db.client.pool) {
+                db.client.pool.destroy();
+              }
+            } catch (forceError) {
+              logger.debug('Force pool close also failed, but continuing...');
+            }
+          }
+        });
+        
+        await Promise.race([
+          closePromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Database pool close timeout')), 8000))
+        ]);
+        
+        isDatabaseClosed = true;
+        logger.info('Database graceful shutdown completed');
+      } else {
+        logger.info('Database connection already closed by monitoring service');
+      }
+    } catch (error) {
+      logger.warn('Database graceful shutdown completed with warnings', { error: (error as Error).message });
+      isDatabaseClosed = true; // Always mark as closed to prevent retry
+    }
     
+    clearTimeout(shutdownTimeout);
     logger.info('Graceful shutdown completed successfully');
     process.exit(0);
   } catch (error) {
+    clearTimeout(shutdownTimeout);
     logger.error('Error during graceful shutdown', { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);
   }

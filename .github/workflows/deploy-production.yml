@@ -125,6 +125,85 @@ jobs:
           systemctl start redis-server
         fi
         
+        # Setup Email Server (Postfix) - Critical for email functionality
+        echo '📧 Ensuring Email Server (Postfix) is available...'
+        if ! command -v postfix &> /dev/null; then
+          echo 'Installing Postfix and mail utilities...'
+          DEBIAN_FRONTEND=noninteractive apt-get install -y postfix mailutils opendkim opendkim-tools
+          systemctl enable postfix
+          systemctl start postfix
+        fi
+        
+        # Configure Postfix for ultrazend.com.br with enhanced security
+        echo '⚙️ Configuring Postfix for ultrazend.com.br...'
+        
+        # Backup original config if it exists
+        [ -f /etc/postfix/main.cf ] && cp /etc/postfix/main.cf /etc/postfix/main.cf.backup.$(date +%Y%m%d) 2>/dev/null || true
+        
+        # Configure main Postfix settings
+        postconf -e \"myhostname=mail.ultrazend.com.br\"
+        postconf -e \"mydomain=ultrazend.com.br\"
+        postconf -e \"myorigin=\$mydomain\"
+        postconf -e \"inet_interfaces=all\"
+        postconf -e \"inet_protocols=ipv4\"
+        postconf -e \"mydestination=\$myhostname, mail.ultrazend.com.br, ultrazend.com.br, localhost.localdomain, localhost\"
+        postconf -e \"mynetworks=127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128\"
+        postconf -e \"message_size_limit=25600000\"
+        postconf -e \"mailbox_size_limit=0\"
+        postconf -e \"recipient_delimiter=+\"
+        
+        # Security settings
+        postconf -e \"smtpd_helo_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_invalid_helo_hostname\"
+        postconf -e \"smtpd_sender_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_non_fqdn_sender\"
+        postconf -e \"smtpd_recipient_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination\"
+        
+        # Rate limiting
+        postconf -e \"smtpd_client_connection_count_limit=50\"
+        postconf -e \"smtpd_client_connection_rate_limit=100\"
+        
+        # Setup OpenDKIM if not already configured
+        if [ ! -d \"/etc/opendkim/keys/ultrazend.com.br\" ]; then
+          echo '🔐 Setting up DKIM...'
+          mkdir -p /etc/opendkim/keys/ultrazend.com.br
+          chown -R opendkim:opendkim /etc/opendkim 2>/dev/null || true
+          
+          # Generate DKIM keys
+          cd /etc/opendkim/keys/ultrazend.com.br
+          opendkim-genkey -s ultrazend -d ultrazend.com.br -b 2048 2>/dev/null || true
+          chown opendkim:opendkim * 2>/dev/null || true
+          chmod 600 ultrazend.private 2>/dev/null || true
+          
+          # Basic DKIM configuration
+          cat > /etc/opendkim.conf << 'DKIMEOF'
+Syslog yes
+SyslogSuccess yes
+Canonicalization relaxed/simple
+Mode sv
+SubDomains yes
+Socket inet:8891@localhost
+PidFile /var/run/opendkim/opendkim.pid
+UMask 022
+UserID opendkim:opendkim
+TemporaryDirectory /var/tmp
+DKIMEOF
+
+          # Configure DKIM milter in Postfix
+          postconf -e \"milter_protocol=2\"
+          postconf -e \"milter_default_action=accept\"
+          postconf -e \"smtpd_milters=inet:localhost:8891\"
+          postconf -e \"non_smtpd_milters=inet:localhost:8891\"
+          
+          # Start OpenDKIM
+          systemctl enable opendkim 2>/dev/null || true
+          systemctl start opendkim 2>/dev/null || true
+        fi
+        
+        # Restart services to apply changes
+        systemctl restart postfix
+        systemctl restart opendkim 2>/dev/null || true
+        
+        cd ${{ env.APP_DIR }}/backend
+        
         # Install all dependencies (including swagger)
         npm ci --silent
         npm install swagger-jsdoc swagger-ui-express --save --silent
@@ -148,6 +227,26 @@ jobs:
           echo 'LOG_LEVEL=info' >> .env
           chmod 600 .env
         fi
+        
+        # Configure email server settings - ARQUITETURA DUAL ALINHADA
+        echo '📧 Configuring DUAL email server architecture...'
+        echo '  🏢 Postfix (External MX): Port 25'  
+        echo '  🔧 UltraZend SMTPServer: Port 2525 (MX) + 587 (Submission)'
+        
+        # Verify dual architecture configuration (don't overwrite .env.production)
+        if grep -q 'SMTP_MX_PORT=2525' .env; then
+          echo '✅ Dual SMTP architecture configuration found in .env'
+        else
+          echo '⚠️  Adding dual architecture configuration to .env...'
+          echo 'SMTP_MX_PORT=2525' >> .env
+          echo 'SMTP_SUBMISSION_PORT=587' >> .env
+        fi
+        
+        # Only ensure basic email settings (don't override dual config)
+        grep -q '^MAIL_FROM_EMAIL=' .env || echo 'MAIL_FROM_EMAIL=noreply@ultrazend.com.br' >> .env
+        grep -q '^MAIL_FROM_NAME=' .env || echo 'MAIL_FROM_NAME=ULTRAZEND' >> .env
+        
+        echo '✅ Dual email architecture validated'
         
         # Ensure log directories exist
         mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
