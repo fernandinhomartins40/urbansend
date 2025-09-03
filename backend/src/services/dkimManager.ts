@@ -176,7 +176,7 @@ export class DKIMManager {
         } catch (error) {
           logger.warn('Failed to load DKIM keys from files, skipping configuration', { 
             domain: standardDomain, 
-            error: error.message 
+            error: error instanceof Error ? error.message : String(error)
           });
         }
       } else {

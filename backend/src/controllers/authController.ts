@@ -543,9 +543,10 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   // Find user by email
   const user = await db('users').where('email', email).first();
   if (!user) {
-    // Don't reveal if user exists or not for security
-    return res.json({
-      message: 'Se uma conta com este email existir e não estiver verificada, um novo email de verificação foi enviado.'
+    logger.info('Verification email resend attempted for non-existent user', { email });
+    return res.status(404).json({
+      message: 'Este email não está cadastrado em nosso sistema. Faça seu cadastro primeiro para criar uma conta.',
+      action: 'register'
     });
   }
 
@@ -557,7 +558,8 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
       logger.info('Development mode: allowing resend for verified user', { userId: user.id, email });
     } else {
       return res.json({
-        message: 'Esta conta já está verificada. Você pode fazer login normalmente.'
+        message: 'Esta conta já está verificada. Você pode fazer login normalmente.',
+        action: 'login'
       });
     }
   }

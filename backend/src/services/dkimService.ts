@@ -52,7 +52,7 @@ class DKIMService {
           privateKey = fs.readFileSync(fullPath, 'utf8');
           logger.info('DKIM private key loaded from file', { keyPath: fullPath });
         } catch (error) {
-          logger.warn('Failed to load DKIM private key from file', { keyPath, error: error.message });
+          logger.warn('Failed to load DKIM private key from file', { keyPath, error: error instanceof Error ? error.message : String(error) });
         }
       }
     }
