@@ -1,7 +1,7 @@
 import { logger } from '../config/logger';
 import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';
-import { SecurityManager } from './securityManager';
+import { SecurityManager } from './SecurityManager';
 import { createTransport, Transporter, SendMailOptions } from 'nodemailer';
 import { simpleParser } from 'mailparser';
 import db from '../config/database';

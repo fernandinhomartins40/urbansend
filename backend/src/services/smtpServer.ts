@@ -3,7 +3,7 @@ import { simpleParser, ParsedMail } from 'mailparser';
 import bcrypt from 'bcrypt';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
-import { SecurityManager } from './securityManager';
+import { SecurityManager } from './SecurityManager';
 import { RateLimiter } from './rateLimiter';
 import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';

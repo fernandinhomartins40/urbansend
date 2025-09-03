@@ -1,6 +1,6 @@
 import { logger } from '../config/logger';
-import { Database } from 'sqlite3';
-import { promisify } from 'util';
+import { Knex } from 'knex';
+import db from '../config/database';
 import { ParsedMail } from 'mailparser';
 import dns from 'dns';
 import { Env } from '../utils/env';
@@ -48,10 +48,7 @@ export interface PhishingDetectionResult {
 }
 
 export class SecurityManager {
-  private db: Database;
-  private dbRun: (sql: string, params?: any[]) => Promise<any>;
-  private dbGet: (sql: string, params?: any[]) => Promise<any>;
-  private dbAll: (sql: string, params?: any[]) => Promise<any[]>;
+  private db: Knex;
   
   private blacklistedIPs: Set<string> = new Set();
   private rateLimiters: Map<string, Map<string, { count: number; window: number }>> = new Map();
@@ -61,11 +58,8 @@ export class SecurityManager {
   private readonly SPAM_THRESHOLD = 5.0;
   private readonly PHISHING_CONFIDENCE_THRESHOLD = 0.7;
 
-  constructor(database?: Database) {
-    this.db = database || new Database('./ultrazend.sqlite');
-    this.dbRun = promisify(this.db.run.bind(this.db));
-    this.dbGet = promisify(this.db.get.bind(this.db));
-    this.dbAll = promisify(this.db.all.bind(this.db));
+  constructor(database?: Knex) {
+    this.db = database || db;
     
     this.initializeTables();
     this.loadSecurityData();
@@ -74,98 +68,131 @@ export class SecurityManager {
   private async initializeTables(): Promise<void> {
     try {
       // Tabela de blacklists de IPs
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS security_blacklists (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          ip_address TEXT UNIQUE NOT NULL,
-          reason TEXT NOT NULL,
-          is_active BOOLEAN DEFAULT 1,
-          added_by TEXT DEFAULT 'system',
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          expires_at DATETIME,
-          last_seen DATETIME
-        )
-      `);
+      const hasSecurityBlacklists = await this.db.schema.hasTable('security_blacklists');
+      if (!hasSecurityBlacklists) {
+        await this.db.schema.createTable('security_blacklists', (table) => {
+          table.increments('id').primary();
+          table.string('ip_address').unique().notNullable();
+          table.text('reason').notNullable();
+          table.boolean('is_active').defaultTo(true);
+          table.string('added_by').defaultTo('system');
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+          table.datetime('expires_at').nullable();
+          table.datetime('last_seen').nullable();
+        });
+      }
 
       // Tabela de rate limiting
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS rate_limit_violations (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          identifier TEXT NOT NULL,
-          limit_type TEXT NOT NULL,
-          violation_count INTEGER DEFAULT 1,
-          first_violation DATETIME DEFAULT CURRENT_TIMESTAMP,
-          last_violation DATETIME DEFAULT CURRENT_TIMESTAMP,
-          is_blocked BOOLEAN DEFAULT 0,
-          expires_at DATETIME
-        )
-      `);
+      const hasRateLimitViolations = await this.db.schema.hasTable('rate_limit_violations');
+      if (!hasRateLimitViolations) {
+        await this.db.schema.createTable('rate_limit_violations', (table) => {
+          table.increments('id').primary();
+          table.string('identifier').notNullable();
+          table.string('limit_type').notNullable();
+          table.integer('violation_count').defaultTo(1);
+          table.datetime('first_violation').defaultTo(this.db.fn.now());
+          table.datetime('last_violation').defaultTo(this.db.fn.now());
+          table.boolean('is_blocked').defaultTo(false);
+          table.datetime('expires_at').nullable();
+        });
+      }
 
       // Tabela de análise de spam
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS spam_analysis (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          email_id TEXT,
-          spam_score REAL NOT NULL,
-          is_spam BOOLEAN NOT NULL,
-          reason TEXT,
-          details TEXT,
-          sender_ip TEXT,
-          sender_email TEXT,
-          subject_hash TEXT,
-          analyzed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasSpamAnalysis = await this.db.schema.hasTable('spam_analysis');
+      if (!hasSpamAnalysis) {
+        await this.db.schema.createTable('spam_analysis', (table) => {
+          table.increments('id').primary();
+          table.string('email_id').nullable();
+          table.decimal('spam_score', 5, 2).notNullable();
+          table.boolean('is_spam').notNullable();
+          table.text('reason').nullable();
+          table.text('details').nullable();
+          table.string('sender_ip').nullable();
+          table.string('sender_email').nullable();
+          table.string('subject_hash').nullable();
+          table.datetime('analyzed_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de detecção de phishing
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS phishing_detection (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          email_id TEXT,
-          confidence_score REAL NOT NULL,
-          is_phishing BOOLEAN NOT NULL,
-          indicators TEXT,
-          suspicious_urls TEXT,
-          sender_domain TEXT,
-          detected_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasPhishingDetection = await this.db.schema.hasTable('phishing_detection');
+      if (!hasPhishingDetection) {
+        await this.db.schema.createTable('phishing_detection', (table) => {
+          table.increments('id').primary();
+          table.string('email_id').nullable();
+          table.decimal('confidence_score', 3, 2).notNullable();
+          table.boolean('is_phishing').notNullable();
+          table.text('indicators').nullable();
+          table.text('suspicious_urls').nullable();
+          table.string('sender_domain').nullable();
+          table.datetime('detected_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de reputação de IPs
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS ip_reputation (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          ip_address TEXT UNIQUE NOT NULL,
-          reputation_score REAL DEFAULT 1.0,
-          total_connections INTEGER DEFAULT 0,
-          successful_connections INTEGER DEFAULT 0,
-          blocked_connections INTEGER DEFAULT 0,
-          spam_reports INTEGER DEFAULT 0,
-          last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasIpReputation = await this.db.schema.hasTable('ip_reputation');
+      if (!hasIpReputation) {
+        await this.db.schema.createTable('ip_reputation', (table) => {
+          table.increments('id').primary();
+          table.string('ip_address').unique().notNullable();
+          table.decimal('reputation_score', 3, 2).defaultTo(1.0);
+          table.integer('total_connections').defaultTo(0);
+          table.integer('successful_connections').defaultTo(0);
+          table.integer('blocked_connections').defaultTo(0);
+          table.integer('spam_reports').defaultTo(0);
+          table.datetime('last_activity').defaultTo(this.db.fn.now());
+          table.datetime('updated_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de logs de segurança
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS security_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          event_type TEXT NOT NULL,
-          severity TEXT NOT NULL,
-          source_ip TEXT,
-          user_id INTEGER,
-          session_id TEXT,
-          details TEXT,
-          action_taken TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasSecurityLogs = await this.db.schema.hasTable('security_logs');
+      if (!hasSecurityLogs) {
+        await this.db.schema.createTable('security_logs', (table) => {
+          table.increments('id').primary();
+          table.string('event_type').notNullable();
+          table.string('severity').notNullable();
+          table.string('source_ip').nullable();
+          table.integer('user_id').nullable();
+          table.string('session_id').nullable();
+          table.text('details').nullable();
+          table.text('action_taken').nullable();
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+        });
+      }
 
-      // Índices para performance
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_blacklists_ip ON security_blacklists(ip_address, is_active)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_rate_limit_identifier ON rate_limit_violations(identifier, limit_type)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_ip_reputation_ip ON ip_reputation(ip_address)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_security_logs_timestamp ON security_logs(timestamp)`);
+      // Índices para performance (criar sempre, ignorar erros se já existem)
+      try {
+        await this.db.schema.alterTable('security_blacklists', (table) => {
+          table.index(['ip_address', 'is_active'], 'idx_blacklists_ip');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('rate_limit_violations', (table) => {
+          table.index(['identifier', 'limit_type'], 'idx_rate_limit_identifier');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('ip_reputation', (table) => {
+          table.index(['ip_address'], 'idx_ip_reputation_ip');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('security_logs', (table) => {
+          table.index(['timestamp'], 'idx_security_logs_timestamp');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
 
       logger.info('SecurityManager: Tabelas de segurança inicializadas com sucesso');
     } catch (error) {
@@ -177,11 +204,13 @@ export class SecurityManager {
   private async loadSecurityData(): Promise<void> {
     try {
       // Carregar blacklists ativas
-      const blacklists = await this.dbAll(`
-        SELECT ip_address, reason 
-        FROM security_blacklists 
-        WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))
-      `);
+      const blacklists = await this.db('security_blacklists')
+        .select('ip_address', 'reason')
+        .where('is_active', true)
+        .where(function() {
+          this.whereNull('expires_at')
+            .orWhere('expires_at', '>', new Date());
+        });
 
       blacklists.forEach(entry => {
         this.blacklistedIPs.add(entry.ip_address);
@@ -370,19 +399,23 @@ export class SecurityManager {
 
     try {
       // Verificar violações recentes
-      const violations = await this.dbGet(`
-        SELECT violation_count, first_violation, last_violation, is_blocked, expires_at
-        FROM rate_limit_violations 
-        WHERE identifier = ? AND limit_type = ?
-        AND (expires_at IS NULL OR expires_at > datetime('now'))
-      `, [identifier, limitType]);
+      const violations = await this.db('rate_limit_violations')
+        .select('violation_count', 'first_violation', 'last_violation', 'is_blocked', 'expires_at')
+        .where('identifier', identifier)
+        .where('limit_type', limitType)
+        .where(function() {
+          this.whereNull('expires_at')
+            .orWhere('expires_at', '>', new Date());
+        })
+        .first();
 
       if (!violations) {
         // Primeira conexão - criar registro
-        await this.dbRun(`
-          INSERT INTO rate_limit_violations (identifier, limit_type, violation_count)
-          VALUES (?, ?, 1)
-        `, [identifier, limitType]);
+        await this.db('rate_limit_violations').insert({
+          identifier,
+          limit_type: limitType,
+          violation_count: 1
+        });
         
         return { allowed: true };
       }
@@ -394,14 +427,16 @@ export class SecurityManager {
       if (firstViolation > windowStart) {
         if (violationCount >= config.max) {
           // Rate limit excedido
-          await this.dbRun(`
-            UPDATE rate_limit_violations 
-            SET violation_count = violation_count + 1,
-                last_violation = CURRENT_TIMESTAMP,
-                is_blocked = 1,
-                expires_at = datetime('now', '+1 hour')
-            WHERE identifier = ? AND limit_type = ?
-          `, [identifier, limitType]);
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // +1 hour
+          await this.db('rate_limit_violations')
+            .where('identifier', identifier)
+            .where('limit_type', limitType)
+            .update({
+              violation_count: this.db.raw('violation_count + 1'),
+              last_violation: new Date(),
+              is_blocked: true,
+              expires_at: expiresAt
+            });
 
           await this.logSecurityEvent('rate_limit_exceeded', 'MEDIUM', identifier, null, null, {
             limitType,
@@ -415,24 +450,26 @@ export class SecurityManager {
           };
         } else {
           // Dentro do limite - incrementar contador
-          await this.dbRun(`
-            UPDATE rate_limit_violations 
-            SET violation_count = violation_count + 1,
-                last_violation = CURRENT_TIMESTAMP
-            WHERE identifier = ? AND limit_type = ?
-          `, [identifier, limitType]);
+          await this.db('rate_limit_violations')
+            .where('identifier', identifier)
+            .where('limit_type', limitType)
+            .update({
+              violation_count: this.db.raw('violation_count + 1'),
+              last_violation: new Date()
+            });
         }
       } else {
         // Janela expirou - reset contador
-        await this.dbRun(`
-          UPDATE rate_limit_violations 
-          SET violation_count = 1,
-              first_violation = CURRENT_TIMESTAMP,
-              last_violation = CURRENT_TIMESTAMP,
-              is_blocked = 0,
-              expires_at = NULL
-            WHERE identifier = ? AND limit_type = ?
-        `, [identifier, limitType]);
+        await this.db('rate_limit_violations')
+          .where('identifier', identifier)
+          .where('limit_type', limitType)
+          .update({
+            violation_count: 1,
+            first_violation: new Date(),
+            last_violation: new Date(),
+            is_blocked: false,
+            expires_at: null
+          });
       }
 
       return { allowed: true };
@@ -446,11 +483,10 @@ export class SecurityManager {
   private async checkIPReputation(ipAddress: string): Promise<SecurityValidation> {
     try {
       // Verificar reputação interna
-      const reputation = await this.dbGet(`
-        SELECT reputation_score, total_connections, spam_reports
-        FROM ip_reputation 
-        WHERE ip_address = ?
-      `, [ipAddress]);
+      const reputation = await this.db('ip_reputation')
+        .select('reputation_score', 'total_connections', 'spam_reports')
+        .where('ip_address', ipAddress)
+        .first();
 
       if (reputation) {
         const score = reputation.reputation_score;
@@ -664,21 +700,16 @@ export class SecurityManager {
       const emailId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const isSpam = totalScore >= this.SPAM_THRESHOLD;
 
-      await this.dbRun(`
-        INSERT INTO spam_analysis (
-          email_id, spam_score, is_spam, reason, details, 
-          sender_ip, sender_email, subject_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        emailId,
-        totalScore,
-        isSpam ? 1 : 0,
-        isSpam ? this.generateSpamReason(details) : null,
-        JSON.stringify(details),
-        session.remoteAddress,
-        emailData.from?.text,
-        this.hashSubject(emailData.subject || '')
-      ]);
+      await this.db('spam_analysis').insert({
+        email_id: emailId,
+        spam_score: totalScore,
+        is_spam: isSpam,
+        reason: isSpam ? this.generateSpamReason(details) : null,
+        details: JSON.stringify(details),
+        sender_ip: session.remoteAddress,
+        sender_email: emailData.from?.text,
+        subject_hash: this.hashSubject(emailData.subject || '')
+      });
 
       return {
         isSpam,
@@ -789,19 +820,14 @@ export class SecurityManager {
       if (suspected) {
         const emailId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        await this.dbRun(`
-          INSERT INTO phishing_detection (
-            email_id, confidence_score, is_phishing, indicators, 
-            suspicious_urls, sender_domain
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `, [
-          emailId,
-          confidence,
-          1,
-          JSON.stringify(indicators),
-          JSON.stringify(urls),
-          fromDomain
-        ]);
+        await this.db('phishing_detection').insert({
+          email_id: emailId,
+          confidence_score: confidence,
+          is_phishing: true,
+          indicators: JSON.stringify(indicators),
+          suspicious_urls: JSON.stringify(urls),
+          sender_domain: fromDomain
+        });
       }
 
       return {
@@ -902,29 +928,31 @@ export class SecurityManager {
 
   private async updateIPReputation(ipAddress: string, actionType: string, success: boolean): Promise<void> {
     try {
-      const existing = await this.dbGet(`
-        SELECT id FROM ip_reputation WHERE ip_address = ?
-      `, [ipAddress]);
+      const existing = await this.db('ip_reputation')
+        .select('id')
+        .where('ip_address', ipAddress)
+        .first();
 
       if (existing) {
         // Atualizar registro existente
-        await this.dbRun(`
-          UPDATE ip_reputation SET
-            total_connections = total_connections + 1,
-            successful_connections = successful_connections + ?,
-            blocked_connections = blocked_connections + ?,
-            last_activity = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE ip_address = ?
-        `, [success ? 1 : 0, success ? 0 : 1, ipAddress]);
+        await this.db('ip_reputation')
+          .where('ip_address', ipAddress)
+          .update({
+            total_connections: this.db.raw('total_connections + 1'),
+            successful_connections: this.db.raw(`successful_connections + ${success ? 1 : 0}`),
+            blocked_connections: this.db.raw(`blocked_connections + ${success ? 0 : 1}`),
+            last_activity: new Date(),
+            updated_at: new Date()
+          });
       } else {
         // Criar novo registro
-        await this.dbRun(`
-          INSERT INTO ip_reputation (
-            ip_address, total_connections, successful_connections, 
-            blocked_connections, reputation_score
-          ) VALUES (?, 1, ?, ?, 1.0)
-        `, [ipAddress, success ? 1 : 0, success ? 0 : 1]);
+        await this.db('ip_reputation').insert({
+          ip_address: ipAddress,
+          total_connections: 1,
+          successful_connections: success ? 1 : 0,
+          blocked_connections: success ? 0 : 1,
+          reputation_score: 1.0
+        });
       }
 
       // Recalcular score de reputação
@@ -937,10 +965,10 @@ export class SecurityManager {
 
   private async recalculateIPReputation(ipAddress: string): Promise<void> {
     try {
-      const stats = await this.dbGet(`
-        SELECT total_connections, successful_connections, blocked_connections, spam_reports
-        FROM ip_reputation WHERE ip_address = ?
-      `, [ipAddress]);
+      const stats = await this.db('ip_reputation')
+        .select('total_connections', 'successful_connections', 'blocked_connections', 'spam_reports')
+        .where('ip_address', ipAddress)
+        .first();
 
       if (stats && stats.total_connections > 0) {
         const successRate = stats.successful_connections / stats.total_connections;
@@ -951,12 +979,12 @@ export class SecurityManager {
         score -= (spamRate * 0.5);
         score = Math.max(0, Math.min(1, score)); // Entre 0 e 1
 
-        await this.dbRun(`
-          UPDATE ip_reputation SET 
-            reputation_score = ?, 
-            updated_at = CURRENT_TIMESTAMP 
-          WHERE ip_address = ?
-        `, [score, ipAddress]);
+        await this.db('ip_reputation')
+          .where('ip_address', ipAddress)
+          .update({
+            reputation_score: score,
+            updated_at: new Date()
+          });
       }
     } catch (error) {
       logger.error('Error recalculating IP reputation:', error);
@@ -969,11 +997,27 @@ export class SecurityManager {
         ? new Date(Date.now() + expiresIn).toISOString()
         : null;
 
-      await this.dbRun(`
-        INSERT OR REPLACE INTO security_blacklists 
-        (ip_address, reason, is_active, expires_at) 
-        VALUES (?, ?, 1, ?)
-      `, [ipAddress, reason, expiresAt]);
+      // Knex não suporta INSERT OR REPLACE diretamente, então fazemos UPSERT
+      const existing = await this.db('security_blacklists')
+        .where('ip_address', ipAddress)
+        .first();
+      
+      if (existing) {
+        await this.db('security_blacklists')
+          .where('ip_address', ipAddress)
+          .update({
+            reason,
+            is_active: true,
+            expires_at: expiresAt
+          });
+      } else {
+        await this.db('security_blacklists').insert({
+          ip_address: ipAddress,
+          reason,
+          is_active: true,
+          expires_at: expiresAt
+        });
+      }
 
       this.blacklistedIPs.add(ipAddress);
 
@@ -998,20 +1042,15 @@ export class SecurityManager {
     actionTaken?: string
   ): Promise<void> {
     try {
-      await this.dbRun(`
-        INSERT INTO security_logs (
-          event_type, severity, source_ip, user_id, session_id, 
-          details, action_taken
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [
-        eventType, 
-        severity, 
-        sourceIp, 
-        userId, 
-        sessionId, 
-        details ? JSON.stringify(details) : null, 
-        actionTaken
-      ]);
+      await this.db('security_logs').insert({
+        event_type: eventType,
+        severity,
+        source_ip: sourceIp,
+        user_id: userId,
+        session_id: sessionId,
+        details: details ? JSON.stringify(details) : null,
+        action_taken: actionTaken
+      });
     } catch (error) {
       logger.error('Error logging security event:', error);
     }
@@ -1120,11 +1159,22 @@ export class SecurityManager {
 
   public async getSecurityStats(): Promise<any> {
     try {
-      const [blacklistedCount, reputationStats, spamStats, phishingStats] = await Promise.all([
-        this.dbGet('SELECT COUNT(*) as count FROM security_blacklists WHERE is_active = 1'),
-        this.dbGet('SELECT COUNT(*) as total, AVG(reputation_score) as avgScore FROM ip_reputation'),
-        this.dbGet('SELECT COUNT(*) as total, SUM(CASE WHEN is_spam = 1 THEN 1 ELSE 0 END) as spam FROM spam_analysis WHERE analyzed_at > datetime("now", "-24 hours")'),
-        this.dbGet('SELECT COUNT(*) as total, SUM(CASE WHEN is_phishing = 1 THEN 1 ELSE 0 END) as phishing FROM phishing_detection WHERE detected_at > datetime("now", "-24 hours")')
+      const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const [blacklistedCount, reputationStats, spamStats, phishingStats]: any[] = await Promise.all([
+        this.db('security_blacklists').count('* as count').where('is_active', true).first(),
+        this.db('ip_reputation').select(
+          this.db.raw('COUNT(*) as total'),
+          this.db.raw('AVG(reputation_score) as avgScore')
+        ).first(),
+        this.db('spam_analysis').select(
+          this.db.raw('COUNT(*) as total'),
+          this.db.raw('SUM(CASE WHEN is_spam = 1 THEN 1 ELSE 0 END) as spam')
+        ).where('analyzed_at', '>', last24h).first(),
+        this.db('phishing_detection').select(
+          this.db.raw('COUNT(*) as total'),
+          this.db.raw('SUM(CASE WHEN is_phishing = 1 THEN 1 ELSE 0 END) as phishing')
+        ).where('detected_at', '>', last24h).first()
       ]);
 
       return {
@@ -1147,16 +1197,12 @@ export class SecurityManager {
   }
 
   async close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.close((err) => {
-        if (err) {
-          logger.error('Erro ao fechar conexão do SecurityManager:', err);
-          reject(err);
-        } else {
-          logger.info('SecurityManager: Conexão fechada');
-          resolve();
-        }
-      });
-    });
+    try {
+      await this.db.destroy();
+      logger.info('SecurityManager: Conexão fechada');
+    } catch (error) {
+      logger.error('Erro ao fechar conexão do SecurityManager:', error);
+      throw error;
+    }
   }
 }

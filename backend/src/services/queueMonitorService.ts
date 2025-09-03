@@ -1,7 +1,7 @@
 import { Queue, Job } from 'bull';
 import { logger } from '../config/logger';
-import { Database } from 'sqlite3';
-import { promisify } from 'util';
+import { Knex } from 'knex';
+import db from '../config/database';
 
 export interface QueueMetrics {
   name: string;
@@ -39,10 +39,7 @@ export interface AlertConfig {
 }
 
 export class QueueMonitorService {
-  private db: Database;
-  private dbRun: (sql: string, params?: any[]) => Promise<any>;
-  private dbGet: (sql: string, params?: any[]) => Promise<any>;
-  private dbAll: (sql: string, params?: any[]) => Promise<any[]>;
+  private db: Knex;
   
   private queues: Queue[] = [];
   private monitorInterval: NodeJS.Timeout | null = null;
@@ -52,12 +49,9 @@ export class QueueMonitorService {
   private readonly MONITOR_INTERVAL = 30000; // 30 segundos
   private readonly HEALTH_CHECK_INTERVAL = 60000; // 1 minuto
 
-  constructor(queues: Queue[], database?: Database) {
+  constructor(queues: Queue[], database?: Knex) {
     this.queues = queues;
-    this.db = database || new Database('./ultrazend.sqlite');
-    this.dbRun = promisify(this.db.run.bind(this.db));
-    this.dbGet = promisify(this.db.get.bind(this.db));
-    this.dbAll = promisify(this.db.all.bind(this.db));
+    this.db = database || db;
     
     this.initializeTables();
     this.loadAlertConfigs();
@@ -66,75 +60,92 @@ export class QueueMonitorService {
   private async initializeTables(): Promise<void> {
     try {
       // Tabela de métricas de fila
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS queue_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          queue_name TEXT NOT NULL,
-          waiting_jobs INTEGER DEFAULT 0,
-          active_jobs INTEGER DEFAULT 0,
-          completed_jobs INTEGER DEFAULT 0,
-          failed_jobs INTEGER DEFAULT 0,
-          delayed_jobs INTEGER DEFAULT 0,
-          is_paused BOOLEAN DEFAULT 0,
-          processing_rate REAL DEFAULT 0,
-          completion_rate REAL DEFAULT 0,
-          failure_rate REAL DEFAULT 0,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasQueueMetrics = await this.db.schema.hasTable('queue_metrics');
+      if (!hasQueueMetrics) {
+        await this.db.schema.createTable('queue_metrics', (table) => {
+          table.increments('id').primary();
+          table.string('queue_name').notNullable();
+          table.integer('waiting_jobs').defaultTo(0);
+          table.integer('active_jobs').defaultTo(0);
+          table.integer('completed_jobs').defaultTo(0);
+          table.integer('failed_jobs').defaultTo(0);
+          table.integer('delayed_jobs').defaultTo(0);
+          table.boolean('is_paused').defaultTo(false);
+          table.decimal('processing_rate', 10, 2).defaultTo(0);
+          table.decimal('completion_rate', 5, 2).defaultTo(0);
+          table.decimal('failure_rate', 5, 2).defaultTo(0);
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de alertas
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS queue_alerts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          alert_id TEXT UNIQUE NOT NULL,
-          name TEXT NOT NULL,
-          queue_name TEXT,
-          condition_type TEXT NOT NULL,
-          threshold_value REAL NOT NULL,
-          is_enabled BOOLEAN DEFAULT 1,
-          cooldown_minutes INTEGER DEFAULT 15,
-          webhook_url TEXT,
-          email_recipients TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasQueueAlerts = await this.db.schema.hasTable('queue_alerts');
+      if (!hasQueueAlerts) {
+        await this.db.schema.createTable('queue_alerts', (table) => {
+          table.increments('id').primary();
+          table.string('alert_id').unique().notNullable();
+          table.string('name').notNullable();
+          table.string('queue_name').nullable();
+          table.string('condition_type').notNullable();
+          table.decimal('threshold_value', 10, 2).notNullable();
+          table.boolean('is_enabled').defaultTo(true);
+          table.integer('cooldown_minutes').defaultTo(15);
+          table.text('webhook_url').nullable();
+          table.text('email_recipients').nullable();
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+          table.datetime('updated_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de histórico de alertas
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS alert_history (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          alert_id TEXT NOT NULL,
-          queue_name TEXT,
-          condition_type TEXT NOT NULL,
-          trigger_value REAL,
-          threshold_value REAL,
-          message TEXT,
-          resolved BOOLEAN DEFAULT 0,
-          triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          resolved_at DATETIME
-        )
-      `);
+      const hasAlertHistory = await this.db.schema.hasTable('alert_history');
+      if (!hasAlertHistory) {
+        await this.db.schema.createTable('alert_history', (table) => {
+          table.increments('id').primary();
+          table.string('alert_id').notNullable();
+          table.string('queue_name').nullable();
+          table.string('condition_type').notNullable();
+          table.decimal('trigger_value', 10, 2).nullable();
+          table.decimal('threshold_value', 10, 2).nullable();
+          table.text('message').nullable();
+          table.boolean('resolved').defaultTo(false);
+          table.datetime('triggered_at').defaultTo(this.db.fn.now());
+          table.datetime('resolved_at').nullable();
+        });
+      }
 
       // Tabela de health checks
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS queue_health_checks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          overall_status TEXT NOT NULL,
-          redis_connected BOOLEAN DEFAULT 1,
-          total_jobs INTEGER DEFAULT 0,
-          total_failures INTEGER DEFAULT 0,
-          issues_count INTEGER DEFAULT 0,
-          issues_details TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasQueueHealthChecks = await this.db.schema.hasTable('queue_health_checks');
+      if (!hasQueueHealthChecks) {
+        await this.db.schema.createTable('queue_health_checks', (table) => {
+          table.increments('id').primary();
+          table.string('overall_status').notNullable();
+          table.boolean('redis_connected').defaultTo(true);
+          table.integer('total_jobs').defaultTo(0);
+          table.integer('total_failures').defaultTo(0);
+          table.integer('issues_count').defaultTo(0);
+          table.text('issues_details').nullable();
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+        });
+      }
 
-      // Índices para performance
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_queue_metrics_name_timestamp ON queue_metrics(queue_name, timestamp)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_alert_history_alert_id ON alert_history(alert_id, triggered_at)`);
+      // Índices para performance (criar sempre, ignorar erros se já existem)
+      try {
+        await this.db.schema.alterTable('queue_metrics', (table) => {
+          table.index(['queue_name', 'timestamp'], 'idx_queue_metrics_name_timestamp');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('alert_history', (table) => {
+          table.index(['alert_id', 'triggered_at'], 'idx_alert_history_alert_id');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
 
       logger.info('QueueMonitorService: Tabelas inicializadas com sucesso');
     } catch (error) {
@@ -145,9 +156,9 @@ export class QueueMonitorService {
 
   private async loadAlertConfigs(): Promise<void> {
     try {
-      const alerts = await this.dbAll(`
-        SELECT * FROM queue_alerts WHERE is_enabled = 1
-      `);
+      const alerts = await this.db('queue_alerts')
+        .select('*')
+        .where('is_enabled', true);
 
       for (const alert of alerts) {
         this.alertConfigs.set(alert.alert_id, {
@@ -233,23 +244,18 @@ export class QueueMonitorService {
         const isPaused = await queue.isPaused();
 
         // Salvar métricas
-        await this.dbRun(`
-          INSERT INTO queue_metrics (
-            queue_name, waiting_jobs, active_jobs, completed_jobs, failed_jobs, delayed_jobs,
-            is_paused, processing_rate, completion_rate, failure_rate
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          queue.name,
-          counts.waiting,
-          counts.active,
-          counts.completed,
-          counts.failed,
-          counts.delayed,
-          isPaused ? 1 : 0,
-          rates.processingRate,
-          rates.completionRate,
-          rates.failureRate
-        ]);
+        await this.db('queue_metrics').insert({
+          queue_name: queue.name,
+          waiting_jobs: counts.waiting,
+          active_jobs: counts.active,
+          completed_jobs: counts.completed,
+          failed_jobs: counts.failed,
+          delayed_jobs: counts.delayed,
+          is_paused: isPaused,
+          processing_rate: rates.processingRate,
+          completion_rate: rates.completionRate,
+          failure_rate: rates.failureRate
+        });
 
         logger.debug(`Métricas coletadas para fila ${queue.name}:`, { counts, rates, isPaused });
 
@@ -267,12 +273,12 @@ export class QueueMonitorService {
     try {
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       
-      const metrics = await this.dbAll(`
-        SELECT * FROM queue_metrics 
-        WHERE queue_name = ? AND timestamp > ? 
-        ORDER BY timestamp DESC
-        LIMIT 10
-      `, [queueName, fiveMinutesAgo.toISOString()]);
+      const metrics = await this.db('queue_metrics')
+        .select('*')
+        .where('queue_name', queueName)
+        .where('timestamp', '>', fiveMinutesAgo)
+        .orderBy('timestamp', 'desc')
+        .limit(10);
 
       if (metrics.length < 2) {
         return { processingRate: 0, completionRate: 0, failureRate: 0 };
@@ -326,19 +332,34 @@ export class QueueMonitorService {
   }
 
   private async getCurrentMetrics(): Promise<QueueMetrics[]> {
-    const metricsData = await this.dbAll(`
-      SELECT DISTINCT queue_name,
-        (SELECT waiting_jobs FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as waiting,
-        (SELECT active_jobs FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as active,
-        (SELECT completed_jobs FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as completed,
-        (SELECT failed_jobs FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as failed,
-        (SELECT delayed_jobs FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as delayed,
-        (SELECT is_paused FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as paused,
-        (SELECT processing_rate FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as processing_rate,
-        (SELECT completion_rate FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as completion_rate,
-        (SELECT failure_rate FROM queue_metrics qm2 WHERE qm2.queue_name = qm1.queue_name ORDER BY timestamp DESC LIMIT 1) as failure_rate
-      FROM queue_metrics qm1
-    `);
+    // Obter métricas mais recentes para cada fila
+    const queueNames = await this.db('queue_metrics')
+      .distinct('queue_name')
+      .pluck('queue_name');
+    
+    const metricsData = [];
+    for (const queueName of queueNames) {
+      const latestMetric = await this.db('queue_metrics')
+        .select('*')
+        .where('queue_name', queueName)
+        .orderBy('timestamp', 'desc')
+        .first();
+      
+      if (latestMetric) {
+        metricsData.push({
+          queue_name: latestMetric.queue_name,
+          waiting: latestMetric.waiting_jobs,
+          active: latestMetric.active_jobs,
+          completed: latestMetric.completed_jobs,
+          failed: latestMetric.failed_jobs,
+          delayed: latestMetric.delayed_jobs,
+          paused: latestMetric.is_paused,
+          processing_rate: latestMetric.processing_rate,
+          completion_rate: latestMetric.completion_rate,
+          failure_rate: latestMetric.failure_rate
+        });
+      }
+    }
 
     return metricsData.map(row => ({
       name: row.queue_name,
@@ -423,18 +444,14 @@ export class QueueMonitorService {
   private async triggerAlert(config: AlertConfig, value: number, message: string): Promise<void> {
     try {
       // Registrar alerta no histórico
-      await this.dbRun(`
-        INSERT INTO alert_history (
-          alert_id, queue_name, condition_type, trigger_value, threshold_value, message
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `, [
-        config.id,
-        config.queueName,
-        config.condition,
-        value,
-        config.threshold,
-        message
-      ]);
+      await this.db('alert_history').insert({
+        alert_id: config.id,
+        queue_name: config.queueName,
+        condition_type: config.condition,
+        trigger_value: value,
+        threshold_value: config.threshold,
+        message: message
+      });
 
       // Marcar cooldown
       this.alertCooldowns.set(config.id, new Date());
@@ -601,19 +618,14 @@ export class QueueMonitorService {
     const totalFailures = metrics.reduce((sum, m) => sum + m.failed, 0);
 
     // Salvar health check
-    await this.dbRun(`
-      INSERT INTO queue_health_checks (
-        overall_status, redis_connected, total_jobs, total_failures, 
-        issues_count, issues_details
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `, [
-      status,
-      redisConnection ? 1 : 0,
-      totalJobs,
-      totalFailures,
-      issues.length,
-      JSON.stringify(issues)
-    ]);
+    await this.db('queue_health_checks').insert({
+      overall_status: status,
+      redis_connected: redisConnection,
+      total_jobs: totalJobs,
+      total_failures: totalFailures,
+      issues_count: issues.length,
+      issues_details: JSON.stringify(issues)
+    });
 
     const healthStatus: QueueHealthStatus = {
       status,
@@ -649,11 +661,20 @@ export class QueueMonitorService {
       params.push(timeRange.start.toISOString(), timeRange.end.toISOString());
     }
 
-    const metrics = await this.dbAll(`
-      SELECT * FROM queue_metrics 
-      ${whereClause}
-      ORDER BY queue_name, timestamp DESC
-    `, params);
+    let query = this.db('queue_metrics')
+      .select('*')
+      .orderBy('queue_name')
+      .orderBy('timestamp', 'desc');
+    
+    if (queueName) {
+      query = query.where('queue_name', queueName);
+    }
+    
+    if (timeRange) {
+      query = query.whereBetween('timestamp', [timeRange.start, timeRange.end]);
+    }
+    
+    const metrics = await query;
 
     return metrics.map(row => ({
       name: row.queue_name,
@@ -672,22 +693,17 @@ export class QueueMonitorService {
   async createAlert(config: Omit<AlertConfig, 'id'>): Promise<string> {
     const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    await this.dbRun(`
-      INSERT INTO queue_alerts (
-        alert_id, name, queue_name, condition_type, threshold_value,
-        is_enabled, cooldown_minutes, webhook_url, email_recipients
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      alertId,
-      config.name,
-      config.queueName,
-      config.condition,
-      config.threshold,
-      config.enabled ? 1 : 0,
-      config.cooldownMinutes,
-      config.webhookUrl,
-      config.emailRecipients ? JSON.stringify(config.emailRecipients) : null
-    ]);
+    await this.db('queue_alerts').insert({
+      alert_id: alertId,
+      name: config.name,
+      queue_name: config.queueName,
+      condition_type: config.condition,
+      threshold_value: config.threshold,
+      is_enabled: config.enabled,
+      cooldown_minutes: config.cooldownMinutes,
+      webhook_url: config.webhookUrl,
+      email_recipients: config.emailRecipients ? JSON.stringify(config.emailRecipients) : null
+    });
 
     this.alertConfigs.set(alertId, { ...config, id: alertId });
     
@@ -722,13 +738,12 @@ export class QueueMonitorService {
 
   private async getTriggeredAlertsCount(hours: number): Promise<number> {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-    const result = await this.dbGet(`
-      SELECT COUNT(*) as count 
-      FROM alert_history 
-      WHERE triggered_at > ?
-    `, [since.toISOString()]);
+    const result: any = await this.db('alert_history')
+      .count('* as count')
+      .where('triggered_at', '>', since)
+      .first();
     
-    return result.count || 0;
+    return result ? Number(result.count) : 0;
   }
 
   private groupMetricsByQueue(metrics: QueueMetrics[]): any[] {
@@ -751,16 +766,12 @@ export class QueueMonitorService {
   async close(): Promise<void> {
     this.stopMonitoring();
     
-    return new Promise((resolve, reject) => {
-      this.db.close((err) => {
-        if (err) {
-          logger.error('Erro ao fechar conexão do QueueMonitorService:', err);
-          reject(err);
-        } else {
-          logger.info('QueueMonitorService: Conexão fechada');
-          resolve();
-        }
-      });
-    });
+    try {
+      await this.db.destroy();
+      logger.info('QueueMonitorService: Conexão fechada');
+    } catch (error) {
+      logger.error('Erro ao fechar conexão do QueueMonitorService:', error);
+      throw error;
+    }
   }
 }

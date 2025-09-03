@@ -2,7 +2,7 @@ import { ParsedMail } from 'mailparser';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import db from '../config/database';
-import { SecurityManager, SecurityValidation } from './securityManager';
+import { SecurityManager, SecurityValidation } from './SecurityManager';
 import { RateLimiter } from './rateLimiter';
 import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';

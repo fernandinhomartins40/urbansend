@@ -1,7 +1,7 @@
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
-import { Database } from 'sqlite3';
-import { promisify } from 'util';
+import { Knex } from 'knex';
+import db from '../config/database';
 import * as net from 'net';
 import { Request, Response, NextFunction } from 'express';
 
@@ -21,10 +21,7 @@ export interface HealthStatus {
 }
 
 export class MonitoringService {
-  private db: Database;
-  private dbRun: (sql: string, params?: any[]) => Promise<any>;
-  private dbGet: (sql: string, params?: any[]) => Promise<any>;
-  private dbAll: (sql: string, params?: any[]) => Promise<any[]>;
+  private db: Knex;
 
   private metrics: Map<string, MetricValue[]> = new Map();
   private healthChecks: Map<string, HealthStatus> = new Map();
@@ -36,11 +33,8 @@ export class MonitoringService {
   private healthCheckInterval?: NodeJS.Timeout;
   private metricsCleanupInterval?: NodeJS.Timeout;
 
-  constructor(database?: Database) {
-    this.db = database || new Database('./ultrazend.sqlite');
-    this.dbRun = promisify(this.db.run.bind(this.db));
-    this.dbGet = promisify(this.db.get.bind(this.db));
-    this.dbAll = promisify(this.db.all.bind(this.db));
+  constructor(database?: Knex) {
+    this.db = database || db;
 
     this.initializeTables();
     this.startHealthChecks();
@@ -50,63 +44,94 @@ export class MonitoringService {
   private async initializeTables(): Promise<void> {
     try {
       // Tabela de métricas
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS system_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          metric_name TEXT NOT NULL,
-          metric_value REAL NOT NULL,
-          labels TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasSystemMetrics = await this.db.schema.hasTable('system_metrics');
+      if (!hasSystemMetrics) {
+        await this.db.schema.createTable('system_metrics', (table) => {
+          table.increments('id').primary();
+          table.string('metric_name').notNullable();
+          table.decimal('metric_value', 15, 4).notNullable();
+          table.text('labels').nullable();
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de health checks
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS health_checks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          service_name TEXT NOT NULL,
-          is_healthy BOOLEAN NOT NULL,
-          details TEXT,
-          error_message TEXT,
-          response_time_ms INTEGER,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasHealthChecks = await this.db.schema.hasTable('health_checks');
+      if (!hasHealthChecks) {
+        await this.db.schema.createTable('health_checks', (table) => {
+          table.increments('id').primary();
+          table.string('service_name').notNullable();
+          table.boolean('is_healthy').notNullable();
+          table.text('details').nullable();
+          table.text('error_message').nullable();
+          table.integer('response_time_ms').nullable();
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de performance de requests
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS request_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          method TEXT NOT NULL,
-          route TEXT NOT NULL,
-          status_code INTEGER NOT NULL,
-          response_time_ms REAL NOT NULL,
-          memory_usage_mb REAL,
-          cpu_usage_percent REAL,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasRequestMetrics = await this.db.schema.hasTable('request_metrics');
+      if (!hasRequestMetrics) {
+        await this.db.schema.createTable('request_metrics', (table) => {
+          table.increments('id').primary();
+          table.string('method').notNullable();
+          table.string('route').notNullable();
+          table.integer('status_code').notNullable();
+          table.decimal('response_time_ms', 10, 2).notNullable();
+          table.decimal('memory_usage_mb', 10, 2).nullable();
+          table.decimal('cpu_usage_percent', 5, 2).nullable();
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de métricas de email
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS email_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          metric_type TEXT NOT NULL,
-          user_id INTEGER,
-          domain TEXT,
-          mx_server TEXT,
-          status TEXT,
-          count INTEGER DEFAULT 1,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasEmailMetrics = await this.db.schema.hasTable('email_metrics');
+      if (!hasEmailMetrics) {
+        await this.db.schema.createTable('email_metrics', (table) => {
+          table.increments('id').primary();
+          table.string('metric_type').notNullable();
+          table.integer('user_id').nullable();
+          table.string('domain').nullable();
+          table.string('mx_server').nullable();
+          table.string('status').nullable();
+          table.integer('count').defaultTo(1);
+          table.datetime('timestamp').defaultTo(this.db.fn.now());
+        });
+      }
 
-      // Índices para performance
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_system_metrics_timestamp ON system_metrics(timestamp)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_health_checks_service ON health_checks(service_name, timestamp)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_request_metrics_route ON request_metrics(route, timestamp)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_email_metrics_type ON email_metrics(metric_type, timestamp)`);
+      // Índices para performance (criar sempre, ignorar erros se já existem)
+      try {
+        await this.db.schema.alterTable('system_metrics', (table) => {
+          table.index(['timestamp'], 'idx_system_metrics_timestamp');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('health_checks', (table) => {
+          table.index(['service_name', 'timestamp'], 'idx_health_checks_service');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('request_metrics', (table) => {
+          table.index(['route', 'timestamp'], 'idx_request_metrics_route');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
+
+      try {
+        await this.db.schema.alterTable('email_metrics', (table) => {
+          table.index(['metric_type', 'timestamp'], 'idx_email_metrics_type');
+        });
+      } catch (error) {
+        // Índice pode já existir
+      }
 
       logger.info('MonitoringService: Tabelas de monitoramento inicializadas');
     } catch (error) {
@@ -176,10 +201,12 @@ export class MonitoringService {
       this.healthChecks.set(serviceName, healthStatus);
 
       // Salvar no banco
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, details, response_time_ms)
-        VALUES (?, ?, ?, ?)
-      `, [serviceName, healthy ? 1 : 0, JSON.stringify(healthStatus.details), responseTime]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: healthy,
+        details: JSON.stringify(healthStatus.details),
+        response_time_ms: responseTime
+      });
 
       // Registrar métrica
       await this.recordMetric('smtp_health', healthy ? 1 : 0, { service: serviceName });
@@ -194,10 +221,12 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, error_message, response_time_ms)
-        VALUES (?, ?, ?, ?)
-      `, [serviceName, 0, (error as Error).message, responseTime]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: false,
+        error_message: (error as Error).message,
+        response_time_ms: responseTime
+      });
     }
   }
 
@@ -223,10 +252,12 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, details, response_time_ms)
-        VALUES (?, ?, ?, ?)
-      `, [serviceName, redisConnected ? 1 : 0, JSON.stringify(healthStatus.details), responseTime]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: redisConnected,
+        details: JSON.stringify(healthStatus.details),
+        response_time_ms: responseTime
+      });
 
       // Registrar métrica
       await this.recordMetric('redis_health', redisConnected ? 1 : 0, { service: serviceName });
@@ -241,10 +272,12 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, error_message, response_time_ms)
-        VALUES (?, ?, ?, ?)
-      `, [serviceName, 0, (error as Error).message, responseTime]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: false,
+        error_message: (error as Error).message,
+        response_time_ms: responseTime
+      });
     }
   }
 
@@ -254,7 +287,7 @@ export class MonitoringService {
 
     try {
       // Testar query simples
-      await this.dbGet('SELECT 1 as test');
+      await this.db.raw('SELECT 1 as test');
       const responseTime = Date.now() - startTime;
 
       const healthStatus: HealthStatus = {
@@ -269,10 +302,12 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, details, response_time_ms)
-        VALUES (?, ?, ?, ?)
-      `, [serviceName, 1, JSON.stringify(healthStatus.details), responseTime]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: true,
+        details: JSON.stringify(healthStatus.details),
+        response_time_ms: responseTime
+      });
 
       // Registrar métrica
       await this.recordMetric('database_health', 1, { service: serviceName });
@@ -287,10 +322,12 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, error_message, response_time_ms)
-        VALUES (?, ?, ?, ?)
-      `, [serviceName, 0, (error as Error).message, responseTime]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: false,
+        error_message: (error as Error).message,
+        response_time_ms: responseTime
+      });
     }
   }
 
@@ -324,10 +361,11 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, details)
-        VALUES (?, ?, ?)
-      `, [serviceName, healthStatus.healthy ? 1 : 0, JSON.stringify(healthStatus.details)]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: healthStatus.healthy,
+        details: JSON.stringify(healthStatus.details)
+      });
 
       // Registrar métricas do sistema
       await this.recordMetric('memory_usage_mb', memoryUsedMB);
@@ -343,10 +381,11 @@ export class MonitoringService {
 
       this.healthChecks.set(serviceName, healthStatus);
 
-      await this.dbRun(`
-        INSERT INTO health_checks (service_name, is_healthy, error_message)
-        VALUES (?, ?, ?)
-      `, [serviceName, 0, (error as Error).message]);
+      await this.db('health_checks').insert({
+        service_name: serviceName,
+        is_healthy: false,
+        error_message: (error as Error).message
+      });
     }
   }
 
@@ -411,10 +450,11 @@ export class MonitoringService {
       }
 
       // Salvar no banco
-      await this.dbRun(`
-        INSERT INTO system_metrics (metric_name, metric_value, labels)
-        VALUES (?, ?, ?)
-      `, [name, value, labels ? JSON.stringify(labels) : null]);
+      await this.db('system_metrics').insert({
+        metric_name: name,
+        metric_value: value,
+        labels: labels ? JSON.stringify(labels) : null
+      });
 
     } catch (error) {
       logger.error('Erro ao registrar métrica:', error);
@@ -425,28 +465,35 @@ export class MonitoringService {
     await this.recordMetric('emails_sent_total', 1, { user_id: userId.toString(), status });
     
     // Também salvar na tabela específica de email
-    await this.dbRun(`
-      INSERT INTO email_metrics (metric_type, user_id, status, count)
-      VALUES (?, ?, ?, ?)
-    `, ['sent', userId, status, 1]);
+    await this.db('email_metrics').insert({
+      metric_type: 'sent',
+      user_id: userId,
+      status: status,
+      count: 1
+    });
   }
 
   public async recordEmailDelivered(domain: string, mxServer?: string): Promise<void> {
     await this.recordMetric('emails_delivered_total', 1, { domain, mx_server: mxServer || 'unknown' });
     
-    await this.dbRun(`
-      INSERT INTO email_metrics (metric_type, domain, mx_server, status, count)
-      VALUES (?, ?, ?, ?, ?)
-    `, ['delivered', domain, mxServer, 'success', 1]);
+    await this.db('email_metrics').insert({
+      metric_type: 'delivered',
+      domain: domain,
+      mx_server: mxServer,
+      status: 'success',
+      count: 1
+    });
   }
 
   public async recordEmailFailed(reason: string, domain: string): Promise<void> {
     await this.recordMetric('emails_failed_total', 1, { reason, domain });
     
-    await this.dbRun(`
-      INSERT INTO email_metrics (metric_type, domain, status, count)
-      VALUES (?, ?, ?, ?)
-    `, ['failed', domain, reason, 1]);
+    await this.db('email_metrics').insert({
+      metric_type: 'failed',
+      domain: domain,
+      status: reason,
+      count: 1
+    });
   }
 
   public async recordSMTPConnection(type: 'mx' | 'submission', result: 'success' | 'failed'): Promise<void> {
@@ -467,10 +514,13 @@ export class MonitoringService {
     const memoryUsage = process.memoryUsage();
     const memoryUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
 
-    await this.dbRun(`
-      INSERT INTO request_metrics (method, route, status_code, response_time_ms, memory_usage_mb)
-      VALUES (?, ?, ?, ?, ?)
-    `, [method, route, statusCode, safeDuration, memoryUsedMB]);
+    await this.db('request_metrics').insert({
+      method: method,
+      route: route,
+      status_code: statusCode,
+      response_time_ms: safeDuration,
+      memory_usage_mb: memoryUsedMB
+    });
   }
 
   // Middleware de performance
@@ -605,16 +655,16 @@ export class MonitoringService {
   }
 
   private async getEmailStats(): Promise<any> {
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
-    const stats = await this.dbGet(`
-      SELECT 
-        SUM(CASE WHEN metric_type = 'sent' THEN count ELSE 0 END) as sent,
-        SUM(CASE WHEN metric_type = 'delivered' THEN count ELSE 0 END) as delivered,
-        SUM(CASE WHEN metric_type = 'failed' THEN count ELSE 0 END) as failed
-      FROM email_metrics
-      WHERE timestamp > ?
-    `, [since24h]);
+    const stats: any = await this.db('email_metrics')
+      .select(
+        this.db.raw('SUM(CASE WHEN metric_type = ? THEN count ELSE 0 END) as sent', ['sent']),
+        this.db.raw('SUM(CASE WHEN metric_type = ? THEN count ELSE 0 END) as delivered', ['delivered']),
+        this.db.raw('SUM(CASE WHEN metric_type = ? THEN count ELSE 0 END) as failed', ['failed'])
+      )
+      .where('timestamp', '>', since24h)
+      .first();
 
     return {
       last_24h: {
@@ -627,18 +677,18 @@ export class MonitoringService {
   }
 
   private async getRequestStats(): Promise<any> {
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
-    const stats = await this.dbGet(`
-      SELECT 
-        COUNT(*) as total_requests,
-        AVG(response_time_ms) as avg_response_time,
-        MAX(response_time_ms) as max_response_time,
-        MIN(response_time_ms) as min_response_time,
-        AVG(memory_usage_mb) as avg_memory_usage
-      FROM request_metrics
-      WHERE timestamp > ?
-    `, [since24h]);
+    const stats: any = await this.db('request_metrics')
+      .select(
+        this.db.raw('COUNT(*) as total_requests'),
+        this.db.raw('AVG(response_time_ms) as avg_response_time'),
+        this.db.raw('MAX(response_time_ms) as max_response_time'),
+        this.db.raw('MIN(response_time_ms) as min_response_time'),
+        this.db.raw('AVG(memory_usage_mb) as avg_memory_usage')
+      )
+      .where('timestamp', '>', since24h)
+      .first();
 
     return {
       last_24h: {
@@ -668,10 +718,10 @@ export class MonitoringService {
       
       // Cleanup database
       const [metricsDeleted, healthDeleted, requestsDeleted, emailDeleted] = await Promise.all([
-        this.dbRun('DELETE FROM system_metrics WHERE timestamp < ?', [cutoffTime]),
-        this.dbRun('DELETE FROM health_checks WHERE timestamp < ?', [cutoffTime]),
-        this.dbRun('DELETE FROM request_metrics WHERE timestamp < ?', [cutoffTime]),
-        this.dbRun('DELETE FROM email_metrics WHERE timestamp < ?', [cutoffTime])
+        this.db('system_metrics').where('timestamp', '<', cutoffTime).del(),
+        this.db('health_checks').where('timestamp', '<', cutoffTime).del(),
+        this.db('request_metrics').where('timestamp', '<', cutoffTime).del(),
+        this.db('email_metrics').where('timestamp', '<', cutoffTime).del()
       ]);
 
       // Cleanup in-memory metrics
@@ -682,10 +732,10 @@ export class MonitoringService {
       }
 
       logger.info('Limpeza de métricas antigas concluída', {
-        metricsDeleted: metricsDeleted?.changes || 0,
-        healthDeleted: healthDeleted?.changes || 0,
-        requestsDeleted: requestsDeleted?.changes || 0,
-        emailDeleted: emailDeleted?.changes || 0
+        metricsDeleted: metricsDeleted || 0,
+        healthDeleted: healthDeleted || 0,
+        requestsDeleted: requestsDeleted || 0,
+        emailDeleted: emailDeleted || 0
       });
 
     } catch (error) {
@@ -795,17 +845,13 @@ export class MonitoringService {
     }
 
     // Fechar conexão do banco
-    return new Promise((resolve, reject) => {
-      this.db.close((err) => {
-        if (err) {
-          logger.error('Erro ao fechar conexão do MonitoringService:', err);
-          reject(err);
-        } else {
-          logger.info('MonitoringService: Conexão fechada');
-          resolve();
-        }
-      });
-    });
+    try {
+      await this.db.destroy();
+      logger.info('MonitoringService: Conexão fechada');
+    } catch (error) {
+      logger.error('Erro ao fechar conexão do MonitoringService:', error);
+      throw error;
+    }
   }
 }
 

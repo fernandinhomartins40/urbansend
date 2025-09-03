@@ -1,5 +1,5 @@
-import { Database } from 'sqlite3';
-import { promisify } from 'util';
+import { Knex } from 'knex';
+import db from '../config/database';
 import { logger } from '../config/logger';
 
 export interface EmailMetrics {
@@ -57,109 +57,128 @@ export interface TimeSeriesData {
 }
 
 export class AnalyticsService {
-  private db: Database;
-  private dbRun: (sql: string, params?: any[]) => Promise<any>;
-  private dbGet: (sql: string, params?: any[]) => Promise<any>;
-  private dbAll: (sql: string, params?: any[]) => Promise<any[]>;
+  private db: Knex;
 
-  constructor(database?: Database) {
-    this.db = database || new Database('./ultrazend.sqlite');
-    this.dbRun = promisify(this.db.run.bind(this.db));
-    this.dbGet = promisify(this.db.get.bind(this.db));
-    this.dbAll = promisify(this.db.all.bind(this.db));
+  constructor(database?: Knex) {
+    this.db = database || db;
     this.initializeTables();
   }
 
   private async initializeTables(): Promise<void> {
     try {
       // Tabela de eventos de email
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS email_events (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          email_id TEXT NOT NULL,
-          campaign_id TEXT,
-          user_id TEXT,
-          event_type TEXT NOT NULL,
-          timestamp DATETIME NOT NULL,
-          recipient_email TEXT,
-          domain TEXT,
-          ip_address TEXT,
-          user_agent TEXT,
-          metadata TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasEmailEvents = await this.db.schema.hasTable('email_events');
+      if (!hasEmailEvents) {
+        await this.db.schema.createTable('email_events', (table) => {
+          table.increments('id').primary();
+          table.string('email_id').notNullable();
+          table.string('campaign_id').nullable();
+          table.string('user_id').nullable();
+          table.string('event_type').notNullable();
+          table.datetime('timestamp').notNullable();
+          table.string('recipient_email').nullable();
+          table.string('domain').nullable();
+          table.string('ip_address').nullable();
+          table.text('user_agent').nullable();
+          table.text('metadata').nullable();
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de métricas agregadas por campanha
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS campaign_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          campaign_id TEXT UNIQUE NOT NULL,
-          campaign_name TEXT,
-          emails_sent INTEGER DEFAULT 0,
-          emails_delivered INTEGER DEFAULT 0,
-          emails_opened INTEGER DEFAULT 0,
-          emails_clicked INTEGER DEFAULT 0,
-          emails_bounced INTEGER DEFAULT 0,
-          emails_complained INTEGER DEFAULT 0,
-          emails_unsubscribed INTEGER DEFAULT 0,
-          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasCampaignMetrics = await this.db.schema.hasTable('campaign_metrics');
+      if (!hasCampaignMetrics) {
+        await this.db.schema.createTable('campaign_metrics', (table) => {
+          table.increments('id').primary();
+          table.string('campaign_id').unique().notNullable();
+          table.string('campaign_name').nullable();
+          table.integer('emails_sent').defaultTo(0);
+          table.integer('emails_delivered').defaultTo(0);
+          table.integer('emails_opened').defaultTo(0);
+          table.integer('emails_clicked').defaultTo(0);
+          table.integer('emails_bounced').defaultTo(0);
+          table.integer('emails_complained').defaultTo(0);
+          table.integer('emails_unsubscribed').defaultTo(0);
+          table.datetime('last_updated').defaultTo(this.db.fn.now());
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de métricas por domínio
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS domain_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          domain TEXT UNIQUE NOT NULL,
-          reputation_score REAL DEFAULT 1.0,
-          total_emails INTEGER DEFAULT 0,
-          successful_deliveries INTEGER DEFAULT 0,
-          bounces INTEGER DEFAULT 0,
-          complaints INTEGER DEFAULT 0,
-          last_delivery DATETIME,
-          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasDomainMetrics = await this.db.schema.hasTable('domain_metrics');
+      if (!hasDomainMetrics) {
+        await this.db.schema.createTable('domain_metrics', (table) => {
+          table.increments('id').primary();
+          table.string('domain').unique().notNullable();
+          table.decimal('reputation_score', 3, 2).defaultTo(1.0);
+          table.integer('total_emails').defaultTo(0);
+          table.integer('successful_deliveries').defaultTo(0);
+          table.integer('bounces').defaultTo(0);
+          table.integer('complaints').defaultTo(0);
+          table.datetime('last_delivery').nullable();
+          table.datetime('last_updated').defaultTo(this.db.fn.now());
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de séries temporais para métricas
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS time_series_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          timestamp DATETIME NOT NULL,
-          metric_name TEXT NOT NULL,
-          metric_value REAL NOT NULL,
-          tags TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasTimeSeriesMetrics = await this.db.schema.hasTable('time_series_metrics');
+      if (!hasTimeSeriesMetrics) {
+        await this.db.schema.createTable('time_series_metrics', (table) => {
+          table.increments('id').primary();
+          table.datetime('timestamp').notNullable();
+          table.string('metric_name').notNullable();
+          table.decimal('metric_value', 15, 4).notNullable();
+          table.text('tags').nullable();
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
       // Tabela de engajamento de usuários
-      await this.dbRun(`
-        CREATE TABLE IF NOT EXISTS user_engagement (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id TEXT NOT NULL,
-          email_address TEXT NOT NULL,
-          total_emails_received INTEGER DEFAULT 0,
-          total_opens INTEGER DEFAULT 0,
-          total_clicks INTEGER DEFAULT 0,
-          last_open DATETIME,
-          last_click DATETIME,
-          engagement_score REAL DEFAULT 0,
-          is_active BOOLEAN DEFAULT 1,
-          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      const hasUserEngagement = await this.db.schema.hasTable('user_engagement');
+      if (!hasUserEngagement) {
+        await this.db.schema.createTable('user_engagement', (table) => {
+          table.increments('id').primary();
+          table.string('user_id').notNullable();
+          table.string('email_address').notNullable();
+          table.integer('total_emails_received').defaultTo(0);
+          table.integer('total_opens').defaultTo(0);
+          table.integer('total_clicks').defaultTo(0);
+          table.datetime('last_open').nullable();
+          table.datetime('last_click').nullable();
+          table.decimal('engagement_score', 3, 2).defaultTo(0);
+          table.boolean('is_active').defaultTo(true);
+          table.datetime('last_updated').defaultTo(this.db.fn.now());
+          table.datetime('created_at').defaultTo(this.db.fn.now());
+        });
+      }
 
-      // Índices para performance
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_email_events_email_id ON email_events(email_id)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_email_events_campaign_id ON email_events(campaign_id)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_email_events_timestamp ON email_events(timestamp)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_time_series_timestamp ON time_series_metrics(timestamp)`);
-      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_domain_metrics_domain ON domain_metrics(domain)`);
+      // Índices para performance (criar sempre, Knex ignora se já existem)
+      try {
+        await this.db.schema.alterTable('email_events', (table) => {
+          table.index(['email_id'], 'idx_email_events_email_id');
+          table.index(['campaign_id'], 'idx_email_events_campaign_id');
+          table.index(['timestamp'], 'idx_email_events_timestamp');
+        });
+      } catch (error) {
+        // Índices podem já existir, ignorar erro
+      }
+      
+      try {
+        await this.db.schema.alterTable('time_series_metrics', (table) => {
+          table.index(['timestamp'], 'idx_time_series_timestamp');
+        });
+      } catch (error) {
+        // Índices podem já existir, ignorar erro
+      }
+      
+      try {
+        await this.db.schema.alterTable('domain_metrics', (table) => {
+          table.index(['domain'], 'idx_domain_metrics_domain');
+        });
+      } catch (error) {
+        // Índices podem já existir, ignorar erro
+      }
 
       logger.info('AnalyticsService: Tabelas inicializadas com sucesso');
     } catch (error) {
@@ -201,23 +220,18 @@ export class AnalyticsService {
     } = jobData;
 
     // Registrar evento
-    await this.dbRun(`
-      INSERT INTO email_events (
-        email_id, campaign_id, user_id, event_type, timestamp,
-        recipient_email, domain, ip_address, user_agent, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      emailId,
-      campaignId,
-      userId,
-      eventType,
-      timestamp,
-      data.recipientEmail,
-      data.domain,
-      data.ipAddress,
-      data.userAgent,
-      JSON.stringify(data.metadata || {})
-    ]);
+    await this.db('email_events').insert({
+      email_id: emailId,
+      campaign_id: campaignId,
+      user_id: userId,
+      event_type: eventType,
+      timestamp: new Date(timestamp),
+      recipient_email: data.recipientEmail,
+      domain: data.domain,
+      ip_address: data.ipAddress,
+      user_agent: data.userAgent,
+      metadata: JSON.stringify(data.metadata || {})
+    });
 
     // Atualizar métricas em tempo real
     if (campaignId) {
@@ -250,82 +264,121 @@ export class AnalyticsService {
     const metricColumn = this.getMetricColumnName(eventType);
     if (!metricColumn) return;
 
-    await this.dbRun(`
-      INSERT INTO campaign_metrics (campaign_id, ${metricColumn})
-      VALUES (?, 1)
-      ON CONFLICT(campaign_id) DO UPDATE SET
-      ${metricColumn} = ${metricColumn} + 1,
-      last_updated = CURRENT_TIMESTAMP
-    `, [campaignId]);
+    // Knex não tem UPSERT direto no SQLite, então fazemos manualmente
+    const existing = await this.db('campaign_metrics')
+      .where('campaign_id', campaignId)
+      .first();
+
+    if (existing) {
+      await this.db('campaign_metrics')
+        .where('campaign_id', campaignId)
+        .update({
+          [metricColumn]: this.db.raw(`${metricColumn} + 1`),
+          last_updated: new Date()
+        });
+    } else {
+      await this.db('campaign_metrics')
+        .insert({
+          campaign_id: campaignId,
+          [metricColumn]: 1
+        });
+    }
   }
 
   private async updateDomainMetricFromEvent(domain: string, eventType: string): Promise<void> {
+    const existing = await this.db('domain_metrics')
+      .where('domain', domain)
+      .first();
+
+    const updateData = {
+      total_emails: this.db.raw('total_emails + 1'),
+      last_updated: new Date()
+    };
+
     switch (eventType) {
       case 'delivered':
-        await this.dbRun(`
-          INSERT INTO domain_metrics (domain, successful_deliveries, total_emails)
-          VALUES (?, 1, 1)
-          ON CONFLICT(domain) DO UPDATE SET
-          successful_deliveries = successful_deliveries + 1,
-          total_emails = total_emails + 1,
-          last_delivery = CURRENT_TIMESTAMP,
-          last_updated = CURRENT_TIMESTAMP
-        `, [domain]);
+        Object.assign(updateData, {
+          successful_deliveries: this.db.raw('successful_deliveries + 1'),
+          last_delivery: new Date()
+        });
         break;
       case 'bounced':
-        await this.dbRun(`
-          INSERT INTO domain_metrics (domain, bounces, total_emails)
-          VALUES (?, 1, 1)
-          ON CONFLICT(domain) DO UPDATE SET
-          bounces = bounces + 1,
-          total_emails = total_emails + 1,
-          last_updated = CURRENT_TIMESTAMP
-        `, [domain]);
+        Object.assign(updateData, {
+          bounces: this.db.raw('bounces + 1')
+        });
         break;
       case 'complained':
-        await this.dbRun(`
-          INSERT INTO domain_metrics (domain, complaints, total_emails)
-          VALUES (?, 1, 1)
-          ON CONFLICT(domain) DO UPDATE SET
-          complaints = complaints + 1,
-          total_emails = total_emails + 1,
-          last_updated = CURRENT_TIMESTAMP
-        `, [domain]);
+        Object.assign(updateData, {
+          complaints: this.db.raw('complaints + 1')
+        });
         break;
+      default:
+        return;
+    }
+
+    if (existing) {
+      await this.db('domain_metrics')
+        .where('domain', domain)
+        .update(updateData);
+    } else {
+      const insertData = {
+        domain,
+        total_emails: 1,
+        successful_deliveries: eventType === 'delivered' ? 1 : 0,
+        bounces: eventType === 'bounced' ? 1 : 0,
+        complaints: eventType === 'complained' ? 1 : 0,
+        last_delivery: eventType === 'delivered' ? new Date() : null
+      };
+      
+      await this.db('domain_metrics').insert(insertData);
     }
   }
 
   private async updateUserEngagementFromEvent(userId: string, email: string, eventType: string): Promise<void> {
+    const existing = await this.db('user_engagement')
+      .where('user_id', userId)
+      .first();
+
+    const baseUpdate = {
+      last_updated: new Date()
+    };
+
+    let updateData: any = { ...baseUpdate };
+    let insertData: any = {
+      user_id: userId,
+      email_address: email,
+      total_emails_received: 0,
+      total_opens: 0,
+      total_clicks: 0
+    };
+
     switch (eventType) {
       case 'delivered':
-        await this.dbRun(`
-          INSERT INTO user_engagement (user_id, email_address, total_emails_received)
-          VALUES (?, ?, 1)
-          ON CONFLICT(user_id) DO UPDATE SET
-          total_emails_received = total_emails_received + 1,
-          last_updated = CURRENT_TIMESTAMP
-        `, [userId, email]);
+        updateData.total_emails_received = this.db.raw('total_emails_received + 1');
+        insertData.total_emails_received = 1;
         break;
       case 'opened':
-        await this.dbRun(`
-          INSERT INTO user_engagement (user_id, email_address, total_opens)
-          VALUES (?, ?, 1)
-          ON CONFLICT(user_id) DO UPDATE SET
-          total_opens = total_opens + 1,
-          last_open = CURRENT_TIMESTAMP,
-          last_updated = CURRENT_TIMESTAMP
-        `, [userId, email]);
+        updateData.total_opens = this.db.raw('total_opens + 1');
+        updateData.last_open = new Date();
+        insertData.total_opens = 1;
+        insertData.last_open = new Date();
         break;
       case 'clicked':
-        await this.dbRun(`
-          INSERT INTO user_engagement (user_id, email_address, total_clicks)
-          VALUES (?, ?, 1)
-          ON CONFLICT(user_id) DO UPDATE SET
-          total_clicks = total_clicks + 1,
-          last_click = CURRENT_TIMESTAMP,
-          last_updated = CURRENT_TIMESTAMP
-        `, [userId, email]);
+        updateData.total_clicks = this.db.raw('total_clicks + 1');
+        updateData.last_click = new Date();
+        insertData.total_clicks = 1;
+        insertData.last_click = new Date();
         break;
+      default:
+        return;
+    }
+
+    if (existing) {
+      await this.db('user_engagement')
+        .where('user_id', userId)
+        .update(updateData);
+    } else {
+      await this.db('user_engagement').insert(insertData);
     }
 
     // Recalcular engagement score
@@ -333,11 +386,10 @@ export class AnalyticsService {
   }
 
   private async recalculateUserEngagementScore(userId: string): Promise<void> {
-    const user = await this.dbGet(`
-      SELECT total_emails_received, total_opens, total_clicks
-      FROM user_engagement
-      WHERE user_id = ?
-    `, [userId]);
+    const user = await this.db('user_engagement')
+      .select('total_emails_received', 'total_opens', 'total_clicks')
+      .where('user_id', userId)
+      .first();
 
     if (!user) return;
 
@@ -348,11 +400,12 @@ export class AnalyticsService {
       score = (openRate * 0.6) + (clickRate * 0.4);
     }
 
-    await this.dbRun(`
-      UPDATE user_engagement
-      SET engagement_score = ?, last_updated = CURRENT_TIMESTAMP
-      WHERE user_id = ?
-    `, [score, userId]);
+    await this.db('user_engagement')
+      .where('user_id', userId)
+      .update({
+        engagement_score: score,
+        last_updated: new Date()
+      });
   }
 
   private getMetricColumnName(eventType: string): string | null {
@@ -369,20 +422,20 @@ export class AnalyticsService {
   }
 
   async updateCampaignMetrics(campaignId: string): Promise<CampaignMetrics> {
-    const metrics = await this.dbGet(`
-      SELECT 
-        campaign_id,
-        campaign_name,
-        emails_sent,
-        emails_delivered,
-        emails_opened,
-        emails_clicked,
-        emails_bounced,
-        emails_complained,
-        emails_unsubscribed
-      FROM campaign_metrics
-      WHERE campaign_id = ?
-    `, [campaignId]);
+    const metrics = await this.db('campaign_metrics')
+      .select(
+        'campaign_id',
+        'campaign_name',
+        'emails_sent',
+        'emails_delivered',
+        'emails_opened',
+        'emails_clicked',
+        'emails_bounced',
+        'emails_complained',
+        'emails_unsubscribed'
+      )
+      .where('campaign_id', campaignId)
+      .first();
 
     if (!metrics) {
       throw new Error(`Campanha não encontrada: ${campaignId}`);
@@ -412,11 +465,9 @@ export class AnalyticsService {
   }
 
   async updateDomainReputation(domain: string): Promise<DomainMetrics> {
-    const metrics = await this.dbGet(`
-      SELECT *
-      FROM domain_metrics
-      WHERE domain = ?
-    `, [domain]);
+    const metrics = await this.db('domain_metrics')
+      .where('domain', domain)
+      .first();
 
     if (!metrics) {
       throw new Error(`Domínio não encontrado: ${domain}`);
@@ -433,11 +484,12 @@ export class AnalyticsService {
     reputationScore = Math.max(0, Math.min(1, reputationScore));
 
     // Atualizar score na base de dados
-    await this.dbRun(`
-      UPDATE domain_metrics
-      SET reputation_score = ?, last_updated = CURRENT_TIMESTAMP
-      WHERE domain = ?
-    `, [reputationScore, domain]);
+    await this.db('domain_metrics')
+      .where('domain', domain)
+      .update({
+        reputation_score: reputationScore,
+        last_updated: new Date()
+      });
 
     return {
       domain: metrics.domain,
@@ -455,15 +507,12 @@ export class AnalyticsService {
   }
 
   async recordTimeSeriesMetric(data: TimeSeriesData): Promise<void> {
-    await this.dbRun(`
-      INSERT INTO time_series_metrics (timestamp, metric_name, metric_value, tags)
-      VALUES (?, ?, ?, ?)
-    `, [
-      data.timestamp.toISOString(),
-      data.metric,
-      data.value,
-      JSON.stringify(data.tags)
-    ]);
+    await this.db('time_series_metrics').insert({
+      timestamp: data.timestamp,
+      metric_name: data.metric,
+      metric_value: data.value,
+      tags: JSON.stringify(data.tags)
+    });
   }
 
   async getEmailMetrics(timeRange?: { start: Date; end: Date }): Promise<EmailMetrics> {
@@ -475,18 +524,23 @@ export class AnalyticsService {
       params = [timeRange.start.toISOString(), timeRange.end.toISOString()];
     }
 
-    const metrics = await this.dbGet(`
-      SELECT 
-        SUM(CASE WHEN event_type = 'sent' THEN 1 ELSE 0 END) as sent,
-        SUM(CASE WHEN event_type = 'delivered' THEN 1 ELSE 0 END) as delivered,
-        SUM(CASE WHEN event_type = 'bounced' THEN 1 ELSE 0 END) as bounced,
-        SUM(CASE WHEN event_type = 'complained' THEN 1 ELSE 0 END) as complaints,
-        SUM(CASE WHEN event_type = 'opened' THEN 1 ELSE 0 END) as opens,
-        SUM(CASE WHEN event_type = 'clicked' THEN 1 ELSE 0 END) as clicks,
-        SUM(CASE WHEN event_type = 'unsubscribed' THEN 1 ELSE 0 END) as unsubscribes
-      FROM email_events
-      ${whereClause}
-    `, params);
+    let query = this.db('email_events');
+    
+    if (timeRange) {
+      query = query.whereBetween('timestamp', [timeRange.start, timeRange.end]);
+    }
+    
+    const metrics: any = await query
+      .select(
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as sent', ['sent']),
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as delivered', ['delivered']),
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as bounced', ['bounced']),
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as complaints', ['complained']),
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as opens', ['opened']),
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as clicks', ['clicked']),
+        this.db.raw('SUM(CASE WHEN event_type = ? THEN 1 ELSE 0 END) as unsubscribes', ['unsubscribed'])
+      )
+      .first();
 
     return {
       sent: metrics.sent || 0,
@@ -508,13 +562,12 @@ export class AnalyticsService {
   }
 
   async getTopDomains(limit: number = 10): Promise<DomainMetrics[]> {
-    const domains = await this.dbAll(`
-      SELECT domain, reputation_score, total_emails, successful_deliveries, bounces, complaints
-      FROM domain_metrics
-      WHERE total_emails > 0
-      ORDER BY reputation_score DESC, total_emails DESC
-      LIMIT ?
-    `, [limit]);
+    const domains = await this.db('domain_metrics')
+      .select('domain', 'reputation_score', 'total_emails', 'successful_deliveries', 'bounces', 'complaints')
+      .where('total_emails', '>', 0)
+      .orderBy('reputation_score', 'desc')
+      .orderBy('total_emails', 'desc')
+      .limit(limit);
 
     return domains.map(domain => ({
       domain: domain.domain,
@@ -527,14 +580,14 @@ export class AnalyticsService {
   }
 
   async getEngagementStats(): Promise<any> {
-    const stats = await this.dbGet(`
-      SELECT 
-        AVG(engagement_score) as average_engagement,
-        COUNT(*) as total_users,
-        COUNT(CASE WHEN engagement_score > 0.5 THEN 1 END) as highly_engaged,
-        COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_users
-      FROM user_engagement
-    `);
+    const stats: any = await this.db('user_engagement')
+      .select(
+        this.db.raw('AVG(engagement_score) as average_engagement'),
+        this.db.raw('COUNT(*) as total_users'),
+        this.db.raw('COUNT(CASE WHEN engagement_score > 0.5 THEN 1 END) as highly_engaged'),
+        this.db.raw('COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_users')
+      )
+      .first();
 
     return {
       averageEngagement: Math.round((stats.average_engagement || 0) * 100) / 100,
@@ -546,11 +599,13 @@ export class AnalyticsService {
   }
 
   async getAnalyticsHealthStatus(): Promise<any> {
-    const [eventCount, campaignCount, domainCount, userCount] = await Promise.all([
-      this.dbGet('SELECT COUNT(*) as count FROM email_events WHERE timestamp > datetime("now", "-1 day")'),
-      this.dbGet('SELECT COUNT(*) as count FROM campaign_metrics'),
-      this.dbGet('SELECT COUNT(*) as count FROM domain_metrics'),
-      this.dbGet('SELECT COUNT(*) as count FROM user_engagement WHERE is_active = 1')
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const [eventCount, campaignCount, domainCount, userCount]: any[] = await Promise.all([
+      this.db('email_events').count('* as count').where('timestamp', '>', oneDayAgo).first(),
+      this.db('campaign_metrics').count('* as count').first(),
+      this.db('domain_metrics').count('* as count').first(),
+      this.db('user_engagement').count('* as count').where('is_active', true).first()
     ]);
 
     return {
@@ -564,16 +619,12 @@ export class AnalyticsService {
   }
 
   async close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.close((err) => {
-        if (err) {
-          logger.error('Erro ao fechar conexão do AnalyticsService:', err);
-          reject(err);
-        } else {
-          logger.info('AnalyticsService: Conexão fechada');
-          resolve();
-        }
-      });
-    });
+    try {
+      await this.db.destroy();
+      logger.info('AnalyticsService: Conexão fechada');
+    } catch (error) {
+      logger.error('Erro ao fechar conexão do AnalyticsService:', error);
+      throw error;
+    }
   }
 }
