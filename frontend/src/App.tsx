@@ -1,9 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { useAuthStore } from './lib/store'
 import { useAuthEvents } from './hooks/useAuthEvents'
+import { useAuthCheck } from './hooks/useAuthCheck'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster } from 'react-hot-toast'
 import './styles/globals.css'
@@ -52,9 +53,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
+  const location = useLocation()
   
-  if (isAuthenticated) {
+  // Allow access to login page if user is specifically on login route or if user data is missing
+  // This prevents redirect loops when session expires but localStorage still shows authenticated
+  if (isAuthenticated && user && location.pathname !== '/login' && location.pathname !== '/admin/login') {
+    // Only redirect to app if we're sure the user is properly authenticated
+    // and not trying to access the login page specifically
     return <Navigate to="/app" replace />
   }
 
@@ -62,7 +68,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  useAuthEvents() // Now inside Router context
+  useAuthEvents() // Handle auth events
+  useAuthCheck()  // Periodically check auth status
 
   return (
     <Suspense fallback={<LoadingSpinner />}>

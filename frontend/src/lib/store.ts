@@ -14,6 +14,7 @@ interface AuthState {
   login: (user: User) => void
   logout: () => void
   updateUser: (user: Partial<User>) => void
+  checkAuthStatus: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -48,6 +49,32 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...userData } : null,
         })),
+      
+      checkAuthStatus: async () => {
+        try {
+          // Try to fetch user profile to check if session is still valid
+          const response = await fetch('/api/auth/profile', {
+            method: 'GET',
+            credentials: 'include'
+          })
+          
+          if (!response.ok) {
+            // Session is invalid, clear auth state
+            set({ user: null, isAuthenticated: false })
+            return
+          }
+          
+          const data = await response.json()
+          if (data.user) {
+            // Update user data if session is valid
+            set({ user: data.user, isAuthenticated: true })
+          }
+        } catch (error) {
+          // Network error or session invalid, clear auth state
+          console.error('Auth status check failed:', error)
+          set({ user: null, isAuthenticated: false })
+        }
+      },
     }),
     {
       name: 'auth-storage',

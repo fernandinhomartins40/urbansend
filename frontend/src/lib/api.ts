@@ -1,6 +1,30 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
+// Debounce system to prevent multiple session expired toasts
+let sessionExpiredToastShown = false
+let sessionExpiredTimeout: NodeJS.Timeout | null = null
+
+const showSessionExpiredToast = () => {
+  if (sessionExpiredToastShown) return
+  
+  sessionExpiredToastShown = true
+  toast.error('Sua sessão expirou. Faça login novamente.')
+  
+  // Reset the flag after 5 seconds to allow new toasts if needed
+  sessionExpiredTimeout = setTimeout(() => {
+    sessionExpiredToastShown = false
+  }, 5000)
+}
+
+const resetSessionExpiredToast = () => {
+  sessionExpiredToastShown = false
+  if (sessionExpiredTimeout) {
+    clearTimeout(sessionExpiredTimeout)
+    sessionExpiredTimeout = null
+  }
+}
+
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''
 
 export const api = axios.create({
@@ -31,7 +55,11 @@ api.interceptors.request.use(
 
 // Response interceptor to handle errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Reset session expired toast system on successful responses
+    resetSessionExpiredToast()
+    return response
+  },
   async (error) => {
     if (error.response?.status === 401 && !error.config._retry) {
       // Mark this request as a retry to prevent infinite loops
@@ -39,10 +67,10 @@ api.interceptors.response.use(
       
       // Don't try to refresh if this was already a refresh request
       if (error.config.url?.includes('/auth/refresh')) {
-        // Refresh failed, redirect to login
+        // Refresh failed, trigger logout with debounced toast
         if (window.location.pathname !== '/login') {
-          toast.error('Sua sessão expirou. Faça login novamente.')
-          // Use React Router navigation instead of direct location change
+          showSessionExpiredToast()
+          // Dispatch logout event instead of session-expired to clear state
           const event = new CustomEvent('auth:session-expired');
           window.dispatchEvent(event);
         }
@@ -53,12 +81,14 @@ api.interceptors.response.use(
       try {
         await api.post('/auth/refresh')
         // If refresh successful, retry the original request
+        // Also reset the toast system since session is now valid
+        resetSessionExpiredToast()
         return api.request(error.config)
       } catch (refreshError) {
-        // Refresh failed, redirect to login
+        // Refresh failed, trigger logout with debounced toast
         if (window.location.pathname !== '/login') {
-          toast.error('Sua sessão expirou. Faça login novamente.')
-          // Use React Router navigation instead of direct location change
+          showSessionExpiredToast()
+          // Dispatch logout event instead of session-expired to clear state
           const event = new CustomEvent('auth:session-expired');
           window.dispatchEvent(event);
         }

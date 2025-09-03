@@ -1,14 +1,19 @@
 import { useEffect } from 'react';
 import { useSecureNavigation } from './useSecureNavigation';
+import { useAuthStore } from '@/lib/store';
 
 /**
  * Hook to handle authentication events and secure navigation
  */
 export const useAuthEvents = () => {
   const { secureRedirect } = useSecureNavigation();
+  const { logout } = useAuthStore();
 
   useEffect(() => {
-    const handleSessionExpired = () => {
+    const handleSessionExpired = async () => {
+      // Clear authentication state immediately
+      await logout();
+      // Then redirect to login
       secureRedirect('/login');
     };
 
@@ -25,5 +30,5 @@ export const useAuthEvents = () => {
       window.removeEventListener('auth:session-expired', handleSessionExpired);
       window.removeEventListener('auth:logout', handleLogout);
     };
-  }, [secureRedirect]);
+  }, [secureRedirect, logout]);
 };
