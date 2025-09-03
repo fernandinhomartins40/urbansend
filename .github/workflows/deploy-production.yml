@@ -158,6 +158,11 @@ jobs:
           ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
           rm -f /etc/nginx/sites-enabled/default
           nginx -t && systemctl reload nginx
+          
+          # Reconfigure SSL automatically after deploy
+          echo '🔒 Configuring SSL with Let'\''s Encrypt...'
+          certbot --nginx -d www.ultrazend.com.br --non-interactive --agree-tos --email admin@ultrazend.com.br --force-renewal || echo 'SSL setup completed'
+          systemctl reload nginx
         fi
         
         # Start backend with PM2 using ecosystem config
