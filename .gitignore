@@ -63,7 +63,11 @@ coverage/
 
 # Database
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 *.db
+*.db-wal
+*.db-shm
 
 # Temporary files
 .tmp/

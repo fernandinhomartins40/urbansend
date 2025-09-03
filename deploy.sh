@@ -135,6 +135,10 @@ deploy_to_server() {
         --exclude='.claude/' \
         --exclude='__tests__/' \
         --exclude='coverage/' \
+        --exclude='*.sqlite-wal' \
+        --exclude='*.sqlite-shm' \
+        --exclude='*.db-wal' \
+        --exclude='*.db-shm' \
         --include='configs/' \
         --include='configs/**' \
         ./ $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
