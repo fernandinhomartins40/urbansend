@@ -192,11 +192,10 @@ app.use('/api', cors({
       return callback(null, true);
     }
     
+    // Em produção, permitir requests sem Origin para endpoints específicos como health checks e APIs
     if (!origin && Env.isProduction) {
-      logger.warn('CORS: Request blocked - missing origin header', { 
-        timestamp: new Date().toISOString() 
-      });
-      return callback(new Error('Origin header é obrigatório'));
+      // Permitir requests internos e de monitoramento
+      return callback(null, true);
     }
     
     if (origin && allowedOrigins.includes(origin)) {
