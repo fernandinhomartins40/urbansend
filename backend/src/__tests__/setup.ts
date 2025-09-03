@@ -102,7 +102,6 @@ async function seedTestData(knex: any): Promise<void> {
       email: 'test1@example.com',
       password: await bcrypt.hash('password123', 10),
       is_verified: true,
-      plan_type: 'pro',
       created_at: new Date(),
       updated_at: new Date()
     },
@@ -111,7 +110,6 @@ async function seedTestData(knex: any): Promise<void> {
       email: 'test2@example.com',
       password: await bcrypt.hash('password123', 10),
       is_verified: false,
-      plan_type: 'free',
       email_verification_token: 'a'.repeat(64), // 64 char hex token
       created_at: new Date(),
       updated_at: new Date()
@@ -121,7 +119,6 @@ async function seedTestData(knex: any): Promise<void> {
       email: 'system@test.local',
       password: await bcrypt.hash('system-password', 12),
       is_verified: true,
-      plan_type: 'system',
       created_at: new Date(),
       updated_at: new Date()
     }
@@ -267,7 +264,6 @@ export async function createTestUser(userData: Partial<any> = {}): Promise<any> 
     email: `test${Date.now()}@example.com`,
     password: await bcrypt.hash('password123', 10),
     is_verified: true,
-    plan_type: 'free',
     created_at: new Date(),
     updated_at: new Date(),
     ...userData

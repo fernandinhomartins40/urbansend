@@ -640,7 +640,6 @@ export class DKIMManager {
           password: await bcrypt.hash('system-generated-password-' + Date.now(), 12),
           is_admin: true,
           email_verified: true,
-          plan_type: 'system',
           created_at: new Date(),
           updated_at: new Date()
         };
