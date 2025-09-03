@@ -165,6 +165,64 @@ deploy_to_server() {
       systemctl start redis-server
     fi
     
+    # Setup Email Server (Postfix) - Critical for email functionality
+    echo 'Ensuring Email Server (Postfix) is available...'
+    if ! command -v postfix &> /dev/null; then
+      echo 'Installing Postfix and mail utilities...'
+      DEBIAN_FRONTEND=noninteractive apt-get install -y postfix mailutils opendkim opendkim-tools
+      systemctl enable postfix
+      systemctl start postfix
+    fi
+    
+    # Configure Postfix for ultrazend.com.br with enhanced security
+    echo 'Configuring Postfix for ultrazend.com.br...'
+    
+    # Backup original config if it exists
+    [ -f /etc/postfix/main.cf ] && cp /etc/postfix/main.cf /etc/postfix/main.cf.backup.\$(date +%Y%m%d) 2>/dev/null || true
+    
+    # Configure main Postfix settings
+    postconf -e \"myhostname=mail.ultrazend.com.br\"
+    postconf -e \"mydomain=ultrazend.com.br\"
+    postconf -e \"myorigin=\\\$mydomain\"
+    postconf -e \"inet_interfaces=all\"
+    postconf -e \"inet_protocols=ipv4\"
+    postconf -e \"mydestination=\\\$myhostname, mail.ultrazend.com.br, ultrazend.com.br, localhost.localdomain, localhost\"
+    postconf -e \"mynetworks=127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128\"
+    postconf -e \"message_size_limit=25600000\"
+    postconf -e \"mailbox_size_limit=0\"
+    postconf -e \"recipient_delimiter=+\"
+    
+    # Security settings
+    postconf -e \"smtpd_helo_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_invalid_helo_hostname\"
+    postconf -e \"smtpd_sender_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_non_fqdn_sender\"
+    postconf -e \"smtpd_recipient_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination\"
+    
+    # Rate limiting
+    postconf -e \"smtpd_client_connection_count_limit=50\"
+    postconf -e \"smtpd_client_connection_rate_limit=100\"
+    
+    # SKIP OpenDKIM setup - UltraZend uses Node.js DKIM implementation
+    echo 'DKIM Configuration: Using UltraZend Node.js DKIM (not OpenDKIM)'
+    echo '  Static keys location: /var/www/ultrazend/configs/dkim-keys/'
+    echo '  OpenDKIM disabled to avoid conflicts with Node.js DKIM'
+    
+    # Disable OpenDKIM if it exists (prevents conflicts)  
+    if systemctl is-active --quiet opendkim 2>/dev/null; then
+      echo 'Disabling OpenDKIM to prevent conflicts...'
+      systemctl stop opendkim 2>/dev/null || true
+      systemctl disable opendkim 2>/dev/null || true
+    fi
+    
+    # Remove OpenDKIM milter configuration from Postfix (prevents conflicts)
+    postconf -e \"milter_protocol=\"
+    postconf -e \"milter_default_action=\"
+    postconf -e \"smtpd_milters=\"
+    postconf -e \"non_smtpd_milters=\"
+    
+    # Restart services to apply changes
+    systemctl restart postfix
+    systemctl restart opendkim 2>/dev/null || true
+    
     # Install all dependencies first (including swagger)
     npm ci --silent
     
@@ -178,9 +236,9 @@ deploy_to_server() {
     if [ -f ../configs/.env.production ]; then
         cp ../configs/.env.production .env
         chmod 600 .env
-        echo 'Production .env configured'
+        echo 'Production .env configured with static DKIM'
     else
-        echo 'Creating minimal .env...'
+        echo 'Creating minimal .env with static DKIM configuration...'
         cat > .env << 'ENVEOF'
 NODE_ENV=production
 PORT=3001
@@ -189,9 +247,28 @@ DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
 REDIS_URL=redis://127.0.0.1:6379
 LOG_FILE_PATH=/var/www/ultrazend/logs
 LOG_LEVEL=info
+DKIM_PRIVATE_KEY_PATH=./configs/dkim-keys/ultrazend.com.br-default-private.pem
+DKIM_SELECTOR=default
+DKIM_DOMAIN=ultrazend.com.br
 ENVEOF
         chmod 600 .env
     fi
+    
+    # Verify DKIM static keys exist
+    echo 'Verifying DKIM static keys...'
+    if [ -f \"../configs/dkim-keys/ultrazend.com.br-default-private.pem\" ]; then
+        echo 'DKIM private key found'
+        ls -la ../configs/dkim-keys/ultrazend.com.br-default-*
+    else
+        echo 'DKIM static keys not found! Deploy may fail.'
+        echo 'Expected location: /var/www/ultrazend/configs/dkim-keys/'
+        ls -la ../configs/dkim-keys/ || echo 'Directory not found'
+    fi
+    
+    # Email server configuration (preserve existing .env.production settings)
+    echo 'Email server configuration preserved from production .env'
+    echo 'SMTP settings will use configurations from .env.production'
+    echo 'DKIM static keys will be loaded from configs/dkim-keys/'
     
     # Ensure log directories exist
     mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
