@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -22,13 +23,18 @@ interface Email {
   clicked_at?: string
   bounce_reason?: string
   created_at: string
+  tracking_enabled: boolean
 }
 
 export function EmailList() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [dateFilter, setDateFilter] = useState('all')
+  const [domainFilter, setDomainFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
+  const [selectedEmails, setSelectedEmails] = useState<number[]>([])
   const queryClient = useQueryClient()
 
   // Smart polling for email list
@@ -45,6 +51,8 @@ export function EmailList() {
     queryFn: () => emailApi.getEmails({
       search,
       status: statusFilter === 'all' ? undefined : statusFilter,
+      date_filter: dateFilter === 'all' ? undefined : dateFilter,
+      domain_filter: domainFilter === 'all' ? undefined : domainFilter,
       page,
       limit,
       sort: 'created_at',
@@ -59,6 +67,7 @@ export function EmailList() {
   })
 
   const emails = (data as any)?.data?.emails || []
+  const stats = (data as any)?.data?.stats || { total: 0, delivered: 0, opened: 0, clicked: 0 }
   const pagination = (data as any)?.data?.pagination || { page: 1, pages: 1, total: 0 }
 
   const handleRefresh = () => {
@@ -151,7 +160,7 @@ export function EmailList() {
         <div>
           <h1 className="text-3xl font-bold">Emails</h1>
           <p className="text-muted-foreground">
-            {pagination.total} emails • {emails.filter((e: Email) => e.status === 'delivered').length} entregues
+            {stats.total} emails • {stats.delivered} entregues
           </p>
         </div>
         
@@ -160,7 +169,7 @@ export function EmailList() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <Button>
+          <Button onClick={() => navigate('/app/emails/send')}>
             <Send className="h-4 w-4 mr-2" />
             Novo Email
           </Button>
@@ -175,7 +184,7 @@ export function EmailList() {
               <Send className="h-5 w-5 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{pagination.total}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -187,9 +196,7 @@ export function EmailList() {
               <Eye className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Entregues</p>
-                <p className="text-2xl font-bold">
-                  {emails.filter((e: Email) => e.status === 'delivered').length}
-                </p>
+                <p className="text-2xl font-bold">{stats.delivered}</p>
               </div>
             </div>
           </CardContent>
@@ -201,9 +208,7 @@ export function EmailList() {
               <Eye className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Abertos</p>
-                <p className="text-2xl font-bold">
-                  {emails.filter((e: Email) => e.opened_at).length}
-                </p>
+                <p className="text-2xl font-bold">{stats.opened}</p>
               </div>
             </div>
           </CardContent>
@@ -215,9 +220,7 @@ export function EmailList() {
               <MousePointer className="h-5 w-5 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Clicados</p>
-                <p className="text-2xl font-bold">
-                  {emails.filter((e: Email) => e.clicked_at).length}
-                </p>
+                <p className="text-2xl font-bold">{stats.clicked}</p>
               </div>
             </div>
           </CardContent>
@@ -236,6 +239,9 @@ export function EmailList() {
               <Button variant="ghost" size="sm" onClick={() => {
                 setSearch('')
                 setStatusFilter('all')
+                setDateFilter('all')
+                setDomainFilter('all')
+                setSelectedEmails([])
                 toast.success('Filtros limpos!')
               }}>
                 Limpar filtros
@@ -247,21 +253,49 @@ export function EmailList() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Buscar por email, assunto..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
+          <div className="space-y-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Buscar por email, assunto, conteúdo..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <select 
+                  className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                >
+                  <option value="all">Todas as datas</option>
+                  <option value="today">Hoje</option>
+                  <option value="week">Última semana</option>
+                  <option value="month">Último mês</option>
+                  <option value="3months">Últimos 3 meses</option>
+                </select>
+                
+                <select 
+                  className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                  value={domainFilter}
+                  onChange={(e) => setDomainFilter(e.target.value)}
+                >
+                  <option value="all">Todos os domínios</option>
+                  <option value="gmail.com">Gmail</option>
+                  <option value="outlook.com">Outlook</option>
+                  <option value="yahoo.com">Yahoo</option>
+                  <option value="hotmail.com">Hotmail</option>
+                </select>
               </div>
             </div>
             
-            <div className="flex gap-2">
-              {['all', 'sent', 'delivered', 'opened', 'bounced', 'failed'].map((status) => (
+            <div className="flex flex-wrap gap-2">
+              {['all', 'sent', 'delivered', 'opened', 'clicked', 'bounced', 'failed'].map((status) => (
                 <Button
                   key={status}
                   variant={statusFilter === status ? 'default' : 'outline'}
@@ -272,12 +306,37 @@ export function EmailList() {
                    status === 'sent' ? 'Enviados' :
                    status === 'delivered' ? 'Entregues' :
                    status === 'opened' ? 'Abertos' :
+                   status === 'clicked' ? 'Clicados' :
                    status === 'bounced' ? 'Bounces' :
                    status === 'failed' ? 'Falharam' :
                    status}
                 </Button>
               ))}
             </div>
+            
+            {/* Ações em lote */}
+            {selectedEmails.length > 0 && (
+              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="text-sm font-medium text-blue-700">
+                  {selectedEmails.length} email(s) selecionado(s)
+                </span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline">
+                    Reenviar falhados
+                  </Button>
+                  <Button size="sm" variant="outline">
+                    Exportar dados
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setSelectedEmails([])}
+                  >
+                    Limpar seleção
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -287,11 +346,25 @@ export function EmailList() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <input
+                  type="checkbox"
+                  checked={selectedEmails.length === emails.length && emails.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedEmails(emails.map((email: Email) => email.id))
+                    } else {
+                      setSelectedEmails([])
+                    }
+                  }}
+                />
+              </TableHead>
               <TableHead className="w-12">Status</TableHead>
               <TableHead>Para</TableHead>
               <TableHead>Assunto</TableHead>
               <TableHead>De</TableHead>
               <TableHead>Enviado</TableHead>
+              <TableHead>Taxa de Abertura</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -320,7 +393,7 @@ export function EmailList() {
                         : 'Você ainda não enviou nenhum email. Que tal começar agora?'
                       }
                     </p>
-                    <Button>
+                    <Button onClick={() => navigate('/app/emails/send')}>
                       <Send className="h-4 w-4 mr-2" />
                       Enviar primeiro email
                     </Button>
@@ -329,7 +402,20 @@ export function EmailList() {
               </TableRow>
             ) : (
               emails.map((email: Email) => (
-                <TableRow key={email.id}>
+                <TableRow key={email.id} className={selectedEmails.includes(email.id) ? 'bg-blue-50' : ''}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selectedEmails.includes(email.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEmails([...selectedEmails, email.id])
+                        } else {
+                          setSelectedEmails(selectedEmails.filter(id => id !== email.id))
+                        }
+                      }}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(email.status)}
@@ -338,15 +424,24 @@ export function EmailList() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{email.to_email}</div>
+                    <div className="text-xs text-muted-foreground">
+                      @{email.to_email.split('@')[1]}
+                    </div>
                     {email.bounce_reason && (
                       <div className="text-sm text-destructive">{email.bounce_reason}</div>
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{email.subject}</div>
+                    <div className="font-medium truncate max-w-[200px]" title={email.subject}>
+                      {email.subject}
+                    </div>
                     <div className="text-sm text-muted-foreground">ID: {email.id}</div>
                   </TableCell>
-                  <TableCell>{email.from_email}</TableCell>
+                  <TableCell>
+                    <div className="truncate max-w-[150px]" title={email.from_email}>
+                      {email.from_email}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="text-sm">
                       {formatRelativeTime(email.sent_at || email.created_at)}
@@ -356,9 +451,38 @@ export function EmailList() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm">
-                      Ver detalhes
-                    </Button>
+                    <div className="text-sm">
+                      {email.opened_at ? (
+                        <span className="text-green-600">✓ Aberto</span>
+                      ) : email.sent_at ? (
+                        <span className="text-gray-500">Não aberto</span>
+                      ) : (
+                        <span className="text-yellow-600">Pendente</span>
+                      )}
+                      {email.clicked_at && (
+                        <div className="text-purple-600">✓ Clicado</div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigate(`/app/emails/${email.id}`)}
+                      >
+                        Ver detalhes
+                      </Button>
+                      {email.status === 'failed' && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-blue-600"
+                        >
+                          Reenviar
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -369,11 +493,22 @@ export function EmailList() {
         {/* Pagination */}
         {pagination.pages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t">
-            <div className="text-sm text-muted-foreground">
-              Página {pagination.page} de {pagination.pages} • {pagination.total} emails
+            <div className="text-sm text-muted-foreground flex items-center gap-4">
+              <span>Página {pagination.page} de {pagination.pages} • {pagination.total} emails</span>
+              {selectedEmails.length > 0 && (
+                <span className="text-blue-600">{selectedEmails.length} selecionados</span>
+              )}
             </div>
             
             <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(1)}
+                disabled={page <= 1}
+              >
+                Primeira
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -383,19 +518,43 @@ export function EmailList() {
                 Anterior
               </Button>
               
-              {Array.from({ length: Math.min(pagination.pages, 5) }, (_, i) => {
-                const pageNumber = i + 1
-                return (
-                  <Button
-                    key={pageNumber}
-                    variant={page === pageNumber ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPage(pageNumber)}
-                  >
-                    {pageNumber}
-                  </Button>
-                )
-              })}
+              {/* Paginação inteligente */}
+              {(() => {
+                const totalPages = pagination.pages
+                const currentPage = page
+                const pages = []
+                
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) {
+                    pages.push(i)
+                  }
+                } else {
+                  if (currentPage <= 4) {
+                    pages.push(1, 2, 3, 4, 5, '...', totalPages)
+                  } else if (currentPage >= totalPages - 3) {
+                    pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+                  } else {
+                    pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages)
+                  }
+                }
+                
+                return pages.map((pageNum, i) => {
+                  if (pageNum === '...') {
+                    return <span key={i} className="px-2">...</span>
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={page === pageNum ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setPage(pageNum as number)}
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                })
+              })()}
               
               <Button
                 variant="outline"
@@ -404,6 +563,14 @@ export function EmailList() {
                 disabled={page >= pagination.pages}
               >
                 Próxima
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(pagination.pages)}
+                disabled={page >= pagination.pages}
+              >
+                Última
               </Button>
             </div>
           </div>

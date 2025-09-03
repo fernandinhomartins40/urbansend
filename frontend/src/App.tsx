@@ -21,6 +21,8 @@ const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login }
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail').then(m => ({ default: m.VerifyEmail })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
 const EmailList = lazy(() => import('./pages/EmailList').then(m => ({ default: m.EmailList })));
+const EmailDetails = lazy(() => import('./pages/EmailDetails').then(m => ({ default: m.EmailDetails })));
+const SendEmail = lazy(() => import('./pages/SendEmail').then(m => ({ default: m.SendEmail })));
 const ApiKeys = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m.ApiKeys })));
 const Templates = lazy(() => import('./pages/Templates').then(m => ({ default: m.Templates })));
 const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Domains })));
@@ -119,6 +121,22 @@ function AppRoutes() {
                   element={
                     <Suspense fallback={<LoadingSpinner />}>
                       <EmailList />
+                    </Suspense>
+                  } 
+                />
+                <Route 
+                  path="emails/send" 
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SendEmail />
+                    </Suspense>
+                  } 
+                />
+                <Route 
+                  path="emails/:id" 
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <EmailDetails />
                     </Suspense>
                   } 
                 />
