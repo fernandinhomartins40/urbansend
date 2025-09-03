@@ -169,8 +169,16 @@ export class DKIMManager {
         // Primeiro, garantir que o domínio existe na tabela domains
         await this.ensureDomainExists(standardDomain);
         
-        logger.info('Generating DKIM keys for primary domain', { domain: standardDomain });
-        await this.generateDKIMKeys(standardDomain);
+        // Carregar chaves DKIM dos arquivos estáticos ao invés de gerar
+        try {
+          await this.loadDKIMKeysFromFiles(standardDomain);
+          logger.info('DKIM keys loaded from files for primary domain', { domain: standardDomain });
+        } catch (error) {
+          logger.warn('Failed to load DKIM keys from files, skipping configuration', { 
+            domain: standardDomain, 
+            error: error.message 
+          });
+        }
       } else {
         logger.info('DKIM configuration already exists for domain', { domain: standardDomain });
       }
@@ -178,6 +186,53 @@ export class DKIMManager {
       logger.error('Failed to ensure default DKIM', { error });
       // Não relançar o erro para não impedir a inicialização do sistema
     }
+  }
+
+  private async loadDKIMKeysFromFiles(domain: string): Promise<void> {
+    const fs = require('fs');
+    const path = require('path');
+
+    // Definir paths dos arquivos DKIM
+    const keyFileName = `${domain}-default-private.pem`;
+    const publicFileName = `${domain}-default-public.txt`;
+    
+    const keyPath = path.resolve('configs/dkim-keys', keyFileName);
+    const publicPath = path.resolve('configs/dkim-keys', publicFileName);
+
+    // Verificar se os arquivos existem
+    if (!fs.existsSync(keyPath) || !fs.existsSync(publicPath)) {
+      throw new Error(`DKIM files not found for domain ${domain}: ${keyPath} or ${publicPath}`);
+    }
+
+    // Ler as chaves dos arquivos
+    const privateKey = fs.readFileSync(keyPath, 'utf8');
+    const publicKeyData = fs.readFileSync(publicPath, 'utf8').trim();
+
+    // Obter domain_id
+    const domainRecord = await db('domains').where('domain', domain).first();
+    if (!domainRecord) {
+      throw new Error(`Domain ${domain} not found in database`);
+    }
+
+    // Salvar no banco de dados
+    await db('dkim_keys').insert({
+      domain_id: domainRecord.id,
+      selector: 'default',
+      private_key: privateKey,
+      public_key: publicKeyData,
+      algorithm: 'rsa-sha256',
+      canonicalization: 'relaxed/relaxed',
+      key_size: 2048,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+
+    logger.info('DKIM keys loaded from files and saved to database', {
+      domain,
+      keyPath,
+      publicKeyLength: publicKeyData.length
+    });
   }
 
   public async generateDKIMKeys(

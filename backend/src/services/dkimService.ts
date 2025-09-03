@@ -38,35 +38,27 @@ class DKIMService {
   }
 
   private getOrCreatePrivateKey(): string {
+    // Primeiro, tentar ler chave da variável de ambiente
     let privateKey = Env.get('DKIM_PRIVATE_KEY');
     
     if (!privateKey) {
-      // Gerar chave privada RSA para DKIM
-      const keyPair = crypto.generateKeyPairSync('rsa', {
-        modulusLength: 1024, // DKIM usa 1024 bits normalmente
-        publicKeyEncoding: {
-          type: 'spki',
-          format: 'pem'
-        },
-        privateKeyEncoding: {
-          type: 'pkcs8',
-          format: 'pem'
+      // Segundo, tentar ler do arquivo configurado
+      const keyPath = Env.get('DKIM_PRIVATE_KEY_PATH');
+      if (keyPath) {
+        try {
+          const fs = require('fs');
+          const path = require('path');
+          const fullPath = path.resolve(keyPath);
+          privateKey = fs.readFileSync(fullPath, 'utf8');
+          logger.info('DKIM private key loaded from file', { keyPath: fullPath });
+        } catch (error) {
+          logger.warn('Failed to load DKIM private key from file', { keyPath, error: error.message });
         }
-      });
+      }
+    }
 
-      privateKey = keyPair.privateKey;
-      
-      logger.info('Generated new DKIM key pair', {
-        selector: this.options.selector,
-        domain: this.options.domain,
-        publicKey: keyPair.publicKey.replace(/\n/g, '').replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----/g, '')
-      });
-
-      // Salvar a chave pública para configuração DNS
-      logger.info('DKIM DNS TXT Record needed:', {
-        record: `${this.options.selector}._domainkey.${this.options.domain}`,
-        value: `v=DKIM1; k=rsa; p=${keyPair.publicKey.replace(/\n/g, '').replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----/g, '')}`
-      });
+    if (!privateKey) {
+      throw new Error('DKIM private key not found. Set DKIM_PRIVATE_KEY or DKIM_PRIVATE_KEY_PATH environment variable.');
     }
 
     return privateKey;
