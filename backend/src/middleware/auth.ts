@@ -169,8 +169,7 @@ export const authenticateApiKey = async (
     req.user = {
       id: apiKey.user_id,
       email: apiKey.email,
-      name: apiKey.name,
-      plan_type: apiKey.plan_type
+      name: apiKey.name
     };
 
     req.apiKey = {
