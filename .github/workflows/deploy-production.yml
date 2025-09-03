@@ -174,18 +174,16 @@ jobs:
           chmod 600 ultrazend.private 2>/dev/null || true
           
           # Basic DKIM configuration
-          cat > /etc/opendkim.conf << 'DKIMEOF'
-Syslog yes
-SyslogSuccess yes
-Canonicalization relaxed/simple
-Mode sv
-SubDomains yes
-Socket inet:8891@localhost
-PidFile /var/run/opendkim/opendkim.pid
-UMask 022
-UserID opendkim:opendkim
-TemporaryDirectory /var/tmp
-DKIMEOF
+          echo 'Syslog yes' > /etc/opendkim.conf
+          echo 'SyslogSuccess yes' >> /etc/opendkim.conf
+          echo 'Canonicalization relaxed/simple' >> /etc/opendkim.conf
+          echo 'Mode sv' >> /etc/opendkim.conf
+          echo 'SubDomains yes' >> /etc/opendkim.conf
+          echo 'Socket inet:8891@localhost' >> /etc/opendkim.conf
+          echo 'PidFile /var/run/opendkim/opendkim.pid' >> /etc/opendkim.conf
+          echo 'UMask 022' >> /etc/opendkim.conf
+          echo 'UserID opendkim:opendkim' >> /etc/opendkim.conf
+          echo 'TemporaryDirectory /var/tmp' >> /etc/opendkim.conf
 
           # Configure DKIM milter in Postfix
           postconf -e \"milter_protocol=2\"
