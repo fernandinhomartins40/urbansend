@@ -39,6 +39,13 @@ export const api = axios.create({
 // Request interceptor for API keys (cookies handled automatically)
 api.interceptors.request.use(
   (config) => {
+    // Debug logging
+    console.log('🔍 API Request:', config.method?.toUpperCase(), config.url, {
+      baseURL: config.baseURL,
+      withCredentials: config.withCredentials,
+      headers: config.headers
+    })
+    
     // Only add API key header if explicitly needed (for programmatic API access)
     const apiKey = localStorage.getItem('api_key')
     if (apiKey && config.headers['x-api-key-override']) {
@@ -49,6 +56,7 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
+    console.error('❌ Request interceptor error:', error)
     return Promise.reject(error)
   }
 )
@@ -56,11 +64,24 @@ api.interceptors.request.use(
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => {
+    // Debug logging for successful responses
+    console.log('✅ API Response:', response.config.method?.toUpperCase(), response.config.url, {
+      status: response.status,
+      data: response.data
+    })
+    
     // Reset session expired toast system on successful responses
     resetSessionExpiredToast()
     return response
   },
   async (error) => {
+    // Debug logging for error responses
+    console.error('❌ API Error:', error.config?.method?.toUpperCase(), error.config?.url, {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    })
     if (error.response?.status === 401 && !error.config._retry) {
       // Mark this request as a retry to prevent infinite loops
       error.config._retry = true;

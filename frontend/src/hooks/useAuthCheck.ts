@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/lib/store'
 
 /**
@@ -6,32 +7,42 @@ import { useAuthStore } from '@/lib/store'
  */
 export const useAuthCheck = () => {
   const { isAuthenticated, checkAuthStatus } = useAuthStore()
+  const location = useLocation()
+
+  // Don't check auth status on login/public pages
+  const isPublicPage = ['/login', '/admin/login', '/', '/verify-email', '/forgot-password'].includes(location.pathname)
 
   useEffect(() => {
-    // Check auth status immediately if user is supposed to be authenticated
-    if (isAuthenticated) {
-      checkAuthStatus()
-    }
-
-    // Set up periodic auth check every 5 minutes
-    const interval = setInterval(() => {
-      if (isAuthenticated) {
+    // Only check auth status if user is authenticated and not on a public page
+    if (isAuthenticated && !isPublicPage) {
+      // Add a small delay to avoid conflicts with initial page load
+      const timeoutId = setTimeout(() => {
         checkAuthStatus()
-      }
+      }, 1000)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isAuthenticated, checkAuthStatus, isPublicPage])
+
+  useEffect(() => {
+    // Set up periodic auth check every 5 minutes, but only for authenticated users on protected pages
+    if (!isAuthenticated || isPublicPage) return
+
+    const interval = setInterval(() => {
+      checkAuthStatus()
     }, 5 * 60 * 1000) // 5 minutes
 
     return () => clearInterval(interval)
-  }, [isAuthenticated, checkAuthStatus])
+  }, [isAuthenticated, checkAuthStatus, isPublicPage])
 
   // Also check on window focus to catch expired sessions quickly
   useEffect(() => {
+    if (!isAuthenticated || isPublicPage) return
+
     const handleFocus = () => {
-      if (isAuthenticated) {
-        checkAuthStatus()
-      }
+      checkAuthStatus()
     }
 
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
-  }, [isAuthenticated, checkAuthStatus])
+  }, [isAuthenticated, checkAuthStatus, isPublicPage])
 }

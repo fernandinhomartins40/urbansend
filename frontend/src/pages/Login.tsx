@@ -98,7 +98,7 @@ export function Login() {
         throw new Error('Email e senha são obrigatórios')
       }
       const response = await authApi.login({ email: data.email, password: data.password })
-      const { user, tokens } = response.data
+      const { user } = response.data
       
       // Dismiss loading toast
       toast.dismiss(loadingToast)
