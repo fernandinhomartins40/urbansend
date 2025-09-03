@@ -857,42 +857,47 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
       `;
 
       // Usar DeliveryManager para enviar o email
-      const result = await this.deliveryManager.queueEmail({
+      const deliveryId = await this.deliveryManager.queueEmail({
         from: `noreply@ultrazend.com.br`,
         to: email,
         subject: '🚀 Confirme seu email - UltraZend',
-        html: htmlContent,
-        text: textContent,
+        body: htmlContent, // Interface usa 'body' não 'html'
         headers: {
           'X-Email-Type': 'verification',
-          'X-Priority': '1'
+          'X-Priority': '1',
+          'Content-Type': 'text/html; charset=UTF-8'
         },
         priority: 1 // Alta prioridade para emails de verificação
       });
 
+      const messageId = `<verification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@ultrazend.com.br>`;
+
       logger.info('Verification email queued successfully', { 
         email, 
-        messageId: result.messageId,
-        queueId: result.id 
+        messageId,
+        deliveryId 
       });
 
       return {
         success: true,
-        messageId: result.messageId,
-        queueId: result.id,
+        messageId,
+        deliveryId,
         message: 'Email de verificação enviado com sucesso'
       };
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       logger.error('Failed to send verification email', { 
-        error: error.message,
+        error: errorMessage,
         email,
-        stack: error.stack 
+        stack: errorStack 
       });
 
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
         message: 'Falha ao enviar email de verificação'
       };
     }
