@@ -55,13 +55,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // Hash password
   const passwordHash = await hashPassword(password);
 
-  // Generate verification token
+  // Generate verification token with 24h expiration
   const verificationToken = generateVerificationToken();
+  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
   logger.info('Generated verification token for new user', {
     email,
     tokenLength: verificationToken.length,
-    tokenPreview: verificationToken.substring(0, 8) + '...'
+    tokenPreview: verificationToken.substring(0, 8) + '...',
+    expiresAt: verificationExpires.toISOString()
   });
 
   // Create user
@@ -75,6 +77,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       email,
       password: passwordHash,
       email_verification_token: verificationToken,
+      email_verification_expires: verificationExpires,
       is_verified: false,
       created_at: new Date(),
       updated_at: new Date()
@@ -206,10 +209,33 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     .first();
   
   if (!user) {
-    logger.warn('Token not found or expired', { 
+    logger.warn('Token not found', { 
       tokenPreview: token.substring(0, 8) + '...' 
     });
     throw createError('Token inválido ou expirado', 400);
+  }
+
+  // NOVA VALIDAÇÃO: Verificar se o token expirou
+  const now = new Date();
+  const tokenExpires = user.email_verification_expires;
+  
+  if (tokenExpires && now > new Date(tokenExpires)) {
+    logger.warn('Token expired', { 
+      tokenPreview: token.substring(0, 8) + '...',
+      expiresAt: tokenExpires,
+      currentTime: now,
+      userId: user.id,
+      email: user.email
+    });
+    
+    // Limpar token expirado da base de dados
+    await db('users').where('id', user.id).update({
+      email_verification_token: null,
+      email_verification_expires: null,
+      updated_at: new Date()
+    });
+    
+    throw createError('Token de verificação expirado. Solicite um novo email de verificação.', 400);
   }
 
   // Verificação de segurança adicional
@@ -233,6 +259,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     await trx('users').where('id', user.id).update({
       is_verified: true,
       email_verification_token: null,
+      email_verification_expires: null,
       email_verified_at: new Date(),
       updated_at: new Date()
     });
@@ -535,20 +562,23 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
     }
   }
 
-  // Generate new verification token
+  // Generate new verification token with 24h expiration
   const verificationToken = generateVerificationToken();
+  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
   logger.info('Generated new verification token for resend', {
     userId: user.id,
     email,
     tokenLength: verificationToken.length,
     tokenPreview: verificationToken.substring(0, 8) + '...',
-    oldTokenPreview: user.email_verification_token ? user.email_verification_token.substring(0, 8) + '...' : 'null'
+    oldTokenPreview: user.email_verification_token ? user.email_verification_token.substring(0, 8) + '...' : 'null',
+    newExpiresAt: verificationExpires.toISOString()
   });
 
-  // Update user with new verification token
+  // Update user with new verification token and expiration
   await db('users').where('id', user.id).update({
     email_verification_token: verificationToken,
+    email_verification_expires: verificationExpires,
     updated_at: new Date()
   });
 
