@@ -6,6 +6,7 @@ import { SecurityManager, SecurityValidation } from './securityManager';
 import { RateLimiter } from './rateLimiter';
 import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';
+import { DeliveryManager } from './deliveryManager';
 
 export interface ProcessingResult {
   success: boolean;
@@ -33,6 +34,7 @@ export class EmailProcessor {
   private rateLimiter: RateLimiter;
   private reputationManager: ReputationManager;
   private dkimManager: DKIMManager;
+  private deliveryManager: DeliveryManager;
   private localDomains: Set<string>;
 
   constructor() {
@@ -40,6 +42,11 @@ export class EmailProcessor {
     this.rateLimiter = new RateLimiter();
     this.reputationManager = new ReputationManager();
     this.dkimManager = new DKIMManager();
+    this.deliveryManager = new DeliveryManager(
+      this.reputationManager,
+      this.dkimManager,
+      this.securityManager
+    );
     this.localDomains = new Set();
     
     this.initializeProcessor();
@@ -770,6 +777,124 @@ export class EmailProcessor {
     } catch (error) {
       // Tabela pode não existir
       return false;
+    }
+  }
+
+  // Método para enviar email de verificação
+  public async sendVerificationEmail(
+    email: string,
+    name: string,
+    verificationToken: string
+  ): Promise<any> {
+    try {
+      logger.info('Sending verification email', { email, name });
+
+      const baseUrl = Env.get('APP_BASE_URL', 'https://www.ultrazend.com.br');
+      const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+      
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Verificação de Email - UltraZend</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #333; font-size: 24px;">🚀 Bem-vindo ao UltraZend!</h1>
+          </div>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <p style="color: #333; font-size: 16px; margin: 0;">
+              Olá <strong>${name}</strong>,
+            </p>
+            <p style="color: #666; font-size: 14px; line-height: 1.5; margin: 15px 0;">
+              Obrigado por se registrar no UltraZend! Para ativar sua conta e começar a usar nossa plataforma de email marketing, 
+              clique no botão abaixo para verificar seu endereço de email.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationUrl}" 
+               style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+              ✅ Verificar Email
+            </a>
+          </div>
+
+          <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+            <p style="color: #666; font-size: 12px; margin: 0;">
+              Se você não conseguir clicar no botão, copie e cole este link em seu navegador:
+            </p>
+            <p style="color: #007bff; font-size: 12px; word-break: break-all; margin: 10px 0;">
+              ${verificationUrl}
+            </p>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <p style="color: #999; font-size: 11px; margin: 0;">
+              © ${new Date().getFullYear()} UltraZend - Plataforma de Email Marketing
+            </p>
+            <p style="color: #999; font-size: 11px; margin: 5px 0 0 0;">
+              Se você não se registrou no UltraZend, pode ignorar este email com segurança.
+            </p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const textContent = `
+Bem-vindo ao UltraZend!
+
+Olá ${name},
+
+Obrigado por se registrar no UltraZend! Para ativar sua conta, clique no link abaixo para verificar seu endereço de email:
+
+${verificationUrl}
+
+Se você não se registrou no UltraZend, pode ignorar este email com segurança.
+
+© ${new Date().getFullYear()} UltraZend - Plataforma de Email Marketing
+      `;
+
+      // Usar DeliveryManager para enviar o email
+      const result = await this.deliveryManager.queueEmail({
+        from: `noreply@ultrazend.com.br`,
+        to: email,
+        subject: '🚀 Confirme seu email - UltraZend',
+        html: htmlContent,
+        text: textContent,
+        headers: {
+          'X-Email-Type': 'verification',
+          'X-Priority': '1'
+        },
+        priority: 1 // Alta prioridade para emails de verificação
+      });
+
+      logger.info('Verification email queued successfully', { 
+        email, 
+        messageId: result.messageId,
+        queueId: result.id 
+      });
+
+      return {
+        success: true,
+        messageId: result.messageId,
+        queueId: result.id,
+        message: 'Email de verificação enviado com sucesso'
+      };
+
+    } catch (error) {
+      logger.error('Failed to send verification email', { 
+        error: error.message,
+        email,
+        stack: error.stack 
+      });
+
+      return {
+        success: false,
+        error: error.message,
+        message: 'Falha ao enviar email de verificação'
+      };
     }
   }
 
