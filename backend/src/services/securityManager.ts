@@ -145,20 +145,27 @@ export class SecurityManager {
         });
       }
 
-      // Tabela de logs de segurança
-      const hasSecurityLogs = await this.db.schema.hasTable('security_logs');
-      if (!hasSecurityLogs) {
-        await this.db.schema.createTable('security_logs', (table) => {
-          table.increments('id').primary();
-          table.string('event_type').notNullable();
-          table.string('severity').notNullable();
-          table.string('source_ip').nullable();
-          table.integer('user_id').nullable();
-          table.string('session_id').nullable();
-          table.text('details').nullable();
-          table.text('action_taken').nullable();
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-        });
+      // Tabela de logs de segurança (protegida contra condição de corrida)
+      try {
+        const hasSecurityLogs = await this.db.schema.hasTable('security_logs');
+        if (!hasSecurityLogs) {
+          await this.db.schema.createTable('security_logs', (table) => {
+            table.increments('id').primary();
+            table.string('event_type').notNullable();
+            table.string('severity').notNullable();
+            table.string('source_ip').nullable();
+            table.integer('user_id').nullable();
+            table.string('session_id').nullable();
+            table.text('details').nullable();
+            table.text('action_taken').nullable();
+            table.datetime('timestamp').defaultTo(this.db.fn.now());
+          });
+        }
+      } catch (error: any) {
+        // Ignorar erro se tabela já existe (condição de corrida entre instâncias)
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
       }
 
       // Índices para performance (criar sempre, ignorar erros se já existem)
