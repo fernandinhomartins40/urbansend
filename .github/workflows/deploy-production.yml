@@ -147,9 +147,13 @@ jobs:
         
         # Setup frontend in nginx
         echo '🌐 Setting up frontend...'
+        echo '🗑️ Removing old frontend files...'
+        rm -rf /var/www/ultrazend-static
         mkdir -p /var/www/ultrazend-static
+        echo '📁 Copying new frontend build...'
         cp -r frontend/dist/* /var/www/ultrazend-static/
         chown -R www-data:www-data /var/www/ultrazend-static
+        echo '✅ Frontend deployed - Size: $(du -sh /var/www/ultrazend-static/)'
         
         # Configure nginx
         if [ -f configs/nginx-http.conf ]; then
