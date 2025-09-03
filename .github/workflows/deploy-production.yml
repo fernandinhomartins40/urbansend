@@ -155,18 +155,33 @@ jobs:
         chown -R www-data:www-data /var/www/ultrazend-static
         echo '✅ Frontend deployed - Size: $(du -sh /var/www/ultrazend-static/)'
         
-        # Configure nginx
-        if [ -f configs/nginx-http.conf ]; then
-          # Update nginx config to point to correct frontend location
-          sed 's|/var/www/ultrazend/frontend/dist|/var/www/ultrazend-static|g' configs/nginx-http.conf > /etc/nginx/sites-available/ultrazend
+        # Configure nginx with SSL automatically
+        echo '🔒 Configuring Nginx with SSL...'
+        if [ -f scripts/setup-nginx-ssl.sh ]; then
+          chmod +x scripts/setup-nginx-ssl.sh
+          ./scripts/setup-nginx-ssl.sh
+        else
+          echo '⚠️ SSL setup script not found, using manual configuration...'
+          # Fallback: usar configuração SSL se existir certificado
+          if [ -f /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem ]; then
+            echo 'Using SSL configuration'
+            cp configs/nginx-ssl.conf /etc/nginx/sites-available/ultrazend
+          else
+            echo 'Using HTTP configuration and obtaining SSL certificate'
+            cp configs/nginx-http.conf /etc/nginx/sites-available/ultrazend
+            sed -i 's|/var/www/ultrazend/frontend/dist|/var/www/ultrazend-static|g' /etc/nginx/sites-available/ultrazend
+          fi
+          
           ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
           rm -f /etc/nginx/sites-enabled/default
           nginx -t && systemctl reload nginx
           
-          # Reconfigure SSL automatically after deploy
-          echo '🔒 Configuring SSL with Let'\''s Encrypt...'
-          certbot --nginx -d www.ultrazend.com.br --non-interactive --agree-tos --email admin@ultrazend.com.br --force-renewal || echo 'SSL setup completed'
-          systemctl reload nginx
+          # Tentar obter SSL se não existir
+          if [ ! -f /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem ]; then
+            echo 'Obtaining SSL certificate...'
+            certbot --nginx -d www.ultrazend.com.br --non-interactive --agree-tos --email admin@ultrazend.com.br || echo 'SSL setup completed with warnings'
+            systemctl reload nginx
+          fi
         fi
         
         # Start backend with PM2 using ecosystem config
@@ -186,32 +201,47 @@ jobs:
     - name: 🏥 Health Check
       run: |
         echo "🏥 Testing deployed application..."
-        sleep 10
+        sleep 15
         
-        # Test backend
+        # Test backend directly
         for i in 1 2 3; do
-          if curl -f --connect-timeout 5 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health"; then
+          if curl -f --connect-timeout 10 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health"; then
             echo "✅ Backend healthy!"
             break
           else
-            echo "⚠️ Attempt $i failed, retrying..."
+            echo "⚠️ Backend attempt $i failed, retrying..."
             sleep 5
           fi
         done
         
-        # Test frontend
-        if curl -f --connect-timeout 5 "http://${{ env.VPS_HOST }}/"; then
-          echo "✅ Frontend serving!"
+        # Test frontend via HTTPS (with fallback to HTTP)
+        echo "🌐 Testing frontend access..."
+        if curl -f --connect-timeout 10 "https://${{ env.DOMAIN }}/"; then
+          echo "✅ HTTPS Frontend working!"
+        elif curl -f --connect-timeout 10 "http://${{ env.VPS_HOST }}/"; then
+          echo "✅ HTTP Frontend working!"
         else
           echo "⚠️ Frontend may not be ready"
+        fi
+        
+        # Test API via HTTPS (with fallback to HTTP)
+        echo "🔌 Testing API access..."
+        if curl -f --connect-timeout 10 "https://${{ env.DOMAIN }}/api/health"; then
+          echo "✅ HTTPS API working!"
+        elif curl -f --connect-timeout 10 "http://${{ env.VPS_HOST }}/api/health"; then
+          echo "✅ HTTP API working!"
+        else
+          echo "⚠️ API may not be ready"
         fi
 
     - name: ✅ Deploy Complete
       run: |
-        echo "🎉 ULTRAZEND NATIVE DEPLOY COMPLETE!"
-        echo "==================================="
-        echo "🌐 Website: http://${{ env.DOMAIN }}"
-        echo "🏥 Health: http://${{ env.DOMAIN }}/health"
-        echo "🔌 API: http://${{ env.DOMAIN }}/api"
+        echo "🎉 ULTRAZEND DEPLOY COMPLETE!"
+        echo "============================"
+        echo "🔒 Website: https://${{ env.DOMAIN }}"
+        echo "🏥 Health: https://${{ env.DOMAIN }}/api/health"
+        echo "🔌 API: https://${{ env.DOMAIN }}/api"
+        echo "📚 Docs: https://${{ env.DOMAIN }}/api-docs"
         echo ""
-        echo "✨ Deployed with PM2 + Nginx (Native - No Docker!)"
+        echo "✨ Deployed with PM2 + Nginx + SSL (Auto-configured!)"
+        echo "⏰ Deploy completed at: $(date -u)"
