@@ -147,25 +147,41 @@ async function checkSMTPHealth(): Promise<HealthCheck> {
 async function checkDKIMHealth(): Promise<HealthCheck> {
   const start = Date.now();
   try {
+    // Import both DKIM services
     const { default: DKIMService } = await import('../services/dkimService');
+    const { DKIMManager } = await import('../services/dkimManager');
+    
     const dkimService = new DKIMService();
+    const dkimManager = new DKIMManager();
     
     // Test DKIM key generation and signing
     const dnsRecord = dkimService.getDNSRecord();
     const publicKey = dkimService.getDKIMPublicKey();
     
+    // Test DKIMManager configuration
+    const dkimDomains = await dkimManager.listDKIMDomains();
+    const dkimStats = await dkimManager.getDKIMStats();
+    
     const responseTime = Date.now() - start;
+    
+    const isHealthy = publicKey.length > 200 && dkimDomains.length > 0;
     
     return {
       service: 'dkim',
-      status: publicKey.length > 200 ? 'healthy' : 'warning',
-      message: `DKIM service ready in ${responseTime}ms`,
+      status: isHealthy ? 'healthy' : 'warning',
+      message: `DKIM service ready in ${responseTime}ms - ${dkimDomains.length} domain(s) configured`,
       responseTime,
       details: {
         selector: Env.get('DKIM_SELECTOR', 'default'),
-        domain: Env.get('DKIM_DOMAIN', 'localhost'),
+        domain: Env.get('DKIM_DOMAIN', 'ultrazend.com.br'),
         keyLength: publicKey.length,
-        dnsRecord: dnsRecord.name
+        dnsRecord: dnsRecord.name,
+        configuredDomains: dkimDomains,
+        statistics: {
+          totalConfigs: dkimStats.configurations.total,
+          activeConfigs: dkimStats.configurations.active,
+          signaturesLast24h: dkimStats.signatures.last_24h
+        }
       }
     };
   } catch (error) {
@@ -173,7 +189,11 @@ async function checkDKIMHealth(): Promise<HealthCheck> {
       service: 'dkim',
       status: 'critical',
       message: `DKIM service failed: ${(error as Error).message}`,
-      responseTime: Date.now() - start
+      responseTime: Date.now() - start,
+      details: {
+        error: (error as Error).message,
+        stack: (error as Error).stack?.split('\n').slice(0, 3).join('\n')
+      }
     };
   }
 }
@@ -508,6 +528,183 @@ router.get('/metrics', performanceReportMiddleware);
  *                   type: string
  *                   example: "18.17.0"
  */
+/**
+ * @swagger
+ * /api/health/dkim:
+ *   get:
+ *     summary: DKIM health check and diagnostics
+ *     description: Returns detailed DKIM configuration and health information
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: DKIM health information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   enum: [healthy, warning, critical]
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 configuration:
+ *                   type: object
+ *                 diagnostics:
+ *                   type: object
+ *       500:
+ *         description: DKIM health check failed
+ */
+router.get('/dkim', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  
+  try {
+    logger.info('DKIM health check requested', {
+      userAgent: req.get('User-Agent'),
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    // Import DKIM services
+    const { default: DKIMService } = await import('../services/dkimService');
+    const { DKIMManager } = await import('../services/dkimManager');
+    
+    const dkimService = new DKIMService();
+    const dkimManager = new DKIMManager();
+
+    // Run DKIM diagnostics
+    const [dnsRecord, publicKey, domains, stats] = await Promise.allSettled([
+      Promise.resolve(dkimService.getDNSRecord()),
+      Promise.resolve(dkimService.getDKIMPublicKey()),
+      dkimManager.listDKIMDomains(),
+      dkimManager.getDKIMStats()
+    ]);
+
+    // Export DNS records for all configured domains
+    const dnsRecords = await dkimManager.exportDNSRecords();
+
+    const configuration = {
+      selector: Env.get('DKIM_SELECTOR', 'default'),
+      domain: Env.get('DKIM_DOMAIN', 'ultrazend.com.br'),
+      hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br'),
+      algorithm: 'rsa-sha256',
+      canonicalization: 'relaxed/relaxed',
+      keySize: 2048,
+      publicKeyLength: publicKey.status === 'fulfilled' ? publicKey.value.length : 0,
+      dnsRecord: dnsRecord.status === 'fulfilled' ? dnsRecord.value : null,
+      allDnsRecords: dnsRecords.split('\n').filter(r => r.trim()),
+      configuredDomains: domains.status === 'fulfilled' ? domains.value : [],
+      statistics: stats.status === 'fulfilled' ? stats.value : null
+    };
+
+    // Run database diagnostics
+    const dbDomains = await db('domains').select('*').limit(10);
+    const dbDkimKeys = await db('dkim_keys').select('*').limit(10);
+    const recentSignatures = await db('dkim_signature_logs')
+      .select('*')
+      .where('signed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+      .orderBy('signed_at', 'desc')
+      .limit(10);
+
+    const diagnostics = {
+      database: {
+        domainsCount: dbDomains.length,
+        dkimKeysCount: dbDkimKeys.length,
+        recentSignaturesCount: recentSignatures.length,
+        domains: dbDomains.map(d => ({
+          id: d.id,
+          domain: d.domain,
+          isVerified: d.is_verified,
+          dkimEnabled: d.dkim_enabled,
+          createdAt: d.created_at
+        })),
+        dkimKeys: dbDkimKeys.map(k => ({
+          id: k.id,
+          domain: k.domain,
+          selector: k.selector,
+          algorithm: k.algorithm,
+          keySize: k.key_size,
+          isActive: k.is_active,
+          createdAt: k.created_at
+        }))
+      },
+      environment: {
+        nodeEnv: process.env.NODE_ENV,
+        smtpHostname: Env.get('SMTP_HOSTNAME', 'not-set'),
+        dkimDomain: Env.get('DKIM_DOMAIN', 'not-set'),
+        dkimSelector: Env.get('DKIM_SELECTOR', 'not-set'),
+        dkimPrivateKeySet: !!Env.get('DKIM_PRIVATE_KEY')
+      },
+      issues: [] as string[]
+    };
+
+    // Identify potential issues
+    if (configuration.configuredDomains.length === 0) {
+      diagnostics.issues.push('No DKIM domains configured');
+    }
+    
+    if (configuration.publicKeyLength < 200) {
+      diagnostics.issues.push('DKIM public key appears to be invalid or too short');
+    }
+    
+    if (diagnostics.database.dkimKeysCount === 0) {
+      diagnostics.issues.push('No DKIM keys found in database');
+    }
+    
+    if (!diagnostics.environment.dkimDomain.includes('ultrazend.com.br')) {
+      diagnostics.issues.push('DKIM domain should be set to ultrazend.com.br');
+    }
+
+    // Determine overall DKIM health
+    let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+    if (diagnostics.issues.length > 2) {
+      status = 'critical';
+    } else if (diagnostics.issues.length > 0) {
+      status = 'warning';
+    }
+
+    const responseTime = Date.now() - startTime;
+    
+    const response = {
+      status,
+      timestamp: new Date().toISOString(),
+      responseTime,
+      configuration,
+      diagnostics
+    };
+
+    logger.info('DKIM health check completed', {
+      status,
+      responseTime,
+      configuredDomains: configuration.configuredDomains.length,
+      issues: diagnostics.issues.length
+    });
+
+    res.json(response);
+
+  } catch (error) {
+    logger.error('DKIM health check failed', {
+      error: (error as Error).message,
+      stack: (error as Error).stack
+    });
+
+    const errorResponse = {
+      status: 'critical',
+      timestamp: new Date().toISOString(),
+      responseTime: Date.now() - startTime,
+      error: (error as Error).message,
+      configuration: {
+        selector: Env.get('DKIM_SELECTOR', 'default'),
+        domain: Env.get('DKIM_DOMAIN', 'ultrazend.com.br'),
+        hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br')
+      }
+    };
+
+    res.status(500).json(errorResponse);
+  }
+});
+
 router.get('/version', (req: Request, res: Response) => {
   try {
     const versionInfo = {

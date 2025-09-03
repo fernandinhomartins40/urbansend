@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import fs from 'fs/promises';
@@ -37,15 +38,33 @@ export class DKIMManager {
 
   private async initializeDKIM() {
     try {
+      logger.info('Starting DKIM Manager initialization', {
+        timestamp: new Date().toISOString()
+      });
+      
+      // Aguardar um momento para garantir que outras tabelas foram criadas
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       await this.createDKIMTables();
       await this.loadDKIMConfigs();
+      
+      // Aguardar mais um momento antes de tentar criar domínio/chaves
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       await this.ensureDefaultDKIM();
       
       logger.info('DKIMManager initialized successfully', {
-        configuredDomains: this.dkimConfigs.size
+        configuredDomains: this.dkimConfigs.size,
+        timestamp: new Date().toISOString()
       });
-    } catch (error) {
-      logger.error('Failed to initialize DKIMManager', { error });
+    } catch (error: any) {
+      logger.error('Failed to initialize DKIMManager', { 
+        error: error.message,
+        code: error.code,
+        errno: error.errno,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n')
+      });
+      // Não relançar o erro para não impedir a inicialização do sistema
     }
   }
 
@@ -102,8 +121,9 @@ export class DKIMManager {
   private async loadDKIMConfigs() {
     try {
       const configs = await db('dkim_keys')
-        .where('is_active', true)
-        .select('*');
+        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .where('dkim_keys.is_active', true)
+        .select('dkim_keys.*', 'domains.domain');
 
       configs.forEach(config => {
         const dkimConfig: DKIMConfig = {
@@ -120,20 +140,43 @@ export class DKIMManager {
       });
 
       logger.info('DKIM configurations loaded', {
-        domains: this.dkimConfigs.size
+        domains: this.dkimConfigs.size,
+        configuredDomains: Array.from(this.dkimConfigs.keys())
       });
-    } catch (error) {
-      logger.error('Failed to load DKIM configurations', { error });
+    } catch (error: any) {
+      logger.error('Failed to load DKIM configurations', { 
+        error: error.message,
+        code: error.code
+      });
     }
   }
 
   private async ensureDefaultDKIM() {
-    const primaryDomain = Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br');
-    const baseDomain = primaryDomain.replace(/^mail\./, '');
+    try {
+      const primaryDomain = Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br');
+      const baseDomain = primaryDomain.replace(/^mail\./, '').replace(/^www\./, '');
+      
+      // Padronizar para ultrazend.com.br sem www
+      const standardDomain = 'ultrazend.com.br';
+      
+      logger.info('Ensuring default DKIM for domain', { 
+        primaryDomain, 
+        baseDomain, 
+        standardDomain 
+      });
 
-    if (!this.dkimConfigs.has(baseDomain)) {
-      logger.info('Generating DKIM keys for primary domain', { domain: baseDomain });
-      await this.generateDKIMKeys(baseDomain);
+      if (!this.dkimConfigs.has(standardDomain)) {
+        // Primeiro, garantir que o domínio existe na tabela domains
+        await this.ensureDomainExists(standardDomain);
+        
+        logger.info('Generating DKIM keys for primary domain', { domain: standardDomain });
+        await this.generateDKIMKeys(standardDomain);
+      } else {
+        logger.info('DKIM configuration already exists for domain', { domain: standardDomain });
+      }
+    } catch (error) {
+      logger.error('Failed to ensure default DKIM', { error });
+      // Não relançar o erro para não impedir a inicialização do sistema
     }
   }
 
@@ -143,9 +186,13 @@ export class DKIMManager {
     keySize: 1024 | 2048 | 4096 = 2048
   ): Promise<{ privateKey: string; publicKey: string; dnsRecord: string }> {
     try {
-      logger.info('Generating DKIM key pair', { domain, selector, keySize });
+      logger.info('Starting DKIM key generation', { domain, selector, keySize });
 
-      // Gerar par de chaves RSA
+      // PASSO 1: Verificar se o domínio existe na tabela domains
+      await this.ensureDomainExists(domain);
+
+      // PASSO 2: Gerar par de chaves RSA
+      logger.debug('Generating RSA key pair', { keySize });
       const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
         modulusLength: keySize,
         publicKeyEncoding: {
@@ -158,28 +205,74 @@ export class DKIMManager {
         }
       });
 
-      // Extrair chave pública para formato DKIM
+      // PASSO 3: Extrair chave pública para formato DKIM
       const publicKeyData = this.extractPublicKeyData(publicKey);
+      logger.debug('Public key extracted', { 
+        publicKeyLength: publicKeyData.length,
+        publicKeyPreview: publicKeyData.substring(0, 50) + '...'
+      });
 
-      // Criar registro DNS
+      // PASSO 4: Criar registro DNS
       const dnsRecord = this.generateDNSRecord(publicKeyData, keySize);
 
-      // Salvar configuração no banco
-      await db('dkim_keys')
-        .insert({
-          domain,
-          selector,
-          private_key: privateKey,
-          public_key: publicKeyData,
-          algorithm: this.defaultAlgorithm,
-          canonicalization: this.defaultCanonical,
-          key_size: keySize,
-          is_active: true
-        })
-        .onConflict(['domain', 'selector'])
-        .merge();
+      // PASSO 5: Obter domain_id do domínio criado
+      const domainRecord = await db('domains')
+        .where('domain', domain)
+        .first();
+      
+      if (!domainRecord) {
+        throw new Error(`Domain ${domain} was not found after creation`);
+      }
+      
+      const domainId = domainRecord.id;
+      logger.debug('Found domain record for DKIM keys', { domain, domainId });
+      
+      // PASSO 6: Salvar configuração no banco com retry logic
+      const maxRetries = 3;
+      let attempt = 0;
+      let insertSuccess = false;
+      
+      while (attempt < maxRetries && !insertSuccess) {
+        try {
+          attempt++;
+          logger.debug('Attempting to save DKIM keys to database', { attempt, maxRetries, domainId });
+          
+          await db('dkim_keys')
+            .insert({
+              domain_id: domainId,
+              selector,
+              private_key: privateKey,
+              public_key: publicKeyData,
+              algorithm: this.defaultAlgorithm,
+              canonicalization: this.defaultCanonical,
+              key_size: keySize,
+              is_active: true
+            })
+            .onConflict(['domain_id', 'selector'])
+            .merge();
+          
+          insertSuccess = true;
+          logger.debug('DKIM keys saved to database successfully');
+        } catch (dbError: any) {
+          logger.error('Database insertion attempt failed', { 
+            attempt, 
+            maxRetries, 
+            error: dbError.message,
+            code: dbError.code,
+            errno: dbError.errno,
+            domainId 
+          });
+          
+          if (attempt === maxRetries) {
+            throw new Error(`Failed to save DKIM keys after ${maxRetries} attempts: ${dbError.message}`);
+          }
+          
+          // Aguardar um pouco antes da próxima tentativa
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
 
-      // Atualizar cache
+      // PASSO 6: Atualizar cache
       const config: DKIMConfig = {
         domain,
         selector,
@@ -191,15 +284,18 @@ export class DKIMManager {
       };
 
       this.dkimConfigs.set(domain, config);
+      logger.debug('DKIM configuration cached', { domain });
 
-      // Salvar chaves em arquivos para backup
+      // PASSO 7: Salvar chaves em arquivos para backup
       await this.saveKeysToFiles(domain, selector, privateKey, publicKeyData);
 
       logger.info('DKIM keys generated successfully', { 
         domain, 
         selector,
         keySize,
-        dnsRecord: dnsRecord.substring(0, 100) + '...'
+        dnsRecord: dnsRecord.substring(0, 100) + '...',
+        publicKeyPreview: publicKeyData.substring(0, 50) + '...',
+        cacheSize: this.dkimConfigs.size
       });
 
       return {
@@ -208,8 +304,14 @@ export class DKIMManager {
         dnsRecord
       };
 
-    } catch (error) {
-      logger.error('Failed to generate DKIM keys', { error, domain, selector });
+    } catch (error: any) {
+      logger.error('Failed to generate DKIM keys', { 
+        error: error.message, 
+        stack: error.stack,
+        domain, 
+        selector,
+        keySize 
+      });
       throw error;
     }
   }
@@ -480,6 +582,135 @@ export class DKIMManager {
     return `-----BEGIN PUBLIC KEY-----\n${publicKeyData.match(/.{1,64}/g)?.join('\n')}\n-----END PUBLIC KEY-----`;
   }
 
+  /**
+   * Garante que o domínio existe na tabela domains antes de tentar criar chaves DKIM
+   */
+  private async ensureDomainExists(domain: string): Promise<void> {
+    try {
+      logger.debug('Checking if domain exists in database', { domain });
+      
+      // Primeiro, verificar se as tabelas necessárias existem
+      const hasUsersTable = await db.schema.hasTable('users');
+      const hasDomainsTable = await db.schema.hasTable('domains');
+      
+      if (!hasUsersTable || !hasDomainsTable) {
+        logger.error('Required tables do not exist', { 
+          hasUsersTable, 
+          hasDomainsTable 
+        });
+        throw new Error('Required database tables (users, domains) do not exist');
+      }
+      
+      // Verificar se o domínio já existe
+      const existingDomain = await db('domains')
+        .where('domain', domain)
+        .first();
+      
+      if (existingDomain) {
+        logger.debug('Domain already exists in database', { 
+          domain, 
+          domainId: existingDomain.id,
+          isVerified: existingDomain.is_verified
+        });
+        return;
+      }
+      
+      logger.info('Domain does not exist, creating domain record', { domain });
+      
+      // Verificar se existe pelo menos um usuário para associar o domínio
+      let systemUser = await db('users')
+        .where('email', 'like', '%system%')
+        .orWhere('email', 'like', '%admin%')
+        .first();
+      
+      // Se não encontrou usuário sistema, pegar o primeiro usuário disponível
+      if (!systemUser) {
+        systemUser = await db('users')
+          .orderBy('id', 'asc')
+          .first();
+      }
+      
+      // Se ainda não há usuários, criar um usuário sistema
+      if (!systemUser) {
+        logger.warn('No users found, creating default system user');
+        
+        const systemUserData = {
+          name: 'System',
+          email: 'system@ultrazend.com.br',
+          password: await bcrypt.hash('system-generated-password-' + Date.now(), 12),
+          is_admin: true,
+          email_verified: true,
+          plan_type: 'system',
+          created_at: new Date(),
+          updated_at: new Date()
+        };
+        
+        try {
+          const result = await db('users')
+            .insert(systemUserData)
+            .returning('id');
+          
+          const systemUserId = Array.isArray(result) ? result[0] : result;
+          logger.info('System user created', { systemUserId });
+          systemUser = { id: systemUserId, ...systemUserData };
+        } catch (userError: any) {
+          logger.error('Failed to create system user', { 
+            error: userError.message,
+            code: userError.code
+          });
+          throw userError;
+        }
+      }
+      
+      const userId = systemUser.id;
+      
+      // Criar registro do domínio
+      const domainData = {
+        user_id: userId,
+        domain,
+        is_verified: true, // Assumir como verificado para domínio principal
+        verification_method: 'manual',
+        dkim_enabled: true,
+        spf_enabled: true,
+        dmarc_enabled: false,
+        verified_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date()
+      };
+      
+      try {
+        const result = await db('domains')
+          .insert(domainData)
+          .returning('id');
+        
+        const domainId = Array.isArray(result) ? result[0] : result;
+        
+        logger.info('Domain created successfully', { 
+          domain, 
+          domainId, 
+          userId 
+        });
+      } catch (domainError: any) {
+        logger.error('Failed to create domain record', { 
+          error: domainError.message,
+          code: domainError.code,
+          errno: domainError.errno
+        });
+        throw domainError;
+      }
+      
+    } catch (error: any) {
+      logger.error('Failed to ensure domain exists', { 
+        error: error.message,
+        code: error.code,
+        errno: error.errno,
+        stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+        domain 
+      });
+      throw error;
+    }
+  }
+
   // Métodos de gerenciamento público
   public async getDKIMConfig(domain: string): Promise<DKIMConfig | null> {
     return this.dkimConfigs.get(domain) || null;
@@ -495,9 +726,18 @@ export class DKIMManager {
     keySize?: 1024 | 2048 | 4096
   ): Promise<string> {
     try {
+      // Obter domain_id
+      const domainRecord = await db('domains')
+        .where('domain', domain)
+        .first();
+      
+      if (!domainRecord) {
+        throw new Error(`Domain ${domain} not found`);
+      }
+      
       // Desativar configuração atual
       await db('dkim_keys')
-        .where('domain', domain)
+        .where('domain_id', domainRecord.id)
         .update({ is_active: false });
 
       // Gerar novas chaves com novo seletor
@@ -507,8 +747,12 @@ export class DKIMManager {
       logger.info('DKIM keys rotated successfully', { domain, selector });
 
       return result.dnsRecord;
-    } catch (error) {
-      logger.error('Failed to rotate DKIM keys', { error, domain });
+    } catch (error: any) {
+      logger.error('Failed to rotate DKIM keys', { 
+        error: error.message,
+        code: error.code,
+        domain 
+      });
       throw error;
     }
   }
@@ -546,8 +790,11 @@ export class DKIMManager {
         },
         timestamp: new Date().toISOString()
       };
-    } catch (error) {
-      logger.error('Failed to get DKIM stats', { error });
+    } catch (error: any) {
+      logger.error('Failed to get DKIM stats', { 
+        error: error.message,
+        code: error.code 
+      });
       return {
         configurations: { total: 0, active: 0 },
         signatures: { last_24h: 0, by_domain: [] },
@@ -559,8 +806,9 @@ export class DKIMManager {
   public async exportDNSRecords(): Promise<string> {
     try {
       const configs = await db('dkim_keys')
-        .where('is_active', true)
-        .select('domain', 'selector', 'public_key', 'key_size');
+        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .where('dkim_keys.is_active', true)
+        .select('domains.domain', 'dkim_keys.selector', 'dkim_keys.public_key', 'dkim_keys.key_size');
 
       const dnsRecords = configs.map(config => {
         const dnsRecord = this.generateDNSRecord(config.public_key, config.key_size);
@@ -570,8 +818,11 @@ export class DKIMManager {
       logger.info('DNS records exported', { domains: configs.length });
 
       return dnsRecords;
-    } catch (error) {
-      logger.error('Failed to export DNS records', { error });
+    } catch (error: any) {
+      logger.error('Failed to export DNS records', { 
+        error: error.message,
+        code: error.code
+      });
       return '';
     }
   }
