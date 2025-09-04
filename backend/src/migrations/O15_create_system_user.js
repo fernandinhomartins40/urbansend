@@ -10,13 +10,12 @@ exports.up = async function(knex) {
   const systemPassword = crypto.randomBytes(32).toString('hex');
   const hashedPassword = await bcrypt.hash(systemPassword, 12);
   
-  // Create the system user
+  // Create the system user (CORRIGIDO: usar is_verified)
   await knex('users').insert({
     name: 'System Administrator',
     email: 'system@ultrazend.local',
     password: hashedPassword,
-    email_verified: true,
-    email_verified_at: knex.fn.now(),
+    is_verified: true, // CORRIGIDO: era email_verified, agora is_verified
     created_at: knex.fn.now(),
     updated_at: knex.fn.now()
   });
