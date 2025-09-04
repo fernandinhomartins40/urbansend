@@ -281,7 +281,7 @@ jobs:
         npm run migrate:latest
         
         # Validate migration results (flexible count)
-        migration_count=$(npx knex migrate:list 2>/dev/null | grep -c 'Batch\|\u2714\|COMPLETED' || echo '0')
+        migration_count=$(npx knex migrate:list 2>/dev/null | grep -c 'Batch\|COMPLETED\|✔' || echo '0')
         echo "Debug: migration_count = '$migration_count'"
         if [ "$migration_count" -lt 10 ]; then
           echo "❌ CRÍTICO: Muito poucas migrations ($migration_count/~47)"
