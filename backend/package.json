@@ -29,7 +29,9 @@
     "clean": "rm -rf dist node_modules package-lock.json",
     "fresh-install": "npm run clean && npm install",
     "audit:security": "npm audit --audit-level=moderate",
-    "audit:deps": "npm-check-updates"
+    "audit:deps": "npm-check-updates",
+    "validate:migrations": "node scripts/validate-migrations.js",
+    "pre-deploy": "npm run validate:migrations && npm run typecheck"
   },
   "dependencies": {
     "@types/cookie-parser": "^1.4.9",
