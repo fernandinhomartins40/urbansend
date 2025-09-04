@@ -187,7 +187,7 @@ deploy_to_server() {
     # Configure main Postfix settings
     postconf -e \"myhostname=mail.ultrazend.com.br\"
     postconf -e \"mydomain=ultrazend.com.br\"
-    postconf -e \"myorigin=\\\$mydomain\"
+    postconf -e \"myorigin=ultrazend.com.br\"
     postconf -e \"inet_interfaces=all\"
     postconf -e \"inet_protocols=ipv4\"
     postconf -e \"mydestination=\\\$myhostname, mail.ultrazend.com.br, ultrazend.com.br, localhost.localdomain, localhost\"
@@ -218,10 +218,10 @@ deploy_to_server() {
     fi
     
     # Remove OpenDKIM milter configuration from Postfix (prevents conflicts)
-    postconf -e \"milter_protocol=\"
-    postconf -e \"milter_default_action=\"
-    postconf -e \"smtpd_milters=\"
-    postconf -e \"non_smtpd_milters=\"
+    postconf -X milter_protocol 2>/dev/null || true
+    postconf -X milter_default_action 2>/dev/null || true
+    postconf -X smtpd_milters 2>/dev/null || true
+    postconf -X non_smtpd_milters 2>/dev/null || true
     
     # Restart services to apply changes
     systemctl restart postfix
