@@ -355,4 +355,4 @@ ENVEOF
         echo "📚 Docs: https://${{ env.DOMAIN }}/api-docs"
         echo ""
         echo "✨ Deployed with PM2 + Nginx + SSL (Auto-configured!)"
-        echo "⏰ Deploy completed at: $(date -u)"
+        echo "⏰ Deploy completed at: $(date -u)"# Workflow atualizado Thu, Sep  4, 2025  8:25:04 AM
