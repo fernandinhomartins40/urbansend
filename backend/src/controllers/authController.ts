@@ -76,8 +76,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       name,
       email,
       password: passwordHash,
-      email_verification_token: verificationToken,
-      email_verification_expires: verificationExpires,
+      verification_token: verificationToken,
+      verification_token_expires: verificationExpires,
       is_verified: false,
       created_at: new Date(),
       updated_at: new Date()
@@ -101,9 +101,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   logger.info('New user created with verification token', {
     userId,
     email,
-    savedTokenLength: savedUser.email_verification_token?.length,
-    savedTokenPreview: savedUser.email_verification_token?.substring(0, 8) + '...',
-    tokenMatchesGenerated: savedUser.email_verification_token === verificationToken
+    savedTokenLength: savedUser.verification_token?.length,
+    savedTokenPreview: savedUser.verification_token?.substring(0, 8) + '...',
+    tokenMatchesGenerated: savedUser.verification_token === verificationToken
   });
 
   // Send verification email (async, don't block response)
@@ -205,7 +205,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 
   // Buscar usuário SEM qualquer normalização do token
   const user = await db('users')
-    .where('email_verification_token', token)
+    .where('verification_token', token)
     .first();
   
   if (!user) {
@@ -217,7 +217,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 
   // NOVA VALIDAÇÃO: Verificar se o token expirou
   const now = new Date();
-  const tokenExpires = user.email_verification_expires;
+  const tokenExpires = user.verification_token_expires;
   
   if (tokenExpires && now > new Date(tokenExpires)) {
     logger.warn('Token expired', { 
@@ -230,8 +230,8 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     
     // Limpar token expirado da base de dados
     await db('users').where('id', user.id).update({
-      email_verification_token: null,
-      email_verification_expires: null,
+      verification_token: null,
+      verification_token_expires: null,
       updated_at: new Date()
     });
     
@@ -258,8 +258,8 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   await db.transaction(async (trx) => {
     await trx('users').where('id', user.id).update({
       is_verified: true,
-      email_verification_token: null,
-      email_verification_expires: null,
+      verification_token: null,
+      verification_token_expires: null,
       email_verified_at: new Date(),
       updated_at: new Date()
     });
@@ -514,7 +514,7 @@ export const debugVerificationTokens = asyncHandler(async (req: Request, res: Re
   }
 
   const unverifiedUsers = await db('users')
-    .select('id', 'email', 'email_verification_token', 'is_verified', 'created_at')
+    .select('id', 'email', 'verification_token', 'is_verified', 'created_at')
     .where('is_verified', false)
     .limit(10);
 
@@ -523,8 +523,8 @@ export const debugVerificationTokens = asyncHandler(async (req: Request, res: Re
     users: unverifiedUsers.map(user => ({
       id: user.id,
       email: user.email,
-      tokenPreview: user.email_verification_token ? user.email_verification_token.substring(0, 8) + '...' : null,
-      tokenLength: user.email_verification_token?.length,
+      tokenPreview: user.verification_token ? user.verification_token.substring(0, 8) + '...' : null,
+      tokenLength: user.verification_token?.length,
       isVerified: user.is_verified,
       created: user.created_at
     }))
@@ -573,14 +573,14 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
     email,
     tokenLength: verificationToken.length,
     tokenPreview: verificationToken.substring(0, 8) + '...',
-    oldTokenPreview: user.email_verification_token ? user.email_verification_token.substring(0, 8) + '...' : 'null',
+    oldTokenPreview: user.verification_token ? user.verification_token.substring(0, 8) + '...' : 'null',
     newExpiresAt: verificationExpires.toISOString()
   });
 
   // Update user with new verification token and expiration
   await db('users').where('id', user.id).update({
-    email_verification_token: verificationToken,
-    email_verification_expires: verificationExpires,
+    verification_token: verificationToken,
+    verification_token_expires: verificationExpires,
     updated_at: new Date()
   });
 
@@ -588,9 +588,9 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   const updatedUser = await db('users').where('id', user.id).first();
   logger.info('Token saved to database', {
     userId: user.id,
-    savedTokenLength: updatedUser.email_verification_token?.length,
-    savedTokenPreview: updatedUser.email_verification_token?.substring(0, 8) + '...',
-    tokenMatchesGenerated: updatedUser.email_verification_token === verificationToken
+    savedTokenLength: updatedUser.verification_token?.length,
+    savedTokenPreview: updatedUser.verification_token?.substring(0, 8) + '...',
+    tokenMatchesGenerated: updatedUser.verification_token === verificationToken
   });
 
   // Send verification email (async, don't block response)
