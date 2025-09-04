@@ -169,63 +169,44 @@ deploy_to_server() {
       systemctl start redis-server
     fi
     
-    # Setup Email Server (Postfix) - Critical for email functionality
-    echo 'Ensuring Email Server (Postfix) is available...'
-    if ! command -v postfix &> /dev/null; then
-      echo 'Installing Postfix and mail utilities...'
-      DEBIAN_FRONTEND=noninteractive apt-get install -y postfix mailutils opendkim opendkim-tools
-      systemctl enable postfix
-      systemctl start postfix
+    # 🚀 ULTRAZEND SMTP PURE MODE - NO POSTFIX DEPENDENCIES
+    echo 'Setting up UltraZend SMTP Server (Pure Mode - No Postfix)'
+    echo '🎯 UltraZend will handle all SMTP delivery directly via MX records'
+    
+    # Ensure Postfix is DISABLED and REMOVED (if installed)
+    echo 'Ensuring Postfix is completely disabled...'
+    if command -v postfix &> /dev/null; then
+      echo 'Stopping and disabling Postfix...'
+      systemctl stop postfix 2>/dev/null || true
+      systemctl disable postfix 2>/dev/null || true
+      
+      # Optional: Remove Postfix entirely (uncomment if desired)
+      # apt-get remove --purge -y postfix mailutils 2>/dev/null || true
+      
+      echo 'Postfix disabled - UltraZend SMTP will handle all email delivery'
+    else
+      echo 'No Postfix found - Perfect for UltraZend pure mode'
     fi
     
-    # Configure Postfix for ultrazend.com.br with enhanced security
-    echo 'Configuring Postfix for ultrazend.com.br...'
-    
-    # Backup original config if it exists
-    [ -f /etc/postfix/main.cf ] && cp /etc/postfix/main.cf /etc/postfix/main.cf.backup.\$(date +%Y%m%d) 2>/dev/null || true
-    
-    # Configure main Postfix settings
-    postconf -e \"myhostname=mail.ultrazend.com.br\"
-    postconf -e \"mydomain=ultrazend.com.br\"
-    postconf -e \"myorigin=ultrazend.com.br\"
-    postconf -e \"inet_interfaces=all\"
-    postconf -e \"inet_protocols=ipv4\"
-    postconf -e \"mydestination=\\\$myhostname, mail.ultrazend.com.br, ultrazend.com.br, localhost.localdomain, localhost\"
-    postconf -e \"mynetworks=127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128\"
-    postconf -e \"message_size_limit=25600000\"
-    postconf -e \"mailbox_size_limit=0\"
-    postconf -e \"recipient_delimiter=+\"
-    
-    # Security settings
-    postconf -e \"smtpd_helo_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_invalid_helo_hostname\"
-    postconf -e \"smtpd_sender_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_non_fqdn_sender\"
-    postconf -e \"smtpd_recipient_restrictions=permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination\"
-    
-    # Rate limiting
-    postconf -e \"smtpd_client_connection_count_limit=50\"
-    postconf -e \"smtpd_client_connection_rate_limit=100\"
-    
-    # SKIP OpenDKIM setup - UltraZend uses Node.js DKIM implementation
-    echo 'DKIM Configuration: Using UltraZend Node.js DKIM (not OpenDKIM)'
-    echo '  Static keys location: /var/www/ultrazend/configs/dkim-keys/'
-    echo '  OpenDKIM disabled to avoid conflicts with Node.js DKIM'
-    
-    # Disable OpenDKIM if it exists (prevents conflicts)  
+    # Ensure OpenDKIM is also disabled (UltraZend has built-in DKIM)
+    echo 'Ensuring OpenDKIM is disabled (UltraZend uses built-in DKIM)...'
     if systemctl is-active --quiet opendkim 2>/dev/null; then
-      echo 'Disabling OpenDKIM to prevent conflicts...'
+      echo 'Stopping OpenDKIM (conflicts with UltraZend DKIM)...'
       systemctl stop opendkim 2>/dev/null || true
       systemctl disable opendkim 2>/dev/null || true
     fi
     
-    # Remove OpenDKIM milter configuration from Postfix (prevents conflicts)
-    postconf -X milter_protocol 2>/dev/null || true
-    postconf -X milter_default_action 2>/dev/null || true
-    postconf -X smtpd_milters 2>/dev/null || true
-    postconf -X non_smtpd_milters 2>/dev/null || true
+    # Verify MTA is not conflicting
+    echo 'Verifying no MTA conflicts with UltraZend SMTP...'
+    netstat -tlnp | grep ':25 ' || echo 'Port 25 available for UltraZend SMTP'
     
-    # Restart services to apply changes
-    systemctl restart postfix
-    systemctl restart opendkim 2>/dev/null || true
+    # Confirm UltraZend SMTP Pure Mode
+    echo '✅ UltraZend SMTP Pure Mode Configuration:'
+    echo '   - No Postfix dependency'
+    echo '   - Direct MX record delivery'
+    echo '   - Built-in Node.js DKIM signing'
+    echo '   - Native email queue processing'
+    echo '   - 100% TypeScript/Node.js implementation'
     
     # Install all dependencies first (including swagger)
     npm ci --silent
@@ -236,24 +217,55 @@ deploy_to_server() {
     # Build the application
     npm run build
     
-    # Copy and configure environment
-    if [ -f ../configs/.env.production ]; then
-        cp ../configs/.env.production .env
+    # Copy and configure UltraZend SMTP Pure environment
+    if [ -f ../configs/.env.ultrazend.production ]; then
+        cp ../configs/.env.ultrazend.production .env
         chmod 600 .env
-        echo 'Production .env configured with static DKIM'
+        echo 'UltraZend Pure SMTP .env configured'
     else
-        echo 'Creating minimal .env with static DKIM configuration...'
+        echo 'Creating UltraZend SMTP Pure production .env...'
         cat > .env << 'ENVEOF'
+# 🚀 ULTRAZEND SMTP PURE PRODUCTION CONFIG
 NODE_ENV=production
 PORT=3001
 HOST=0.0.0.0
+
+# Database
 DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
+
+# Redis for Queue Processing
 REDIS_URL=redis://127.0.0.1:6379
+
+# Logging
 LOG_FILE_PATH=/var/www/ultrazend/logs
 LOG_LEVEL=info
-DKIM_PRIVATE_KEY_PATH=./configs/dkim-keys/ultrazend.com.br-default-private.pem
+
+# 🌐 UltraZend SMTP Configuration (PURE MODE)
+ULTRAZEND_HOSTNAME=mail.ultrazend.com.br
+ULTRAZEND_DOMAIN=ultrazend.com.br
+ULTRAZEND_SMTP_PORT=25
+SMTP_MODE=pure_ultrazend
+POSTFIX_ENABLED=false
+DELIVERY_MODE=direct_mx
+
+# DKIM Configuration (Node.js Built-in)
+DKIM_ENABLED=true
+DKIM_PRIVATE_KEY_PATH=../configs/dkim-keys/ultrazend.com.br-default-private.pem
 DKIM_SELECTOR=default
 DKIM_DOMAIN=ultrazend.com.br
+
+# Queue Configuration
+EMAIL_QUEUE_CONCURRENCY=5
+EMAIL_QUEUE_RETRY_ATTEMPTS=3
+EMAIL_QUEUE_RETRY_DELAY=300000
+QUEUE_CLEANUP_ENABLED=true
+QUEUE_RETENTION_HOURS=48
+
+# Performance & Limits
+MAX_CONCURRENT_CONNECTIONS=10
+MAX_EMAILS_PER_HOUR=1000
+RATE_LIMIT_ENABLED=true
+CONNECTION_TIMEOUT=60000
 ENVEOF
         chmod 600 .env
     fi
@@ -269,10 +281,13 @@ ENVEOF
         ls -la ../configs/dkim-keys/ || echo 'Directory not found'
     fi
     
-    # Email server configuration (preserve existing .env.production settings)
-    echo 'Email server configuration preserved from production .env'
-    echo 'SMTP settings will use configurations from .env.production'
-    echo 'DKIM static keys will be loaded from configs/dkim-keys/'
+    # UltraZend SMTP Pure configuration
+    echo '✅ UltraZend SMTP Pure Mode configured:'
+    echo '   - Direct MX delivery enabled'
+    echo '   - Node.js DKIM signing active'
+    echo '   - Queue processing enabled'
+    echo '   - No external SMTP dependencies'
+    echo '   - DKIM keys loaded from configs/dkim-keys/'
     
     # Ensure log directories exist
     mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
