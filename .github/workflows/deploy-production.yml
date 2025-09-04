@@ -103,18 +103,31 @@ jobs:
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
         
-        # Stop existing services
-        echo '🛑 Stopping existing services...'
-        pm2 stop ultrazend-backend 2>/dev/null || true
-        pm2 delete ultrazend-backend 2>/dev/null || true
+        # Stop existing services - ROBUST CLEANUP
+        echo '🛑 Stopping all existing services...'
+        pm2 stop all 2>/dev/null || true
+        pm2 delete all 2>/dev/null || true
+        pm2 kill 2>/dev/null || true
+        echo '✅ All PM2 processes cleaned up'
         
         # Setup backend
         echo '🏗️ Setting up backend...'
         cd backend
         
-        # Remove old build files to ensure clean build
-        echo '🗑️ Removing old build files...'
+        # COMPREHENSIVE CLEANUP - Remove old files and caches
+        echo '🗑️ COMPREHENSIVE CLEANUP - Removing old versions...'
         rm -rf dist/ || true
+        rm -rf node_modules/.cache/ || true
+        rm -rf .npm/ || true
+        rm -rf ~/.npm/_cacache/ || true
+        
+        # Clean old log files (keep last 7 days)
+        find /var/www/ultrazend/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
+        
+        # Clean old PM2 logs
+        pm2 flush 2>/dev/null || true
+        
+        echo '✅ Cleanup completed - only fresh version will remain'
         
         # Install Redis if not present
         echo '🔧 Ensuring Redis is available...'
@@ -166,12 +179,22 @@ jobs:
         
         cd ${{ env.APP_DIR }}/backend
         
-        # Install all dependencies (including swagger)
-        npm ci --silent
-        npm install swagger-jsdoc swagger-ui-express --save --silent
+        # Install all dependencies (including swagger) with error checking
+        echo '📦 Installing dependencies...'
+        npm ci --silent || { echo '❌ npm ci failed'; exit 1; }
+        npm install swagger-jsdoc swagger-ui-express --save --silent || { echo '❌ swagger install failed'; exit 1; }
+        echo '✅ Dependencies installed successfully'
         
-        # Build the application
-        npm run build
+        # Build the application with validation
+        echo '🔨 Building application...'
+        npm run build || { echo '❌ Build failed - stopping deployment'; exit 1; }
+        
+        # Validate build output exists
+        if [ ! -d "dist" ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+          echo '❌ Build output missing or empty - stopping deployment'
+          exit 1
+        fi
+        echo '✅ Build completed and validated successfully'
         
         # Copy and configure UltraZend SMTP Pure environment
         if [ -f ../configs/.env.ultrazend.production ]; then
@@ -278,35 +301,86 @@ jobs:
           fi
         fi
         
-        # Start backend with PM2 using ecosystem config
-        echo '🚀 Starting backend with PM2...'
-        pm2 start ecosystem.config.js --env production
-        pm2 save
+        # Start backend with PM2 using ecosystem config - ROBUST STARTUP
+        echo '🚀 Starting all services with PM2...'
         
-        echo '✅ Native deploy completed!'
+        # Start services with error checking
+        pm2 start ecosystem.config.js --env production || { echo '❌ PM2 startup failed'; exit 1; }
+        pm2 save || { echo '❌ PM2 save failed'; exit 1; }
+        
+        # Wait for services to start
+        echo '⏳ Waiting for services to initialize...'
+        sleep 10
+        
+        # Validate all expected processes are running
+        echo '🔍 Validating service startup...'
+        expected_processes=("ultrazend-api" "ultrazend-email-worker" "ultrazend-queue-processor")
+        
+        for process in "\${expected_processes[@]}"; do
+          if pm2 show "\$process" >/dev/null 2>&1; then
+            echo "✅ \$process is running"
+          else
+            echo "❌ \$process failed to start"
+            pm2 logs "\$process" --lines 20 || true
+            exit 1
+          fi
+        done
+        
+        # Save PM2 configuration
+        pm2 startup || true
+        pm2 save || true
+        
+        echo '✅ ROBUST DEPLOY COMPLETED!'
         echo ''
         echo 'Services Status:'
         pm2 status
         echo ''
         echo 'Nginx Status:'
-        systemctl is-active nginx && echo 'Nginx: Active' || echo 'Nginx: Inactive'
+        systemctl is-active nginx && echo '✅ Nginx: Active' || echo '❌ Nginx: Inactive'
         "
 
-    - name: 🏥 Health Check
+    - name: 🏥 Comprehensive Health Check
       run: |
-        echo "🏥 Testing deployed application..."
-        sleep 15
+        echo "🏥 RIGOROUS HEALTH CHECK - Testing deployed application..."
+        sleep 20
         
-        # Test backend directly
-        for i in 1 2 3; do
-          if curl -f --connect-timeout 10 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health"; then
-            echo "✅ Backend healthy!"
+        # Test backend health with status validation
+        echo "🔍 Testing backend health endpoint..."
+        backend_healthy=false
+        
+        for i in 1 2 3 4 5; do
+          echo "🔄 Health check attempt $i/5..."
+          
+          # Get health response and validate
+          health_response=$(curl -s --connect-timeout 10 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health" || echo "CURL_FAILED")
+          
+          if [[ "$health_response" == "CURL_FAILED" ]]; then
+            echo "❌ Backend connection failed on attempt $i"
+          elif echo "$health_response" | grep -q '"status":"healthy"'; then
+            echo "✅ Backend is HEALTHY!"
+            echo "📊 Health Response: $health_response"
+            backend_healthy=true
             break
+          elif echo "$health_response" | grep -q '"status":"unhealthy"'; then
+            echo "⚠️ Backend responding but UNHEALTHY on attempt $i"
+            echo "📊 Unhealthy Response: $health_response"
           else
-            echo "⚠️ Backend attempt $i failed, retrying..."
-            sleep 5
+            echo "⚠️ Unexpected health response on attempt $i: $health_response"
+          fi
+          
+          if [ $i -lt 5 ]; then
+            echo "⏳ Waiting 10 seconds before retry..."
+            sleep 10
           fi
         done
+        
+        # Fail deployment if backend is not healthy
+        if [ "$backend_healthy" = false ]; then
+          echo "❌ DEPLOYMENT FAILED: Backend health check failed after 5 attempts"
+          echo "🔍 Checking PM2 status for debugging:"
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "pm2 status && pm2 logs --lines 30"
+          exit 1
+        fi
         
         # Test frontend via HTTPS (with fallback to HTTP)
         echo "🌐 Testing frontend access..."
