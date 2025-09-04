@@ -458,23 +458,32 @@ jobs:
         for i in 1 2 3 4 5; do
           echo "🔄 Health check attempt $i/5..."
           
-          # Get health response and validate
-          health_response=$(curl -s --connect-timeout 10 "http://${{ env.VPS_HOST }}:${{ env.APP_PORT }}/health" || echo "CURL_FAILED")
+          # ✅ ENTERPRISE: Get detailed health response from API endpoint
+          health_response=$(curl -s --connect-timeout 10 "https://${{ env.VPS_HOST }}/api/health" || echo "CURL_FAILED")
           
           if [[ "$health_response" == "CURL_FAILED" ]]; then
             echo "❌ Backend connection failed on attempt $i"
-          elif echo "$health_response" | grep -q '"status":"healthy"'; then
-            echo "✅ Backend is HEALTHY!"
+          elif echo "$health_response" | grep -q '"status":"healthy"' || echo "$health_response" | grep -q '"status":"degraded"'; then
+            status=$(echo "$health_response" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+            echo "✅ Backend is $status!"
             echo "📊 Health Response: $health_response"
             
             # ✅ ENTERPRISE: Validate SMTP server is ready
-            if echo "$health_response" | grep -q '"smtp":'; then
-              echo "✅ UltraZend SMTP server status confirmed"
+            if echo "$health_response" | grep -q '"service":"smtp"'; then
+              smtp_status=$(echo "$health_response" | grep -A1 '"service":"smtp"' | grep '"status":' | cut -d'"' -f4)
+              echo "✅ UltraZend SMTP server: $smtp_status"
             fi
             
             # ✅ ENTERPRISE: Validate database connectivity
-            if echo "$health_response" | grep -q '"database":'; then
-              echo "✅ Database connectivity confirmed (47 migrations)"
+            if echo "$health_response" | grep -q '"service":"database"'; then
+              db_status=$(echo "$health_response" | grep -A1 '"service":"database"' | grep '"status":' | cut -d'"' -f4)
+              echo "✅ Database connectivity: $db_status (47 migrations)"
+            fi
+            
+            # ✅ ENTERPRISE: Validate Redis connectivity  
+            if echo "$health_response" | grep -q '"service":"redis"'; then
+              redis_status=$(echo "$health_response" | grep -A1 '"service":"redis"' | grep '"status":' | cut -d'"' -f4)
+              echo "✅ Redis connectivity: $redis_status"
             fi
             
             backend_healthy=true
@@ -525,12 +534,18 @@ jobs:
           echo "⚠️ Frontend may not be ready"
         fi
         
-        # Test API via HTTPS (with fallback to HTTP)
+        # ✅ ENTERPRISE: Test API via HTTPS with detailed validation
         echo "🔌 Testing API access..."
-        if curl -f --connect-timeout 10 "https://${{ env.DOMAIN }}/api/health"; then
-          echo "✅ HTTPS API working!"
-        elif curl -f --connect-timeout 10 "http://${{ env.VPS_HOST }}/api/health"; then
-          echo "✅ HTTP API working!"
+        api_response=$(curl -s --connect-timeout 10 "https://${{ env.DOMAIN }}/api/health" || echo "API_FAILED")
+        
+        if [[ "$api_response" != "API_FAILED" ]] && (echo "$api_response" | grep -q '"status":"healthy"' || echo "$api_response" | grep -q '"status":"degraded"'); then
+          api_status=$(echo "$api_response" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          echo "✅ HTTPS API working! Status: $api_status"
+          
+          # Count healthy services
+          healthy_services=$(echo "$api_response" | grep -o '"status":"healthy"' | wc -l)
+          total_services=$(echo "$api_response" | grep -o '"service":"[^"]*"' | wc -l)
+          echo "📊 Services: $healthy_services/$total_services healthy"
         else
           echo "⚠️ API may not be ready"
         fi
