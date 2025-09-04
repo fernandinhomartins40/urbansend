@@ -483,8 +483,8 @@ class UltraZendSMTPServer {
 
   public async start(): Promise<void> {
     try {
-      // Criar tabelas necessárias
-      await this.createSMTPTables();
+      // Validar tabelas necessárias
+      await this.validateRequiredTables();
 
       // Iniciar MX Server
       await new Promise<void>((resolve, reject) => {
@@ -550,43 +550,24 @@ class UltraZendSMTPServer {
     }
   }
 
-  private async createSMTPTables(): Promise<void> {
+  private async validateRequiredTables(): Promise<void> {
     try {
-      // Tabela para logs de conexões SMTP
-      const hasSMTPConnectionsTable = await db.schema.hasTable('smtp_connections');
-      if (!hasSMTPConnectionsTable) {
-        await db.schema.createTable('smtp_connections', (table) => {
-          table.increments('id').primary();
-          table.string('remote_address', 45).notNullable();
-          table.string('hostname', 255);
-          table.string('server_type', 20).notNullable(); // 'mx' ou 'submission'
-          table.string('status', 20).notNullable(); // 'accepted', 'rejected'
-          table.timestamps(true, true);
-          
-          table.index(['remote_address', 'server_type']);
-          table.index('created_at');
-        });
+      const requiredTables = [
+        'smtp_connections',
+        'auth_attempts'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela para tentativas de autenticação
-      const hasAuthAttemptsTable = await db.schema.hasTable('auth_attempts');
-      if (!hasAuthAttemptsTable) {
-        await db.schema.createTable('auth_attempts', (table) => {
-          table.increments('id').primary();
-          table.string('username', 255).notNullable();
-          table.string('remote_address', 45).notNullable();
-          table.boolean('success').notNullable();
-          table.timestamps(true, true);
-          
-          table.index(['username', 'success']);
-          table.index(['remote_address', 'success']);
-          table.index('created_at');
-        });
-      }
-
-      logger.info('SMTP tables verified/created');
+      logger.info('SMTPServer: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Failed to create SMTP tables', { error });
+      logger.error('Erro ao validar tabelas do SMTPServer:', error);
+      throw error;
     }
   }
 

@@ -45,7 +45,7 @@ export class DKIMManager {
       // Aguardar um momento para garantir que outras tabelas foram criadas
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      await this.createDKIMTables();
+      await this.validateRequiredTables();
       await this.loadDKIMConfigs();
       
       // Aguardar mais um momento antes de tentar criar domínio/chaves
@@ -68,53 +68,24 @@ export class DKIMManager {
     }
   }
 
-  private async createDKIMTables() {
+  private async validateRequiredTables() {
     try {
-      const hasDKIMTable = await db.schema.hasTable('dkim_keys');
-      if (!hasDKIMTable) {
-        await db.schema.createTable('dkim_keys', (table) => {
-          table.increments('id').primary();
-          table.string('domain', 255).notNullable();
-          table.string('selector', 100).notNullable().defaultTo('default');
-          table.text('private_key').notNullable();
-          table.text('public_key');
-          table.string('algorithm', 20).defaultTo('rsa-sha256');
-          table.string('canonicalization', 50).defaultTo('relaxed/relaxed');
-          table.integer('key_size').defaultTo(2048);
-          table.boolean('is_active').defaultTo(true);
-          table.timestamp('created_at').defaultTo(db.fn.now());
-          table.timestamp('expires_at');
-          table.timestamps(true, true);
-          
-          table.unique(['domain', 'selector']);
-          table.index('domain');
-          table.index('is_active');
-        });
+      const requiredTables = [
+        'dkim_keys',
+        'dkim_signature_logs'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela para logs de assinatura DKIM
-      const hasDKIMLogsTable = await db.schema.hasTable('dkim_signature_logs');
-      if (!hasDKIMLogsTable) {
-        await db.schema.createTable('dkim_signature_logs', (table) => {
-          table.increments('id').primary();
-          table.string('domain', 255).notNullable();
-          table.string('selector', 100).notNullable();
-          table.string('message_id', 255);
-          table.string('recipient_domain', 255);
-          table.boolean('signature_valid').defaultTo(true);
-          table.string('algorithm', 20);
-          table.text('signature_hash');
-          table.timestamp('signed_at').defaultTo(db.fn.now());
-          table.timestamps(true, true);
-          
-          table.index(['domain', 'signed_at']);
-          table.index('signature_valid');
-        });
-      }
-
-      logger.info('DKIM tables created successfully');
+      logger.info('DKIMManager: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Failed to create DKIM tables', { error });
+      logger.error('Erro ao validar tabelas do DKIMManager:', error);
+      throw error;
     }
   }
 

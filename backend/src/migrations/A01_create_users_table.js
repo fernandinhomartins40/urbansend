@@ -5,23 +5,28 @@
 exports.up = async function(knex) {
   await knex.schema.createTable('users', function (table) {
     table.increments('id').primary();
-    table.string('name', 255).notNullable();
-    table.string('email', 255).notNullable().unique();
-    table.string('password', 255).notNullable();
+    table.string('email').unique().notNullable();
+    table.string('password_hash').notNullable();
+    table.string('first_name');
+    table.string('last_name');
+    table.string('organization');
+    table.string('phone');
     table.boolean('is_verified').defaultTo(false);
-    table.string('role', 50).defaultTo('user');
     table.boolean('is_active').defaultTo(true);
-    table.string('email_verification_token', 255);
-    table.timestamp('verified_at');
-    table.string('password_reset_token', 255);
-    table.timestamp('password_reset_expires');
-    table.timestamp('created_at').defaultTo(knex.fn.now());
-    table.timestamp('updated_at').defaultTo(knex.fn.now());
-    
-    // Índices
-    table.index(['email'], 'idx_users_email');
-    table.index(['email_verification_token'], 'idx_users_verification_token');
-    table.index(['password_reset_token'], 'idx_users_password_reset');
+    table.string('verification_token');
+    table.timestamp('verification_token_expires');
+    table.string('reset_password_token');
+    table.timestamp('reset_password_expires');
+    table.timestamp('last_login');
+    table.string('timezone').defaultTo('America/Sao_Paulo');
+    table.string('language').defaultTo('pt-BR');
+    table.timestamp('email_verified_at');
+    table.timestamps(true, true);
+
+    table.index('email');
+    table.index('is_active');
+    table.index('verification_token');
+    table.index('reset_password_token');
   });
 };
 
@@ -30,5 +35,5 @@ exports.up = async function(knex) {
  * @returns { Promise<void> }
  */
 exports.down = async function(knex) {
-  await knex.schema.dropTableIfExists('users');
+  await knex.schema.dropTable('users');
 };

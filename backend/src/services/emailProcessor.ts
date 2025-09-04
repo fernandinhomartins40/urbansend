@@ -54,8 +54,8 @@ export class EmailProcessor {
 
   private async initializeProcessor() {
     try {
+      await this.validateRequiredTables();
       await this.loadLocalDomains();
-      await this.createEmailTables();
       
       logger.info('EmailProcessor initialized successfully', {
         localDomains: this.localDomains.size
@@ -96,89 +96,25 @@ export class EmailProcessor {
     }
   }
 
-  private async createEmailTables() {
+  private async validateRequiredTables() {
     try {
-      // Tabela para emails processados
-      const hasProcessedEmailsTable = await db.schema.hasTable('processed_emails');
-      if (!hasProcessedEmailsTable) {
-        await db.schema.createTable('processed_emails', (table) => {
-          table.increments('id').primary();
-          table.string('message_id', 255).unique();
-          table.string('from_address', 255).notNullable();
-          table.string('to_address', 255).notNullable();
-          table.string('subject', 500);
-          table.string('direction', 20).notNullable(); // 'incoming', 'outgoing'
-          table.string('status', 50).notNullable(); // 'delivered', 'queued', 'rejected', 'quarantined'
-          table.string('processing_result', 100);
-          table.text('rejection_reason');
-          table.json('security_checks');
-          table.integer('size_bytes');
-          table.boolean('has_attachments').defaultTo(false);
-          table.integer('attachment_count').defaultTo(0);
-          table.boolean('dkim_valid');
-          table.string('spf_result', 20);
-          table.timestamp('processed_at').defaultTo(db.fn.now());
-          table.timestamps(true, true);
-          
-          table.index(['direction', 'status']);
-          table.index('processed_at');
-          table.index('from_address');
-        });
+      const requiredTables = [
+        'processed_emails',
+        'local_domains',
+        'email_quarantine'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela para domínios locais
-      const hasLocalDomainsTable = await db.schema.hasTable('local_domains');
-      if (!hasLocalDomainsTable) {
-        await db.schema.createTable('local_domains', (table) => {
-          table.increments('id').primary();
-          table.string('domain', 255).notNullable().unique();
-          table.boolean('is_active').defaultTo(true);
-          table.boolean('accept_all').defaultTo(false); // Aceitar todos os emails para este domínio
-          table.text('description');
-          table.timestamps(true, true);
-          
-          table.index('domain');
-          table.index('is_active');
-        });
-
-        // Inserir domínio padrão
-        await db('local_domains').insert({
-          domain: 'ultrazend.com.br',
-          is_active: true,
-          accept_all: false,
-          description: 'Primary UltraZend domain'
-        });
-      }
-
-      // Tabela para quarentena de emails
-      const hasQuarantineTable = await db.schema.hasTable('email_quarantine');
-      if (!hasQuarantineTable) {
-        await db.schema.createTable('email_quarantine', (table) => {
-          table.increments('id').primary();
-          table.string('message_id', 255).unique();
-          table.string('from_address', 255).notNullable();
-          table.string('to_address', 255).notNullable();
-          table.string('subject', 500);
-          table.text('reason').notNullable();
-          table.string('severity', 20).defaultTo('medium');
-          table.text('email_content', 'longtext');
-          table.json('headers');
-          table.json('security_details');
-          table.boolean('reviewed').defaultTo(false);
-          table.string('action_taken', 50);
-          table.timestamp('quarantined_at').defaultTo(db.fn.now());
-          table.timestamp('reviewed_at');
-          table.timestamps(true, true);
-          
-          table.index('quarantined_at');
-          table.index('reviewed');
-          table.index('severity');
-        });
-      }
-
-      logger.info('Email processing tables created successfully');
+      logger.info('EmailProcessor: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Failed to create email processing tables', { error });
+      logger.error('Erro ao validar tabelas do EmailProcessor:', error);
+      throw error;
     }
   }
 

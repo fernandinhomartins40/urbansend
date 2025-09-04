@@ -12,6 +12,31 @@ interface WebhookPayload {
 }
 
 export class WebhookService {
+  constructor() {
+    this.validateRequiredTables();
+  }
+
+  private async validateRequiredTables() {
+    try {
+      const requiredTables = [
+        'webhook_logs',
+        'webhook_job_logs'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
+      }
+
+      logger.info('WebhookService: Todas as tabelas obrigatórias validadas com sucesso');
+    } catch (error) {
+      logger.error('Erro ao validar tabelas do WebhookService:', error);
+      throw error;
+    }
+  }
+
   async sendWebhook(event: string, payload: any, webhookId?: number): Promise<void> {
     try {
       let webhooks;
@@ -147,28 +172,6 @@ export class WebhookService {
     }
   ): Promise<void> {
     try {
-      // Create a webhook_logs table if it doesn't exist
-      const logExists = await db.schema.hasTable('webhook_logs');
-      
-      if (!logExists) {
-        await db.schema.createTable('webhook_logs', (table) => {
-          table.increments('id').primary();
-          table.integer('webhook_id').unsigned().notNullable();
-          table.string('event').notNullable();
-          table.text('payload');
-          table.boolean('success').notNullable();
-          table.integer('status_code').nullable();
-          table.text('response_body').nullable();
-          table.integer('attempt').notNullable();
-          table.text('error_message').nullable();
-          table.datetime('created_at').defaultTo(db.fn.now());
-          
-          table.foreign('webhook_id').references('id').inTable('webhooks').onDelete('CASCADE');
-          table.index(['webhook_id', 'created_at']);
-          table.index(['event']);
-        });
-      }
-
       await db('webhook_logs').insert({
         webhook_id: webhookId,
         event,
@@ -465,31 +468,6 @@ export class WebhookService {
 
   private async logWebhookDelivery(jobData: WebhookJobData, result: any): Promise<void> {
     try {
-      // Criar tabela de logs de webhook jobs se não existir
-      const hasWebhookJobLogsTable = await db.schema.hasTable('webhook_job_logs');
-      if (!hasWebhookJobLogsTable) {
-        await db.schema.createTable('webhook_job_logs', (table) => {
-          table.increments('id').primary();
-          table.string('url', 500).notNullable();
-          table.string('method', 10).notNullable();
-          table.string('event_type', 100).notNullable();
-          table.integer('entity_id').notNullable();
-          table.integer('user_id').notNullable();
-          table.json('payload');
-          table.json('headers');
-          table.boolean('success').notNullable();
-          table.integer('status_code');
-          table.text('response_body');
-          table.text('error_message');
-          table.timestamp('delivered_at').notNullable();
-          table.timestamps(true, true);
-
-          table.index(['event_type', 'delivered_at']);
-          table.index(['user_id', 'success']);
-          table.index('entity_id');
-        });
-      }
-
       await db('webhook_job_logs').insert({
         url: jobData.url,
         method: jobData.method,

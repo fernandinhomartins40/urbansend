@@ -94,7 +94,7 @@ export class DeliveryManager {
     this.securityManager = securityManager;
 
     this.setupTransporter();
-    this.createDeliveryTables();
+    this.validateRequiredTables();
     this.startDeliveryProcessor();
   }
 
@@ -515,59 +515,24 @@ export class DeliveryManager {
     }
   }
 
-  private async createDeliveryTables(): Promise<void> {
+  private async validateRequiredTables(): Promise<void> {
     try {
-      // Tabela principal de fila de entrega
-      const hasDeliveryQueueTable = await db.schema.hasTable('email_delivery_queue');
-      if (!hasDeliveryQueueTable) {
-        await db.schema.createTable('email_delivery_queue', (table) => {
-          table.increments('id').primary();
-          table.string('message_id', 255).notNullable().unique();
-          table.string('from_address', 255).notNullable();
-          table.string('to_address', 255).notNullable();
-          table.string('subject', 500);
-          table.text('body', 'longtext');
-          table.json('headers');
-          table.enum('status', ['pending', 'processing', 'delivered', 'failed', 'bounced', 'deferred']).defaultTo('pending');
-          table.integer('attempts').defaultTo(0);
-          table.timestamp('last_attempt');
-          table.timestamp('next_attempt');
-          table.timestamp('delivered_at');
-          table.integer('delivery_time'); // ms
-          table.text('error_message');
-          table.integer('priority').defaultTo(50);
-          table.integer('user_id').references('id').inTable('users');
-          table.integer('campaign_id');
-          table.string('bounce_type', 50);
-          table.json('delivery_report');
-          table.timestamps(true, true);
-          
-          table.index(['status', 'next_attempt']);
-          table.index(['priority', 'created_at']);
-          table.index('to_address');
-          table.index('user_id');
-        });
+      const requiredTables = [
+        'email_delivery_queue',
+        'delivery_stats'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela de estatísticas de entrega
-      const hasDeliveryStatsTable = await db.schema.hasTable('delivery_stats');
-      if (!hasDeliveryStatsTable) {
-        await db.schema.createTable('delivery_stats', (table) => {
-          table.increments('id').primary();
-          table.integer('delivery_id').references('id').inTable('email_delivery_queue');
-          table.string('status', 20).notNullable();
-          table.integer('delivery_time');
-          table.text('error_message');
-          table.timestamps(true, true);
-          
-          table.index(['status', 'created_at']);
-          table.index('delivery_id');
-        });
-      }
-
-      logger.info('Delivery tables verified/created');
+      logger.info('DeliveryManager: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Failed to create delivery tables', { error });
+      logger.error('Erro ao validar tabelas do DeliveryManager:', error);
+      throw error;
     }
   }
 

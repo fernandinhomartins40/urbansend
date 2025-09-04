@@ -48,7 +48,7 @@ export class ReputationManager {
 
   private async initializeReputation() {
     try {
-      await this.createReputationTables();
+      await this.validateRequiredTables();
       await this.loadReputationData();
       
       logger.info('ReputationManager initialized successfully');
@@ -57,76 +57,25 @@ export class ReputationManager {
     }
   }
 
-  private async createReputationTables() {
+  private async validateRequiredTables() {
     try {
-      // Tabela de reputação de domínios
-      const hasDomainReputationTable = await db.schema.hasTable('domain_reputation');
-      if (!hasDomainReputationTable) {
-        await db.schema.createTable('domain_reputation', (table) => {
-          table.increments('id').primary();
-          table.string('domain', 255).notNullable().unique();
-          table.decimal('score', 5, 2).defaultTo(100.0);
-          table.integer('successful_deliveries').defaultTo(0);
-          table.integer('failed_deliveries').defaultTo(0);
-          table.decimal('bounce_rate', 5, 2).defaultTo(0);
-          table.timestamp('last_success');
-          table.timestamp('last_failure');
-          table.string('status', 20).defaultTo('good');
-          table.text('notes');
-          table.timestamps(true, true);
-          
-          table.index('domain');
-          table.index('score');
-          table.index('status');
-        });
+      const requiredTables = [
+        'domain_reputation',
+        'mx_server_reputation', 
+        'delivery_history'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela de reputação de servidores MX
-      const hasMXReputationTable = await db.schema.hasTable('mx_server_reputation');
-      if (!hasMXReputationTable) {
-        await db.schema.createTable('mx_server_reputation', (table) => {
-          table.increments('id').primary();
-          table.string('mx_server', 255).notNullable();
-          table.string('domain', 255).notNullable();
-          table.decimal('score', 5, 2).defaultTo(100.0);
-          table.integer('successful_deliveries').defaultTo(0);
-          table.integer('failed_deliveries').defaultTo(0);
-          table.decimal('avg_response_time', 8, 2).defaultTo(0);
-          table.timestamp('last_success');
-          table.timestamp('last_failure');
-          table.json('failure_reasons');
-          table.timestamps(true, true);
-          
-          table.unique(['mx_server', 'domain']);
-          table.index('mx_server');
-          table.index('score');
-        });
-      }
-
-      // Tabela de histórico de entregas
-      const hasDeliveryHistoryTable = await db.schema.hasTable('delivery_history');
-      if (!hasDeliveryHistoryTable) {
-        await db.schema.createTable('delivery_history', (table) => {
-          table.increments('id').primary();
-          table.string('domain', 255).notNullable();
-          table.string('mx_server', 255);
-          table.string('status', 50).notNullable(); // 'success', 'failed', 'bounced'
-          table.string('failure_reason', 500);
-          table.integer('response_time'); // em ms
-          table.string('recipient_email', 255);
-          table.string('message_id', 255);
-          table.timestamp('attempted_at').defaultTo(db.fn.now());
-          table.timestamps(true, true);
-          
-          table.index(['domain', 'status']);
-          table.index(['mx_server', 'status']);
-          table.index('attempted_at');
-        });
-      }
-
-      logger.info('Reputation tables created successfully');
+      logger.info('ReputationManager: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Failed to create reputation tables', { error });
+      logger.error('Erro ao validar tabelas do ReputationManager:', error);
+      throw error;
     }
   }
 

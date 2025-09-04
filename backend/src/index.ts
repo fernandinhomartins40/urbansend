@@ -427,47 +427,45 @@ const initializeServices = async () => {
     logger.warn('⚠️ Monitoring service failed, continuing...', { error: (error as Error).message });
   }
 
-  // Step 2: Test database connection and run migrations with retry logic
-  let dbRetries = 3;
-  let dbConnected = false;
-  
-  while (dbRetries > 0 && !dbConnected) {
-    try {
-      // Test basic connection
-      await db.raw('SELECT 1');
-      logger.info('✅ Database connected successfully');
-      dbConnected = true;
+  // Step 2: MANDATORY database connection and migrations (FAIL FAST)
+  try {
+    // Test database connection
+    await db.raw('SELECT 1');
+    logger.info('✅ Database connection established');
 
-      // Run migrations with timeout
-      const migrationTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Migration timeout')), 30000)
-      );
-      
-      await Promise.race([
-        db.migrate.latest(),
-        migrationTimeout
-      ]);
-      
-      logger.info('✅ Database migrations completed');
-    } catch (error) {
-      dbRetries--;
-      logger.warn(`⚠️ Database attempt failed (${3-dbRetries}/3)`, { 
-        error: (error as Error).message,
-        retries: dbRetries 
-      });
-      
-      if (dbRetries > 0) {
-        // Wait 2 seconds before retry
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } else {
-        logger.error('❌ Database initialization failed after 3 attempts');
-        // Don't throw error - allow app to start without full DB functionality
-        logger.warn('⚠️ Starting server without full database functionality');
-      }
+    // CRÍTICO: Execute migrations OBRIGATORIAMENTE antes de qualquer serviço
+    logger.info('🔄 Executando migrations obrigatórias (47 tabelas)...');
+    
+    const migrationTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Migration timeout - 47 migrations took longer than 60s')), 60000)
+    );
+    
+    const migrationResult = await Promise.race([
+      db.migrate.latest(),
+      migrationTimeout
+    ]);
+    
+    // Validar se migrations foram realmente executadas
+    const completedMigrations = await db.migrate.list();
+    const pendingMigrations = completedMigrations[1]; // [completed, pending]
+    
+    if (pendingMigrations.length > 0) {
+      throw new Error(`${pendingMigrations.length} migrations ainda pendentes: ${pendingMigrations.join(', ')}`);
     }
+    
+    logger.info('✅ Todas as 47 migrations executadas com sucesso - Schema centralizado ativo');
+    logger.info(`📊 Migrations batch: ${migrationResult[0]}`);
+    
+  } catch (error) {
+    logger.error('❌ CRÍTICO: Falha nas migrations obrigatórias', {
+      error: (error as Error).message,
+      stack: (error as Error).stack
+    });
+    logger.error('🚫 Sistema NÃO PODE inicializar sem schema centralizado');
+    throw error; // FAIL FAST - não mascarar este erro
   }
 
-  // Step 3: Initialize services that need database tables (SEQUENTIAL)
+  // Step 3: Initialize services (SEQUENTIAL) - agora apenas validam tabelas existentes
   const services = [
     {
       name: 'Queue Service',
@@ -536,38 +534,56 @@ const initializeServices = async () => {
     }
   ];
 
-  // Initialize services sequentially with delay to prevent locks
+  // Initialize services sequentially (sem race conditions)
+  logger.info('🔄 Iniciando serviços com schema centralizado validado...');
+  
   for (const service of services) {
     try {
+      logger.info(`🔄 Inicializando ${service.name}...`);
       await service.init();
-      // Small delay between service initializations
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      logger.info(`✅ ${service.name} inicializado com sucesso`);
+      
+      // Delay pequeno entre serviços para evitar contenção de recursos
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
-      logger.warn(`⚠️ ${service.name} failed to initialize, continuing...`, { 
-        error: (error as Error).message 
+      logger.error(`❌ ${service.name} falhou na inicialização`, { 
+        error: (error as Error).message,
+        stack: (error as Error).stack
       });
+      
+      // Para serviços críticos como SMTP, não continuar
+      if (service.name === 'SMTP Server') {
+        logger.error('🚫 SMTP Server é crítico - parando inicialização');
+        throw error;
+      }
+      
+      logger.warn(`⚠️ Continuando sem ${service.name}...`);
     }
   }
 
-  logger.info('✅ All services initialization completed');
+  logger.info('✅ Inicialização sequencial completa - Sistema profissional ativo!');
 };
 
 const startServer = async () => {
   try {
-    logger.info('🔧 Starting server initialization...');
+    logger.info('🚀 UltraZend - Inicialização do Sistema Profissional');
+    logger.info('📋 Schema Centralizado | Migrations Organizadas | Zero Race Conditions');
     
-    // Initialize services sequentially
+    // Initialize services sequentially with centralized schema
     await initializeServices();
 
     // Start server - Let Nginx handle SSL termination
     server.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`🎉 UltraZend Sistema Profissional ATIVO na porta ${PORT}`);
+      logger.info('✅ Schema: 47 tabelas centralizadas via migrations A01→ZU47');
+      logger.info('✅ Serviços: Validação defensiva implementada');
+      logger.info('✅ Deploy: Determinístico e confiável');
       
       if (Env.isProduction) {
-        logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
-        logger.info(`🔒 SSL handled by Nginx reverse proxy`);
+        logger.info(`📚 API Documentation: https://www.ultrazend.com.br/api-docs`);
+        logger.info(`🔒 SSL: Nginx reverse proxy`);
       } else {
-        logger.info(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
+        logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
       }
       
       logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
@@ -733,17 +749,6 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   const reasonStr = reason instanceof Error ? reason.message : String(reason);
   
-  // Ignorar erros não-críticos de inicialização de tabelas
-  if (reasonStr.includes('already exists') || 
-      reasonStr.includes('SQLITE_ERROR') && reasonStr.includes('table')) {
-    logger.warn('Non-critical database initialization error (ignoring):', {
-      reason: reasonStr,
-      severity: 'LOW'
-    });
-    return;
-  }
-  
-  // Tratar outros erros como críticos
   logger.error('Unhandled promise rejection detected', {
     reason: reasonStr,
     promise: promise.toString(),

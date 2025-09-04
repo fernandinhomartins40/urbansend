@@ -61,128 +61,29 @@ export class AnalyticsService {
 
   constructor(database?: Knex) {
     this.db = database || db;
-    this.initializeTables();
+    this.validateRequiredTables();
   }
 
-  private async initializeTables(): Promise<void> {
+  private async validateRequiredTables(): Promise<void> {
     try {
-      // Tabela de eventos de email
-      const hasEmailEvents = await this.db.schema.hasTable('email_events');
-      if (!hasEmailEvents) {
-        await this.db.schema.createTable('email_events', (table) => {
-          table.increments('id').primary();
-          table.string('email_id').notNullable();
-          table.string('campaign_id').nullable();
-          table.string('user_id').nullable();
-          table.string('event_type').notNullable();
-          table.datetime('timestamp').notNullable();
-          table.string('recipient_email').nullable();
-          table.string('domain').nullable();
-          table.string('ip_address').nullable();
-          table.text('user_agent').nullable();
-          table.text('metadata').nullable();
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
+      const requiredTables = [
+        'email_events',
+        'campaign_metrics',
+        'domain_metrics',
+        'time_series_metrics',
+        'user_engagement'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await this.db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela de métricas agregadas por campanha
-      const hasCampaignMetrics = await this.db.schema.hasTable('campaign_metrics');
-      if (!hasCampaignMetrics) {
-        await this.db.schema.createTable('campaign_metrics', (table) => {
-          table.increments('id').primary();
-          table.string('campaign_id').unique().notNullable();
-          table.string('campaign_name').nullable();
-          table.integer('emails_sent').defaultTo(0);
-          table.integer('emails_delivered').defaultTo(0);
-          table.integer('emails_opened').defaultTo(0);
-          table.integer('emails_clicked').defaultTo(0);
-          table.integer('emails_bounced').defaultTo(0);
-          table.integer('emails_complained').defaultTo(0);
-          table.integer('emails_unsubscribed').defaultTo(0);
-          table.datetime('last_updated').defaultTo(this.db.fn.now());
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de métricas por domínio
-      const hasDomainMetrics = await this.db.schema.hasTable('domain_metrics');
-      if (!hasDomainMetrics) {
-        await this.db.schema.createTable('domain_metrics', (table) => {
-          table.increments('id').primary();
-          table.string('domain').unique().notNullable();
-          table.decimal('reputation_score', 3, 2).defaultTo(1.0);
-          table.integer('total_emails').defaultTo(0);
-          table.integer('successful_deliveries').defaultTo(0);
-          table.integer('bounces').defaultTo(0);
-          table.integer('complaints').defaultTo(0);
-          table.datetime('last_delivery').nullable();
-          table.datetime('last_updated').defaultTo(this.db.fn.now());
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de séries temporais para métricas
-      const hasTimeSeriesMetrics = await this.db.schema.hasTable('time_series_metrics');
-      if (!hasTimeSeriesMetrics) {
-        await this.db.schema.createTable('time_series_metrics', (table) => {
-          table.increments('id').primary();
-          table.datetime('timestamp').notNullable();
-          table.string('metric_name').notNullable();
-          table.decimal('metric_value', 15, 4).notNullable();
-          table.text('tags').nullable();
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de engajamento de usuários
-      const hasUserEngagement = await this.db.schema.hasTable('user_engagement');
-      if (!hasUserEngagement) {
-        await this.db.schema.createTable('user_engagement', (table) => {
-          table.increments('id').primary();
-          table.string('user_id').notNullable();
-          table.string('email_address').notNullable();
-          table.integer('total_emails_received').defaultTo(0);
-          table.integer('total_opens').defaultTo(0);
-          table.integer('total_clicks').defaultTo(0);
-          table.datetime('last_open').nullable();
-          table.datetime('last_click').nullable();
-          table.decimal('engagement_score', 3, 2).defaultTo(0);
-          table.boolean('is_active').defaultTo(true);
-          table.datetime('last_updated').defaultTo(this.db.fn.now());
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Índices para performance (criar sempre, Knex ignora se já existem)
-      try {
-        await this.db.schema.alterTable('email_events', (table) => {
-          table.index(['email_id'], 'idx_email_events_email_id');
-          table.index(['campaign_id'], 'idx_email_events_campaign_id');
-          table.index(['timestamp'], 'idx_email_events_timestamp');
-        });
-      } catch (error) {
-        // Índices podem já existir, ignorar erro
-      }
-      
-      try {
-        await this.db.schema.alterTable('time_series_metrics', (table) => {
-          table.index(['timestamp'], 'idx_time_series_timestamp');
-        });
-      } catch (error) {
-        // Índices podem já existir, ignorar erro
-      }
-      
-      try {
-        await this.db.schema.alterTable('domain_metrics', (table) => {
-          table.index(['domain'], 'idx_domain_metrics_domain');
-        });
-      } catch (error) {
-        // Índices podem já existir, ignorar erro
-      }
-
-      logger.info('AnalyticsService: Tabelas inicializadas com sucesso');
+      logger.info('AnalyticsService: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Erro ao inicializar tabelas do AnalyticsService:', error);
+      logger.error('Erro ao validar tabelas do AnalyticsService:', error);
       throw error;
     }
   }

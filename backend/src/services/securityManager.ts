@@ -4,6 +4,7 @@ import db from '../config/database';
 import { ParsedMail } from 'mailparser';
 import dns from 'dns';
 import { Env } from '../utils/env';
+import { TableUtils } from '../utils/tableUtils';
 
 export interface SecurityValidation {
   allowed: boolean;
@@ -61,156 +62,31 @@ export class SecurityManager {
   constructor(database?: Knex) {
     this.db = database || db;
     
-    this.initializeTables();
+    this.validateRequiredTables();
     this.loadSecurityData();
   }
 
-  private async initializeTables(): Promise<void> {
+  private async validateRequiredTables(): Promise<void> {
     try {
-      // Tabela de blacklists de IPs
-      const hasSecurityBlacklists = await this.db.schema.hasTable('security_blacklists');
-      if (!hasSecurityBlacklists) {
-        await this.db.schema.createTable('security_blacklists', (table) => {
-          table.increments('id').primary();
-          table.string('ip_address').unique().notNullable();
-          table.text('reason').notNullable();
-          table.boolean('is_active').defaultTo(true);
-          table.string('added_by').defaultTo('system');
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-          table.datetime('expires_at').nullable();
-          table.datetime('last_seen').nullable();
-        });
-      }
+      const requiredTables = [
+        'security_blacklists',
+        'rate_limit_violations', 
+        'spam_analysis',
+        'phishing_detection',
+        'ip_reputation',
+        'security_logs'
+      ];
 
-      // Tabela de rate limiting (protegida contra condição de corrida)
-      try {
-        const hasRateLimitViolations = await this.db.schema.hasTable('rate_limit_violations');
-        if (!hasRateLimitViolations) {
-          await this.db.schema.createTable('rate_limit_violations', (table) => {
-            table.increments('id').primary();
-            table.string('identifier').notNullable();
-            table.string('limit_type').notNullable();
-            table.integer('violation_count').defaultTo(1);
-            table.datetime('first_violation').defaultTo(this.db.fn.now());
-            table.datetime('last_violation').defaultTo(this.db.fn.now());
-            table.boolean('is_blocked').defaultTo(false);
-            table.datetime('expires_at').nullable();
-          });
-        }
-      } catch (error: any) {
-        // Ignorar erro se tabela já existe (condição de corrida entre instâncias)
-        if (!error.message.includes('already exists')) {
-          throw error;
+      for (const tableName of requiredTables) {
+        const hasTable = await this.db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
         }
       }
 
-      // Tabela de análise de spam
-      const hasSpamAnalysis = await this.db.schema.hasTable('spam_analysis');
-      if (!hasSpamAnalysis) {
-        await this.db.schema.createTable('spam_analysis', (table) => {
-          table.increments('id').primary();
-          table.string('email_id').nullable();
-          table.decimal('spam_score', 5, 2).notNullable();
-          table.boolean('is_spam').notNullable();
-          table.text('reason').nullable();
-          table.text('details').nullable();
-          table.string('sender_ip').nullable();
-          table.string('sender_email').nullable();
-          table.string('subject_hash').nullable();
-          table.datetime('analyzed_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de detecção de phishing
-      const hasPhishingDetection = await this.db.schema.hasTable('phishing_detection');
-      if (!hasPhishingDetection) {
-        await this.db.schema.createTable('phishing_detection', (table) => {
-          table.increments('id').primary();
-          table.string('email_id').nullable();
-          table.decimal('confidence_score', 3, 2).notNullable();
-          table.boolean('is_phishing').notNullable();
-          table.text('indicators').nullable();
-          table.text('suspicious_urls').nullable();
-          table.string('sender_domain').nullable();
-          table.datetime('detected_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de reputação de IPs
-      const hasIpReputation = await this.db.schema.hasTable('ip_reputation');
-      if (!hasIpReputation) {
-        await this.db.schema.createTable('ip_reputation', (table) => {
-          table.increments('id').primary();
-          table.string('ip_address').unique().notNullable();
-          table.decimal('reputation_score', 3, 2).defaultTo(1.0);
-          table.integer('total_connections').defaultTo(0);
-          table.integer('successful_connections').defaultTo(0);
-          table.integer('blocked_connections').defaultTo(0);
-          table.integer('spam_reports').defaultTo(0);
-          table.datetime('last_activity').defaultTo(this.db.fn.now());
-          table.datetime('updated_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de logs de segurança (protegida contra condição de corrida)
-      try {
-        const hasSecurityLogs = await this.db.schema.hasTable('security_logs');
-        if (!hasSecurityLogs) {
-          await this.db.schema.createTable('security_logs', (table) => {
-            table.increments('id').primary();
-            table.string('event_type').notNullable();
-            table.string('severity').notNullable();
-            table.string('source_ip').nullable();
-            table.integer('user_id').nullable();
-            table.string('session_id').nullable();
-            table.text('details').nullable();
-            table.text('action_taken').nullable();
-            table.datetime('timestamp').defaultTo(this.db.fn.now());
-          });
-        }
-      } catch (error: any) {
-        // Ignorar erro se tabela já existe (condição de corrida entre instâncias)
-        if (!error.message.includes('already exists')) {
-          throw error;
-        }
-      }
-
-      // Índices para performance (criar sempre, ignorar erros se já existem)
-      try {
-        await this.db.schema.alterTable('security_blacklists', (table) => {
-          table.index(['ip_address', 'is_active'], 'idx_blacklists_ip');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('rate_limit_violations', (table) => {
-          table.index(['identifier', 'limit_type'], 'idx_rate_limit_identifier');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('ip_reputation', (table) => {
-          table.index(['ip_address'], 'idx_ip_reputation_ip');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('security_logs', (table) => {
-          table.index(['timestamp'], 'idx_security_logs_timestamp');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      logger.info('SecurityManager: Tabelas de segurança inicializadas com sucesso');
+      logger.info('SecurityManager: Todas as tabelas de segurança validadas com sucesso');
     } catch (error) {
-      logger.error('Erro ao inicializar tabelas de segurança:', error);
+      logger.error('Erro ao validar tabelas de segurança:', error);
       throw error;
     }
   }

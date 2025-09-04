@@ -40,52 +40,27 @@ export class RateLimiter {
   constructor(config?: Partial<ConnectionLimitConfig>) {
     this.defaultConfig = { ...this.defaultConfig, ...config };
     this.startCleanupTimer();
-    this.createRateLimitTables();
+    this.validateRequiredTables();
   }
 
-  private async createRateLimitTables() {
+  private async validateRequiredTables() {
     try {
-      // Criar tabela para logs de rate limiting
-      const hasRateLimitTable = await db.schema.hasTable('rate_limit_logs');
-      if (!hasRateLimitTable) {
-        await db.schema.createTable('rate_limit_logs', (table) => {
-          table.increments('id').primary();
-          table.string('key', 255).notNullable();
-          table.string('type', 50).notNullable(); // 'connection', 'auth', 'email'
-          table.string('ip_address', 45);
-          table.integer('count').defaultTo(1);
-          table.timestamp('window_start').notNullable();
-          table.timestamp('last_request').defaultTo(db.fn.now());
-          table.timestamps(true, true);
-          
-          table.index(['key', 'type']);
-          table.index('window_start');
-        });
-        
-        logger.info('Rate limit tables created');
+      const requiredTables = [
+        'rate_limit_logs',
+        'rate_limit_configs'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Criar tabela para configurações personalizadas por usuário/IP
-      const hasRateLimitConfigTable = await db.schema.hasTable('rate_limit_configs');
-      if (!hasRateLimitConfigTable) {
-        await db.schema.createTable('rate_limit_configs', (table) => {
-          table.increments('id').primary();
-          table.string('identifier', 255).notNullable(); // IP ou user ID
-          table.string('type', 50).notNullable(); // 'ip', 'user'
-          table.integer('max_connections').defaultTo(100);
-          table.integer('max_auth_attempts').defaultTo(10);
-          table.integer('max_emails_per_hour').defaultTo(5000);
-          table.integer('max_emails_per_day').defaultTo(50000);
-          table.boolean('is_active').defaultTo(true);
-          table.text('notes');
-          table.timestamps(true, true);
-          
-          table.unique(['identifier', 'type']);
-          table.index('is_active');
-        });
-      }
+      logger.info('RateLimiter: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Failed to create rate limit tables', { error });
+      logger.error('Erro ao validar tabelas do RateLimiter:', error);
+      throw error;
     }
   }
 

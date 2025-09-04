@@ -36,106 +36,30 @@ export class MonitoringService {
   constructor(database?: Knex) {
     this.db = database || db;
 
-    this.initializeTables();
+    this.validateRequiredTables();
     this.startHealthChecks();
     this.startMetricsCleanup();
   }
 
-  private async initializeTables(): Promise<void> {
+  private async validateRequiredTables(): Promise<void> {
     try {
-      // Tabela de métricas
-      const hasSystemMetrics = await this.db.schema.hasTable('system_metrics');
-      if (!hasSystemMetrics) {
-        await this.db.schema.createTable('system_metrics', (table) => {
-          table.increments('id').primary();
-          table.string('metric_name').notNullable();
-          table.decimal('metric_value', 15, 4).notNullable();
-          table.text('labels').nullable();
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
+      const requiredTables = [
+        'system_metrics',
+        'health_checks',
+        'request_metrics',
+        'email_metrics'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await this.db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela de health checks
-      const hasHealthChecks = await this.db.schema.hasTable('health_checks');
-      if (!hasHealthChecks) {
-        await this.db.schema.createTable('health_checks', (table) => {
-          table.increments('id').primary();
-          table.string('service_name').notNullable();
-          table.boolean('is_healthy').notNullable();
-          table.text('details').nullable();
-          table.text('error_message').nullable();
-          table.integer('response_time_ms').nullable();
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de performance de requests
-      const hasRequestMetrics = await this.db.schema.hasTable('request_metrics');
-      if (!hasRequestMetrics) {
-        await this.db.schema.createTable('request_metrics', (table) => {
-          table.increments('id').primary();
-          table.string('method').notNullable();
-          table.string('route').notNullable();
-          table.integer('status_code').notNullable();
-          table.decimal('response_time_ms', 10, 2).notNullable();
-          table.decimal('memory_usage_mb', 10, 2).nullable();
-          table.decimal('cpu_usage_percent', 5, 2).nullable();
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de métricas de email
-      const hasEmailMetrics = await this.db.schema.hasTable('email_metrics');
-      if (!hasEmailMetrics) {
-        await this.db.schema.createTable('email_metrics', (table) => {
-          table.increments('id').primary();
-          table.string('metric_type').notNullable();
-          table.integer('user_id').nullable();
-          table.string('domain').nullable();
-          table.string('mx_server').nullable();
-          table.string('status').nullable();
-          table.integer('count').defaultTo(1);
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Índices para performance (criar sempre, ignorar erros se já existem)
-      try {
-        await this.db.schema.alterTable('system_metrics', (table) => {
-          table.index(['timestamp'], 'idx_system_metrics_timestamp');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('health_checks', (table) => {
-          table.index(['service_name', 'timestamp'], 'idx_health_checks_service');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('request_metrics', (table) => {
-          table.index(['route', 'timestamp'], 'idx_request_metrics_route');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('email_metrics', (table) => {
-          table.index(['metric_type', 'timestamp'], 'idx_email_metrics_type');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      logger.info('MonitoringService: Tabelas de monitoramento inicializadas');
+      logger.info('MonitoringService: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Erro ao inicializar tabelas de monitoramento:', error);
+      logger.error('Erro ao validar tabelas do MonitoringService:', error);
       throw error;
     }
   }

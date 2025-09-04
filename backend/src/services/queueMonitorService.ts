@@ -53,103 +53,29 @@ export class QueueMonitorService {
     this.queues = queues;
     this.db = database || db;
     
-    this.initializeTables();
+    this.validateRequiredTables();
     this.loadAlertConfigs();
   }
 
-  private async initializeTables(): Promise<void> {
+  private async validateRequiredTables(): Promise<void> {
     try {
-      // Tabela de métricas de fila
-      const hasQueueMetrics = await this.db.schema.hasTable('queue_metrics');
-      if (!hasQueueMetrics) {
-        await this.db.schema.createTable('queue_metrics', (table) => {
-          table.increments('id').primary();
-          table.string('queue_name').notNullable();
-          table.integer('waiting_jobs').defaultTo(0);
-          table.integer('active_jobs').defaultTo(0);
-          table.integer('completed_jobs').defaultTo(0);
-          table.integer('failed_jobs').defaultTo(0);
-          table.integer('delayed_jobs').defaultTo(0);
-          table.boolean('is_paused').defaultTo(false);
-          table.decimal('processing_rate', 10, 2).defaultTo(0);
-          table.decimal('completion_rate', 5, 2).defaultTo(0);
-          table.decimal('failure_rate', 5, 2).defaultTo(0);
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-        });
+      const requiredTables = [
+        'queue_metrics',
+        'queue_alerts',
+        'alert_history',
+        'queue_health_checks'
+      ];
+
+      for (const tableName of requiredTables) {
+        const hasTable = await this.db.schema.hasTable(tableName);
+        if (!hasTable) {
+          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+        }
       }
 
-      // Tabela de alertas
-      const hasQueueAlerts = await this.db.schema.hasTable('queue_alerts');
-      if (!hasQueueAlerts) {
-        await this.db.schema.createTable('queue_alerts', (table) => {
-          table.increments('id').primary();
-          table.string('alert_id').unique().notNullable();
-          table.string('name').notNullable();
-          table.string('queue_name').nullable();
-          table.string('condition_type').notNullable();
-          table.decimal('threshold_value', 10, 2).notNullable();
-          table.boolean('is_enabled').defaultTo(true);
-          table.integer('cooldown_minutes').defaultTo(15);
-          table.text('webhook_url').nullable();
-          table.text('email_recipients').nullable();
-          table.datetime('created_at').defaultTo(this.db.fn.now());
-          table.datetime('updated_at').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Tabela de histórico de alertas
-      const hasAlertHistory = await this.db.schema.hasTable('alert_history');
-      if (!hasAlertHistory) {
-        await this.db.schema.createTable('alert_history', (table) => {
-          table.increments('id').primary();
-          table.string('alert_id').notNullable();
-          table.string('queue_name').nullable();
-          table.string('condition_type').notNullable();
-          table.decimal('trigger_value', 10, 2).nullable();
-          table.decimal('threshold_value', 10, 2).nullable();
-          table.text('message').nullable();
-          table.boolean('resolved').defaultTo(false);
-          table.datetime('triggered_at').defaultTo(this.db.fn.now());
-          table.datetime('resolved_at').nullable();
-        });
-      }
-
-      // Tabela de health checks
-      const hasQueueHealthChecks = await this.db.schema.hasTable('queue_health_checks');
-      if (!hasQueueHealthChecks) {
-        await this.db.schema.createTable('queue_health_checks', (table) => {
-          table.increments('id').primary();
-          table.string('overall_status').notNullable();
-          table.boolean('redis_connected').defaultTo(true);
-          table.integer('total_jobs').defaultTo(0);
-          table.integer('total_failures').defaultTo(0);
-          table.integer('issues_count').defaultTo(0);
-          table.text('issues_details').nullable();
-          table.datetime('timestamp').defaultTo(this.db.fn.now());
-        });
-      }
-
-      // Índices para performance (criar sempre, ignorar erros se já existem)
-      try {
-        await this.db.schema.alterTable('queue_metrics', (table) => {
-          table.index(['queue_name', 'timestamp'], 'idx_queue_metrics_name_timestamp');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      try {
-        await this.db.schema.alterTable('alert_history', (table) => {
-          table.index(['alert_id', 'triggered_at'], 'idx_alert_history_alert_id');
-        });
-      } catch (error) {
-        // Índice pode já existir
-      }
-
-      logger.info('QueueMonitorService: Tabelas inicializadas com sucesso');
+      logger.info('QueueMonitorService: Todas as tabelas obrigatórias validadas com sucesso');
     } catch (error) {
-      logger.error('Erro ao inicializar tabelas do QueueMonitorService:', error);
+      logger.error('Erro ao validar tabelas do QueueMonitorService:', error);
       throw error;
     }
   }
