@@ -355,7 +355,7 @@ jobs:
         echo '📁 Copying new frontend build...'
         cp -r frontend/dist/* /var/www/ultrazend-static/
         chown -R www-data:www-data /var/www/ultrazend-static
-        echo '✅ Frontend deployed - Size: $(du -sh /var/www/ultrazend-static/)'
+        echo '✅ Frontend deployed'
         
         # Configure nginx with SSL automatically
         echo '🔒 Configuring Nginx with SSL...'
