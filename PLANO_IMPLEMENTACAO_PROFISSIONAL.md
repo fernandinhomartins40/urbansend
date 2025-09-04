@@ -26,6 +26,120 @@
 
 ---
 
+## 🚨 FASE 0 - CORREÇÕES CRÍTICAS DE INFRAESTRUTURA (HOTFIX VPS)
+**⏱️ Duração:** 2-4 horas  
+**🚨 Prioridade:** CRÍTICA MÁXIMA  
+**🎯 Meta:** Resolver problemas de configuração VPS que impedem funcionamento básico
+**📅 Status:** DESCOBERTO EM 04/09/2025 18:45
+
+### 🔍 PROBLEMA IDENTIFICADO
+Durante investigação pós-deploy da Fase 1, descobrimos que **as correções foram deployadas corretamente**, mas **problemas de configuração de infraestrutura** estão impedindo o funcionamento. Consultar `RELATORIO_PROBLEMAS_VPS_CRITICOS.md` para detalhes completos.
+
+### 0.1 Correção Crítica - Arquivo de Banco Incorreto
+**Problema:** Aplicação usa `database.sqlite` (vazio) em vez de `ultrazend.sqlite` (com migrations)
+
+#### Tarefas:
+```bash
+# 📝 Task 0.1.1: Corrigir arquivo de banco em produção
+ssh root@ultrazend.com.br
+cd /var/www/ultrazend/backend
+cp ultrazend.sqlite database.sqlite
+pm2 restart ultrazend-api
+```
+
+#### Validação:
+- [ ] ✅ Arquivo database.sqlite tem conteúdo (>800KB)
+- [ ] ✅ Tabelas existem e têm estrutura correta
+- [ ] ✅ PM2 reinicia sem erros
+
+### 0.2 Correção Crítica - NODE_ENV em Produção  
+**Problema:** NODE_ENV indefinido causando uso de configuração development
+
+#### Tarefas:
+```bash
+# 📝 Task 0.2.1: Configurar NODE_ENV correto
+pm2 stop ultrazend-api
+pm2 delete ultrazend-api
+NODE_ENV=production pm2 start dist/index.js --name ultrazend-api --update-env
+```
+
+#### Validação:
+- [ ] ✅ NODE_ENV=production em pm2 show ultrazend-api
+- [ ] ✅ Aplicação usa configuração de produção
+- [ ] ✅ Logs mostram environment=production
+
+### 0.3 Correção Crítica - Schema Users (Campo name)
+**Problema:** Backend usa `name` mas migration define `first_name` + `last_name`
+
+#### Estratégia Híbrida:
+**Opção A (Quick Fix):** Adicionar campo `name` via migration  
+**Opção B (Schema Fix):** Corrigir código para usar `first_name` + `last_name`
+
+#### Task 0.3.1 - Quick Fix (Recomendado para produção):
+```typescript
+// 📝 Nova migration: backend/src/migrations/add_name_to_users.js
+exports.up = function(knex) {
+  return knex.schema.alterTable('users', function(table) {
+    table.string('name', 255).nullable();
+  });
+};
+
+exports.down = function(knex) {
+  return knex.schema.alterTable('users', function(table) {
+    table.dropColumn('name');
+  });
+};
+```
+
+#### Task 0.3.2 - Executar migration:
+```bash
+cd /var/www/ultrazend/backend
+NODE_ENV=production npm run migrate:latest
+```
+
+#### Validação:
+- [ ] ✅ Campo `name` existe na tabela users
+- [ ] ✅ Registro de usuário funciona sem erro 500
+- [ ] ✅ Testes de auth passam
+
+### 0.4 Correção Crítica - Schema Domains (Campo domain)
+**Problema:** Backend usa `domain` mas migration define `domain_name`
+
+#### Task 0.4.1 - Quick Fix:
+```typescript
+// 📝 Nova migration: backend/src/migrations/add_domain_to_domains.js  
+exports.up = function(knex) {
+  return knex.schema.alterTable('domains', function(table) {
+    table.string('domain', 255).nullable();
+    // Copiar dados de domain_name para domain
+  }).then(() => {
+    return knex.raw('UPDATE domains SET domain = domain_name WHERE domain IS NULL');
+  });
+};
+```
+
+#### Task 0.4.2 - Atualizar DKIM queries:
+```typescript
+// 📝 backend/src/services/dkimManager.ts - Correção temporária
+// Usar campo 'domain' em vez de 'domains.domain' nas queries JOIN
+```
+
+#### Validação:
+- [ ] ✅ Campo `domain` existe na tabela domains
+- [ ] ✅ DKIM operations funcionam sem erro
+- [ ] ✅ Domain configuration funciona
+
+### Validação Completa Fase 0:
+- [ ] ✅ Registro de usuários 100% funcional (0 erros 500)
+- [ ] ✅ DKIM management funcionando
+- [ ] ✅ Health check retorna "healthy"
+- [ ] ✅ Analytics carregam sem erro  
+- [ ] ✅ Logs sem SQLITE_ERROR críticos
+
+**⚠️ NOTA IMPORTANTE:** Esta fase resolve problemas de infraestrutura descobertos APÓS implementação da Fase 1. O código da Fase 1 está correto, mas problemas de schema não detectados anteriormente causaram falhas em produção.
+
+---
+
 ## 🎯 FASE 1 - CORREÇÕES CRÍTICAS (EMERGENCY FIX)
 **⏱️ Duração:** 2-3 dias  
 **🚨 Prioridade:** CRÍTICA  
@@ -452,20 +566,27 @@ pm2 restart all
 
 ---
 
-## 📊 CRONOGRAMA DETALHADO
+## 📊 CRONOGRAMA DETALHADO ATUALIZADO
 
-| Fase | Início | Fim | Milestone |
-|------|--------|-----|-----------|
-| **Fase 1** | Dia 1 | Dia 3 | 🚨 Zero erros 500 em auth |
-| **Fase 2** | Dia 4 | Dia 10 | 🏗️ Analytics completamente funcional |
-| **Fase 3** | Dia 11 | Dia 24 | 🔒 Security & Reputation implementados |  
-| **Fase 4** | Dia 25 | Dia 30 | 🎯 Sistema otimizado e documentado |
+| Fase | Início | Fim | Milestone | Status |
+|------|--------|-----|-----------|---------|
+| **Fase 0** | **HOJE** | **HOJE** | 🚨 **HOTFIX: VPS funcionando** | 🔥 **URGENTE** |
+| **Fase 1** | Dia 1 | Dia 3 | 🚨 Zero erros 500 em auth | ✅ **IMPLEMENTADO** |
+| **Fase 2** | Dia 4 | Dia 10 | 🏗️ Analytics completamente funcional | ⏳ Aguardando |
+| **Fase 3** | Dia 11 | Dia 24 | 🔒 Security & Reputation implementados | ⏳ Aguardando |  
+| **Fase 4** | Dia 25 | Dia 30 | 🎯 Sistema otimizado e documentado | ⏳ Aguardando |
 
-### Checkpoints Semanais
-- **Semana 1:** Fase 1 completa + início Fase 2
+### Checkpoints Atualizados
+- **HOJE (04/09):** ⚡ **FASE 0 COMPLETA** - VPS funcionando 100%
+- **Semana 1:** Fase 1 ✅ (FEITO) + início Fase 2
 - **Semana 2:** Fase 2 completa + início Fase 3  
 - **Semana 3-4:** Fase 3 completa
 - **Semana 5:** Fase 4 + entrega final
+
+### 🔥 PRIORIDADES ATUALIZADAS
+1. **CRÍTICO HOJE:** Fase 0 - Resolver VPS (2-4h)
+2. **Próximos dias:** Continuar Fase 2 conforme planejado
+3. **Esta semana:** Recuperar cronograma original
 
 ---
 

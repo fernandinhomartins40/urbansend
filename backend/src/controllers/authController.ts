@@ -27,6 +27,11 @@ const getRefreshCookieOptions = () => ({
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password } = req.body;
+  
+  // Split name into first_name and last_name
+  const nameParts = name?.trim().split(' ') || [];
+  const first_name = nameParts[0] || '';
+  const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
 
   logger.info('Registration attempt started', { 
     email, 
@@ -73,7 +78,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   
   try {
     insertResult = await db('users').insert({
-      name,
+      first_name,
+      last_name,
       email,
       password: passwordHash,
       verification_token: verificationToken,
@@ -174,7 +180,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     message: 'Login successful',
     user: {
       id: user.id,
-      name: user.name,
+      name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
       email: user.email,
       is_verified: user.is_verified
     }
@@ -245,7 +251,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
       message: 'Email já verificado. Você pode fazer login.',
       user: {
         id: user.id,
-        name: user.name,
+        name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
         email: user.email,
         is_verified: true
       }
@@ -289,7 +295,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     message: 'Email verificado com sucesso! Você já pode fazer login.',
     user: {
       id: user.id,
-      name: user.name,
+      name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
       email: user.email,
       is_verified: true
     }
@@ -398,7 +404,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     
     // Find user
     const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified')
+      .select('id', 'email', 'first_name', 'last_name', 'is_verified')
       .where('id', decoded.userId)
       .first();
 
@@ -420,7 +426,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
       message: 'Token refreshed successfully',
       user: {
         id: user.id,
-        name: user.name,
+        name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
         email: user.email,
         is_verified: user.is_verified
       }
@@ -440,7 +446,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const user = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'created_at', 'updated_at')
+    .select('id', 'first_name', 'last_name', 'email', 'is_verified', 'created_at', 'updated_at')
     .where('id', req.user!.id)
     .first();
 
@@ -456,14 +462,20 @@ export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Re
 export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { name } = req.body;
   const userId = req.user!.id;
+  
+  // Split name into first_name and last_name
+  const nameParts = name?.trim().split(' ') || [];
+  const first_name = nameParts[0] || '';
+  const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
 
   await db('users').where('id', userId).update({
-    name,
+    first_name,
+    last_name,
     updated_at: new Date()
   });
 
   const updatedUser = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'created_at', 'updated_at')
+    .select('id', 'first_name', 'last_name', 'email', 'is_verified', 'created_at', 'updated_at')
     .where('id', userId)
     .first();
 
@@ -600,7 +612,7 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
       // const emailService = EmailServiceFactory.getService(TYPES.EmailService); // Temporarily disabled
     const { EmailService } = await import('../services/emailService');
     const emailService = new EmailService();
-      await emailService.sendVerificationEmail(email, user.name, verificationToken);
+      await emailService.sendVerificationEmail(email, `${user.first_name || ''} ${user.last_name || ''}`.trim(), verificationToken);
       logger.info('Verification email resent successfully', { 
         userId: user.id, 
         email,

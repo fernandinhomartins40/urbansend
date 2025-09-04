@@ -94,7 +94,7 @@ export class DKIMManager {
       const configs = await db('dkim_keys')
         .join('domains', 'dkim_keys.domain_id', 'domains.id')
         .where('dkim_keys.is_active', true)
-        .select('dkim_keys.*', 'domains.domain');
+        .select('dkim_keys.*', 'domains.domain_name as domain');
 
       configs.forEach(config => {
         const dkimConfig: DKIMConfig = {
@@ -180,7 +180,7 @@ export class DKIMManager {
     const publicKeyData = fs.readFileSync(publicPath, 'utf8').trim();
 
     // Obter domain_id
-    const domainRecord = await db('domains').where('domain', domain).first();
+    const domainRecord = await db('domains').where('domain_name', domain).first();
     if (!domainRecord) {
       throw new Error(`Domain ${domain} not found in database`);
     }
@@ -243,7 +243,7 @@ export class DKIMManager {
 
       // PASSO 5: Obter domain_id do domínio criado
       const domainRecord = await db('domains')
-        .where('domain', domain)
+        .where('domain_name', domain)
         .first();
       
       if (!domainRecord) {
@@ -629,7 +629,7 @@ export class DKIMManager {
       
       // Verificar se o domínio já existe
       const existingDomain = await db('domains')
-        .where('domain', domain)
+        .where('domain_name', domain)
         .first();
       
       if (existingDomain) {
@@ -753,7 +753,7 @@ export class DKIMManager {
     try {
       // Obter domain_id
       const domainRecord = await db('domains')
-        .where('domain', domain)
+        .where('domain_name', domain)
         .first();
       
       if (!domainRecord) {
@@ -833,7 +833,7 @@ export class DKIMManager {
       const configs = await db('dkim_keys')
         .join('domains', 'dkim_keys.domain_id', 'domains.id')
         .where('dkim_keys.is_active', true)
-        .select('domains.domain', 'dkim_keys.selector', 'dkim_keys.public_key', 'dkim_keys.key_size');
+        .select('domains.domain_name as domain', 'dkim_keys.selector', 'dkim_keys.public_key', 'dkim_keys.key_size');
 
       const dnsRecords = configs.map(config => {
         const dnsRecord = this.generateDNSRecord(config.public_key, config.key_size);
