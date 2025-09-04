@@ -189,12 +189,26 @@ jobs:
         echo '🔨 Building application...'
         npm run build || { echo '❌ Build failed - stopping deployment'; exit 1; }
         
-        # Validate build output exists
-        if [ ! -d "dist" ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
-          echo '❌ Build output missing or empty - stopping deployment'
+        # Validate build output exists with detailed debugging
+        echo '🔍 Validating build output...'
+        if [ ! -d "dist" ]; then
+          echo '❌ dist directory not found - stopping deployment'
+          echo 'Current directory contents:'
+          ls -la
           exit 1
         fi
-        echo '✅ Build completed and validated successfully'
+        
+        js_files=$(find dist -name "*.js" 2>/dev/null | wc -l)
+        if [ "$js_files" -eq 0 ]; then
+          echo '❌ No JavaScript files found in dist/ - stopping deployment'
+          echo 'Dist directory contents:'
+          ls -la dist/ || echo 'dist/ is empty or inaccessible'
+          exit 1
+        fi
+        
+        echo "✅ Build completed successfully - $js_files JS files generated"
+        echo 'Build output summary:'
+        ls -la dist/ | head -10
         
         # Copy and configure UltraZend SMTP Pure environment
         if [ -f ../configs/.env.ultrazend.production ]; then
