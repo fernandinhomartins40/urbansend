@@ -180,34 +180,32 @@ jobs:
           echo '✅ UltraZend Pure SMTP .env configured'
         else
           echo '⚙️ Creating UltraZend SMTP Pure production .env...'
-          cat > .env << 'EOF'
-NODE_ENV=production
-PORT=3001
-HOST=0.0.0.0
-DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
-REDIS_URL=redis://127.0.0.1:6379
-LOG_FILE_PATH=/var/www/ultrazend/logs
-LOG_LEVEL=info
-ULTRAZEND_HOSTNAME=mail.ultrazend.com.br
-ULTRAZEND_DOMAIN=ultrazend.com.br
-ULTRAZEND_SMTP_PORT=25
-SMTP_MODE=pure_ultrazend
-POSTFIX_ENABLED=false
-DELIVERY_MODE=direct_mx
-DKIM_ENABLED=true
-DKIM_PRIVATE_KEY_PATH=../configs/dkim-keys/ultrazend.com.br-default-private.pem
-DKIM_SELECTOR=default
-DKIM_DOMAIN=ultrazend.com.br
-EMAIL_QUEUE_CONCURRENCY=5
-EMAIL_QUEUE_RETRY_ATTEMPTS=3
-EMAIL_QUEUE_RETRY_DELAY=300000
-QUEUE_CLEANUP_ENABLED=true
-QUEUE_RETENTION_HOURS=48
-MAX_CONCURRENT_CONNECTIONS=10
-MAX_EMAILS_PER_HOUR=1000
-RATE_LIMIT_ENABLED=true
-CONNECTION_TIMEOUT=60000
-EOF
+          echo 'NODE_ENV=production' > .env
+          echo 'PORT=3001' >> .env
+          echo 'HOST=0.0.0.0' >> .env
+          echo 'DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite' >> .env
+          echo 'REDIS_URL=redis://127.0.0.1:6379' >> .env
+          echo 'LOG_FILE_PATH=/var/www/ultrazend/logs' >> .env
+          echo 'LOG_LEVEL=info' >> .env
+          echo 'ULTRAZEND_HOSTNAME=mail.ultrazend.com.br' >> .env
+          echo 'ULTRAZEND_DOMAIN=ultrazend.com.br' >> .env
+          echo 'ULTRAZEND_SMTP_PORT=25' >> .env
+          echo 'SMTP_MODE=pure_ultrazend' >> .env
+          echo 'POSTFIX_ENABLED=false' >> .env
+          echo 'DELIVERY_MODE=direct_mx' >> .env
+          echo 'DKIM_ENABLED=true' >> .env
+          echo 'DKIM_PRIVATE_KEY_PATH=../configs/dkim-keys/ultrazend.com.br-default-private.pem' >> .env
+          echo 'DKIM_SELECTOR=default' >> .env
+          echo 'DKIM_DOMAIN=ultrazend.com.br' >> .env
+          echo 'EMAIL_QUEUE_CONCURRENCY=5' >> .env
+          echo 'EMAIL_QUEUE_RETRY_ATTEMPTS=3' >> .env
+          echo 'EMAIL_QUEUE_RETRY_DELAY=300000' >> .env
+          echo 'QUEUE_CLEANUP_ENABLED=true' >> .env
+          echo 'QUEUE_RETENTION_HOURS=48' >> .env
+          echo 'MAX_CONCURRENT_CONNECTIONS=10' >> .env
+          echo 'MAX_EMAILS_PER_HOUR=1000' >> .env
+          echo 'RATE_LIMIT_ENABLED=true' >> .env
+          echo 'CONNECTION_TIMEOUT=60000' >> .env
           chmod 600 .env
         fi
         
