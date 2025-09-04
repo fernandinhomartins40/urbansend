@@ -1,4 +1,4 @@
-name: Deploy UltraZend Production (PM2 + Nginx)
+name: 🚀 Deploy UltraZend Production (PM2 + Nginx)
 
 concurrency:
   group: ultrazend-production-deploy
@@ -25,35 +25,35 @@ env:
 
 jobs:
   deploy:
-    name: Deploy Production (PM2 + Nginx)
+    name: 🎯 Deploy Production (PM2 + Nginx)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
     steps:
-    - name: Deploy Info
+    - name: 📋 Deploy Info
       run: |
-        echo "[INFO] ULTRAZEND NATIVE DEPLOY"
+        echo "🚀 ULTRAZEND NATIVE DEPLOY"
         echo "========================="
-        echo "[INFO] Commit: ${{ github.sha }}"
-        echo "[INFO] Branch: ${{ github.ref_name }}"  
-        echo "[INFO] Target: ${{ env.VPS_HOST }}:${{ env.APP_PORT }}"
-        echo "[INFO] Domain: ${{ env.DOMAIN }}"
-        echo "[INFO] Start: $(date -u)"
+        echo "📦 Commit: ${{ github.sha }}"
+        echo "🌿 Branch: ${{ github.ref_name }}"  
+        echo "🎯 Target: ${{ env.VPS_HOST }}:${{ env.APP_PORT }}"
+        echo "🌐 Domain: ${{ env.DOMAIN }}"
+        echo "⏰ Start: $(date -u)"
         echo "========================="
 
-    - name: Setup SSH
+    - name: 🔧 Setup SSH
       run: |
         sudo apt-get update -qq && sudo apt-get install -y sshpass rsync
         mkdir -p ~/.ssh && chmod 700 ~/.ssh
         ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts
         
         # Test SSH connection
-        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '[OK] SSH OK'"
+        sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "echo '✅ SSH OK'"
 
-    - name: Checkout Code
+    - name: 📥 Checkout Code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: 🟢 Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
@@ -62,7 +62,7 @@ jobs:
           frontend/package-lock.json
           backend/package-lock.json
 
-    - name: Build Frontend
+    - name: 🏗️ Build Frontend
       env:
         VITE_API_BASE_URL: https://${{ env.DOMAIN }}/api
         VITE_WS_URL: wss://${{ env.DOMAIN }}
@@ -74,22 +74,22 @@ jobs:
         VITE_ENABLE_CSP: true
         VITE_SECURE_COOKIES: true
       run: |
-        echo "[BUILD] Building React frontend with production config..."
+        echo "🏗️ Building React frontend with production config..."
         cd frontend
         npm ci --silent
-        echo "[BUILD] Environment variables:"
+        echo "📋 Environment variables:"
         echo "  VITE_API_BASE_URL=$VITE_API_BASE_URL"
         echo "  VITE_WS_URL=$VITE_WS_URL"
         npm run build
-        echo "[BUILD] Frontend built - Size: $(du -sh dist/)"
+        echo "✅ Frontend built - Size: $(du -sh dist/)"
         ls -la dist/ | head -5
 
-    - name: Deploy to VPS
+    - name: 🚀 Deploy to VPS
       run: |
-        echo "[DEPLOY] Deploying to VPS..."
+        echo "🚀 Deploying to VPS..."
         
         # Transfer code
-        echo "[DEPLOY] Transferring files..."
+        echo "📤 Transferring files..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" rsync -avz --delete \
           --exclude='.git/' --exclude='node_modules/' --exclude='.claude/' \
           --exclude='frontend/node_modules/' --exclude='backend/node_modules/' \
@@ -99,23 +99,23 @@ jobs:
           ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:${{ env.APP_DIR }}/
         
         # Deploy on server
-        echo "[DEPLOY] Configuring server..."
+        echo "⚙️ Configuring server..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         cd ${{ env.APP_DIR }}
         
         # Stop existing services - ROBUST CLEANUP
-        echo '[DEPLOY] Stopping all existing services...'
+        echo '🛑 Stopping all existing services...'
         pm2 stop all 2>/dev/null || true
         pm2 delete all 2>/dev/null || true
         pm2 kill 2>/dev/null || true
-        echo '[DEPLOY] All PM2 processes cleaned up'
+        echo '✅ All PM2 processes cleaned up'
         
         # Setup backend
-        echo '[DEPLOY] Setting up backend...'
+        echo '🏗️ Setting up backend...'
         cd backend
         
         # COMPREHENSIVE CLEANUP - Remove old files and caches
-        echo '[DEPLOY] COMPREHENSIVE CLEANUP - Removing old versions...'
+        echo '🗑️ COMPREHENSIVE CLEANUP - Removing old versions...'
         rm -rf dist/ || true
         rm -rf node_modules/.cache/ || true
         rm -rf .npm/ || true
@@ -127,10 +127,10 @@ jobs:
         # Clean old PM2 logs
         pm2 flush 2>/dev/null || true
         
-        echo '[DEPLOY] Cleanup completed - only fresh version will remain'
+        echo '✅ Cleanup completed - only fresh version will remain'
         
         # Install Redis if not present
-        echo '[DEPLOY] Ensuring Redis is available...'
+        echo '🔧 Ensuring Redis is available...'
         if ! command -v redis-server &> /dev/null; then
           echo 'Installing Redis...'
           apt-get update -qq && apt-get install -y redis-server
@@ -139,60 +139,60 @@ jobs:
         fi
         
         # 🚀 ULTRAZEND SMTP PURE MODE - NO POSTFIX DEPENDENCIES
-        echo '[DEPLOY] Setting up UltraZend SMTP Server (Pure Mode - No Postfix)'
-        echo '[DEPLOY] UltraZend will handle all SMTP delivery directly via MX records'
+        echo '🚀 Setting up UltraZend SMTP Server (Pure Mode - No Postfix)'
+        echo '🎯 UltraZend will handle all SMTP delivery directly via MX records'
         
         # Ensure Postfix is DISABLED and REMOVED (if installed)
-        echo '[DEPLOY] Ensuring Postfix is completely disabled...'
+        echo '🛑 Ensuring Postfix is completely disabled...'
         if command -v postfix &> /dev/null; then
-          echo '[DEPLOY] Stopping and disabling Postfix...'
+          echo '🛑 Stopping and disabling Postfix...'
           systemctl stop postfix 2>/dev/null || true
           systemctl disable postfix 2>/dev/null || true
           
           # Optional: Remove Postfix entirely (uncomment if desired)
           # apt-get remove --purge -y postfix mailutils 2>/dev/null || true
           
-          echo '[DEPLOY] Postfix disabled - UltraZend SMTP will handle all email delivery'
+          echo '✅ Postfix disabled - UltraZend SMTP will handle all email delivery'
         else
-          echo '[DEPLOY] No Postfix found - Perfect for UltraZend pure mode'
+          echo '✅ No Postfix found - Perfect for UltraZend pure mode'
         fi
         
         # Ensure OpenDKIM is also disabled (UltraZend has built-in DKIM)
-        echo '[DEPLOY] Ensuring OpenDKIM is disabled (UltraZend uses built-in DKIM)...'
+        echo '🔐 Ensuring OpenDKIM is disabled (UltraZend uses built-in DKIM)...'
         if systemctl is-active --quiet opendkim 2>/dev/null; then
-          echo '[DEPLOY] Stopping OpenDKIM (conflicts with UltraZend DKIM)...'
+          echo '🛑 Stopping OpenDKIM (conflicts with UltraZend DKIM)...'
           systemctl stop opendkim 2>/dev/null || true
           systemctl disable opendkim 2>/dev/null || true
         fi
         
         # Verify MTA is not conflicting
-        echo '[DEPLOY] Verifying no MTA conflicts with UltraZend SMTP...'
-        netstat -tlnp | grep ':25 ' || echo '[DEPLOY] Port 25 available for UltraZend SMTP'
+        echo '🔍 Verifying no MTA conflicts with UltraZend SMTP...'
+        netstat -tlnp | grep ':25 ' || echo '✅ Port 25 available for UltraZend SMTP'
         
         # Confirm UltraZend SMTP Pure Mode
-        echo '[DEPLOY] UltraZend SMTP Pure Mode Configuration:'
-        echo '   [OK] No Postfix dependency'
-        echo '   [OK] Direct MX record delivery'  
-        echo '   [OK] Built-in Node.js DKIM signing'
-        echo '   [OK] Native email queue processing'
-        echo '   [OK] 100% TypeScript/Node.js implementation'
+        echo '🎉 UltraZend SMTP Pure Mode Configuration:'
+        echo '   ✅ No Postfix dependency'
+        echo '   ✅ Direct MX record delivery'  
+        echo '   ✅ Built-in Node.js DKIM signing'
+        echo '   ✅ Native email queue processing'
+        echo '   ✅ 100% TypeScript/Node.js implementation'
         
         cd ${{ env.APP_DIR }}/backend
         
         # Install all dependencies (including swagger) with error checking
-        echo '[DEPLOY] Installing dependencies...'
-        npm ci --silent || { echo '[ERROR] npm ci failed'; exit 1; }
-        npm install swagger-jsdoc swagger-ui-express --save --silent || { echo '[ERROR] swagger install failed'; exit 1; }
-        echo '[DEPLOY] Dependencies installed successfully'
+        echo '📦 Installing dependencies...'
+        npm ci --silent || { echo '❌ npm ci failed'; exit 1; }
+        npm install swagger-jsdoc swagger-ui-express --save --silent || { echo '❌ swagger install failed'; exit 1; }
+        echo '✅ Dependencies installed successfully'
         
         # Build the application with validation
-        echo '[DEPLOY] Building application...'
-        npm run build || { echo '[ERROR] Build failed - stopping deployment'; exit 1; }
+        echo '🔨 Building application...'
+        npm run build || { echo '❌ Build failed - stopping deployment'; exit 1; }
         
         # Validate build output exists with detailed debugging
-        echo '[DEPLOY] Validating build output...'
+        echo '🔍 Validating build output...'
         if [ ! -d "dist" ]; then
-          echo '[ERROR] dist directory not found - stopping deployment'
+          echo '❌ dist directory not found - stopping deployment'
           echo 'Current directory contents:'
           ls -la
           exit 1
@@ -200,13 +200,13 @@ jobs:
         
         js_files=$(find dist -name "*.js" 2>/dev/null | wc -l)
         if [ $js_files -eq 0 ]; then
-          echo '[ERROR] No JavaScript files found in dist/ - stopping deployment'
+          echo '❌ No JavaScript files found in dist/ - stopping deployment'
           echo 'Dist directory contents:'
           ls -la dist/ || echo 'dist/ is empty or inaccessible'
           exit 1
         fi
         
-        echo "[DEPLOY] Build completed successfully - $js_files JS files generated"
+        echo "✅ Build completed successfully - $js_files JS files generated"
         echo 'Build output summary:'
         ls -la dist/ | head -10
         
@@ -214,9 +214,9 @@ jobs:
         if [ -f ../configs/.env.ultrazend.production ]; then
           cp ../configs/.env.ultrazend.production .env
           chmod 600 .env
-          echo '[DEPLOY] UltraZend Pure SMTP .env configured'
+          echo '✅ UltraZend Pure SMTP .env configured'
         else
-          echo '[DEPLOY] Creating UltraZend SMTP Pure production .env...'
+          echo '⚙️ Creating UltraZend SMTP Pure production .env...'
           echo 'NODE_ENV=production' > .env
           echo 'PORT=3001' >> .env
           echo 'HOST=0.0.0.0' >> .env
@@ -247,35 +247,35 @@ jobs:
         fi
         
         # Verify DKIM keys directory and contents
-        echo '[DEPLOY] Verifying DKIM keys directory...'
+        echo '🔐 Verifying DKIM keys directory...'
         if [ -d "../configs/dkim-keys/" ] && [ "$(ls -A ../configs/dkim-keys/)" ]; then
-          echo '[DEPLOY] DKIM keys directory found with files'
+          echo '✅ DKIM keys directory found with files'
           echo 'Available DKIM keys:'
           ls -la ../configs/dkim-keys/*.pem 2>/dev/null | head -5 || echo 'No .pem files found'
           ls -la ../configs/dkim-keys/*.txt 2>/dev/null | head -3 || echo 'No .txt files found'
         else
-          echo '[WARNING] DKIM keys directory missing or empty!'
+          echo '⚠️ DKIM keys directory missing or empty!'
           echo 'Creating basic directory structure...'
           mkdir -p ../configs/dkim-keys/
           echo 'Deploy will continue but DKIM may need configuration'
         fi
         
         # UltraZend SMTP Pure configuration
-        echo '[DEPLOY] UltraZend SMTP Pure Mode configured:'
-        echo '   [OK] Direct MX delivery enabled'
-        echo '   [OK] Node.js DKIM signing active'
-        echo '   [OK] Queue processing enabled'
-        echo '   [OK] No external SMTP dependencies'
-        echo '   [OK] DKIM keys loaded from configs/dkim-keys/'
-        echo '[DEPLOY] UltraZend SMTP architecture validated'
+        echo '🎉 UltraZend SMTP Pure Mode configured:'
+        echo '   ✅ Direct MX delivery enabled'
+        echo '   ✅ Node.js DKIM signing active'
+        echo '   ✅ Queue processing enabled'
+        echo '   ✅ No external SMTP dependencies'
+        echo '   ✅ DKIM keys loaded from configs/dkim-keys/'
+        echo '✅ UltraZend SMTP architecture validated'
         
         # Ensure log directories exist
         mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
         chown -R www-data:www-data /var/www/ultrazend/logs || true
         
         # 🚀 CRITICAL: Execute 47 centralized migrations (FAIL FAST)
-        echo '[DEPLOY] Executando 47 migrations centralizadas obrigatórias (A01-ZU47)...'
-        echo '[CRITICAL] CRITICO: Falha em migrations PARA o deploy imediatamente'
+        echo '📊 Executando 47 migrations centralizadas obrigatórias (A01-ZU47)...'
+        echo '⚠️  CRÍTICO: Falha em migrations PARA o deploy imediatamente'
         
         # Execute migrations with strict validation
         npm run migrate:latest
@@ -284,22 +284,22 @@ jobs:
         migration_count=$(npx knex migrate:list 2>/dev/null | grep -c 'Batch\|COMPLETED\|✔' || echo '0')
         echo "Debug: migration_count = '$migration_count'"
         if [ "$migration_count" -lt 10 ]; then
-          echo "[ERROR] CRITICO: Muito poucas migrations ($migration_count/~47)"
-          echo '[ERROR] Deploy CANCELADO - Schema pode estar incompleto'
+          echo "❌ CRÍTICO: Muito poucas migrations ($migration_count/~47)"
+          echo '🚫 Deploy CANCELADO - Schema pode estar incompleto'
           echo 'Migrations aplicadas:'
           npx knex migrate:list 2>/dev/null || echo 'Erro ao listar migrations'
           exit 1
         fi
         
-        echo "[DEPLOY] Migrations suficientes aplicadas ($migration_count/~47) - Schema centralizado ativo!"
-        echo '[DEPLOY] Migrations batch aplicado com sucesso'
+        echo "✅ Migrations suficientes aplicadas ($migration_count/~47) - Schema centralizado ativo!"
+        echo '📋 Migrations batch aplicado com sucesso'
         
         # 🔍 ENTERPRISE VALIDATION: Verify critical tables exist
-        echo '[DEPLOY] Validando tabelas obrigatórias do schema centralizado...'
+        echo '🧪 Validando tabelas obrigatórias do schema centralizado...'
         
         # Test database connectivity with basic validation
         if [ ! -f "./dist/config/database.js" ]; then
-          echo '[ERROR] Database config file not found: ./dist/config/database.js'
+          echo '❌ Database config file not found: ./dist/config/database.js'
           echo 'Available files in dist/config:'
           ls -la ./dist/config/ || echo 'dist/config directory not found'
           echo 'Available files in dist:'
@@ -313,7 +313,7 @@ jobs:
           try {
             // Simple database connectivity test
             await db.raw('SELECT 1 as test');
-            console.log('[OK] Database connectivity validated');
+            console.log('✅ Database connectivity validated');
             
             // Check some critical tables exist (flexible)
             const tables = await db.raw(
@@ -325,44 +325,44 @@ jobs:
             const existingCritical = tables.filter(t => criticalTables.includes(t.name));
             
             if (existingCritical.length < 3) {
-              console.error('[ERROR] CRITICO: Tabelas criticas faltando');
+              console.error('❌ CRÍTICO: Tabelas críticas faltando');
               process.exit(1);
             }
             
-            console.log('[OK] Schema validation PASSOU -', tableCount, 'tabelas disponiveis');
-            console.log('[OK] Tabelas criticas validadas:', existingCritical.length, 'de', criticalTables.length);
+            console.log('✅ Schema validation PASSOU -', tableCount, 'tabelas disponíveis');
+            console.log('📊 Tabelas críticas validadas:', existingCritical.length, 'de', criticalTables.length);
             
             await db.destroy();
             process.exit(0);
           } catch (err) {
-            console.error('[ERROR] CRITICO: Erro na validacao do schema:', err.message);
+            console.error('❌ CRÍTICO: Erro na validação do schema:', err.message);
             process.exit(1);
           }
         }
         validateSchema();
         "
         
-        echo '[DEPLOY] Schema centralizado 100% validado - Deploy pode continuar'
+        echo '🎉 Schema centralizado 100% validado - Deploy pode continuar'
         
         cd ..
         
         # Setup frontend in nginx
-        echo '[DEPLOY] Setting up frontend...'
-        echo '[DEPLOY] Removing old frontend files...'
+        echo '🌐 Setting up frontend...'
+        echo '🗑️ Removing old frontend files...'
         rm -rf /var/www/ultrazend-static
         mkdir -p /var/www/ultrazend-static
         echo '📁 Copying new frontend build...'
         cp -r frontend/dist/* /var/www/ultrazend-static/
         chown -R www-data:www-data /var/www/ultrazend-static
-        echo '[DEPLOY] Frontend deployed - Size: $(du -sh /var/www/ultrazend-static/)'
+        echo '✅ Frontend deployed - Size: $(du -sh /var/www/ultrazend-static/)'
         
         # Configure nginx with SSL automatically
-        echo '[DEPLOY] Configuring Nginx with SSL...'
+        echo '🔒 Configuring Nginx with SSL...'
         if [ -f scripts/setup-nginx-ssl.sh ]; then
           chmod +x scripts/setup-nginx-ssl.sh
           ./scripts/setup-nginx-ssl.sh
         else
-          echo '[WARNING] SSL setup script not found, using manual configuration...'
+          echo '⚠️ SSL setup script not found, using manual configuration...'
           # Fallback: usar configuração SSL se existir certificado
           if [ -f /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem ]; then
             echo 'Using SSL configuration'
@@ -386,37 +386,37 @@ jobs:
         fi
         
         # Start backend with PM2 using ecosystem config - ROBUST STARTUP
-        echo '[DEPLOY] Starting all services with PM2...'
+        echo '🚀 Starting all services with PM2...'
         
         # Start services with error checking
-        pm2 start ecosystem.config.js --env production || { echo '[ERROR] PM2 startup failed'; exit 1; }
-        pm2 save || { echo '[ERROR] PM2 save failed'; exit 1; }
+        pm2 start ecosystem.config.js --env production || { echo '❌ PM2 startup failed'; exit 1; }
+        pm2 save || { echo '❌ PM2 save failed'; exit 1; }
         
         # Wait for services to start
         echo '⏳ Waiting for services to initialize...'
         sleep 10
         
         # ✅ ENTERPRISE VALIDATION: Validate only active processes
-        echo '[DEPLOY] Validating service startup (Enterprise Mode)...'
+        echo '🔍 Validating service startup (Enterprise Mode)...'
         expected_processes=("ultrazend-api")  # Only main API for now
         
         for process in "\${expected_processes[@]}"; do
           if pm2 show "\$process" >/dev/null 2>&1; then
-            echo "[OK] \$process is running"
+            echo "✅ \$process is running"
           else
-            echo "[ERROR] \$process failed to start"
+            echo "❌ \$process failed to start"
             pm2 logs "\$process" --lines 20 || true
             exit 1
           fi
         done
         
         # ✅ ENTERPRISE VALIDATION: Test basic services access
-        echo '[DEPLOY] Validando servicos basicos conseguem acessar schema centralizado...'
+        echo '🧪 Validando serviços básicos conseguem acessar schema centralizado...'
         cd /var/www/ultrazend/backend
         
         # Verify database config exists before testing services
         if [ ! -f "./dist/config/database.js" ]; then
-          echo '[ERROR] CRITICO: Database config nao encontrado para validacao de servicos'
+          echo '❌ CRÍTICO: Database config não encontrado para validação de serviços'
           echo 'Arquivos em dist/config:'
           ls -la ./dist/config/ || echo 'dist/config não existe'
           exit 1
@@ -441,138 +441,138 @@ jobs:
         
         echo "Debug: service_validation = '$service_validation'"
         if [[ "$service_validation" != "SERVICES_OK" ]]; then
-          echo "[ERROR] CRITICO: Servicos nao conseguem acessar database: $service_validation"
-          echo "[ERROR] Deploy CANCELADO - Servicos incompativeis com schema"
+          echo "❌ CRÍTICO: Serviços não conseguem acessar database: $service_validation"
+          echo "🚫 Deploy CANCELADO - Serviços incompatíveis com schema"
           exit 1
         fi
         
-        echo '[DEPLOY] ENTERPRISE VALIDATION: Servicos basicos validados - Acesso ao schema OK'
+        echo '✅ ENTERPRISE VALIDATION: Serviços básicos validados - Acesso ao schema OK'
         
         # Save PM2 configuration
         pm2 startup || true
         pm2 save || true
         
-        echo '[DEPLOY] ROBUST DEPLOY COMPLETED!'
+        echo '✅ ROBUST DEPLOY COMPLETED!'
         echo ''
         echo 'Services Status:'
         pm2 status
         echo ''
         echo 'Nginx Status:'
-        systemctl is-active nginx && echo '[OK] Nginx: Active' || echo '[ERROR] Nginx: Inactive'
+        systemctl is-active nginx && echo '✅ Nginx: Active' || echo '❌ Nginx: Inactive'
         "
 
-    - name: Enterprise Health Check (UltraZend SMTP)
+    - name: 🏥 Enterprise Health Check (UltraZend SMTP)
       run: |
-        echo "[HEALTH] ENTERPRISE HEALTH CHECK - Validating UltraZend SMTP Platform..."
+        echo "🏥 ENTERPRISE HEALTH CHECK - Validating UltraZend SMTP Platform..."
         sleep 20
         
         # ✅ ENTERPRISE VALIDATION: Test backend health with SMTP validation
-        echo "[HEALTH] Testing backend health endpoint with SMTP server validation..."
+        echo "🔍 Testing backend health endpoint with SMTP server validation..."
         backend_healthy=false
         
         for i in 1 2 3 4 5; do
-          echo "[HEALTH] Health check attempt $i/5..."
+          echo "🔄 Health check attempt $i/5..."
           
           # ✅ ENTERPRISE: Get detailed health response from API endpoint
           health_response=$(curl -s --connect-timeout 10 "https://${{ env.VPS_HOST }}/api/health" || echo "CURL_FAILED")
           
           if [[ "$health_response" == "CURL_FAILED" ]]; then
-            echo "[ERROR] Backend connection failed on attempt $i"
+            echo "❌ Backend connection failed on attempt $i"
           elif echo "$health_response" | grep -q '"status":"healthy"' || echo "$health_response" | grep -q '"status":"degraded"'; then
             status=$(echo "$health_response" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-            echo "[OK] Backend is $status!"
-            echo "[HEALTH] Health Response: $health_response"
+            echo "✅ Backend is $status!"
+            echo "📊 Health Response: $health_response"
             
             # ✅ ENTERPRISE: Validate SMTP server is ready
             if echo "$health_response" | grep -q '"service":"smtp"'; then
               smtp_status=$(echo "$health_response" | grep -A1 '"service":"smtp"' | grep '"status":' | cut -d'"' -f4)
-              echo "[OK] UltraZend SMTP server: $smtp_status"
+              echo "✅ UltraZend SMTP server: $smtp_status"
             fi
             
             # ✅ ENTERPRISE: Validate database connectivity
             if echo "$health_response" | grep -q '"service":"database"'; then
               db_status=$(echo "$health_response" | grep -A1 '"service":"database"' | grep '"status":' | cut -d'"' -f4)
-              echo "[OK] Database connectivity: $db_status (47 migrations)"
+              echo "✅ Database connectivity: $db_status (47 migrations)"
             fi
             
             # ✅ ENTERPRISE: Validate Redis connectivity  
             if echo "$health_response" | grep -q '"service":"redis"'; then
               redis_status=$(echo "$health_response" | grep -A1 '"service":"redis"' | grep '"status":' | cut -d'"' -f4)
-              echo "[OK] Redis connectivity: $redis_status"
+              echo "✅ Redis connectivity: $redis_status"
             fi
             
             backend_healthy=true
             break
           elif echo "$health_response" | grep -q '"status":"unhealthy"'; then
-            echo "[WARNING] Backend responding but UNHEALTHY on attempt $i"
-            echo "[WARNING] Unhealthy Response: $health_response"
+            echo "⚠️ Backend responding but UNHEALTHY on attempt $i"
+            echo "📊 Unhealthy Response: $health_response"
           else
-            echo "[WARNING] Unexpected health response on attempt $i: $health_response"
+            echo "⚠️ Unexpected health response on attempt $i: $health_response"
           fi
           
           if [ $i -lt 5 ]; then
-            echo "[HEALTH] Waiting 10 seconds before retry..."
+            echo "⏳ Waiting 10 seconds before retry..."
             sleep 10
           fi
         done
         
         # ✅ ENTERPRISE: Additional SMTP port validation
-        echo "[HEALTH] Validating UltraZend SMTP ports are listening..."
+        echo "🔍 Validating UltraZend SMTP ports are listening..."
         smtp_ports_response=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
         netstat -tlnp 2>/dev/null | grep ':2525\|:587' || echo 'NO_SMTP_PORTS'
         ")
         
         if [[ "$smtp_ports_response" == "NO_SMTP_PORTS" ]]; then
-          echo "[WARNING] UltraZend SMTP ports not yet listening (may start after full initialization)"
+          echo "⚠️ UltraZend SMTP ports not yet listening (may start after full initialization)"
         else
-          echo "[OK] UltraZend SMTP ports detected:"
+          echo "✅ UltraZend SMTP ports detected:"
           echo "$smtp_ports_response"
         fi
         
         # Fail deployment if backend is not healthy
         if [ "$backend_healthy" = false ]; then
-          echo "[ERROR] DEPLOYMENT FAILED: Enterprise health check failed after 5 attempts"
-          echo "[DEBUG] Checking PM2 status for debugging:"
+          echo "❌ DEPLOYMENT FAILED: Enterprise health check failed after 5 attempts"
+          echo "🔍 Checking PM2 status for debugging:"
           sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "pm2 status && pm2 logs --lines 30"
           exit 1
         fi
         
-        echo "[SUCCESS] ENTERPRISE VALIDATION: UltraZend SMTP Platform is HEALTHY!"
+        echo "🎉 ENTERPRISE VALIDATION: UltraZend SMTP Platform is HEALTHY!"
         
         # Test frontend via HTTPS (with fallback to HTTP)
-        echo "[HEALTH] Testing frontend access..."
+        echo "🌐 Testing frontend access..."
         if curl -f --connect-timeout 10 "https://${{ env.DOMAIN }}/"; then
-          echo "[OK] HTTPS Frontend working!"
+          echo "✅ HTTPS Frontend working!"
         elif curl -f --connect-timeout 10 "http://${{ env.VPS_HOST }}/"; then
-          echo "[OK] HTTP Frontend working!"
+          echo "✅ HTTP Frontend working!"
         else
-          echo "[WARNING] Frontend may not be ready"
+          echo "⚠️ Frontend may not be ready"
         fi
         
         # ✅ ENTERPRISE: Test API via HTTPS with detailed validation
-        echo "[HEALTH] Testing API access..."
+        echo "🔌 Testing API access..."
         api_response=$(curl -s --connect-timeout 10 "https://${{ env.DOMAIN }}/api/health" || echo "API_FAILED")
         
         if [[ "$api_response" != "API_FAILED" ]] && (echo "$api_response" | grep -q '"status":"healthy"' || echo "$api_response" | grep -q '"status":"degraded"'); then
           api_status=$(echo "$api_response" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-          echo "[OK] HTTPS API working! Status: $api_status"
+          echo "✅ HTTPS API working! Status: $api_status"
           
           # Count healthy services
           healthy_services=$(echo "$api_response" | grep -o '"status":"healthy"' | wc -l)
           total_services=$(echo "$api_response" | grep -o '"service":"[^"]*"' | wc -l)
-          echo "[HEALTH] Services: $healthy_services/$total_services healthy"
+          echo "📊 Services: $healthy_services/$total_services healthy"
         else
-          echo "[WARNING] API may not be ready"
+          echo "⚠️ API may not be ready"
         fi
 
-    - name: Deploy Complete
+    - name: ✅ Deploy Complete
       run: |
-        echo "[SUCCESS] ULTRAZEND DEPLOY COMPLETE!"
+        echo "🎉 ULTRAZEND DEPLOY COMPLETE!"
         echo "============================"
-        echo "[INFO] Website: https://${{ env.DOMAIN }}"
-        echo "[INFO] Health: https://${{ env.DOMAIN }}/api/health"
-        echo "[INFO] API: https://${{ env.DOMAIN }}/api"
-        echo "[INFO] Docs: https://${{ env.DOMAIN }}/api-docs"
+        echo "🔒 Website: https://${{ env.DOMAIN }}"
+        echo "🏥 Health: https://${{ env.DOMAIN }}/api/health"
+        echo "🔌 API: https://${{ env.DOMAIN }}/api"
+        echo "📚 Docs: https://${{ env.DOMAIN }}/api-docs"
         echo ""
-        echo "[INFO] Deployed with PM2 + Nginx + SSL (Auto-configured!)"
-        echo "[INFO] Deploy completed at: $(date -u)"
+        echo "✨ Deployed with PM2 + Nginx + SSL (Auto-configured!)"
+        echo "⏰ Deploy completed at: $(date -u)"
