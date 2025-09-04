@@ -731,8 +731,21 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+  const reasonStr = reason instanceof Error ? reason.message : String(reason);
+  
+  // Ignorar erros não-críticos de inicialização de tabelas
+  if (reasonStr.includes('already exists') || 
+      reasonStr.includes('SQLITE_ERROR') && reasonStr.includes('table')) {
+    logger.warn('Non-critical database initialization error (ignoring):', {
+      reason: reasonStr,
+      severity: 'LOW'
+    });
+    return;
+  }
+  
+  // Tratar outros erros como críticos
   logger.error('Unhandled promise rejection detected', {
-    reason: reason instanceof Error ? reason.message : String(reason),
+    reason: reasonStr,
     promise: promise.toString(),
     severity: 'HIGH'
   });
