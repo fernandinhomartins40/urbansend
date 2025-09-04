@@ -17,7 +17,8 @@ const setupTestDatabase = async () => {
     if (!existingSystemUser) {
       await db('users').insert({
         id: 1,
-        name: 'System',
+        first_name: 'System',
+        last_name: '',
         email: 'system@ultrazend.com.br',
         password: 'system',
         is_verified: true,
@@ -105,9 +106,9 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
         .first();
 
       expect(user).toBeDefined();
-      expect(user.name).toBe(userData.name);
+      expect(`${user.first_name || ''} ${user.last_name || ''}`.trim()).toBe(userData.name);
       expect(user.is_verified).toBe(false);
-      expect(user.email_verification_token).toBeDefined();
+      expect(user.verification_token).toBeDefined();
 
       // 3. Verificar se email foi criado no banco
       const email = await db('emails')
@@ -118,12 +119,12 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       expect(email).toBeDefined();
       expect(['delivered', 'queued', 'sent']).toContain(email.status);
       expect(email.html_content).toContain('Ultrazend');
-      expect(email.html_content).toContain(user.email_verification_token);
+      expect(email.html_content).toContain(user.verification_token);
 
       // 4. Testar link de verificação
       const verifyResponse = await request(app)
         .post('/api/auth/verify-email')
-        .send({ token: user.email_verification_token })
+        .send({ token: user.verification_token })
         .expect(200);
 
       expect(verifyResponse.body).toHaveProperty('message');
@@ -134,7 +135,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
         .where('id', user.id)
         .first();
 
-      expect(verifiedUser.email_verified).toBe(true);
+      expect(verifiedUser.is_verified).toBe(true);
     });
 
     test('Deve falhar com dados inválidos', async () => {
@@ -160,7 +161,8 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
     beforeEach(async () => {
       // Criar usuário teste
       const [userId] = await db('users').insert({
-        name: 'API Test User',
+        first_name: 'API Test',
+        last_name: 'User',
         email: 'apitest@ultrazend.com.br',
         password: 'password123',
         is_verified: true,
@@ -310,7 +312,8 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
 
     beforeEach(async () => {
       const [userId] = await db('users').insert({
-        name: 'Password Reset Test',
+        first_name: 'Password Reset',
+        last_name: 'Test',
         email: 'resettest@ultrazend.com.br',
         password: 'oldpassword123',
         is_verified: true,

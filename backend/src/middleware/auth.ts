@@ -65,7 +65,7 @@ export const authenticateJWT = async (
     const decoded = jwt.verify(token, Env.jwtSecret) as any;
     
     const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified')
+      .select('id', 'email', 'first_name', 'last_name', 'is_verified')
       .where('id', decoded.userId)
       .first();
 
@@ -80,7 +80,7 @@ export const authenticateJWT = async (
     req.user = {
       id: user.id,
       email: user.email,
-      name: user.name,
+      name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
     };
 
     next();
@@ -116,7 +116,7 @@ export const authenticateApiKey = async (
 
     // First try to find API keys to verify against
     const apiKeys = await db('api_keys')
-      .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.name')
+      .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.first_name', 'users.last_name')
       .join('users', 'api_keys.user_id', 'users.id')
       .where('api_keys.is_active', true);
 
@@ -169,7 +169,7 @@ export const authenticateApiKey = async (
     req.user = {
       id: apiKey.user_id,
       email: apiKey.email,
-      name: apiKey.name
+      name: `${apiKey.first_name || ''} ${apiKey.last_name || ''}`.trim()
     };
 
     req.apiKey = {
