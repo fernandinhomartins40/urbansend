@@ -17,8 +17,7 @@ const setupTestDatabase = async () => {
     if (!existingSystemUser) {
       await db('users').insert({
         id: 1,
-        first_name: 'System',
-        last_name: '',
+        name: 'System',
         email: 'system@ultrazend.com.br',
         password: 'system',
         is_verified: true,
@@ -106,7 +105,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
         .first();
 
       expect(user).toBeDefined();
-      expect(`${user.first_name || ''} ${user.last_name || ''}`.trim()).toBe(userData.name);
+      expect(user.name).toBe(userData.name);
       expect(user.is_verified).toBe(false);
       expect(user.verification_token).toBeDefined();
 
@@ -161,8 +160,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
     beforeEach(async () => {
       // Criar usuário teste
       const [userId] = await db('users').insert({
-        first_name: 'API Test',
-        last_name: 'User',
+        name: 'API Test User',
         email: 'apitest@ultrazend.com.br',
         password: 'password123',
         is_verified: true,
@@ -312,8 +310,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
 
     beforeEach(async () => {
       const [userId] = await db('users').insert({
-        first_name: 'Password Reset',
-        last_name: 'Test',
+        name: 'Password Reset Test',
         email: 'resettest@ultrazend.com.br',
         password: 'oldpassword123',
         is_verified: true,

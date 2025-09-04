@@ -7,8 +7,7 @@ exports.up = async function(knex) {
     table.increments('id').primary();
     table.string('email').unique().notNullable();
     table.string('password_hash').notNullable();
-    table.string('first_name');
-    table.string('last_name');
+    table.string('name').notNullable();
     table.string('organization');
     table.string('phone');
     table.boolean('is_verified').defaultTo(false);
