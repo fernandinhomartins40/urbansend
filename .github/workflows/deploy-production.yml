@@ -199,7 +199,7 @@ jobs:
         fi
         
         js_files=$(find dist -name "*.js" 2>/dev/null | wc -l)
-        if [ "$js_files" -eq 0 ]; then
+        if [ $js_files -eq 0 ]; then
           echo '❌ No JavaScript files found in dist/ - stopping deployment'
           echo 'Dist directory contents:'
           ls -la dist/ || echo 'dist/ is empty or inaccessible'
@@ -248,7 +248,7 @@ jobs:
         
         # Verify DKIM keys directory and contents
         echo '🔐 Verifying DKIM keys directory...'
-        if [ -d \"../configs/dkim-keys/\" ] && [ \"\$(ls -A ../configs/dkim-keys/\" ]; then
+        if [ -d "../configs/dkim-keys/" ] && [ "$(ls -A ../configs/dkim-keys/)" ]; then
           echo '✅ DKIM keys directory found with files'
           echo 'Available DKIM keys:'
           ls -la ../configs/dkim-keys/*.pem 2>/dev/null | head -5 || echo 'No .pem files found'
@@ -281,23 +281,23 @@ jobs:
         npm run migrate:latest
         
         # Validate migration results (flexible count)
-        migration_count=\$(npx knex migrate:list 2>/dev/null | grep -c '✔' || echo '0')
-        if [ \"\$migration_count\" -lt 40 ]; then
-          echo '❌ CRÍTICO: Muito poucas migrations (\$migration_count/~47)'
+        migration_count=$(npx knex migrate:list 2>/dev/null | grep -c '✔' || echo '0')
+        if [ "$migration_count" -lt 40 ]; then
+          echo '❌ CRÍTICO: Muito poucas migrations ('$migration_count'/~47)'
           echo '🚫 Deploy CANCELADO - Schema pode estar incompleto'
           echo 'Migrations aplicadas:'
           npx knex migrate:list 2>/dev/null || echo 'Erro ao listar migrations'
           exit 1
         fi
         
-        echo '✅ Migrations suficientes aplicadas (\$migration_count/~47) - Schema centralizado ativo!'
+        echo '✅ Migrations suficientes aplicadas ('$migration_count'/~47) - Schema centralizado ativo!'
         echo '📋 Migrations batch aplicado com sucesso'
         
         # 🔍 ENTERPRISE VALIDATION: Verify critical tables exist
         echo '🧪 Validando tabelas obrigatórias do schema centralizado...'
         
         # Test database connectivity with basic validation
-        node -e \"
+        node -e "
         const db = require('./dist/config/database.js');
         async function validateSchema() {
           try {
@@ -307,7 +307,7 @@ jobs:
             
             // Check some critical tables exist (flexible)
             const tables = await db.raw(
-              \\\"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%' ORDER BY name\\\"
+              \"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%' ORDER BY name\"
             );
             
             const tableCount = tables.length;
@@ -330,7 +330,7 @@ jobs:
           }
         }
         validateSchema();
-        \"
+        "
         
         echo '🎉 Schema centralizado 100% validado - Deploy pode continuar'
         
@@ -404,7 +404,7 @@ jobs:
         echo '🧪 Validando serviços básicos conseguem acessar schema centralizado...'
         cd /var/www/ultrazend/backend
         
-        service_validation=\$(timeout 15s node -e \"
+        service_validation=$(timeout 15s node -e "
         async function validateServices() {
           try {
             const db = require('./dist/config/database.js');
@@ -419,11 +419,11 @@ jobs:
           }
         }
         validateServices();
-        \" 2>&1)
+        " 2>&1)
         
-        if [[ \"\$service_validation\" != \"SERVICES_OK\" ]]; then
-          echo \"❌ CRÍTICO: Serviços não conseguem acessar database: \$service_validation\"
-          echo \"🚫 Deploy CANCELADO - Serviços incompatíveis com schema\"
+        if [[ "$service_validation" != "SERVICES_OK" ]]; then
+          echo "❌ CRÍTICO: Serviços não conseguem acessar database: $service_validation"
+          echo "🚫 Deploy CANCELADO - Serviços incompatíveis com schema"
           exit 1
         fi
         
