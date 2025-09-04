@@ -123,7 +123,7 @@ jobs:
         rm -rf ~/.npm/_cacache/ || true
         
         # Clean old log files (keep last 7 days)
-        find \$APP_DIR/logs/ -name \"*.log\" -mtime +7 -delete 2>/dev/null || true
+        find \$APP_DIR/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
         
         # Clean old PM2 logs
         pm2 flush 2>/dev/null || true
@@ -192,22 +192,22 @@ jobs:
         
         # Validate build output exists with detailed debugging
         echo '🔍 Validating build output...'
-        if [ ! -d \"dist\" ]; then
+        if [ ! -d "dist" ]; then
           echo '❌ dist directory not found - stopping deployment'
           echo 'Current directory contents:'
           ls -la
           exit 1
         fi
         
-        js_files=\$(find dist -name \"*.js\" 2>/dev/null | wc -l)
-        if [ \$js_files -eq 0 ]; then
+        js_files=$(find dist -name "*.js" 2>/dev/null | wc -l)
+        if [ $js_files -eq 0 ]; then
           echo '❌ No JavaScript files found in dist/ - stopping deployment'
           echo 'Dist directory contents:'
           ls -la dist/ || echo 'dist/ is empty or inaccessible'
           exit 1
         fi
         
-        echo \"✅ Build completed successfully - \$js_files JS files generated\"
+        echo "✅ Build completed successfully - $js_files JS files generated"
         echo 'Build output summary:'
         ls -la dist/ | head -10
         
@@ -221,9 +221,9 @@ jobs:
           echo 'NODE_ENV=production' > .env
           echo 'PORT=3001' >> .env
           echo 'HOST=0.0.0.0' >> .env
-          echo \"DATABASE_URL=\$APP_DIR/backend/ultrazend.sqlite\" >> .env
+          echo "DATABASE_URL=\$APP_DIR/backend/ultrazend.sqlite" >> .env
           echo 'REDIS_URL=redis://127.0.0.1:6379' >> .env
-          echo \"LOG_FILE_PATH=\$APP_DIR/logs\" >> .env
+          echo "LOG_FILE_PATH=\$APP_DIR/logs" >> .env
           echo 'LOG_LEVEL=info' >> .env
           echo 'ULTRAZEND_HOSTNAME=mail.ultrazend.com.br' >> .env
           echo 'ULTRAZEND_DOMAIN=ultrazend.com.br' >> .env
@@ -249,7 +249,7 @@ jobs:
         
         # Verify DKIM keys directory and contents
         echo '🔐 Verifying DKIM keys directory...'
-        if [ -d \"../configs/dkim-keys/\" ] && [ \"\$(ls -A ../configs/dkim-keys/)\" ]; then
+        if [ -d "../configs/dkim-keys/" ] && [ "$(ls -A ../configs/dkim-keys/)" ]; then
           echo '✅ DKIM keys directory found with files'
           echo 'Available DKIM keys:'
           ls -la ../configs/dkim-keys/*.pem 2>/dev/null | head -5 || echo 'No .pem files found'
@@ -282,24 +282,24 @@ jobs:
         npm run migrate:latest
         
         # Validate migration results (flexible count)
-        migration_count=\$(npx knex migrate:list 2>/dev/null | grep -c 'Batch\\|COMPLETED\\|✔' || echo '0')
-        echo \"Debug: migration_count = '\$migration_count'\"
-        if [ \"\$migration_count\" -lt 10 ]; then
-          echo \"❌ CRÍTICO: Muito poucas migrations (\$migration_count/~47)\"
+        migration_count=$(npx knex migrate:list 2>/dev/null | grep -c 'Batch\|COMPLETED\|✔' || echo '0')
+        echo "Debug: migration_count = '$migration_count'"
+        if [ "$migration_count" -lt 10 ]; then
+          echo "❌ CRÍTICO: Muito poucas migrations ($migration_count/~47)"
           echo '🚫 Deploy CANCELADO - Schema pode estar incompleto'
           echo 'Migrations aplicadas:'
           npx knex migrate:list 2>/dev/null || echo 'Erro ao listar migrations'
           exit 1
         fi
         
-        echo \"✅ Migrations suficientes aplicadas (\$migration_count/~47) - Schema centralizado ativo!\"
+        echo "✅ Migrations suficientes aplicadas ($migration_count/~47) - Schema centralizado ativo!"
         echo '📋 Migrations batch aplicado com sucesso'
         
-        # 🔍 ENTERPRISE VALIDATION: Verify critical tables exist (FIXED)
+        # 🔍 ENTERPRISE VALIDATION: Verify critical tables exist
         echo '🧪 Validando tabelas obrigatórias do schema centralizado...'
         
         # Test database connectivity with basic validation
-        if [ ! -f \"./dist/config/database.js\" ]; then
+        if [ ! -f "./dist/config/database.js" ]; then
           echo '❌ Database config file not found: ./dist/config/database.js'
           echo 'Available files in dist/config:'
           ls -la ./dist/config/ || echo 'dist/config directory not found'
@@ -308,47 +308,40 @@ jobs:
           exit 1
         fi
         
-        # Create temporary validation script to avoid bash escaping issues
-        cat > /tmp/validate_schema.js << 'SCHEMA_EOF'
-const db = require('./dist/config/database.js');
-async function validateSchema() {
-  try {
-    // Simple database connectivity test
-    await db.raw('SELECT 1 as test');
-    console.log('✅ Database connectivity validated');
-    
-    // Check some critical tables exist (flexible)
-    const tables = await db.raw(
-      \"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%' ORDER BY name\"
-    );
-    
-    const tableCount = tables.length;
-    const criticalTables = ['users', 'domains', 'emails'];
-    const existingCritical = tables.filter(t => criticalTables.includes(t.name));
-    
-    if (existingCritical.length < 3) {
-      console.error('❌ CRÍTICO: Tabelas críticas faltando');
-      process.exit(1);
-    }
-    
-    console.log('✅ Schema validation PASSOU -', tableCount, 'tabelas disponíveis');
-    console.log('📊 Tabelas críticas validadas:', existingCritical.length, 'de', criticalTables.length);
-    
-    await db.destroy();
-    process.exit(0);
-  } catch (err) {
-    console.error('❌ CRÍTICO: Erro na validação do schema:', err.message);
-    process.exit(1);
-  }
-}
-validateSchema();
-SCHEMA_EOF
-        
-        # Execute schema validation
-        node /tmp/validate_schema.js
-        
-        # Clean up temporary file
-        rm -f /tmp/validate_schema.js
+        node -e "
+        const db = require('./dist/config/database.js');
+        async function validateSchema() {
+          try {
+            // Simple database connectivity test
+            await db.raw('SELECT 1 as test');
+            console.log('✅ Database connectivity validated');
+            
+            // Check some critical tables exist (flexible)
+            const tables = await db.raw(
+              \"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%' ORDER BY name\"
+            );
+            
+            const tableCount = tables.length;
+            const criticalTables = ['users', 'domains', 'emails'];
+            const existingCritical = tables.filter(t => criticalTables.includes(t.name));
+            
+            if (existingCritical.length < 3) {
+              console.error('❌ CRÍTICO: Tabelas críticas faltando');
+              process.exit(1);
+            }
+            
+            console.log('✅ Schema validation PASSOU -', tableCount, 'tabelas disponíveis');
+            console.log('📊 Tabelas críticas validadas:', existingCritical.length, 'de', criticalTables.length);
+            
+            await db.destroy();
+            process.exit(0);
+          } catch (err) {
+            console.error('❌ CRÍTICO: Erro na validação do schema:', err.message);
+            process.exit(1);
+          }
+        }
+        validateSchema();
+        "
         
         echo '🎉 Schema centralizado 100% validado - Deploy pode continuar'
         
@@ -406,57 +399,51 @@ SCHEMA_EOF
         
         # ✅ ENTERPRISE VALIDATION: Validate only active processes
         echo '🔍 Validating service startup (Enterprise Mode)...'
-        expected_processes=(\"ultrazend-api\")  # Only main API for now
+        expected_processes=("ultrazend-api")  # Only main API for now
         
-        for process in \"\${expected_processes[@]}\"; do
-          if pm2 show \"\$process\" >/dev/null 2>&1; then
-            echo \"✅ \$process is running\"
+        for process in "\${expected_processes[@]}"; do
+          if pm2 show "\$process" >/dev/null 2>&1; then
+            echo "✅ \$process is running"
           else
-            echo \"❌ \$process failed to start\"
-            pm2 logs \"\$process\" --lines 20 || true
+            echo "❌ \$process failed to start"
+            pm2 logs "\$process" --lines 20 || true
             exit 1
           fi
         done
         
-        # ✅ ENTERPRISE VALIDATION: Test basic services access (FIXED)
+        # ✅ ENTERPRISE VALIDATION: Test basic services access
         echo '🧪 Validando serviços básicos conseguem acessar schema centralizado...'
         cd \$APP_DIR/backend
         
         # Verify database config exists before testing services
-        if [ ! -f \"./dist/config/database.js\" ]; then
+        if [ ! -f "./dist/config/database.js" ]; then
           echo '❌ CRÍTICO: Database config não encontrado para validação de serviços'
           echo 'Arquivos em dist/config:'
           ls -la ./dist/config/ || echo 'dist/config não existe'
           exit 1
         fi
         
-        # Create temporary service validation script
-        cat > /tmp/validate_services.js << 'SERVICES_EOF'
-async function validateServices() {
-  try {
-    const db = require('./dist/config/database.js');
-    
-    // Test basic database access
-    await db.raw('SELECT 1 as test');
-    console.log('SERVICES_OK');
-    process.exit(0);
-  } catch(err) {
-    console.error('SERVICES_FAIL:' + err.message);
-    process.exit(1);
-  }
-}
-validateServices();
-SERVICES_EOF
+        service_validation=$(timeout 15s node -e "
+        async function validateServices() {
+          try {
+            const db = require('./dist/config/database.js');
+            
+            // Test basic database access
+            await db.raw('SELECT 1 as test');
+            console.log('SERVICES_OK');
+            process.exit(0);
+          } catch(err) {
+            console.error('SERVICES_FAIL:' + err.message);
+            process.exit(1);
+          }
+        }
+        validateServices();
+        " 2>&1)
         
-        service_validation=\$(timeout 15s node /tmp/validate_services.js 2>&1)
-        
-        # Clean up temporary file
-        rm -f /tmp/validate_services.js
-        
-        echo \"Debug: service_validation = '\$service_validation'\"
-        if [[ \"\$service_validation\" != \"SERVICES_OK\" ]]; then
-          echo \"❌ CRÍTICO: Serviços não conseguem acessar database: \$service_validation\"
-          echo \"🚫 Deploy CANCELADO - Serviços incompatíveis com schema\"
+        echo "Debug: service_validation = '$service_validation'"
+        if [[ "$service_validation" != "SERVICES_OK" ]]; then
+          echo "❌ CRÍTICO: Serviços não conseguem acessar database: $service_validation"
+          echo "🚫 Deploy CANCELADO - Serviços incompatíveis com schema"
           exit 1
         fi
         
