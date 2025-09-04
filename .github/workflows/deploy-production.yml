@@ -101,7 +101,8 @@ jobs:
         # Deploy on server
         echo "⚙️ Configuring server..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
-        cd ${{ env.APP_DIR }}
+        export APP_DIR='${{ env.APP_DIR }}'
+        cd \$APP_DIR
         
         # Stop existing services - ROBUST CLEANUP
         echo '🛑 Stopping all existing services...'
@@ -122,7 +123,7 @@ jobs:
         rm -rf ~/.npm/_cacache/ || true
         
         # Clean old log files (keep last 7 days)
-        find /var/www/ultrazend/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
+        find \$APP_DIR/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
         
         # Clean old PM2 logs
         pm2 flush 2>/dev/null || true
@@ -177,7 +178,7 @@ jobs:
         echo '   ✅ Native email queue processing'
         echo '   ✅ 100% TypeScript/Node.js implementation'
         
-        cd ${{ env.APP_DIR }}/backend
+        cd \$APP_DIR/backend
         
         # Install all dependencies (including swagger) with error checking
         echo '📦 Installing dependencies...'
@@ -220,9 +221,9 @@ jobs:
           echo 'NODE_ENV=production' > .env
           echo 'PORT=3001' >> .env
           echo 'HOST=0.0.0.0' >> .env
-          echo 'DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite' >> .env
+          echo "DATABASE_URL=\$APP_DIR/backend/ultrazend.sqlite" >> .env
           echo 'REDIS_URL=redis://127.0.0.1:6379' >> .env
-          echo 'LOG_FILE_PATH=/var/www/ultrazend/logs' >> .env
+          echo "LOG_FILE_PATH=\$APP_DIR/logs" >> .env
           echo 'LOG_LEVEL=info' >> .env
           echo 'ULTRAZEND_HOSTNAME=mail.ultrazend.com.br' >> .env
           echo 'ULTRAZEND_DOMAIN=ultrazend.com.br' >> .env
@@ -270,8 +271,8 @@ jobs:
         echo '✅ UltraZend SMTP architecture validated'
         
         # Ensure log directories exist
-        mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
-        chown -R www-data:www-data /var/www/ultrazend/logs || true
+        mkdir -p \$APP_DIR/logs/{application,errors,security,performance,business}
+        chown -R www-data:www-data \$APP_DIR/logs || true
         
         # 🚀 CRITICAL: Execute 47 centralized migrations (FAIL FAST)
         echo '📊 Executando 47 migrations centralizadas obrigatórias (A01-ZU47)...'
@@ -412,7 +413,7 @@ jobs:
         
         # ✅ ENTERPRISE VALIDATION: Test basic services access
         echo '🧪 Validando serviços básicos conseguem acessar schema centralizado...'
-        cd /var/www/ultrazend/backend
+        cd \$APP_DIR/backend
         
         # Verify database config exists before testing services
         if [ ! -f "./dist/config/database.js" ]; then
