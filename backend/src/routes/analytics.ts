@@ -4,6 +4,7 @@ import { authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { EmailAnalyticsService } from '../services/EmailAnalyticsService';
+import { AnalyticsController } from '../controllers/analyticsController';
 
 const router = Router();
 router.use(authenticateJWT);
@@ -262,5 +263,27 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
 
   res.json({ domains: domainsWithRates });
 }));
+
+// ========================================
+// FASE 2.1.2 - ENHANCED ANALYTICS ROUTES
+// ========================================
+
+// Enhanced overview with trends and comprehensive stats
+router.get('/v2/overview', AnalyticsController.getOverview);
+
+// Campaign-specific metrics
+router.get('/v2/campaigns/:campaignId/metrics', AnalyticsController.getCampaignMetrics);
+
+// Engagement data with geographic breakdown
+router.get('/v2/engagement', AnalyticsController.getEngagementData);
+
+// Detailed delivery statistics
+router.get('/v2/delivery-stats', AnalyticsController.getDeliveryStats);
+
+// Analytics by specific event type (opened, clicked, bounced, etc.)
+router.get('/v2/events/:eventType', AnalyticsController.getEventAnalytics);
+
+// Enhanced recent activity with better filtering
+router.get('/v2/recent-activity', AnalyticsController.getRecentActivity);
 
 export default router;

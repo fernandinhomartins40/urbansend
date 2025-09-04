@@ -29,6 +29,9 @@ import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
+// Fase 2 - New routes
+import dkimRoutes from './routes/dkim';
+import smtpMonitoringRoutes from './routes/smtp-monitoring';
 
 // Global shutdown control - prevents double database destroy
 let isDatabaseClosed = false;
@@ -36,25 +39,45 @@ let isShutdownInProgress = false;
 
 // Load environment variables with fallback strategy
 const loadEnvConfig = () => {
-  // Try production config paths in order of preference
-  const envPaths = [
-    '/var/www/ultrazend/backend/.env',  // PM2 production path
-    path.resolve(process.cwd(), 'configs', '.env.production'),
-    path.resolve(process.cwd(), '.env.production'),
-    path.resolve(process.cwd(), '.env')
-  ];
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  
+  let envPaths: string[] = [];
+  
+  if (nodeEnv === 'production') {
+    // Production config paths in order of preference
+    envPaths = [
+      '/var/www/ultrazend/backend/.env',  // PM2 production path
+      path.resolve(process.cwd(), 'configs', '.env.production'),
+      path.resolve(process.cwd(), '.env.production'),
+      path.resolve(process.cwd(), '.env')
+    ];
+  } else if (nodeEnv === 'development') {
+    // Development config paths
+    envPaths = [
+      path.resolve(process.cwd(), '.env.development'),
+      path.resolve(process.cwd(), '.env.local'),
+      path.resolve(process.cwd(), '.env')
+    ];
+  } else {
+    // Test or other environments
+    envPaths = [
+      path.resolve(process.cwd(), `.env.${nodeEnv}`),
+      path.resolve(process.cwd(), '.env')
+    ];
+  }
 
+  let loaded = false;
   for (const envPath of envPaths) {
     if (fs.existsSync(envPath)) {
       dotenv.config({ path: envPath });
       logger.info(`✅ Loaded environment config from: ${envPath}`);
+      loaded = true;
       break;
     }
   }
 
-  // Always try to load local .env as fallback
-  if (process.env.NODE_ENV !== 'production') {
-    dotenv.config();
+  if (!loaded) {
+    logger.warn(`⚠️ No environment file found for NODE_ENV=${nodeEnv}, using system environment variables only`);
   }
 };
 
@@ -298,6 +321,9 @@ app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/dns', dnsRoutes);
+// Fase 2 - Enhanced service routes
+app.use('/api/dkim', dkimRoutes);
+app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
 
 // Swagger documentation
 setupSwagger(app);

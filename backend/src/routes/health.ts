@@ -160,7 +160,7 @@ async function checkDKIMHealth(): Promise<HealthCheck> {
     
     // Test DKIMManager configuration
     const dkimDomains = await dkimManager.listDKIMDomains();
-    const dkimStats = await dkimManager.getDKIMStats();
+    const dkimStats = await dkimManager.getDKIMStats(1); // userId padrão para health check
     
     const responseTime = Date.now() - start;
     
@@ -178,9 +178,9 @@ async function checkDKIMHealth(): Promise<HealthCheck> {
         dnsRecord: dnsRecord.name,
         configuredDomains: dkimDomains,
         statistics: {
-          totalConfigs: dkimStats.configurations.total,
-          activeConfigs: dkimStats.configurations.active,
-          signaturesLast24h: dkimStats.signatures.last_24h
+          totalConfigs: dkimStats.totalKeys,
+          activeConfigs: dkimStats.activeKeys,
+          signaturesLast24h: dkimStats.recentSignatures
         }
       }
     };
@@ -578,7 +578,7 @@ router.get('/dkim', async (req: Request, res: Response) => {
       Promise.resolve(dkimService.getDNSRecord()),
       Promise.resolve(dkimService.getDKIMPublicKey()),
       dkimManager.listDKIMDomains(),
-      dkimManager.getDKIMStats()
+      dkimManager.getDKIMStats(1)
     ]);
 
     // Export DNS records for all configured domains

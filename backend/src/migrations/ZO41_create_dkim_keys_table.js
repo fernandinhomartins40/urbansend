@@ -1,7 +1,7 @@
 exports.up = async function(knex) {
   await knex.schema.createTable('dkim_keys', function (table) {
     table.increments('id').primary();
-    table.string('domain', 255).notNullable();
+    table.integer('domain_id').unsigned().notNullable();
     table.string('selector', 100).notNullable().defaultTo('default');
     table.text('private_key').notNullable();
     table.text('public_key');
@@ -12,8 +12,9 @@ exports.up = async function(knex) {
     table.timestamp('expires_at');
     table.timestamps(true, true);
     
-    table.unique(['domain', 'selector']);
-    table.index('domain');
+    table.foreign('domain_id').references('id').inTable('domains').onDelete('CASCADE');
+    table.unique(['domain_id', 'selector']);
+    table.index('domain_id');
     table.index('is_active');
   });
 };

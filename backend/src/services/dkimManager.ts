@@ -5,6 +5,7 @@ import { Env } from '../utils/env';
 import fs from 'fs/promises';
 import path from 'path';
 import db from '../config/database';
+import { generateVerificationToken } from '../utils/crypto';
 
 export interface DKIMConfig {
   domain: string;
@@ -663,9 +664,9 @@ export class DKIMManager {
         const systemUserData = {
           name: 'System',
           email: 'system@ultrazend.com.br',
-          password: await bcrypt.hash('system-generated-password-' + Date.now(), 12),
+          password_hash: await bcrypt.hash('system-generated-password-' + Date.now(), 12),
           is_admin: true,
-          email_verified: true,
+          is_verified: true,
           created_at: new Date(),
           updated_at: new Date()
         };
@@ -692,7 +693,8 @@ export class DKIMManager {
       // Criar registro do domínio
       const domainData = {
         user_id: userId,
-        domain,
+        domain_name: domain,
+        verification_token: generateVerificationToken(),
         is_verified: true, // Assumir como verificado para domínio principal
         verification_method: 'manual',
         dkim_enabled: true,
@@ -782,51 +784,7 @@ export class DKIMManager {
     }
   }
 
-  public async getDKIMStats(): Promise<any> {
-    try {
-      const [
-        totalConfigs,
-        activeConfigs,
-        recentSignatures,
-        signaturesByDomain
-      ] = await Promise.all([
-        db('dkim_keys').count('* as count').first(),
-        db('dkim_keys').where('is_active', true).count('* as count').first(),
-        db('dkim_signature_logs')
-          .where('signed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
-          .count('* as count')
-          .first(),
-        db('dkim_signature_logs')
-          .where('signed_at', '>', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
-          .groupBy('domain')
-          .count('* as count')
-          .select('domain')
-          .limit(10)
-      ]);
-
-      return {
-        configurations: {
-          total: totalConfigs?.count || 0,
-          active: activeConfigs?.count || 0
-        },
-        signatures: {
-          last_24h: recentSignatures?.count || 0,
-          by_domain: signaturesByDomain || []
-        },
-        timestamp: new Date().toISOString()
-      };
-    } catch (error: any) {
-      logger.error('Failed to get DKIM stats', { 
-        error: error.message,
-        code: error.code 
-      });
-      return {
-        configurations: { total: 0, active: 0 },
-        signatures: { last_24h: 0, by_domain: [] },
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
+  // getDKIMStats method was moved to the end of the class with enhanced functionality (Fase 2.2.1)
 
   public async exportDNSRecords(): Promise<string> {
     try {
@@ -849,6 +807,157 @@ export class DKIMManager {
         code: error.code
       });
       return '';
+    }
+  }
+
+  /**
+   * Store DKIM key in database (Fase 2.2.1 - Task enhancement)
+   */
+  async storeDKIMKey(domain: string, selector: string, privateKey: string, publicKey: string): Promise<void> {
+    try {
+      // Get domain_id
+      const domainRecord = await db('domains').where('domain_name', domain).first();
+      if (!domainRecord) {
+        throw new Error(`Domain ${domain} not found in database`);
+      }
+
+      // Deactivate existing keys for this domain
+      await db('dkim_keys')
+        .where('domain_id', domainRecord.id)
+        .update({ is_active: false });
+
+      // Store new key
+      await db('dkim_keys').insert({
+        domain_id: domainRecord.id,
+        selector,
+        private_key: privateKey,
+        public_key: publicKey,
+        algorithm: 'rsa-sha256',
+        key_size: 2048,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+
+      // Update in-memory config
+      const dkimConfig: DKIMConfig = {
+        domain,
+        selector,
+        privateKey,
+        publicKey,
+        algorithm: 'rsa-sha256',
+        canonicalization: 'relaxed/relaxed',
+        keySize: 2048
+      };
+      this.dkimConfigs.set(domain, dkimConfig);
+
+      logger.info('DKIM key stored successfully', { domain, selector });
+    } catch (error) {
+      logger.error('Failed to store DKIM key', { error, domain, selector });
+      throw error;
+    }
+  }
+
+  /**
+   * Rotate DKIM key for a domain (Fase 2.2.1 - Task enhancement)
+   */
+  async rotateDKIMKey(domain: string): Promise<{ selector: string; publicKey: string; dnsRecord: string }> {
+    try {
+      // Generate new key pair
+      const keySize = 2048;
+      const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: keySize,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+      });
+
+      // Generate new selector with timestamp
+      const timestamp = Date.now();
+      const newSelector = `dkim${timestamp}`;
+
+      // Extract public key for DNS record
+      const publicKeyBase64 = publicKey
+        .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+        .replace(/-----END PUBLIC KEY-----/g, '')
+        .replace(/\s/g, '');
+
+      // Store the new key
+      await this.storeDKIMKey(domain, newSelector, privateKey, publicKeyBase64);
+
+      // Generate DNS record
+      const dnsRecord = `v=DKIM1; k=rsa; p=${publicKeyBase64}`;
+
+      logger.info('DKIM key rotated successfully', { domain, newSelector });
+
+      return {
+        selector: newSelector,
+        publicKey: publicKeyBase64,
+        dnsRecord
+      };
+    } catch (error) {
+      logger.error('Failed to rotate DKIM key', { error, domain });
+      throw error;
+    }
+  }
+
+  /**
+   * Get DKIM statistics for a user (Fase 2.2.1 - Task enhancement)
+   */
+  async getDKIMStats(userId: number): Promise<{
+    totalKeys: number;
+    activeKeys: number;
+    domainsWithDKIM: number;
+    recentSignatures: number;
+    signatureSuccessRate: number;
+  }> {
+    try {
+      // Get total and active keys for user's domains
+      const [totalKeys] = await db('dkim_keys')
+        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .where('domains.user_id', userId)
+        .count('dkim_keys.id as count');
+
+      const [activeKeys] = await db('dkim_keys')
+        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .where('domains.user_id', userId)
+        .where('dkim_keys.is_active', true)
+        .count('dkim_keys.id as count');
+
+      // Get domains with DKIM
+      const [domainsWithDKIM] = await db('domains')
+        .join('dkim_keys', 'domains.id', 'dkim_keys.domain_id')
+        .where('domains.user_id', userId)
+        .where('dkim_keys.is_active', true)
+        .countDistinct('domains.id as count');
+
+      // Get recent signatures (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const signatureStats = await db('dkim_signature_logs')
+        .join('domains', 'dkim_signature_logs.domain_id', 'domains.id')
+        .where('domains.user_id', userId)
+        .where('dkim_signature_logs.created_at', '>=', thirtyDaysAgo)
+        .select(
+          db.raw('COUNT(*) as total'),
+          db.raw('COUNT(CASE WHEN signature_valid = true THEN 1 END) as successful')
+        )
+        .first() as any;
+
+      const totalSignatures = signatureStats?.total || 0;
+      const successfulSignatures = signatureStats?.successful || 0;
+      const successRate = totalSignatures > 0 ? (successfulSignatures / totalSignatures) * 100 : 0;
+
+      return {
+        totalKeys: (totalKeys as any)?.count || 0,
+        activeKeys: (activeKeys as any)?.count || 0,
+        domainsWithDKIM: (domainsWithDKIM as any)?.count || 0,
+        recentSignatures: totalSignatures,
+        signatureSuccessRate: Math.round(successRate * 100) / 100
+      };
+    } catch (error) {
+      logger.error('Failed to get DKIM stats', { error, userId });
+      throw error;
     }
   }
 }

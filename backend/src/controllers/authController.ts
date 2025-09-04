@@ -75,7 +75,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     insertResult = await db('users').insert({
       name,
       email,
-      password: passwordHash,
+      password_hash: passwordHash,
       verification_token: verificationToken,
       verification_token_expires: verificationExpires,
       is_verified: false,
@@ -147,7 +147,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Verify password
-  const isValidPassword = await verifyPassword(password, user.password);
+  const isValidPassword = await verifyPassword(password, user.password_hash);
   if (!isValidPassword) {
     throw createError('Invalid credentials', 401);
   }
@@ -352,7 +352,7 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
   // Update user password and clear reset token
   await db('users').where('id', user.id).update({
-    password: passwordHash,
+    password_hash: passwordHash,
     password_reset_token: null,
     password_reset_expires: null,
     updated_at: new Date()
@@ -480,13 +480,13 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
   const userId = req.user!.id;
 
   // Get current password hash
-  const user = await db('users').select('password').where('id', userId).first();
+  const user = await db('users').select('password_hash').where('id', userId).first();
   if (!user) {
     throw createError('User not found', 404);
   }
 
   // Verify current password
-  const isValidPassword = await verifyPassword(current_password, user.password);
+  const isValidPassword = await verifyPassword(current_password, user.password_hash);
   if (!isValidPassword) {
     throw createError('Current password is incorrect', 400);
   }
@@ -496,7 +496,7 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
 
   // Update password
   await db('users').where('id', userId).update({
-    password: newPasswordHash,
+    password_hash: newPasswordHash,
     updated_at: new Date()
   });
 

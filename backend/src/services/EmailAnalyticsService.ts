@@ -173,4 +173,150 @@ export class EmailAnalyticsService {
       throw error;
     }
   }
+
+  /**
+   * Get detailed delivery statistics with breakdown
+   */
+  async getDeliveryStats(userId: number, startDate?: Date, endDate?: Date): Promise<any> {
+    try {
+      const query = db('emails').where('user_id', userId);
+      
+      if (startDate) query.where('created_at', '>=', startDate);
+      if (endDate) query.where('created_at', '<=', endDate);
+
+      const deliveryStats = await query.select(
+        db.raw('COUNT(*) as total'),
+        db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent'),
+        db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
+        db.raw('COUNT(CASE WHEN status = "bounced" THEN 1 END) as bounced'),
+        db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed')
+      ).first() as any;
+
+      const total = deliveryStats.total || 0;
+      const sent = deliveryStats.sent || 0;
+      const delivered = deliveryStats.delivered || 0;
+      const bounced = deliveryStats.bounced || 0;
+      const failed = deliveryStats.failed || 0;
+
+      return {
+        total,
+        sent,
+        delivered,
+        bounced,
+        failed,
+        deliveryRate: total > 0 ? Math.round((delivered / total) * 10000) / 100 : 0,
+        bounceRate: total > 0 ? Math.round((bounced / total) * 10000) / 100 : 0,
+        failureRate: total > 0 ? Math.round((failed / total) * 10000) / 100 : 0
+      };
+    } catch (error) {
+      logger.error('Failed to get delivery stats', { error, userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get campaign metrics (if campaign_id is available)
+   */
+  async getCampaignMetrics(campaignId: string, userId: number): Promise<any> {
+    try {
+      const campaignStats = await db('email_analytics')
+        .where('user_id', userId)
+        .where('campaign_id', campaignId)
+        .select(
+          db.raw('COUNT(DISTINCT email_id) as emails_sent'),
+          db.raw('COUNT(CASE WHEN event_type = "delivered" THEN 1 END) as delivered'),
+          db.raw('COUNT(CASE WHEN event_type = "opened" THEN 1 END) as opened'),
+          db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked'),
+          db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced')
+        ).first() as any;
+
+      const emailsSent = campaignStats.emails_sent || 0;
+      const delivered = campaignStats.delivered || 0;
+      const opened = campaignStats.opened || 0;
+      const clicked = campaignStats.clicked || 0;
+      const bounced = campaignStats.bounced || 0;
+
+      return {
+        campaignId,
+        emailsSent,
+        delivered,
+        opened,
+        clicked,
+        bounced,
+        deliveryRate: emailsSent > 0 ? Math.round((delivered / emailsSent) * 10000) / 100 : 0,
+        openRate: delivered > 0 ? Math.round((opened / delivered) * 10000) / 100 : 0,
+        clickRate: opened > 0 ? Math.round((clicked / opened) * 10000) / 100 : 0,
+        bounceRate: emailsSent > 0 ? Math.round((bounced / emailsSent) * 10000) / 100 : 0
+      };
+    } catch (error) {
+      logger.error('Failed to get campaign metrics', { error, campaignId, userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get geographic statistics based on IP addresses
+   */
+  async getGeographicStats(userId: number, limit = 10): Promise<any[]> {
+    try {
+      const geoStats = await db('email_analytics')
+        .where('user_id', userId)
+        .whereNotNull('ip_address')
+        .select('ip_address')
+        .count('* as events')
+        .groupBy('ip_address')
+        .orderBy('events', 'desc')
+        .limit(limit) as any[];
+
+      // In a real implementation, you would resolve IP addresses to geographic locations
+      // For now, we'll return IP-based stats with placeholder location data
+      return geoStats.map(stat => ({
+        ipAddress: stat.ip_address,
+        events: stat.events,
+        // Placeholder - in production you'd use a geo-IP service
+        country: 'Brazil',
+        city: 'São Paulo',
+        region: 'SP'
+      }));
+    } catch (error) {
+      logger.error('Failed to get geographic stats', { error, userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get engagement trends over time
+   */
+  async getEngagementTrends(userId: number, days = 30): Promise<any[]> {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      const trends = await db('email_analytics')
+        .where('user_id', userId)
+        .where('created_at', '>=', startDate)
+        .select(
+          db.raw('DATE(created_at) as date'),
+          db.raw('COUNT(CASE WHEN event_type = "delivered" THEN 1 END) as delivered'),
+          db.raw('COUNT(CASE WHEN event_type = "opened" THEN 1 END) as opened'),
+          db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked'),
+          db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced')
+        )
+        .groupBy(db.raw('DATE(created_at)'))
+        .orderBy('date', 'asc') as any[];
+
+      return trends.map(trend => ({
+        date: trend.date,
+        delivered: trend.delivered || 0,
+        opened: trend.opened || 0,
+        clicked: trend.clicked || 0,
+        bounced: trend.bounced || 0,
+        openRate: trend.delivered > 0 ? Math.round((trend.opened / trend.delivered) * 10000) / 100 : 0,
+        clickRate: trend.opened > 0 ? Math.round((trend.clicked / trend.opened) * 10000) / 100 : 0
+      }));
+    } catch (error) {
+      logger.error('Failed to get engagement trends', { error, userId, days });
+      throw error;
+    }
+  }
 }

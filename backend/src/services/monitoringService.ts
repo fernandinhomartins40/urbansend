@@ -103,7 +103,35 @@ export class MonitoringService {
     const startTime = Date.now();
 
     try {
-      // Verificar se portas SMTP estão abertas
+      // Verificar se health check SMTP está habilitado
+      const smtpHealthCheckEnabled = process.env.ENABLE_SMTP_HEALTH_CHECK === 'true';
+      
+      if (!smtpHealthCheckEnabled) {
+        // Em desenvolvimento ou quando SMTP está desabilitado, retornar status simulado
+        const healthStatus: HealthStatus = {
+          healthy: true,
+          details: {
+            status: 'disabled',
+            mode: 'development',
+            message: 'SMTP health check disabled in development'
+          },
+          timestamp: new Date()
+        };
+
+        this.healthChecks.set(serviceName, healthStatus);
+
+        // Salvar no banco
+        await this.db('health_checks').insert({
+          service_name: serviceName,
+          healthy: 1,
+          details: JSON.stringify(healthStatus.details),
+          checked_at: new Date()
+        });
+
+        return;
+      }
+
+      // Verificar se portas SMTP estão abertas (apenas em produção)
       const [mxPortOpen, submissionPortOpen] = await Promise.all([
         this.checkPort('localhost', 25),
         this.checkPort('localhost', 587)

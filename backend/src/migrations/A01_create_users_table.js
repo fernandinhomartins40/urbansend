@@ -12,6 +12,7 @@ exports.up = async function(knex) {
     table.string('phone');
     table.boolean('is_verified').defaultTo(false);
     table.boolean('is_active').defaultTo(true);
+    table.boolean('is_admin').defaultTo(false);
     table.string('verification_token');
     table.timestamp('verification_token_expires');
     table.string('reset_password_token');

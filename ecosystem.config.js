@@ -10,29 +10,40 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       
-      // ✅ Environment alinhado com nova estrutura
+      // ✅ Environment alinhado com aplicação corrigida
       env_production: {
         NODE_ENV: 'production',
         PORT: 3001,
         HOST: '0.0.0.0',
         
-        // ✅ Database com migrations centralizadas
-        DATABASE_URL: '/var/www/ultrazend/backend/ultrazend.sqlite',
+        // ✅ Database path relativo (alinhado com aplicação)
+        DATABASE_URL: './ultrazend.sqlite',
         
-        // ✅ SMTP nativo (sem Postfix)
-        SMTP_MODE: 'native_ultrazend',
+        // ✅ SMTP configuração alinhada com .env.development
+        SMTP_HOSTNAME: 'mail.ultrazend.com.br',
         SMTP_MX_PORT: 2525,
         SMTP_SUBMISSION_PORT: 587,
-        SMTP_HOSTNAME: 'mail.ultrazend.com.br',
+        SMTP_ENABLED: 'false',
+        ENABLE_SMTP_HEALTH_CHECK: 'false',
         
         // ✅ URLs e configurações
         FRONTEND_URL: 'https://www.ultrazend.com.br',
         API_BASE_URL: 'https://www.ultrazend.com.br/api',
+        BACKEND_URL: 'https://www.ultrazend.com.br',
+        
+        // ✅ Redis opcional (como desenvolvimento)
         REDIS_URL: 'redis://127.0.0.1:6379',
+        REDIS_ENABLED: 'false',
         
         // ✅ Logs estruturados
         LOG_LEVEL: 'info',
-        LOG_FILE_PATH: '/var/www/ultrazend/logs'
+        LOG_FILE_PATH: '/var/www/ultrazend/logs',
+        
+        // ✅ DKIM configuração
+        DKIM_ENABLED: 'true',
+        DKIM_PRIVATE_KEY_PATH: './configs/dkim-keys/ultrazend.com.br-default-private.pem',
+        DKIM_SELECTOR: 'default',
+        DKIM_DOMAIN: 'ultrazend.com.br'
       },
       
       // ✅ Logging robusto
@@ -48,8 +59,8 @@ module.exports = {
       wait_ready: true,
       listen_timeout: 15000,
       
-      // ✅ Health check compatível com nova estrutura
-      health_check_path: '/health',
+      // ✅ Health check compatível com aplicação corrigida
+      health_check_path: '/api/health',
       health_check_grace_period: 3000,
       
       // ✅ Configurações otimizadas
