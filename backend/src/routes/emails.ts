@@ -70,15 +70,35 @@ router.get('/',
 
     const total = await db('emails').where('user_id', req.user!.id).count('* as count').first();
 
-    // Get statistics
-    const stats = await db('emails')
+    // Get statistics using email_analytics table
+    const basicStats = await db('emails')
       .where('user_id', req.user!.id)
       .select(
         db.raw('COUNT(*) as total'),
-        db.raw('SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as delivered'),
-        db.raw('SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened'),
-        db.raw('SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicked')
+        db.raw('SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as delivered')
       ).first();
+
+    // Get analytics stats from email_analytics table  
+    const openedCount = await db('email_analytics')
+      .join('emails', 'email_analytics.email_id', 'emails.id')
+      .where('emails.user_id', req.user!.id)
+      .where('email_analytics.event_type', 'open')
+      .countDistinct('email_analytics.email_id as count')
+      .first();
+
+    const clickedCount = await db('email_analytics')
+      .join('emails', 'email_analytics.email_id', 'emails.id')
+      .where('emails.user_id', req.user!.id)
+      .where('email_analytics.event_type', 'click')
+      .countDistinct('email_analytics.email_id as count')
+      .first();
+
+    const stats = {
+      total: (basicStats as any)?.total || 0,
+      delivered: (basicStats as any)?.delivered || 0,
+      opened: (openedCount as any)?.count || 0,
+      clicked: (clickedCount as any)?.count || 0
+    };
 
     res.json({
       emails,
@@ -150,14 +170,20 @@ router.get('/track/open/:trackingId',
       .first();
 
     if (email) {
-      // Update opened_at if not already opened
-      if (!email.opened_at) {
-        await db('emails')
-          .where('id', email.id)
-          .update({
-            opened_at: db.fn.now(),
-            status: 'opened'
-          });
+      // Check if this email was already opened by this user
+      const existingOpen = await db('email_analytics')
+        .where('email_id', email.id)
+        .where('event_type', 'open')
+        .where('ip_address', req.ip)
+        .first();
+      
+      if (!existingOpen) {
+        // Update status to opened if not already a higher status
+        if (!['clicked', 'opened'].includes(email.status)) {
+          await db('emails')
+            .where('id', email.id)
+            .update({ status: 'opened' });
+        }
       }
 
       // Log analytics event
@@ -200,14 +226,18 @@ router.get('/track/click/:trackingId',
       .first();
 
     if (email) {
-      // Update clicked_at if not already clicked
-      if (!email.clicked_at) {
+      // Check if this email was already clicked by this user
+      const existingClick = await db('email_analytics')
+        .where('email_id', email.id)
+        .where('event_type', 'click')
+        .where('ip_address', req.ip)
+        .first();
+      
+      if (!existingClick) {
+        // Update status to clicked (highest engagement level)
         await db('emails')
           .where('id', email.id)
-          .update({
-            clicked_at: db.fn.now(),
-            status: 'clicked'
-          });
+          .update({ status: 'clicked' });
       }
 
       // Log analytics event
