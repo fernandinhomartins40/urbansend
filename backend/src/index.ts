@@ -265,28 +265,6 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/health', async (_req, res) => {
-  try {
-    const healthStatus = await monitoringService.getHealthStatus();
-    const performanceStats = performanceMonitor.getPerformanceStats();
-    
-    res.json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: Env.get('NODE_ENV', 'development'),
-      services: healthStatus,
-      performance: performanceStats
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: 'ERROR',
-      timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
 
 // Performance statistics endpoint
 app.get('/api/performance', async (req, res) => {
