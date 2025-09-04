@@ -274,7 +274,7 @@ jobs:
         chown -R www-data:www-data /var/www/ultrazend/logs || true
         
         # 🚀 CRITICAL: Execute 47 centralized migrations (FAIL FAST)
-        echo '📊 Executando 47 migrations centralizadas obrigatórias (A01→ZU47)...'
+        echo '📊 Executando 47 migrations centralizadas obrigatórias (A01-ZU47)...'
         echo '⚠️  CRÍTICO: Falha em migrations PARA o deploy imediatamente'
         
         # Execute migrations with strict validation
