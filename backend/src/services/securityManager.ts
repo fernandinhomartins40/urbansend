@@ -82,19 +82,26 @@ export class SecurityManager {
         });
       }
 
-      // Tabela de rate limiting
-      const hasRateLimitViolations = await this.db.schema.hasTable('rate_limit_violations');
-      if (!hasRateLimitViolations) {
-        await this.db.schema.createTable('rate_limit_violations', (table) => {
-          table.increments('id').primary();
-          table.string('identifier').notNullable();
-          table.string('limit_type').notNullable();
-          table.integer('violation_count').defaultTo(1);
-          table.datetime('first_violation').defaultTo(this.db.fn.now());
-          table.datetime('last_violation').defaultTo(this.db.fn.now());
-          table.boolean('is_blocked').defaultTo(false);
-          table.datetime('expires_at').nullable();
-        });
+      // Tabela de rate limiting (protegida contra condição de corrida)
+      try {
+        const hasRateLimitViolations = await this.db.schema.hasTable('rate_limit_violations');
+        if (!hasRateLimitViolations) {
+          await this.db.schema.createTable('rate_limit_violations', (table) => {
+            table.increments('id').primary();
+            table.string('identifier').notNullable();
+            table.string('limit_type').notNullable();
+            table.integer('violation_count').defaultTo(1);
+            table.datetime('first_violation').defaultTo(this.db.fn.now());
+            table.datetime('last_violation').defaultTo(this.db.fn.now());
+            table.boolean('is_blocked').defaultTo(false);
+            table.datetime('expires_at').nullable();
+          });
+        }
+      } catch (error: any) {
+        // Ignorar erro se tabela já existe (condição de corrida entre instâncias)
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
       }
 
       // Tabela de análise de spam
