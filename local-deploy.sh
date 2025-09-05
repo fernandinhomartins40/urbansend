@@ -93,11 +93,16 @@ ENV_EOF
 echo "📊 Executando migrations..."
 ssh $SERVER "
     cd $APP_DIR/backend
+    export NODE_ENV=production
     npm run migrate:latest
     
-    migration_count=\$(npx knex migrate:list 2>/dev/null | grep -c 'Batch\\|COMPLETED\\|✔' || echo '0')
+    migration_count=\$(NODE_ENV=production npx knex migrate:list 2>/dev/null | grep -c 'Batch\\|COMPLETED\\|✔' || echo '0')
     echo \"Migrations aplicadas: \$migration_count\"
-    echo '✅ Migrations executadas'
+    if [ \"\$migration_count\" -lt 5 ]; then
+        echo '❌ CRÍTICO: Poucas migrations aplicadas - Deploy CANCELADO'
+        exit 1
+    fi
+    echo '✅ Migrations executadas com sucesso'
 "
 
 # 7. CONFIGURE NGINX
@@ -220,11 +225,15 @@ ssh $SERVER "
     
     # Test database
     cd $APP_DIR/backend
-    echo 'const db = require(\"./dist/config/database.js\"); db.raw(\"SELECT 1\").then(() => { console.log(\"DB_OK\"); process.exit(0); }).catch(() => process.exit(1));' > /tmp/db_test.js
-    if timeout 10s node /tmp/db_test.js 2>/dev/null | grep -q 'DB_OK'; then
+    export NODE_ENV=production
+    echo 'const db = require(\"./dist/config/database.js\"); db.raw(\"SELECT 1\").then(() => { console.log(\"DB_OK\"); process.exit(0); }).catch(err => { console.error(\"DB_ERROR:\", err.message); process.exit(1); });' > /tmp/db_test.js
+    if timeout 10s NODE_ENV=production node /tmp/db_test.js 2>/dev/null | grep -q 'DB_OK'; then
         echo '✅ Database: conectividade OK'
     else
-        echo '❌ Database: erro de conectividade'
+        echo '❌ CRÍTICO: Database erro de conectividade - DEPLOY FALHOU'
+        NODE_ENV=production node /tmp/db_test.js || true
+        rm -f /tmp/db_test.js
+        exit 1
     fi
     rm -f /tmp/db_test.js
     
