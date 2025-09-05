@@ -76,7 +76,7 @@ ssh $SERVER "
     cat > .env << 'ENV_EOF'
 NODE_ENV=production
 PORT=3001
-DATABASE_URL=$APP_DIR/backend/ultrazend.sqlite
+DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
 LOG_FILE_PATH=$APP_DIR/logs
 SMTP_HOST=localhost
 SMTP_PORT=25

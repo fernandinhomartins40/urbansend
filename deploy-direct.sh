@@ -73,13 +73,13 @@ echo "✅ Backend compilado com sucesso"
 
 # 8. SETUP ENVIRONMENT
 echo "⚙️ Configurando environment..."
-if [ -f ../configs/.env.ultrazend.production ]; then
-    cp ../configs/.env.ultrazend.production .env
+if [ -f ../configs/.env.production ]; then
+    cp ../configs/.env.production .env
 else
     cat > .env << EOF
 NODE_ENV=production
 PORT=3001
-DATABASE_URL=$APP_DIR/backend/ultrazend.sqlite
+DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
 LOG_FILE_PATH=$APP_DIR/logs
 SMTP_HOST=localhost
 SMTP_PORT=25
