@@ -258,6 +258,11 @@ jobs:
           chmod 600 .env
         fi
         
+        # Fix DKIM permissions
+        echo "🔐 Corrigindo permissões DKIM..."
+        chown -R root:root $APP_DIR/configs/dkim-keys/ || true
+        chmod -R 644 $APP_DIR/configs/dkim-keys/ || true
+        
         # Verify DKIM keys directory and contents
         echo "🔐 Verifying DKIM keys directory..."
         if [ -d "../configs/dkim-keys/" ] && [ "$(ls -A ../configs/dkim-keys/)" ]; then
@@ -322,11 +327,12 @@ jobs:
         
         # Test database connectivity with echo
         echo "Testing database connectivity..."
-        echo "const db = require(\\\"./dist/config/database.js\\\");" > /tmp/db_test.js
+        echo "const db = require(\\\"./dist/config/database.js\\\").default;" > /tmp/db_test.js
         echo "db.raw(\\\"SELECT 1\\\").then(() => {" >> /tmp/db_test.js
         echo "  console.log(\\\"DB_OK\\\");" >> /tmp/db_test.js
         echo "  process.exit(0);" >> /tmp/db_test.js
-        echo "}).catch(() => {" >> /tmp/db_test.js
+        echo "}).catch(err => {" >> /tmp/db_test.js
+        echo "  console.error(\\\"DB_ERROR:\\\", err.message);" >> /tmp/db_test.js
         echo "  process.exit(1);" >> /tmp/db_test.js
         echo "});" >> /tmp/db_test.js
         if NODE_ENV=production node /tmp/db_test.js 2>/dev/null | grep -q "DB_OK"; then
@@ -430,11 +436,12 @@ jobs:
         
         # Test service database access with echo
         echo "Testing service database access..."
-        echo "const db = require(\\\"./dist/config/database.js\\\");" > /tmp/service_test.js
+        echo "const db = require(\\\"./dist/config/database.js\\\").default;" > /tmp/service_test.js
         echo "db.raw(\\\"SELECT 1\\\").then(() => {" >> /tmp/service_test.js
         echo "  console.log(\\\"SERVICES_OK\\\");" >> /tmp/service_test.js
         echo "  process.exit(0);" >> /tmp/service_test.js
-        echo "}).catch(() => {" >> /tmp/service_test.js
+        echo "}).catch(err => {" >> /tmp/service_test.js
+        echo "  console.error(\\\"SERVICES_ERROR:\\\", err.message);" >> /tmp/service_test.js
         echo "  process.exit(1);" >> /tmp/service_test.js
         echo "});" >> /tmp/service_test.js
         if timeout 15s NODE_ENV=production node /tmp/service_test.js 2>/dev/null | grep -q "SERVICES_OK"; then

@@ -48,6 +48,19 @@ if [ "$migration_count" -lt 5 ]; then
     exit 1
 fi
 
+# 5.5. FIX DKIM PERMISSIONS (may be lost during redeploy)
+echo "🔐 Verificando permissões DKIM..."
+chown -R root:root "$APP_DIR"/configs/dkim-keys/ || true
+chmod -R 644 "$APP_DIR"/configs/dkim-keys/ || true
+
+# Validate DKIM file still exists
+if [ -f "$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem" ]; then
+    echo "✅ DKIM private key found"
+else
+    echo "❌ AVISO: DKIM private key not found - Email may not work properly"
+    ls -la "$APP_DIR/configs/dkim-keys/" || echo "DKIM directory not found"
+fi
+
 # 6. RESTART SERVICES
 echo "🚀 Reiniciando serviços..."
 pm2 restart ultrazend-api

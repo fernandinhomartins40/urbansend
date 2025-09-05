@@ -82,11 +82,26 @@ SMTP_HOST=localhost
 SMTP_PORT=25
 ULTRAZEND_DIRECT_DELIVERY=true
 ENABLE_DKIM=true
-DKIM_KEY_PATH=$APP_DIR/configs/dkim-keys/
+DKIM_PRIVATE_KEY_PATH=$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem
+DKIM_SELECTOR=default
+DKIM_DOMAIN=ultrazend.com.br
 QUEUE_ENABLED=true
 ENV_EOF
     chmod 600 .env
     echo '✅ Environment configurado'
+    
+    # Fix DKIM permissions
+    echo '🔐 Corrigindo permissões DKIM...'
+    chown -R root:root $APP_DIR/configs/dkim-keys/ || true
+    chmod -R 644 $APP_DIR/configs/dkim-keys/ || true
+    
+    # Validate DKIM file exists
+    if [ -f '$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem' ]; then
+        echo '✅ DKIM private key found'
+    else
+        echo '❌ CRÍTICO: DKIM private key not found - Deploy may fail'
+        ls -la $APP_DIR/configs/dkim-keys/ || echo 'DKIM directory not found'
+    fi
 "
 
 # 6. RUN MIGRATIONS
@@ -226,11 +241,12 @@ ssh $SERVER "
     # Test database
     cd $APP_DIR/backend
     export NODE_ENV=production
-    echo 'const db = require(\"./dist/config/database.js\"); db.raw(\"SELECT 1\").then(() => { console.log(\"DB_OK\"); process.exit(0); }).catch(err => { console.error(\"DB_ERROR:\", err.message); process.exit(1); });' > /tmp/db_test.js
+    echo 'const db = require(\"./dist/config/database.js\").default; db.raw(\"SELECT 1\").then(() => { console.log(\"DB_OK\"); process.exit(0); }).catch(err => { console.error(\"DB_ERROR:\", err.message); process.exit(1); });' > /tmp/db_test.js
     if timeout 10s NODE_ENV=production node /tmp/db_test.js 2>/dev/null | grep -q 'DB_OK'; then
         echo '✅ Database: conectividade OK'
     else
         echo '❌ CRÍTICO: Database erro de conectividade - DEPLOY FALHOU'
+        echo 'Debug output:'
         NODE_ENV=production node /tmp/db_test.js || true
         rm -f /tmp/db_test.js
         exit 1
