@@ -211,6 +211,17 @@ jobs:
         echo "Build output summary:"
         ls -la dist/ | head -10
         
+        # Validate critical database config file exists
+        if [ ! -f "./dist/config/database.js" ]; then
+          echo "❌ CRITICAL: database.js not found after build"
+          echo "Contents of dist/config/:"
+          ls -la ./dist/config/ || echo "dist/config/ directory does not exist"
+          echo "Contents of dist/:"
+          ls -la ./dist/ || echo "dist/ directory is empty"
+          exit 1
+        fi
+        echo "✅ Database config validated: dist/config/database.js exists"
+        
         # Copy and configure UltraZend SMTP Pure environment
         if [ -f ../configs/.env.ultrazend.production ]; then
           cp ../configs/.env.ultrazend.production .env
@@ -398,12 +409,23 @@ jobs:
         cd "$APP_DIR/backend"
         
         # Verify database config exists before testing services
+        echo "🔍 Checking for database config file..."
         if [ ! -f "./dist/config/database.js" ]; then
           echo "❌ CRÍTICO: Database config não encontrado para validação de serviços"
-          echo "Arquivos em dist/config:"
-          ls -la ./dist/config/ || echo "dist/config não existe"
-          exit 1
+          echo "Tentando recompilar para garantir que database.js existe..."
+          npm run build
+          
+          # Check again after rebuild
+          if [ ! -f "./dist/config/database.js" ]; then
+            echo "❌ CRÍTICO: Database config ainda não encontrado após rebuild"
+            echo "Arquivos em dist/config:"
+            ls -la ./dist/config/ || echo "dist/config não existe"
+            echo "Arquivos em dist:"
+            ls -la ./dist/ || echo "dist não existe"
+            exit 1
+          fi
         fi
+        echo "✅ Database config encontrado: ./dist/config/database.js"
         
         # Test service database access with echo
         echo "Testing service database access..."
