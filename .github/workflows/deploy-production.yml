@@ -321,9 +321,9 @@ jobs:
         
         # Test database connectivity with echo
         echo "Testing database connectivity..."
-        echo "const db = require('./dist/config/database.js');" > /tmp/db_test.js
-        echo "db.raw('SELECT 1').then(() => {" >> /tmp/db_test.js
-        echo "  console.log('DB_OK');" >> /tmp/db_test.js
+        echo "const db = require(\\\"./dist/config/database.js\\\");" > /tmp/db_test.js
+        echo "db.raw(\\\"SELECT 1\\\").then(() => {" >> /tmp/db_test.js
+        echo "  console.log(\\\"DB_OK\\\");" >> /tmp/db_test.js
         echo "  process.exit(0);" >> /tmp/db_test.js
         echo "}).catch(() => {" >> /tmp/db_test.js
         echo "  process.exit(1);" >> /tmp/db_test.js
@@ -346,7 +346,7 @@ jobs:
         rm -rf /var/www/ultrazend-static
         mkdir -p /var/www/ultrazend-static
         echo "📁 Copying new frontend build..."
-        cp -r frontend/dist/* /var/www/ultrazend-static/
+        cp -r ../frontend/dist/* /var/www/ultrazend-static/
         chown -R www-data:www-data /var/www/ultrazend-static
         echo "✅ Frontend deployed"
         
@@ -429,9 +429,9 @@ jobs:
         
         # Test service database access with echo
         echo "Testing service database access..."
-        echo "const db = require('./dist/config/database.js');" > /tmp/service_test.js
-        echo "db.raw('SELECT 1').then(() => {" >> /tmp/service_test.js
-        echo "  console.log('SERVICES_OK');" >> /tmp/service_test.js
+        echo "const db = require(\\\"./dist/config/database.js\\\");" > /tmp/service_test.js
+        echo "db.raw(\\\"SELECT 1\\\").then(() => {" >> /tmp/service_test.js
+        echo "  console.log(\\\"SERVICES_OK\\\");" >> /tmp/service_test.js
         echo "  process.exit(0);" >> /tmp/service_test.js
         echo "}).catch(() => {" >> /tmp/service_test.js
         echo "  process.exit(1);" >> /tmp/service_test.js
