@@ -308,9 +308,16 @@ jobs:
           exit 1
         fi
         
-        # Simplified database validation without complex escaping
+        # Test database connectivity with simple script
         echo "Testing database connectivity..."
-        node -e "const db=require('./dist/config/database.js');db.raw('SELECT 1').then(()=>{console.log('DB_OK');process.exit(0)}).catch(e=>{console.error('DB_FAIL');process.exit(1)})"
+        echo "const db = require('./dist/config/database.js'); db.raw('SELECT 1').then(() => { console.log('DB_OK'); process.exit(0); }).catch(() => process.exit(1));" > /tmp/db_test.js
+        if node /tmp/db_test.js 2>/dev/null | grep -q "DB_OK"; then
+          echo "✅ Database connectivity validated"
+        else
+          echo "❌ Database connectivity failed"
+          exit 1
+        fi
+        rm -f /tmp/db_test.js
         
         echo "🎉 Schema centralizado 100% validado - Deploy pode continuar"
         
@@ -392,15 +399,17 @@ jobs:
           exit 1
         fi
         
-        # Simplified service validation
+        # Test service database access with simple script
         echo "Testing service database access..."
-        if timeout 15s node -e "const db=require('./dist/config/database.js');db.raw('SELECT 1').then(()=>{console.log('SERVICES_OK');process.exit(0)}).catch(()=>process.exit(1))" 2>/dev/null | grep -q "SERVICES_OK"; then
+        echo "const db = require('./dist/config/database.js'); db.raw('SELECT 1').then(() => { console.log('SERVICES_OK'); process.exit(0); }).catch(() => process.exit(1));" > /tmp/service_test.js
+        if timeout 15s node /tmp/service_test.js 2>/dev/null | grep -q "SERVICES_OK"; then
           echo "✅ Service database validation passed"
         else
           echo "❌ CRÍTICO: Serviços não conseguem acessar database"
           echo "🚫 Deploy CANCELADO - Serviços incompatíveis com schema"
           exit 1
         fi
+        rm -f /tmp/service_test.js
         
         echo "✅ ENTERPRISE VALIDATION: Serviços básicos validados - Acesso ao schema OK"
         
