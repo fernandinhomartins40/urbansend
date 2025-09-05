@@ -37,7 +37,16 @@ npm run build
 
 # 5. RUN NEW MIGRATIONS
 echo "📊 Aplicando novas migrations..."
+export NODE_ENV=production
 npm run migrate:latest || echo "No new migrations"
+
+# Validate migrations worked
+migration_count=$(NODE_ENV=production npx knex migrate:list 2>/dev/null | grep -c "Batch\\|COMPLETED\\|✔" || echo "0")
+echo "Total migrations aplicadas: $migration_count"
+if [ "$migration_count" -lt 5 ]; then
+    echo "❌ CRÍTICO: Erro nas migrations - Redeploy FALHOU"
+    exit 1
+fi
 
 # 6. RESTART SERVICES
 echo "🚀 Reiniciando serviços..."

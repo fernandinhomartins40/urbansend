@@ -290,16 +290,17 @@ jobs:
         echo "⚠️  CRÍTICO: Falha em migrations PARA o deploy imediatamente"
         
         # Execute migrations with strict validation
+        export NODE_ENV=production
         npm run migrate:latest
         
         # Validate migration results (flexible count)
-        migration_count=$(npx knex migrate:list 2>/dev/null | grep -c "Batch\\|COMPLETED\\|✔" || echo "0")
+        migration_count=$(NODE_ENV=production npx knex migrate:list 2>/dev/null | grep -c "Batch\\|COMPLETED\\|✔" || echo "0")
         echo "Debug: migration_count = $migration_count"
         if [ "$migration_count" -lt 10 ]; then
           echo "❌ CRÍTICO: Muito poucas migrations ($migration_count/~47)"
           echo "🚫 Deploy CANCELADO - Schema pode estar incompleto"
           echo "Migrations aplicadas:"
-          npx knex migrate:list 2>/dev/null || echo "Erro ao listar migrations"
+          NODE_ENV=production npx knex migrate:list 2>/dev/null || echo "Erro ao listar migrations"
           exit 1
         fi
         
@@ -328,7 +329,7 @@ jobs:
         echo "}).catch(() => {" >> /tmp/db_test.js
         echo "  process.exit(1);" >> /tmp/db_test.js
         echo "});" >> /tmp/db_test.js
-        if node /tmp/db_test.js 2>/dev/null | grep -q "DB_OK"; then
+        if NODE_ENV=production node /tmp/db_test.js 2>/dev/null | grep -q "DB_OK"; then
           echo "✅ Database connectivity validated"
         else
           echo "❌ Database connectivity failed"
@@ -436,7 +437,7 @@ jobs:
         echo "}).catch(() => {" >> /tmp/service_test.js
         echo "  process.exit(1);" >> /tmp/service_test.js
         echo "});" >> /tmp/service_test.js
-        if timeout 15s node /tmp/service_test.js 2>/dev/null | grep -q "SERVICES_OK"; then
+        if timeout 15s NODE_ENV=production node /tmp/service_test.js 2>/dev/null | grep -q "SERVICES_OK"; then
           echo "✅ Service database validation passed"
         else
           echo "❌ CRÍTICO: Serviços não conseguem acessar database"
