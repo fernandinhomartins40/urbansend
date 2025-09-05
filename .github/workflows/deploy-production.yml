@@ -308,17 +308,15 @@ jobs:
           exit 1
         fi
         
-        # Test database connectivity with heredoc
+        # Test database connectivity with echo
         echo "Testing database connectivity..."
-        cat > /tmp/db_test.js <<'EOF'
-        const db = require('./dist/config/database.js');
-        db.raw('SELECT 1').then(() => {
-          console.log('DB_OK');
-          process.exit(0);
-        }).catch(() => {
-          process.exit(1);
-        });
-        EOF
+        echo "const db = require('./dist/config/database.js');" > /tmp/db_test.js
+        echo "db.raw('SELECT 1').then(() => {" >> /tmp/db_test.js
+        echo "  console.log('DB_OK');" >> /tmp/db_test.js
+        echo "  process.exit(0);" >> /tmp/db_test.js
+        echo "}).catch(() => {" >> /tmp/db_test.js
+        echo "  process.exit(1);" >> /tmp/db_test.js
+        echo "});" >> /tmp/db_test.js
         if node /tmp/db_test.js 2>/dev/null | grep -q "DB_OK"; then
           echo "✅ Database connectivity validated"
         else
@@ -407,17 +405,15 @@ jobs:
           exit 1
         fi
         
-        # Test service database access with heredoc
+        # Test service database access with echo
         echo "Testing service database access..."
-        cat > /tmp/service_test.js <<'EOF'
-        const db = require('./dist/config/database.js');
-        db.raw('SELECT 1').then(() => {
-          console.log('SERVICES_OK');
-          process.exit(0);
-        }).catch(() => {
-          process.exit(1);
-        });
-        EOF
+        echo "const db = require('./dist/config/database.js');" > /tmp/service_test.js
+        echo "db.raw('SELECT 1').then(() => {" >> /tmp/service_test.js
+        echo "  console.log('SERVICES_OK');" >> /tmp/service_test.js
+        echo "  process.exit(0);" >> /tmp/service_test.js
+        echo "}).catch(() => {" >> /tmp/service_test.js
+        echo "  process.exit(1);" >> /tmp/service_test.js
+        echo "});" >> /tmp/service_test.js
         if timeout 15s node /tmp/service_test.js 2>/dev/null | grep -q "SERVICES_OK"; then
           echo "✅ Service database validation passed"
         else
