@@ -102,7 +102,7 @@ jobs:
         echo "⚙️ Configuring server..."
         sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} '
         export APP_DIR="${{ env.APP_DIR }}"
-        cd $APP_DIR
+        cd "$APP_DIR"
         
         # Stop existing services - ROBUST CLEANUP
         echo "🛑 Stopping all existing services..."
@@ -123,7 +123,7 @@ jobs:
         rm -rf ~/.npm/_cacache/ || true
         
         # Clean old log files (keep last 7 days)
-        find $APP_DIR/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
+        find "$APP_DIR"/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
         
         # Clean old PM2 logs
         pm2 flush 2>/dev/null || true
@@ -178,7 +178,7 @@ jobs:
         echo "   ✅ Native email queue processing"
         echo "   ✅ 100% TypeScript/Node.js implementation"
         
-        cd $APP_DIR/backend
+        cd "$APP_DIR/backend"
         
         # Install all dependencies (including swagger) with error checking
         echo "📦 Installing dependencies..."
@@ -271,8 +271,8 @@ jobs:
         echo "✅ UltraZend SMTP architecture validated"
         
         # Ensure log directories exist
-        mkdir -p $APP_DIR/logs/{application,errors,security,performance,business}
-        chown -R www-data:www-data $APP_DIR/logs || true
+        mkdir -p "$APP_DIR"/logs/{application,errors,security,performance,business}
+        chown -R www-data:www-data "$APP_DIR"/logs || true
         
         # 🚀 CRITICAL: Execute 47 centralized migrations (FAIL FAST)
         echo "📊 Executando 47 migrations centralizadas obrigatórias (A01-ZU47)..."
@@ -395,7 +395,7 @@ jobs:
         
         # ✅ ENTERPRISE VALIDATION: Test basic services access (FIXED)
         echo "🧪 Validando serviços básicos conseguem acessar schema centralizado..."
-        cd $APP_DIR/backend
+        cd "$APP_DIR/backend"
         
         # Verify database config exists before testing services
         if [ ! -f "./dist/config/database.js" ]; then
