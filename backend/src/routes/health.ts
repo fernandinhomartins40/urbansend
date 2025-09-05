@@ -147,18 +147,20 @@ async function checkSMTPHealth(): Promise<HealthCheck> {
 async function checkDKIMHealth(): Promise<HealthCheck> {
   const start = Date.now();
   try {
-    // Import both DKIM services
+    // Import DKIM services - usando singleton para evitar race condition
     const { default: DKIMService } = await import('../services/dkimService');
-    const { DKIMManager } = await import('../services/dkimManager');
+    const { DKIMManagerSingleton } = await import('../services/dkimManagerSingleton');
     
     const dkimService = new DKIMService();
-    const dkimManager = new DKIMManager();
+    
+    // Usar singleton - garante inicialização completa
+    const dkimManager = await DKIMManagerSingleton.getInstance();
     
     // Test DKIM key generation and signing
     const dnsRecord = dkimService.getDNSRecord();
     const publicKey = dkimService.getDKIMPublicKey();
     
-    // Test DKIMManager configuration
+    // Test DKIMManager configuration - agora com inicialização garantida
     const dkimDomains = await dkimManager.listDKIMDomains();
     const dkimStats = await dkimManager.getDKIMStats(1); // userId padrão para health check
     

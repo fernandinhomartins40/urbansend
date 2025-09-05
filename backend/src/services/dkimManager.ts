@@ -32,9 +32,17 @@ export class DKIMManager {
   private defaultSelector = 'default';
   private defaultAlgorithm: 'rsa-sha256' = 'rsa-sha256';
   private defaultCanonical: 'relaxed/relaxed' = 'relaxed/relaxed';
+  private initializationPromise: Promise<void> | null = null;
+  private isInitialized = false;
 
   constructor() {
-    this.initializeDKIM();
+    this.initializationPromise = this.initializeDKIM();
+  }
+
+  public async waitForInitialization(): Promise<void> {
+    if (this.initializationPromise && !this.isInitialized) {
+      await this.initializationPromise;
+    }
   }
 
   private async initializeDKIM() {
@@ -58,6 +66,7 @@ export class DKIMManager {
         configuredDomains: this.dkimConfigs.size,
         timestamp: new Date().toISOString()
       });
+      this.isInitialized = true;
     } catch (error: any) {
       logger.error('Failed to initialize DKIMManager', { 
         error: error.message,
@@ -65,6 +74,7 @@ export class DKIMManager {
         errno: error.errno,
         stack: error.stack?.split('\n').slice(0, 5).join('\n')
       });
+      this.isInitialized = true; // Marcar como inicializado mesmo com erro
       // Não relançar o erro para não impedir a inicialização do sistema
     }
   }
