@@ -37,8 +37,8 @@ import smtpMonitoringRoutes from './routes/smtp-monitoring';
 // import campaignsRoutes from './routes/campaigns';
 // import schedulerRoutes from './routes/scheduler';
 // import segmentationRoutes from './routes/segmentation';
-import trendAnalyticsRoutes from './routes/trend-analytics.js';
-import alertsRoutes from './routes/alerts.js';
+// import trendAnalyticsRoutes from './routes/trend-analytics.js'; // Needs TS conversion
+// import alertsRoutes from './routes/alerts.js'; // Needs TS conversion
 // Fase 2 routes removidas temporariamente
 // Fase 3 - Advanced features
 // Fase 3 routes removidas temporariamente
@@ -338,8 +338,8 @@ app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
 // app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion
 // app.use('/api/scheduler', schedulerRoutes); // Temporarily disabled - needs TS conversion  
 // app.use('/api/segmentation', segmentationRoutes); // Temporarily disabled - needs TS conversion
-app.use('/api/trend-analytics', trendAnalyticsRoutes);
-app.use('/api/alerts', alertsRoutes);
+// app.use('/api/trend-analytics', trendAnalyticsRoutes); // Temporarily disabled - needs TS conversion
+// app.use('/api/alerts', alertsRoutes); // Temporarily disabled - needs TS conversion
 // Fase 2 routes removidas temporariamente
 // Fase 3 - Advanced features routes
 // Fase 3 routes removidas temporariamente
@@ -555,19 +555,19 @@ const initializeServices = async () => {
         logger.info('✅ Email queue processor started (30s intervals)');
       }
     },
-    {
-      name: 'Campaign Scheduler',
-      init: async () => {
-        const { CampaignScheduler } = await import('./services/CampaignScheduler');
-        const campaignScheduler = new CampaignScheduler();
-        campaignScheduler.start();
-        
-        // Registrar scheduler globalmente para acesso posterior
-        (global as any).campaignScheduler = campaignScheduler;
-        
-        logger.info('✅ Campaign Scheduler inicializado com sucesso');
-      }
-    }
+    // {
+    //   name: 'Campaign Scheduler',
+    //   init: async () => {
+    //     const { CampaignScheduler } = await import('./services/CampaignScheduler');
+    //     const campaignScheduler = new CampaignScheduler();
+    //     campaignScheduler.start();
+    //     
+    //     // Registrar scheduler globalmente para acesso posterior
+    //     (global as any).campaignScheduler = campaignScheduler;
+    //     
+    //     logger.info('✅ Campaign Scheduler inicializado com sucesso');
+    //   }
+    // } // Temporarily disabled - needs TS conversion
   ];
 
   // Initialize services sequentially (sem race conditions)
