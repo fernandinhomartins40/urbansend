@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DomainVerification } from '@/components/domains/DomainVerification'
 import { domainApi } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/utils'
 import { 
@@ -23,7 +24,6 @@ const addDomainSchema = z.object({
     .string()
     .min(1, 'Domínio é obrigatório')
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.([a-zA-Z]{2,}\.)*[a-zA-Z]{2,}$/, 'Formato de domínio inválido'),
-  region: z.string().min(1, 'Região é obrigatória'),
 })
 
 type AddDomainForm = z.infer<typeof addDomainSchema>
@@ -35,7 +35,6 @@ interface Domain {
   dkim_status: 'pending' | 'verified' | 'failed' 
   spf_status: 'pending' | 'verified' | 'failed'
   dmarc_status: 'pending' | 'verified' | 'failed'
-  region: string
   created_at: string
   updated_at: string
 }
@@ -83,7 +82,6 @@ export function Domains() {
     resolver: zodResolver(addDomainSchema),
     defaultValues: {
       domain_name: '',
-      region: 'us-east-1',
     },
   })
 
@@ -101,12 +99,11 @@ export function Domains() {
   const addMutation = useMutation({
     mutationFn: (data: AddDomainForm) => {
       // Ensure required fields are present
-      if (!data.domain_name || !data.region) {
-        throw new Error('Nome do domínio e região são obrigatórios')
+      if (!data.domain_name) {
+        throw new Error('Nome do domínio é obrigatório')
       }
       return domainApi.addDomain({
-        domain_name: data.domain_name,
-        region: data.region
+        domain_name: data.domain_name
       })
     },
     onSuccess: () => {
@@ -184,7 +181,7 @@ export function Domains() {
       {
         type: 'CNAME',
         name: `ultrazend._domainkey.${domain.domain_name}`,
-        value: `ultrazend._domainkey.${domain.region}.ultrazend.com`,
+        value: `ultrazend._domainkey.ultrazend.com.br`,
         ttl: 3600,
         description: 'Chave DKIM para autenticação de emails',
         status: domain.dkim_status,
@@ -192,7 +189,7 @@ export function Domains() {
       {
         type: 'TXT',
         name: domain.domain_name,
-        value: `v=spf1 include:${domain.region}.ultrazend.com ~all`,
+        value: `v=spf1 include:ultrazend.com.br ~all`,
         ttl: 3600,
         description: 'Registro SPF para autorização de envio',
         status: domain.spf_status,
@@ -200,7 +197,7 @@ export function Domains() {
       {
         type: 'TXT',
         name: `_dmarc.${domain.domain_name}`,
-        value: 'v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@ultrazend.com',
+        value: 'v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@ultrazend.com.br',
         ttl: 3600,
         description: 'Política DMARC para proteção contra spoofing',
         status: domain.dmarc_status,
@@ -261,23 +258,6 @@ export function Domains() {
                           <p className="text-sm text-destructive mt-1">{errors.domain_name.message}</p>
                         )}
                       </div>
-                      
-                      <div>
-                        <Label htmlFor="region">Região</Label>
-                        <select
-                          id="region"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                          {...register('region')}
-                        >
-                          <option value="us-east-1">US East (Virginia)</option>
-                          <option value="us-west-2">US West (Oregon)</option>
-                          <option value="eu-west-1">Europe (Ireland)</option>
-                          <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
-                        </select>
-                        {errors.region && (
-                          <p className="text-sm text-destructive mt-1">{errors.region.message}</p>
-                        )}
-                      </div>
 
                       <div className="flex space-x-2">
                         <Button type="submit" disabled={addMutation.isPending}>
@@ -324,10 +304,6 @@ export function Domains() {
                           <div className="flex items-center mt-1 space-x-2">
                             {getStatusIcon(domain.verification_status)}
                             <span className="text-xs text-muted-foreground">
-                              {domain.region}
-                            </span>
-                            <span className="text-xs text-muted-foreground">•</span>
-                            <span className="text-xs text-muted-foreground">
                               {formatRelativeTime(domain.created_at)}
                             </span>
                           </div>
@@ -361,11 +337,10 @@ export function Domains() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleVerifyDomain(selectedDomain)}
-                        disabled={verifyMutation.isPending}
+                        onClick={() => setActiveTab('verification')}
                       >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${verifyMutation.isPending ? 'animate-spin' : ''}`} />
-                        {verifyMutation.isPending ? 'Verificando...' : 'Verificar'}
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Verificar DNS
                       </Button>
                       <Button
                         variant="outline"
@@ -437,6 +412,10 @@ export function Domains() {
                     <Eye className="h-4 w-4 mr-2" />
                     Visão Geral
                   </TabsTrigger>
+                  <TabsTrigger value="verification">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Verificação DNS
+                  </TabsTrigger>
                   <TabsTrigger value="dns">
                     <Settings className="h-4 w-4 mr-2" />
                     DNS Setup
@@ -504,6 +483,22 @@ export function Domains() {
                       </div>
                     </CardContent>
                   </Card>
+                </TabsContent>
+
+                <TabsContent value="verification" className="mt-6">
+                  <DomainVerification
+                    domainId={selectedDomain.id}
+                    domainName={selectedDomain.domain_name}
+                    onVerificationComplete={(success) => {
+                      // Atualizar dados após verificação
+                      queryClient.invalidateQueries({ queryKey: ['domains'] })
+                      queryClient.invalidateQueries({ queryKey: ['domains', selectedDomain.id, 'details'] })
+                      
+                      if (success) {
+                        toast.success('Verificação DNS concluída com sucesso!')
+                      }
+                    }}
+                  />
                 </TabsContent>
 
                 <TabsContent value="dns" className="mt-6">
