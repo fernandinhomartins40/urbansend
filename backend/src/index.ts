@@ -33,11 +33,12 @@ import healthRoutes from './routes/health';
 // Fase 2 - New routes
 import dkimRoutes from './routes/dkim';
 import smtpMonitoringRoutes from './routes/smtp-monitoring';
-import campaignsRoutes from './routes/campaigns';
-import schedulerRoutes from './routes/scheduler';
-import segmentationRoutes from './routes/segmentation';
-import trendAnalyticsRoutes from './routes/trend-analytics';
-import alertsRoutes from './routes/alerts';
+// Temporarily commented - JS routes need TS conversion
+// import campaignsRoutes from './routes/campaigns';
+// import schedulerRoutes from './routes/scheduler';
+// import segmentationRoutes from './routes/segmentation';
+import trendAnalyticsRoutes from './routes/trend-analytics.js';
+import alertsRoutes from './routes/alerts.js';
 // Fase 2 routes removidas temporariamente
 // Fase 3 - Advanced features
 // Fase 3 routes removidas temporariamente
@@ -334,9 +335,9 @@ app.use('/api/dns', dnsRoutes);
 // Fase 2 - Enhanced service routes
 app.use('/api/dkim', dkimRoutes);
 app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
-app.use('/api/campaigns', campaignsRoutes);
-app.use('/api/scheduler', schedulerRoutes);
-app.use('/api/segmentation', segmentationRoutes);
+// app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion
+// app.use('/api/scheduler', schedulerRoutes); // Temporarily disabled - needs TS conversion  
+// app.use('/api/segmentation', segmentationRoutes); // Temporarily disabled - needs TS conversion
 app.use('/api/trend-analytics', trendAnalyticsRoutes);
 app.use('/api/alerts', alertsRoutes);
 // Fase 2 routes removidas temporariamente
