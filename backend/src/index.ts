@@ -29,9 +29,18 @@ import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
+// Fase 1 - Settings routes removidas temporariamente
 // Fase 2 - New routes
 import dkimRoutes from './routes/dkim';
 import smtpMonitoringRoutes from './routes/smtp-monitoring';
+import campaignsRoutes from './routes/campaigns';
+import schedulerRoutes from './routes/scheduler';
+import segmentationRoutes from './routes/segmentation';
+import trendAnalyticsRoutes from './routes/trend-analytics';
+import alertsRoutes from './routes/alerts';
+// Fase 2 routes removidas temporariamente
+// Fase 3 - Advanced features
+// Fase 3 routes removidas temporariamente
 
 // Global shutdown control - prevents double database destroy
 let isDatabaseClosed = false;
@@ -321,9 +330,18 @@ app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/dns', dnsRoutes);
+// Fase 1 - Settings routes removidas temporariamente
 // Fase 2 - Enhanced service routes
 app.use('/api/dkim', dkimRoutes);
 app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
+app.use('/api/campaigns', campaignsRoutes);
+app.use('/api/scheduler', schedulerRoutes);
+app.use('/api/segmentation', segmentationRoutes);
+app.use('/api/trend-analytics', trendAnalyticsRoutes);
+app.use('/api/alerts', alertsRoutes);
+// Fase 2 routes removidas temporariamente
+// Fase 3 - Advanced features routes
+// Fase 3 routes removidas temporariamente
 
 // Swagger documentation
 setupSwagger(app);
@@ -534,6 +552,19 @@ const initializeServices = async () => {
         
         setInterval(processQueue, 30000);
         logger.info('✅ Email queue processor started (30s intervals)');
+      }
+    },
+    {
+      name: 'Campaign Scheduler',
+      init: async () => {
+        const { CampaignScheduler } = await import('./services/CampaignScheduler');
+        const campaignScheduler = new CampaignScheduler();
+        campaignScheduler.start();
+        
+        // Registrar scheduler globalmente para acesso posterior
+        (global as any).campaignScheduler = campaignScheduler;
+        
+        logger.info('✅ Campaign Scheduler inicializado com sucesso');
       }
     }
   ];
