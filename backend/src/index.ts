@@ -29,6 +29,7 @@ import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
+import domainMonitoringRoutes from './routes/domain-monitoring';
 // Fase 1 - Settings routes removidas temporariamente
 // Fase 2 - New routes
 import dkimRoutes from './routes/dkim';
@@ -331,6 +332,7 @@ app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/dns', dnsRoutes);
+app.use('/api/domain-monitoring', domainMonitoringRoutes);
 // Fase 1 - Settings routes removidas temporariamente
 // Fase 2 - Enhanced service routes
 app.use('/api/dkim', dkimRoutes);
@@ -555,6 +557,14 @@ const initializeServices = async () => {
         logger.info('✅ Email queue processor started (30s intervals)');
       }
     },
+    {
+      name: 'Domain Verification System',
+      init: async () => {
+        const { domainVerificationInitializer } = await import('./services/domainVerificationInitializer');
+        await domainVerificationInitializer.initialize();
+        logger.info('✅ Domain Verification System initialized - Full monitoring active');
+      }
+    }
     // {
     //   name: 'Campaign Scheduler',
     //   init: async () => {
@@ -608,22 +618,41 @@ const startServer = async () => {
     // Initialize services sequentially with centralized schema
     await initializeServices();
 
-    // Start server - Let Nginx handle SSL termination
-    server.listen(PORT, () => {
-      logger.info(`🎉 UltraZend Sistema Profissional ATIVO na porta ${PORT}`);
-      logger.info('✅ Schema: 47 tabelas centralizadas via migrations A01→ZU47');
-      logger.info('✅ Serviços: Validação defensiva implementada');
-      logger.info('✅ Deploy: Determinístico e confiável');
-      
-      if (Env.isProduction) {
+    // Start appropriate server (HTTPS in production if SSL available, HTTP otherwise)
+    if (Env.isProduction && httpsServer) {
+      // Start HTTPS server
+      httpsServer.listen(HTTPS_PORT, () => {
+        logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTPS) na porta ${HTTPS_PORT}`);
+        logger.info('✅ Schema: 47 tabelas centralizadas via migrations A01→ZU47');
+        logger.info('✅ Serviços: Validação defensiva implementada');
+        logger.info('✅ Deploy: Determinístico e confiável');
         logger.info(`📚 API Documentation: https://www.ultrazend.com.br/api-docs`);
-        logger.info(`🔒 SSL: Nginx reverse proxy`);
-      } else {
-        logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
-      }
+        logger.info(`🔒 SSL: Direct HTTPS server (porta ${HTTPS_PORT})`);
+        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
+      });
       
-      logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
-    });
+      // Also start HTTP server for redirects (optional)
+      server.listen(PORT, () => {
+        logger.info(`🔄 HTTP redirect server ativo na porta ${PORT}`);
+      });
+    } else {
+      // Start HTTP server only
+      server.listen(PORT, () => {
+        logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTP) na porta ${PORT}`);
+        logger.info('✅ Schema: 47 tabelas centralizadas via migrations A01→ZU47');
+        logger.info('✅ Serviços: Validação defensiva implementada');
+        logger.info('✅ Deploy: Determinístico e confiável');
+        
+        if (Env.isProduction) {
+          logger.info(`📚 API Documentation: http://www.ultrazend.com.br:${PORT}/api-docs`);
+          logger.info(`🔒 SSL: Aguardando certificados ou usando proxy reverso`);
+        } else {
+          logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+        }
+        
+        logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
+      });
+    }
     
   } catch (error) {
     logger.error('❌ CRITICAL: Failed to start server', {
