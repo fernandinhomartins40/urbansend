@@ -22,6 +22,9 @@ module.exports = {
         DATABASE_URL: './ultrazend.sqlite',
         
         // ✅ SMTP configuração UltraZend ATIVA
+        SMTP_HOST: 'mail.ultrazend.com.br',
+        SMTP_PORT: 2525,
+        SMTP_SECURE: 'false',
         SMTP_HOSTNAME: 'mail.ultrazend.com.br',
         SMTP_MX_PORT: 2525,
         SMTP_SUBMISSION_PORT: 587,
