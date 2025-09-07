@@ -50,14 +50,34 @@ echo "🛑 Parando serviços existentes..."
 ssh $SERVER "pm2 stop all 2>/dev/null || true; pm2 delete all 2>/dev/null || true"
 
 # 2. SETUP DIRECTORIES AND CLONE
-echo "📁 Configurando diretórios e clonando repositório..."
+echo "📁 Configurando diretórios e atualizando repositório..."
 ssh $SERVER "
-    mkdir -p $APP_DIR $STATIC_DIR
+    mkdir -p $STATIC_DIR
+    
+    # Check if directory exists and handle accordingly
+    if [ -d '$APP_DIR/.git' ]; then
+        echo '📥 Diretório git existente - atualizando...'
+        cd $APP_DIR
+        git fetch origin
+        git reset --hard origin/main
+        git clean -fd
+        echo '✅ Repositório atualizado com sucesso'
+    elif [ -d '$APP_DIR' ]; then
+        echo '🧹 Removendo diretório não-git existente...'
+        rm -rf $APP_DIR
+        echo '📥 Clonando repositório fresco...'
+        git clone https://github.com/fernandinhomartins40/urbansend.git $APP_DIR
+        cd $APP_DIR
+        echo '✅ Repositório clonado com sucesso'
+    else
+        echo '📥 Clonando repositório fresco...'
+        git clone https://github.com/fernandinhomartins40/urbansend.git $APP_DIR
+        cd $APP_DIR
+        echo '✅ Repositório clonado com sucesso'
+    fi
+    
+    # Ensure log directories exist
     mkdir -p $APP_DIR/logs/{application,errors,security,performance,business,analytics,campaigns,domain-verification}
-    rm -rf $APP_DIR
-    git clone https://github.com/fernandinhomartins40/urbansend.git $APP_DIR
-    cd $APP_DIR
-    echo '✅ Repositório clonado com sucesso'
 "
 
 # 3. BUILD FRONTEND (Enhanced)
@@ -569,6 +589,25 @@ ssh $SERVER "
         echo '⚠️ Tabelas de domain verification não encontradas - podem ser criadas no boot'
     fi
     
+    # Verify Fase 4 audit and monitoring tables
+    echo 'Verificando tabelas da Fase 4 (auditoria e monitoramento)...'
+    fase4_tables=('email_audit_logs' 'system_alerts')
+    fase4_found=0
+    for table in \"\${fase4_tables[@]}\"; do
+        if sqlite3 ultrazend.sqlite \"SELECT name FROM sqlite_master WHERE type='table' AND name='\$table';\" | grep -q \"\$table\"; then
+            echo \"✅ Fase 4 table: \$table encontrada\"
+            fase4_found=\$((fase4_found + 1))
+        else
+            echo \"⚠️ Fase 4 table: \$table não encontrada - será criada automaticamente\"
+        fi
+    done
+    
+    if [ \"\$fase4_found\" -eq 2 ]; then
+        echo \"✅ Fase 4: Todas as tabelas de auditoria e monitoramento OK\"
+    else
+        echo \"⚠️ Fase 4: \$fase4_found/2 tabelas encontradas - funcionalidades podem inicializar no boot\"
+    fi
+    
     # Test database connectivity - simplified and robust
     echo 'Testando conectividade do database...'
     cat > test_db.js << 'DB_TEST_EOF'
@@ -591,7 +630,7 @@ DB_TEST_EOF
     
     echo '=== VALIDAÇÃO DE APIs ==='
     
-    # Test critical API endpoints (including new domain monitoring)
+    # Test critical API endpoints (including Fase 4 monitoring & alerting)
     api_endpoints=(
         '/health'
         '/api/auth/profile'
@@ -600,6 +639,10 @@ DB_TEST_EOF
         '/api/campaigns'
         '/api/domain-monitoring/health'
         '/api/domains'
+        '/api/monitoring/health'
+        '/api/monitoring/audit-logs'
+        '/api/monitoring/security-report'
+        '/api/scheduler/status'
     )
     
     for endpoint in \"\${api_endpoints[@]}\"; do
@@ -647,6 +690,9 @@ DB_TEST_EOF
     echo \"   Restart: ssh $SERVER 'pm2 restart ultrazend-api'\"
     echo \"   Redis: ssh $SERVER 'redis-cli ping'\"
     echo \"   Domain Monitor: curl -s https://$DOMAIN/api/domain-monitoring/health\"
+    echo \"   Fase 4 Health: curl -s https://$DOMAIN/api/monitoring/health\"
+    echo \"   Audit Logs: curl -s https://$DOMAIN/api/monitoring/audit-logs\"
+    echo \"   Scheduler: curl -s https://$DOMAIN/api/scheduler/status\"
     echo \"   Redeploy: bash local-deploy-enhanced.sh\"
 "
 
@@ -671,6 +717,12 @@ echo "   ✅ Domain Verification System (Fase 4)"
 echo "   ✅ Monitoramento Automático de Domínios"
 echo "   ✅ Jobs Automáticos (6h) + Alertas"
 echo "   ✅ API Domain Monitoring"
+echo "   ✅ FASE 4: EmailAuditService (Auditoria completa)"
+echo "   ✅ FASE 4: AlertingService (Alertas automáticos)"
+echo "   ✅ FASE 4: HealthCheckScheduler (8 cron jobs)"
+echo "   ✅ FASE 4: APIs /monitoring (8 endpoints)"
+echo "   ✅ FASE 4: APIs /scheduler (controle de jobs)"
+echo "   ✅ FASE 4: Tabelas audit (email_audit_logs, system_alerts)"
 echo "   ✅ Bundle otimizado (32 chunks)"
 echo "   ✅ Database: 62+ migrations / 65+ tabelas"
 echo ""
