@@ -107,7 +107,7 @@ export class EmailService {
     const verificationUrl = `${frontendUrl}/verify-email?token=${token}`;
     
     return {
-      from: `noreply@${Env.get('SMTP_HOSTNAME', 'ultrazend.com.br')}`,
+      from: `noreply@ultrazend.com.br`,
       to: email,
       subject: 'Verifique seu email - UltraZend',
       html: this.generateVerificationEmailHTML(name, verificationUrl),

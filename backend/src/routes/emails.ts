@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { validateRequest, sendEmailSchema, paginationSchema, idParamSchema } from '../middleware/validation';
 import { authenticateJWT, authenticateApiKey, requirePermission } from '../middleware/auth';
 import { emailSendRateLimit } from '../middleware/rateLimiting';
+import { validateSenderMiddleware, validateBatchSenderMiddleware } from '../middleware/emailValidation';
 import { QueueService } from '../services/queueService';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
@@ -13,6 +14,7 @@ const router = Router();
 router.post('/send', 
   authenticateApiKey,
   requirePermission('email:send'),
+  validateSenderMiddleware,
   emailSendRateLimit,
   validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -31,8 +33,9 @@ router.post('/send',
 // Send batch emails
 router.post('/send-batch',
   authenticateApiKey,
-  emailSendRateLimit,
   requirePermission('email:send'),
+  validateBatchSenderMiddleware,
+  emailSendRateLimit,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { emails } = req.body;
     const emailsWithUser = emails.map((email: any) => ({
