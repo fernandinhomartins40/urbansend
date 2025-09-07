@@ -9,23 +9,23 @@ export function VerifyEmail() {
   const navigate = useNavigate()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
+  const [isVerifying, setIsVerifying] = useState(false)
   const toast = useToast()
   const hasVerified = useRef(false)
+  const tokenProcessed = useRef<string | null>(null)
 
   useEffect(() => {
-    // Prevenir execução dupla
-    if (hasVerified.current) {
-      console.log('Verification already in progress or completed, skipping...')
-      return
-    }
-
     const token = searchParams.get('token')
+    let isCancelled = false // Proteção contra cleanup
     
     // Debug logging
-    console.log('VerifyEmail component mounted')
+    console.log('VerifyEmail useEffect called')
     console.log('Token from URL:', token)
-    console.log('Current URL:', window.location.href)
+    console.log('hasVerified.current:', hasVerified.current)
+    console.log('tokenProcessed.current:', tokenProcessed.current)
+    console.log('isVerifying:', isVerifying)
     
+    // Múltiplas camadas de proteção contra execução dupla
     if (!token) {
       console.error('No token found in URL')
       setStatus('error')
@@ -34,18 +34,33 @@ export function VerifyEmail() {
       return
     }
 
-    // Marcar como em processo
+    // Verificar se já estamos processando ou já processamos este token
+    if (hasVerified.current || tokenProcessed.current === token || isVerifying) {
+      console.log('Verification blocked - already processed or in progress')
+      return
+    }
+
+    // Marcar imediatamente para prevenir execuções simultâneas
     hasVerified.current = true
+    tokenProcessed.current = token
+    setIsVerifying(true)
+
+    console.log('Starting email verification for token:', token)
 
     // Chamar API de verificação
     const verifyEmail = async () => {
+      if (isCancelled) return // Verificar se foi cancelado
       try {
         console.log('Calling verifyEmail API with token:', token)
         const response = await authApi.verifyEmail(token)
-        console.log('Verification response:', response)
+        console.log('SUCCESS: Verification response:', response)
+        
+        if (isCancelled) return // Verificar se foi cancelado antes de setar estado
         
         setStatus('success')
         setMessage(response.data.message)
+        console.log('Status set to SUCCESS, message:', response.data.message)
+        
         toast.auth.verificationSuccess()
         
         // Mostrar toast informativo sobre próximo passo
@@ -63,15 +78,22 @@ export function VerifyEmail() {
           })
         }, 3000)
       } catch (error: any) {
-        console.error('Email verification error:', error)
-        console.error('Error response:', error.response)
+        console.error('CATCH: Email verification error:', error)
+        console.error('CATCH: Error response:', error.response)
+        
+        // IMPORTANTE: Se já foi verificado com sucesso, não sobrescrever
+        if (status === 'success' || isCancelled) {
+          console.log('BLOCKED: Ignoring error because status is success or cancelled')
+          return
+        }
         
         setStatus('error')
         const errorMessage = error.response?.data?.message || error.message || 'Erro ao verificar email'
         const errorStatus = error.response?.status
         
-        console.log('Error status:', errorStatus)
-        console.log('Error message:', errorMessage)
+        console.log('CATCH: Error status:', errorStatus)
+        console.log('CATCH: Error message:', errorMessage)
+        console.log('CATCH: Status set to ERROR')
         
         setMessage(`${errorMessage} ${errorStatus ? `(Status: ${errorStatus})` : ''}`)
         toast.auth.verificationError(errorMessage)
@@ -92,11 +114,19 @@ export function VerifyEmail() {
             })
           }
         }, 2000)
+      } finally {
+        setIsVerifying(false)
       }
     }
 
     verifyEmail()
-  }, [searchParams, navigate]) // Removido 'toast' das dependências
+    
+    // Cleanup function para cancelar operações se componente for desmontado
+    return () => {
+      isCancelled = true
+      console.log('VerifyEmail useEffect cleanup called')
+    }
+  }, [searchParams, navigate]) // Removido status para evitar re-execução
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
