@@ -21,12 +21,14 @@ module.exports = {
         // ✅ Database path relativo (alinhado com aplicação)
         DATABASE_URL: './ultrazend.sqlite',
         
-        // ✅ SMTP configuração alinhada com .env.development
+        // ✅ SMTP configuração UltraZend ATIVA
         SMTP_HOSTNAME: 'mail.ultrazend.com.br',
         SMTP_MX_PORT: 2525,
         SMTP_SUBMISSION_PORT: 587,
-        SMTP_ENABLED: 'false',
-        ENABLE_SMTP_HEALTH_CHECK: 'false',
+        SMTP_ENABLED: 'true',
+        ENABLE_SMTP_HEALTH_CHECK: 'true',
+        ULTRAZEND_DIRECT_DELIVERY: 'true',
+        ENABLE_DIRECT_MX_DELIVERY: 'true',
         
         // ✅ URLs e configurações
         FRONTEND_URL: 'https://www.ultrazend.com.br',

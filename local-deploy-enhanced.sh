@@ -166,16 +166,28 @@ PORT=3001
 DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
 LOG_FILE_PATH=$APP_DIR/logs
 
-# === SMTP & DELIVERY ===
-SMTP_HOST=localhost
-SMTP_PORT=25
+# === ULTRAZEND SMTP SERVER (PRÓPRIO) ===
+ULTRAZEND_SMTP_HOST=mail.ultrazend.com.br
+ULTRAZEND_SMTP_PORT=25
+SMTP_MX_PORT=2525
+SMTP_SUBMISSION_PORT=587
+SMTP_HOSTNAME=mail.ultrazend.com.br
 ULTRAZEND_DIRECT_DELIVERY=true
+ENABLE_DIRECT_MX_DELIVERY=true
+SMTP_ENABLED=true
 
 # === DKIM CONFIGURATION ===
 ENABLE_DKIM=true
+ENABLE_DKIM_SIGNING=true
 DKIM_PRIVATE_KEY_PATH=$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem
 DKIM_SELECTOR=default
 DKIM_DOMAIN=ultrazend.com.br
+
+# === ULTRAZEND FEATURES ===
+SMTP_MODE=pure_ultrazend
+POSTFIX_ENABLED=false
+DELIVERY_MODE=direct_mx
+ENABLE_DELIVERY_TRACKING=true
 
 # === QUEUE & PROCESSING ===
 QUEUE_ENABLED=true
