@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { authApi } from '../lib/api'
@@ -10,8 +10,15 @@ export function VerifyEmail() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
   const toast = useToast()
+  const hasVerified = useRef(false)
 
   useEffect(() => {
+    // Prevenir execução dupla
+    if (hasVerified.current) {
+      console.log('Verification already in progress or completed, skipping...')
+      return
+    }
+
     const token = searchParams.get('token')
     
     // Debug logging
@@ -26,6 +33,9 @@ export function VerifyEmail() {
       toast.auth.verificationError('Token não encontrado na URL')
       return
     }
+
+    // Marcar como em processo
+    hasVerified.current = true
 
     // Chamar API de verificação
     const verifyEmail = async () => {
@@ -86,7 +96,7 @@ export function VerifyEmail() {
     }
 
     verifyEmail()
-  }, [searchParams, navigate, toast])
+  }, [searchParams, navigate]) // Removido 'toast' das dependências
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
