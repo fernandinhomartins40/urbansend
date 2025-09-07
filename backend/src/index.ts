@@ -4,6 +4,7 @@ import helmet from 'helmet';
 // Rate limiting removido do nível global - aplicado apenas em endpoints específicos
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+dotenv.config();
 import { createServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { Server } from 'socket.io';

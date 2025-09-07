@@ -7,6 +7,7 @@ module.exports = {
       name: 'ultrazend-api',
       script: 'dist/index.js',
       cwd: '/var/www/ultrazend/backend',
+      env_file: '/var/www/ultrazend/backend/.env',
       instances: 1,
       exec_mode: 'fork',
       
