@@ -15,6 +15,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3001,
         HOST: '0.0.0.0',
+        BEHIND_PROXY: 'true',
         
         // ✅ Database path relativo (alinhado com aplicação)
         DATABASE_URL: './ultrazend.sqlite',

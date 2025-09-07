@@ -5,6 +5,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { EmailAnalyticsService } from '../services/EmailAnalyticsService';
 import { AnalyticsController } from '../controllers/analyticsController';
+import { TrendAnalyticsService } from '../services/TrendAnalyticsService';
 
 const router = Router();
 router.use(authenticateJWT);

@@ -36,43 +36,9 @@ export class MonitoringService {
 
   constructor() {
     this.db = db;
-    this.initializeDatabase();
     this.setupIntervals();
   }
 
-  private async initializeDatabase() {
-    try {
-      // Create monitoring tables if they don't exist
-      const hasMetricsTable = await this.db.schema.hasTable('metrics');
-      if (!hasMetricsTable) {
-        await this.db.schema.createTable('metrics', table => {
-          table.increments('id').primary();
-          table.string('name').notNullable();
-          table.float('value').notNullable();
-          table.json('labels');
-          table.timestamp('timestamp').defaultTo(this.db.fn.now());
-          table.index(['name', 'timestamp']);
-        });
-      }
-
-      const hasHealthTable = await this.db.schema.hasTable('health_checks');
-      if (!hasHealthTable) {
-        await this.db.schema.createTable('health_checks', table => {
-          table.increments('id').primary();
-          table.string('service').notNullable();
-          table.boolean('healthy').notNullable();
-          table.json('details');
-          table.text('error');
-          table.timestamp('timestamp').defaultTo(this.db.fn.now());
-          table.index(['service', 'timestamp']);
-        });
-      }
-
-      logger.info('MonitoringService database initialized');
-    } catch (error) {
-      logger.error('Failed to initialize monitoring database', { error: (error as Error).message });
-    }
-  }
 
   private setupIntervals() {
     // Setup periodic cleanup

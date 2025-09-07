@@ -140,8 +140,16 @@ const sslCertPaths = [
 if (Env.isProduction) {
   let sslLoaded = false;
   
-  // Try to load SSL certificates from different paths
-  for (const sslPath of sslCertPaths) {
+  // Check if running behind a reverse proxy (Nginx, etc.)
+  const behindProxy = Env.get('BEHIND_PROXY', 'false').toLowerCase() === 'true';
+  
+  if (behindProxy) {
+    logger.info('🔒 Running behind reverse proxy - using HTTP only (SSL terminated by proxy)');
+    server = createServer(app);
+    primaryServer = server;
+  } else {
+    // Try to load SSL certificates from different paths
+    for (const sslPath of sslCertPaths) {
     try {
       if (fs.existsSync(sslPath.key) && fs.existsSync(sslPath.cert)) {
         const sslOptions = {
@@ -160,13 +168,14 @@ if (Env.isProduction) {
     } catch (error) {
       logger.warn(`⚠️ Failed to load SSL from ${sslPath.name}:`, error);
     }
-  }
-  
-  // Fallback to HTTP if no SSL certificates found
-  if (!sslLoaded) {
-    logger.warn('⚠️ No SSL certificates found, running HTTP only');
-    server = createServer(app);
-    primaryServer = server;
+    }
+    
+    // Fallback to HTTP if no SSL certificates found
+    if (!sslLoaded) {
+      logger.warn('⚠️ No SSL certificates found, running HTTP only');
+      server = createServer(app);
+      primaryServer = server;
+    }
   }
 } else {
   server = createServer(app);
@@ -618,8 +627,10 @@ const startServer = async () => {
     // Initialize services sequentially with centralized schema
     await initializeServices();
 
-    // Start appropriate server (HTTPS in production if SSL available, HTTP otherwise)
-    if (Env.isProduction && httpsServer) {
+    // Start appropriate server (HTTPS in production if SSL available and not behind proxy, HTTP otherwise)
+    const behindProxy = Env.get('BEHIND_PROXY', 'false').toLowerCase() === 'true';
+    
+    if (Env.isProduction && httpsServer && !behindProxy) {
       // Start HTTPS server
       httpsServer.listen(HTTPS_PORT, () => {
         logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTPS) na porta ${HTTPS_PORT}`);

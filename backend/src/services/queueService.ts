@@ -85,7 +85,6 @@ export class QueueService {
     this.initializeQueues();
     this.setupProcessors();
     this.setupEventHandlers();
-    this.createQueueTables();
   }
 
   private setupRedisConfig(): void {
@@ -910,52 +909,6 @@ export class QueueService {
     }
   }
 
-  private async createQueueTables(): Promise<void> {
-    try {
-      // Tabela para falhas de jobs
-      const hasJobFailuresTable = await db.schema.hasTable('queue_job_failures');
-      if (!hasJobFailuresTable) {
-        await db.schema.createTable('queue_job_failures', (table) => {
-          table.increments('id').primary();
-          table.string('queue_type', 50).notNullable();
-          table.string('job_id', 100).notNullable();
-          table.string('job_name', 100).notNullable();
-          table.text('job_data', 'longtext');
-          table.text('error_message').notNullable();
-          table.text('error_stack', 'longtext');
-          table.integer('attempts_made').defaultTo(0);
-          table.integer('max_attempts').defaultTo(1);
-          table.timestamp('failed_at').notNullable();
-          table.timestamps(true, true);
-
-          table.index(['queue_type', 'failed_at']);
-          table.index('job_id');
-        });
-      }
-
-      // Tabela para estatísticas de batch
-      const hasBatchStatsTable = await db.schema.hasTable('batch_email_stats');
-      if (!hasBatchStatsTable) {
-        await db.schema.createTable('batch_email_stats', (table) => {
-          table.increments('id').primary();
-          table.string('batch_id', 100).notNullable().unique();
-          table.integer('total_emails').notNullable();
-          table.integer('successful_emails').defaultTo(0);
-          table.integer('failed_emails').defaultTo(0);
-          table.decimal('success_rate', 5, 2).defaultTo(0);
-          table.timestamp('completed_at');
-          table.timestamps(true, true);
-
-          table.index('batch_id');
-          table.index('completed_at');
-        });
-      }
-
-      logger.info('Queue tables verified/created');
-    } catch (error) {
-      logger.error('Failed to create queue tables', { error });
-    }
-  }
 
   public async getHealth(): Promise<any> {
     try {

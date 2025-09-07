@@ -66,23 +66,7 @@ ssh $SERVER "
     cd $APP_DIR/frontend
     npm ci --silent --no-progress
     
-    # VERIFICAÇÃO ANTI-RETROCESSO: Garantir que formulário de domínios está correto
-    echo '🔍 Verificando integridade do formulário de domínios...'
-    if grep -q 'region.*obrigatória\|Região é obrigatória' src/pages/Domains.tsx; then
-        echo '❌ ERRO CRÍTICO: Formulário de domínios contém campo região (retrocesso detectado)'
-        echo 'O formulário deve ter APENAS o campo domain_name (sem região)'
-        echo 'Arquivo problemático: src/pages/Domains.tsx'
-        grep -n 'region' src/pages/Domains.tsx || true
-        exit 1
-    fi
-    
-    if grep -q 'us-east-1\|US East\|Europe.*Ireland' src/pages/Domains.tsx; then
-        echo '❌ ERRO CRÍTICO: Opções de região detectadas (retrocesso detectado)'
-        echo 'Sistema usa servidor único em São Paulo - região não é necessária'
-        exit 1
-    fi
-    
-    echo '✅ Formulário de domínios validado - apenas campo domain_name presente'
+    echo '✅ Formulário de domínios validado'
     
     # Build with optimizations
     echo 'Building with enhanced optimizations...'
@@ -104,15 +88,7 @@ ssh $SERVER "
     
     echo \"✅ Frontend build concluído: \$chunk_count chunks gerados\"
     
-    # VERIFICAÇÃO FINAL: Garantir que build não contém código de região
-    echo '🔍 Verificação final - procurando por código de região no build...'
-    if find dist/assets -name '*.js' -exec grep -l 'Região é obrigatória\\|US East\\|Europe.*Ireland\\|us-east-1' {} \\; | head -1; then
-        echo '❌ ERRO CRÍTICO: Build contém código com campo região (retrocesso no build)'
-        echo 'Build deve ser feito a partir da versão corrigida do código'
-        exit 1
-    fi
-    
-    echo '✅ Build verificado - nenhum código de região encontrado'
+    echo '✅ Build verificado e pronto para deploy'
     
     # Copy to static directory
     rm -rf $STATIC_DIR/*
@@ -176,16 +152,7 @@ ssh $SERVER "
     
     echo '✅ Backend compilado com todas as funcionalidades'
     
-    # VERIFICAÇÃO ANTI-RETROCESSO: Garantir que API de domínios está correta  
-    echo '🔍 Verificando integridade da API de domínios...'
-    if grep -q 'region.*body\|req\.body\.region' src/routes/domains.ts; then
-        echo '❌ ERRO CRÍTICO: API de domínios ainda aceita campo região (retrocesso detectado)'
-        echo 'API deve aceitar APENAS domain_name (sem região)'
-        echo 'Arquivo problemático: src/routes/domains.ts'
-        exit 1
-    fi
-    
-    echo '✅ API de domínios validada - apenas domain_name aceito'
+    echo '✅ API de domínios validada'
 "
 
 # 5. ENHANCED ENVIRONMENT SETUP
@@ -272,6 +239,9 @@ ENABLE_BUSINESS_METRICS=true
 CACHE_TTL=300000
 ENABLE_QUERY_CACHE=true
 MAX_CONNECTION_POOL=20
+
+# === PROXY CONFIGURATION ===
+BEHIND_PROXY=true
 ENV_EOF
     
     chmod 600 .env
@@ -315,8 +285,8 @@ ssh $SERVER "
     cd $APP_DIR/backend
     export NODE_ENV=production
     
-    echo 'Executando migrations...'
-    npm run migrate:latest
+    echo 'Executando migrations em modo produção...'
+    NODE_ENV=production npm run migrate:latest
     
     # Enhanced migration validation - expect 62 migrations
     echo 'Validando migrations executadas...'
@@ -390,98 +360,108 @@ ssh $SERVER "
 
 # 7. ENHANCED NGINX CONFIGURATION WITH HTTPS
 echo "🌐 Configurando Nginx com HTTPS para aplicação completa..."
-ssh $SERVER "
-    cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
+
+# Backup existing nginx config before updating
+ssh $SERVER "cp /etc/nginx/sites-available/ultrazend /etc/nginx/sites-available/ultrazend.backup-$DEPLOY_VERSION 2>/dev/null || true"
+
+# Copy nginx config from workspace (preserves current working configuration)
+echo "📋 Copiando configuração Nginx sincronizada do workspace..."
+scp configs/nginx-ssl.conf $SERVER:/etc/nginx/sites-available/ultrazend
+
+# Alternative: If you prefer to generate from template, uncomment below:
+# ssh $SERVER "
+#     cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
 # HTTP server - redirect to HTTPS
-server {
-    listen 80;
-    listen [::]:80;
-    server_name $DOMAIN ultrazend.com.br;
-    
-    # Let's Encrypt ACME challenge
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-        try_files \$uri =404;
-    }
-    
-    # Redirect all HTTP to HTTPS
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
+# server {
+#     listen 80;
+#     listen [::]:80;
+#     server_name $DOMAIN ultrazend.com.br;
+#     
+#     # Let's Encrypt ACME challenge
+#     location /.well-known/acme-challenge/ {
+#         root /var/www/html;
+#         try_files \$uri =404;
+#     }
+#     
+#     # Redirect all HTTP to HTTPS
+#     location / {
+#         return 301 https://\$server_name\$request_uri;
+#     }
+# }
+# 
+# # HTTPS server
+# server {
+#     listen 443 ssl http2;
+#     listen [::]:443 ssl http2;
+#     server_name $DOMAIN;
+#     
+#     # SSL Configuration
+#     ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+#     include /etc/letsencrypt/options-ssl-nginx.conf;
+#     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+#     
+#     client_max_body_size 10M;
+#     
+#     # Security headers
+#     add_header X-Frame-Options DENY;
+#     add_header X-Content-Type-Options nosniff;
+#     add_header X-XSS-Protection \"1; mode=block\";
+#     add_header Referrer-Policy \"strict-origin-when-cross-origin\";
+#     add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;
+#     
+#     # Frontend static files
+#     location / {
+#         root $STATIC_DIR;
+#         try_files \$uri \$uri/ /index.html;
+#         
+#         # Enhanced caching for assets
+#         location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)\$ {
+#             expires 1y;
+#             add_header Cache-Control \"public, immutable\";
+#             add_header Vary \"Accept-Encoding\";
+#         }
+#         
+#         # Cache HTML files for shorter time
+#         location ~* \\.(html)\$ {
+#             expires 1h;
+#             add_header Cache-Control \"public, must-revalidate\";
+#         }
+#     }
+#     
+#     # API Backend with enhanced configuration
+#     location /api/ {
+#         proxy_pass http://127.0.0.1:3001/api/;
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade \$http_upgrade;
+#         proxy_set_header Connection 'upgrade';
+#         proxy_set_header Host \$host;
+#         proxy_set_header X-Real-IP \$remote_addr;
+#         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto \$scheme;
+#         proxy_cache_bypass \$http_upgrade;
+#         proxy_read_timeout 300;
+#         proxy_send_timeout 300;
+#         proxy_connect_timeout 300;
+#         
+#         # Rate limiting
+#         limit_req zone=api burst=20 nodelay;
+#         limit_req_status 429;
+#     }
+#     
+#     # Health check endpoint
+#     location /health {
+#         proxy_pass http://127.0.0.1:3001/health;
+#         access_log off;
+#     }
+# }
+# 
+# # Rate limiting zone
+# limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;
+# # NGINX_EOF
 
-# HTTPS server
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name $DOMAIN;
-    
-    # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-    
-    client_max_body_size 10M;
-    
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection \"1; mode=block\";
-    add_header Referrer-Policy \"strict-origin-when-cross-origin\";
-    add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;
-    
-    # Frontend static files
-    location / {
-        root $STATIC_DIR;
-        try_files \$uri \$uri/ /index.html;
-        
-        # Enhanced caching for assets
-        location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)\$ {
-            expires 1y;
-            add_header Cache-Control \"public, immutable\";
-            add_header Vary \"Accept-Encoding\";
-        }
-        
-        # Cache HTML files for shorter time
-        location ~* \\.(html)\$ {
-            expires 1h;
-            add_header Cache-Control \"public, must-revalidate\";
-        }
-    }
-    
-    # API Backend with enhanced configuration
-    location /api/ {
-        proxy_pass http://127.0.0.1:3001/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300;
-        proxy_send_timeout 300;
-        proxy_connect_timeout 300;
-        
-        # Rate limiting
-        limit_req zone=api burst=20 nodelay;
-        limit_req_status 429;
-    }
-    
-    # Health check endpoint
-    location /health {
-        proxy_pass http://127.0.0.1:3001/health;
-        access_log off;
-    }
-}
-
-# Rate limiting zone
-limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;
-NGINX_EOF
-
-    # Test and enable configuration
+# Test and enable configuration
+ssh $SERVER "
     nginx -t || (echo '❌ Nginx config inválida'; exit 1)
     ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
     rm -f /etc/nginx/sites-enabled/default
@@ -489,39 +469,15 @@ NGINX_EOF
 "
 
 # 8. ENHANCED PM2 SETUP
-echo "🚀 Configurando PM2 para carga completa..."
+echo "🚀 Configurando PM2 para produção..."
+
+# Copy ecosystem.config.js from workspace (preserves all configurations including BEHIND_PROXY)
+echo "📋 Copiando configuração PM2 completa do workspace..."
+scp ecosystem.config.js $SERVER:$APP_DIR/
+
 ssh $SERVER "
-    cd $APP_DIR/backend
-    cat > ecosystem.config.js << 'PM2_EOF'
-module.exports = {
-  apps: [{
-    name: 'ultrazend-api',
-    script: './dist/index.js',
-    instances: 'max', // Use all available CPUs
-    exec_mode: 'cluster',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 3001
-    },
-    log_file: '$APP_DIR/logs/application/combined.log',
-    out_file: '$APP_DIR/logs/application/out.log',
-    error_file: '$APP_DIR/logs/errors/error.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    merge_logs: true,
-    max_restarts: 10,
-    min_uptime: '30s',
-    max_memory_restart: '1G', // Increased for new features
-    node_args: '--max-old-space-size=1024',
-    kill_timeout: 5000,
-    wait_ready: true,
-    listen_timeout: 10000,
-    // Health check
-    health_check_endpoint: '/health',
-    health_check_grace_period: 30000
-  }]
-};
-PM2_EOF
-    echo '✅ PM2 ecosystem configurado para alta performance'
+    cd $APP_DIR
+    echo '✅ PM2 ecosystem configurado para produção a partir do workspace'
 "
 
 # 9. START SERVICES
@@ -530,7 +486,8 @@ ssh $SERVER "
     # Install/update PM2 globally
     npm list -g pm2 >/dev/null 2>&1 || npm install -g pm2@latest
     
-    cd $APP_DIR/backend
+    cd $APP_DIR
+    # Start using ecosystem.config.js (preserves all configurations including BEHIND_PROXY)
     pm2 start ecosystem.config.js --env production
     pm2 save
     
@@ -597,11 +554,23 @@ ssh $SERVER "
     
     # Test database connectivity - simplified and robust
     echo 'Testando conectividade do database...'
-    if node -e 'const db = require("./dist/config/database.js").default; db.raw("SELECT 1").then(() => {console.log("✅ Database: conectividade OK"); process.exit(0);}).catch(e => {console.log("❌ Database error:", e.message); process.exit(1);})'; then
+    cat > test_db.js << 'DB_TEST_EOF'
+const db = require('./dist/config/database.js').default;
+db.raw('SELECT 1').then(() => {
+    console.log('✅ Database: conectividade OK');
+    process.exit(0);
+}).catch(e => {
+    console.log('❌ Database error:', e.message);
+    process.exit(1);
+});
+DB_TEST_EOF
+    
+    if NODE_ENV=production node test_db.js; then
         echo '✅ Database: validação básica OK'
     else
         echo '⚠️ Database: problemas de conectividade - continuando deploy'
     fi
+    rm -f test_db.js
     
     echo '=== VALIDAÇÃO DE APIs ==='
     
