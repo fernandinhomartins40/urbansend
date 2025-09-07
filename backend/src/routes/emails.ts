@@ -4,8 +4,14 @@ import { validateRequest, sendEmailSchema, paginationSchema, idParamSchema } fro
 import { authenticateJWT, authenticateApiKey, requirePermission } from '../middleware/auth';
 import { emailSendRateLimit } from '../middleware/rateLimiting';
 import { validateSenderMiddleware, validateBatchSenderMiddleware } from '../middleware/emailValidation';
+import { 
+  emailArchitectureMiddleware, 
+  emailArchitectureBatchMiddleware,
+  emailStatsMiddleware 
+} from '../middleware/emailArchitectureMiddleware';
 import { QueueService } from '../services/queueService';
 import { asyncHandler } from '../middleware/errorHandler';
+import { EmailAuditService } from '../services/EmailAuditService';
 import db from '../config/database';
 
 const router = Router();
@@ -14,7 +20,7 @@ const router = Router();
 router.post('/send', 
   authenticateApiKey,
   requirePermission('email:send'),
-  validateSenderMiddleware,
+  emailArchitectureMiddleware, // 🆕 Nova arquitetura Fase 2
   emailSendRateLimit,
   validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -22,11 +28,36 @@ router.post('/send',
     const queueService = new QueueService();
     const job = await queueService.addEmailJob(emailData);
     
-    res.status(202).json({
+    // Atualizar auditoria se email foi processado pelo middleware
+    if (req.body._emailId) {
+      const auditService = EmailAuditService.getInstance();
+      try {
+        await auditService.updateDeliveryStatus(req.body._emailId, 'queued', {
+          jobId: job.id,
+          queuedAt: new Date(),
+          processedBy: 'email-send-api'
+        });
+      } catch (error) {
+        // Log mas não falha o processo principal
+        console.error('Failed to update audit log for queued email:', error);
+      }
+    }
+    
+    // Incluir informações da nova arquitetura na resposta
+    const response: any = {
       message: 'Email queued for delivery',
       job_id: job.id,
       status: 'queued'
-    });
+    };
+
+    // Adicionar informações de correção se aplicável
+    if (req.body._senderCorrected) {
+      response.sender_corrected = true;
+      response.original_from = req.body._originalFrom;
+      response.correction_reason = req.body._correctionReason;
+    }
+    
+    res.status(202).json(response);
   })
 );
 
@@ -34,7 +65,7 @@ router.post('/send',
 router.post('/send-batch',
   authenticateApiKey,
   requirePermission('email:send'),
-  validateBatchSenderMiddleware,
+  emailArchitectureBatchMiddleware, // 🆕 Nova arquitetura Fase 2 para lotes
   emailSendRateLimit,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { emails } = req.body;
@@ -47,18 +78,54 @@ router.post('/send-batch',
     const queueService = new QueueService();
     const job = await queueService.addBatchEmailJob(emailsWithUser);
     
-    res.status(202).json({
+    // Atualizar auditoria para todos os emails no batch
+    const auditService = EmailAuditService.getInstance();
+    const batchUpdatePromises = emails
+      .filter((email: any) => email._emailId)
+      .map(async (email: any) => {
+        try {
+          await auditService.updateDeliveryStatus(email._emailId, 'queued', {
+            jobId: job.id,
+            queuedAt: new Date(),
+            processedBy: 'email-batch-api',
+            batchSize: emails.length
+          });
+        } catch (error) {
+          console.error(`Failed to update audit log for batch email ${email._emailId}:`, error);
+        }
+      });
+
+    // Executar atualizações em paralelo sem bloquear a resposta
+    Promise.all(batchUpdatePromises).catch(error => {
+      console.error('Some batch audit updates failed:', error);
+    });
+    
+    // Contar quantos emails foram corrigidos
+    const correctedCount = emails.filter((email: any) => email._senderCorrected).length;
+    
+    const response: any = {
       message: 'Batch emails queued for delivery',
       job_id: job.id,
       count: emails.length,
       status: 'queued'
-    });
+    };
+
+    // Adicionar informações de correção se aplicável
+    if (correctedCount > 0) {
+      response.sender_corrections = {
+        total_corrected: correctedCount,
+        correction_rate: (correctedCount / emails.length) * 100
+      };
+    }
+    
+    res.status(202).json(response);
   })
 );
 
 // Get emails
 router.get('/',
   authenticateJWT,
+  emailStatsMiddleware, // 🆕 Adicionar estatísticas da nova arquitetura
   validateRequest({ query: paginationSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { page, limit, sort = 'created_at', order } = req.query as any;
@@ -103,7 +170,8 @@ router.get('/',
       clicked: (clickedCount as any)?.count || 0
     };
 
-    res.json({
+    // 🆕 Incluir estatísticas da nova arquitetura se disponíveis
+    const response: any = {
       emails,
       stats,
       pagination: {
@@ -112,7 +180,24 @@ router.get('/',
         total: Number(total?.['count']) || 0,
         pages: Math.ceil((Number(total?.['count']) || 0) / limit)
       }
-    });
+    };
+
+    // Adicionar estatísticas da nova arquitetura se disponíveis
+    if (req.emailStats) {
+      response.architecture_stats = {
+        phase2_enabled: true,
+        delivery_rate: req.emailStats.deliveryRate,
+        modification_rate: req.emailStats.modificationRate,
+        total_processed: req.emailStats.totalEmails,
+        sender_corrections: req.emailStats.modifiedEmails,
+        last_30_days: {
+          sent: req.emailStats.sentEmails,
+          failed: req.emailStats.failedEmails
+        }
+      };
+    }
+
+    res.json(response);
   })
 );
 

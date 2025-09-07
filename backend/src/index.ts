@@ -35,6 +35,12 @@ import domainMonitoringRoutes from './routes/domain-monitoring';
 // Fase 2 - New routes
 import dkimRoutes from './routes/dkim';
 import smtpMonitoringRoutes from './routes/smtp-monitoring';
+// Fase 3 - Domain setup routes
+import domainSetupRoutes from './routes/domain-setup';
+// Fase 4 - Monitoramento e Alertas
+import monitoringRoutes from './routes/monitoring';
+import schedulerRoutes from './routes/scheduler';
+import { healthCheckScheduler } from './scheduler/healthCheckScheduler';
 // Temporarily commented - JS routes need TS conversion
 // import campaignsRoutes from './routes/campaigns';
 // import schedulerRoutes from './routes/scheduler';
@@ -347,8 +353,12 @@ app.use('/api/domain-monitoring', domainMonitoringRoutes);
 // Fase 2 - Enhanced service routes
 app.use('/api/dkim', dkimRoutes);
 app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
-// app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion
-// app.use('/api/scheduler', schedulerRoutes); // Temporarily disabled - needs TS conversion  
+// Fase 3 - Domain setup routes
+app.use('/api/domain-setup', domainSetupRoutes);
+// Fase 4 - Monitoramento e Alertas routes
+app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/scheduler', schedulerRoutes);
+// app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion  
 // app.use('/api/segmentation', segmentationRoutes); // Temporarily disabled - needs TS conversion
 // app.use('/api/trend-analytics', trendAnalyticsRoutes); // Temporarily disabled - needs TS conversion
 // app.use('/api/alerts', alertsRoutes); // Temporarily disabled - needs TS conversion
