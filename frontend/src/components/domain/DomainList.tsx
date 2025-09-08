@@ -148,17 +148,17 @@ export const DomainList: React.FC<DomainListProps> = ({
     <Card className="p-8 text-center">
       <div className="max-w-md mx-auto">
         <div className="mb-4">
-          <Settings className="w-12 h-12 text-gray-400 mx-auto" />
+          <Globe className="w-12 h-12 text-gray-400 mx-auto" />
         </div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          No Domains Configured
+          Nenhum domínio adicionado
         </h3>
         <p className="text-gray-600 mb-6">
-          Configure your first domain to start sending authenticated emails through UltraZend.
+          Adicione seu primeiro domínio para começar a enviar emails autenticados através do UltraZend.
         </p>
         <Button onClick={onAddDomain}>
           <Plus className="w-4 h-4 mr-2" />
-          Add Your First Domain
+          Adicionar Domínio
         </Button>
       </div>
     </Card>
@@ -309,71 +309,92 @@ export const DomainList: React.FC<DomainListProps> = ({
     );
   }
 
-  if (error && domains.length === 0) {
+  const renderErrorState = () => {
+    const isAuthError = error?.includes('token') || error?.includes('Access') || error?.includes('login');
+    
     return (
       <Card className="p-6 text-center">
         <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-        <h3 className="font-semibold text-gray-900 mb-2">Error Loading Domains</h3>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <Button onClick={loadDomains}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Retry
-        </Button>
+        <h3 className="font-semibold text-gray-900 mb-2">
+          {isAuthError ? 'Autenticação Necessária' : 'Erro ao Carregar Domínios'}
+        </h3>
+        <p className="text-gray-600 mb-4">
+          {isAuthError ? 'Faça login para visualizar e gerenciar seus domínios.' : error}
+        </p>
+        <div className="flex justify-center space-x-3">
+          <Button onClick={loadDomains} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Tentar Novamente
+          </Button>
+          {isAuthError && (
+            <Button onClick={onAddDomain}>
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Domínio
+            </Button>
+          )}
+        </div>
       </Card>
     );
-  }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - Always visible */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Your Domains</h2>
+          <h2 className="text-2xl font-bold">Seus Domínios</h2>
           <p className="text-gray-600">
-            Manage your configured domains for email sending
+            Gerencie seus domínios configurados para envio de emails
           </p>
         </div>
         <Button onClick={onAddDomain}>
           <Plus className="w-4 h-4 mr-2" />
-          Add Domain
+          Adicionar Domínio
         </Button>
       </div>
 
-      {/* Summary Stats */}
-      {domains.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
-          <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{domains.length}</div>
-            <div className="text-sm text-gray-600">Total Domains</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {domains.filter(d => d.status === 'verified').length}
-            </div>
-            <div className="text-sm text-gray-600">Verified</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">
-              {domains.filter(d => d.status === 'partial').length}
-            </div>
-            <div className="text-sm text-gray-600">Partial Setup</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {domains.filter(d => d.status === 'failed').length}
-            </div>
-            <div className="text-sm text-gray-600">Failed</div>
-          </Card>
-        </div>
-      )}
-
-      {/* Domain List */}
-      {domains.length === 0 ? (
-        renderEmptyState()
+      {/* Content Area */}
+      {error && domains.length === 0 ? (
+        renderErrorState()
       ) : (
-        <div className="grid gap-4">
-          {domains.map(renderDomainCard)}
-        </div>
+        <>
+          {/* Summary Stats */}
+          {domains.length > 0 && (
+            <div className="grid grid-cols-4 gap-4">
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{domains.length}</div>
+                <div className="text-sm text-gray-600">Total</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {domains.filter(d => d.status === 'verified').length}
+                </div>
+                <div className="text-sm text-gray-600">Verificados</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {domains.filter(d => d.status === 'partial').length}
+                </div>
+                <div className="text-sm text-gray-600">Parciais</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  {domains.filter(d => d.status === 'failed').length}
+                </div>
+                <div className="text-sm text-gray-600">Com Falha</div>
+              </Card>
+            </div>
+          )}
+
+          {/* Domain List */}
+          {domains.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            <div className="grid gap-4">
+              {domains.map(renderDomainCard)}
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete Confirmation Dialog */}

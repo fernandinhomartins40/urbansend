@@ -88,9 +88,9 @@ ssh $SERVER "
     
     echo '✅ Formulário de domínios validado'
     
-    # Build with optimizations
-    echo 'Building with enhanced optimizations...'
-    npm run build
+    # Build with optimizations and production environment variables
+    echo 'Building with enhanced optimizations and production env vars...'
+    VITE_API_BASE_URL=https://www.ultrazend.com.br/api NODE_ENV=production npm run build
     
     # Validate build output
     if [ ! -d 'dist' ] || [ ! -f 'dist/index.html' ]; then
