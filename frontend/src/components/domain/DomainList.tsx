@@ -15,7 +15,8 @@ import {
   Clock, 
   XCircle,
   Eye,
-  Copy
+  Copy,
+  Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
