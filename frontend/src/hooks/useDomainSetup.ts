@@ -175,7 +175,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.post('/api/domain-setup/setup', { domain });
+      const response = await api.post('/domain-setup/setup', { domain });
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to setup domain');
@@ -207,7 +207,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.post(`/api/domain-setup/${domainId}/verify`);
+      const response = await api.post(`/domain-setup/${domainId}/verify`);
 
       if (!response.data.success && !response.data.data) {
         throw new Error(response.data.error || 'Failed to verify domain');
@@ -253,7 +253,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.get('/api/domain-setup/domains');
+      const response = await api.get('/domain-setup/domains');
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to load domains');
@@ -281,7 +281,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.get(`/api/domain-setup/domains/${domainId}`);
+      const response = await api.get(`/domain-setup/domains/${domainId}`);
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to load domain details');
@@ -309,7 +309,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.delete(`/api/domain-setup/domains/${domainId}`);
+      const response = await api.delete(`/domain-setup/domains/${domainId}`);
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to remove domain');
@@ -344,7 +344,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.post(`/api/domain-setup/domains/${domainId}/regenerate-dkim`);
+      const response = await api.post(`/domain-setup/domains/${domainId}/regenerate-dkim`);
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to regenerate DKIM keys');
@@ -383,7 +383,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.get(`/api/domain-setup/dns-instructions/${domainId}`);
+      const response = await api.get(`/domain-setup/dns-instructions/${domainId}`);
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to get DNS instructions');
