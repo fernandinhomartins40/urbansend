@@ -351,10 +351,10 @@ ssh $SERVER "
     echo '🆕 Criando banco novo e limpo...'
     NODE_ENV=production npm run migrate:latest
     
-    # Enhanced migration validation - expect 62 migrations
+    # Enhanced migration validation - expect 62+ migrations
     echo 'Validando migrations executadas...'
     
-    # Check if all 62 migrations are present
+    # Check if all 62+ migrations are present
     migration_files=\$(find src/migrations -name '*.js' | wc -l 2>/dev/null || echo '0')
     echo \"Arquivos de migration encontrados: \$migration_files\"
     
@@ -365,7 +365,7 @@ ssh $SERVER "
         exit 1
     fi
     
-    echo \"✅ \$migration_files migrations encontradas (esperado: 62)\"
+    echo \"✅ \$migration_files migrations encontradas (esperado: 62+)\"
     
     echo '✅ Migrations validadas - prosseguindo com validação de tabelas'
     

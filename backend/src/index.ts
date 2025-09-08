@@ -468,25 +468,17 @@ app.use(errorHandler);
 const initializeServices = async () => {
   logger.info('🔄 Starting sequential service initialization...');
 
-  // Step 1: Initialize basic monitoring
-  try {
-    monitoringService.initialize();
-    logger.info('✅ Monitoring service initialized');
-  } catch (error) {
-    logger.warn('⚠️ Monitoring service failed, continuing...', { error: (error as Error).message });
-  }
-
-  // Step 2: MANDATORY database connection and migrations (FAIL FAST)
+  // Step 1: MANDATORY database connection and migrations (FAIL FAST)
   try {
     // Test database connection
     await db.raw('SELECT 1');
     logger.info('✅ Database connection established');
 
     // CRÍTICO: Execute migrations OBRIGATORIAMENTE antes de qualquer serviço
-    logger.info('🔄 Executando migrations obrigatórias (47 tabelas)...');
+    logger.info('🔄 Executando migrations obrigatórias (66 tabelas A01→A66)...');
     
     const migrationTimeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Migration timeout - 47 migrations took longer than 60s')), 60000)
+      setTimeout(() => reject(new Error('Migration timeout - 66 migrations A01→A66 took longer than 60s')), 60000)
     );
     
     const migrationResult = await Promise.race([
@@ -502,7 +494,7 @@ const initializeServices = async () => {
       throw new Error(`${pendingMigrations.length} migrations ainda pendentes: ${pendingMigrations.join(', ')}`);
     }
     
-    logger.info('✅ Todas as 47 migrations executadas com sucesso - Schema centralizado ativo');
+    logger.info('✅ Todas as 66 migrations A01→A66 executadas com sucesso - Schema centralizado ativo');
     logger.info(`📊 Migrations batch: ${migrationResult[0]}`);
     
   } catch (error) {
@@ -512,6 +504,14 @@ const initializeServices = async () => {
     });
     logger.error('🚫 Sistema NÃO PODE inicializar sem schema centralizado');
     throw error; // FAIL FAST - não mascarar este erro
+  }
+
+  // Step 2: Initialize monitoring service APÓS migrations
+  try {
+    monitoringService.initialize();
+    logger.info('✅ Monitoring service initialized (após schema centralizado)');
+  } catch (error) {
+    logger.warn('⚠️ Monitoring service failed, continuing...', { error: (error as Error).message });
   }
 
   // Step 3: Initialize services (SEQUENTIAL) - agora apenas validam tabelas existentes
@@ -604,8 +604,8 @@ const initializeServices = async () => {
     // } // Temporarily disabled - needs TS conversion
   ];
 
-  // Initialize services sequentially (sem race conditions)
-  logger.info('🔄 Iniciando serviços com schema centralizado validado...');
+  // Initialize remaining services sequentially (sem race conditions)
+  logger.info('🔄 Iniciando serviços restantes com schema centralizado validado...');
   
   for (const service of services) {
     try {
@@ -649,7 +649,7 @@ const startServer = async () => {
       // Start HTTPS server
       httpsServer.listen(HTTPS_PORT, () => {
         logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTPS) na porta ${HTTPS_PORT}`);
-        logger.info('✅ Schema: 47 tabelas centralizadas via migrations A01→ZU47');
+        logger.info('✅ Schema: 66 tabelas centralizadas via migrations A01→A66');
         logger.info('✅ Serviços: Validação defensiva implementada');
         logger.info('✅ Deploy: Determinístico e confiável');
         logger.info(`📚 API Documentation: https://www.ultrazend.com.br/api-docs`);
@@ -665,7 +665,7 @@ const startServer = async () => {
       // Start HTTP server only
       server.listen(PORT, () => {
         logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTP) na porta ${PORT}`);
-        logger.info('✅ Schema: 47 tabelas centralizadas via migrations A01→ZU47');
+        logger.info('✅ Schema: 66 tabelas centralizadas via migrations A01→A66');
         logger.info('✅ Serviços: Validação defensiva implementada');
         logger.info('✅ Deploy: Determinístico e confiável');
         
