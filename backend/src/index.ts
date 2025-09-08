@@ -41,6 +41,8 @@ import domainSetupRoutes from './routes/domain-setup';
 import monitoringRoutes from './routes/monitoring';
 import schedulerRoutes from './routes/scheduler';
 import { healthCheckScheduler } from './scheduler/healthCheckScheduler';
+// TEMPORÁRIO - Admin audit para corrigir vazamento de dados
+import adminAuditRoutes from './routes/admin-audit';
 // Temporarily commented - JS routes need TS conversion
 // import campaignsRoutes from './routes/campaigns';
 // import schedulerRoutes from './routes/scheduler';
@@ -358,6 +360,8 @@ app.use('/api/domain-setup', domainSetupRoutes);
 // Fase 4 - Monitoramento e Alertas routes
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/scheduler', schedulerRoutes);
+// TEMPORÁRIO - Admin audit para diagnóstico e correção
+app.use('/api/admin-audit', adminAuditRoutes);
 // app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion  
 // app.use('/api/segmentation', segmentationRoutes); // Temporarily disabled - needs TS conversion
 // app.use('/api/trend-analytics', trendAnalyticsRoutes); // Temporarily disabled - needs TS conversion
