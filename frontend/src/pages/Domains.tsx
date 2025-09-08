@@ -81,15 +81,18 @@ interface DomainsPageProps {
 export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) => {
   const [viewMode, setViewMode] = useState<ViewMode>(initialMode)
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null)
+  const [editingDomainId, setEditingDomainId] = useState<number | null>(null)
   const { loading, domains } = useDomainSetup()
 
   const handleSetupComplete = (domainId: number) => {
     setViewMode('list')
     setSelectedDomainId(domainId)
+    setEditingDomainId(null)
   }
 
   const handleSetupCancel = () => {
     setViewMode('list')
+    setEditingDomainId(null)
   }
 
   const handleAddDomain = () => {
@@ -98,10 +101,12 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
 
   const handleViewDomain = (domainId: number) => {
     setSelectedDomainId(domainId)
-    // Pode navegar para uma página de detalhes se necessário
+    // Função handleViewDomain não é mais necessária aqui
+    // O botão view agora abre o modal diretamente no DomainList
   }
 
   const handleEditDomain = (domainId: number) => {
+    setEditingDomainId(domainId)
     setSelectedDomainId(domainId)
     setViewMode('setup')
   }
@@ -124,6 +129,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
           <DomainSetupWizard
             onComplete={handleSetupComplete}
             onCancel={handleSetupCancel}
+            editDomainId={editingDomainId || undefined}
           />
         </div>
       </div>

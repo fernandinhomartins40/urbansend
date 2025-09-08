@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { DomainDetails } from './DomainDetails';
 import { useDomainSetup, DomainStatus } from '../../hooks/useDomainSetup';
 import { 
   Plus, 
@@ -34,6 +35,9 @@ export const DomainList: React.FC<DomainListProps> = ({
 }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [domainToDelete, setDomainToDelete] = useState<DomainStatus | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
+  const [refreshingDomains, setRefreshingDomains] = useState<Set<number>>(new Set());
 
   const {
     loading,
@@ -106,12 +110,30 @@ export const DomainList: React.FC<DomainListProps> = ({
   };
 
   const handleRefreshDomain = async (domainId: number) => {
+    setRefreshingDomains(prev => new Set([...prev, domainId]));
     try {
       await refreshDomain(domainId);
       toast.success('Status do domínio atualizado');
     } catch (error) {
       console.error('Failed to refresh domain:', error);
+      toast.error('Erro ao atualizar domínio');
+    } finally {
+      setRefreshingDomains(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(domainId);
+        return newSet;
+      });
     }
+  };
+
+  const handleViewDomain = (domainId: number) => {
+    setSelectedDomainId(domainId);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleEditDomain = (domainId: number) => {
+    setDetailsDialogOpen(false);
+    onEditDomain?.(domainId);
   };
 
   const copyDomainName = async (domainName: string) => {
@@ -207,21 +229,23 @@ export const DomainList: React.FC<DomainListProps> = ({
             size="sm"
             variant="outline"
             onClick={() => handleRefreshDomain(domain.id)}
-            disabled={loading}
+            disabled={refreshingDomains.has(domain.id)}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${refreshingDomains.has(domain.id) ? 'animate-spin' : ''}`} />
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onViewDomain?.(domain.id)}
+            onClick={() => handleViewDomain(domain.id)}
+            title="Visualizar detalhes do domínio"
           >
             <Eye className="w-4 h-4" />
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onEditDomain?.(domain.id)}
+            onClick={() => handleEditDomain(domain.id)}
+            title="Editar configurações do domínio"
           >
             <Settings className="w-4 h-4" />
           </Button>
@@ -233,6 +257,7 @@ export const DomainList: React.FC<DomainListProps> = ({
               setDeleteDialogOpen(true);
             }}
             className="text-red-600 hover:text-red-700"
+            title="Remover domínio"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -411,6 +436,19 @@ export const DomainList: React.FC<DomainListProps> = ({
         onConfirm={handleDeleteDomain}
         variant="danger"
       />
+
+      {/* Domain Details Modal */}
+      {selectedDomainId && (
+        <DomainDetails
+          domainId={selectedDomainId}
+          isOpen={detailsDialogOpen}
+          onClose={() => {
+            setDetailsDialogOpen(false);
+            setSelectedDomainId(null);
+          }}
+          onEdit={handleEditDomain}
+        />
+      )}
     </div>
   );
 };

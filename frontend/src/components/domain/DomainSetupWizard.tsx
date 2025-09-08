@@ -15,24 +15,29 @@ interface DomainSetupWizardProps {
   onComplete?: (domainId: number) => void;
   onCancel?: () => void;
   initialDomain?: string;
+  editDomainId?: number; // Para edição de domínio existente
 }
 
 export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   onComplete,
   onCancel,
-  initialDomain = ''
+  initialDomain = '',
+  editDomainId
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [domain, setDomain] = useState(initialDomain);
   const [setupResult, setSetupResult] = useState<DomainSetupResult | null>(null);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const {
     loading,
     error,
     initiateDomainSetup,
     verifyDomainSetup,
+    loadDomainDetails,
+    getDNSInstructions,
     clearError
   } = useDomainSetup();
 
@@ -47,6 +52,38 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   useEffect(() => {
     clearError();
   }, [currentStep, clearError]);
+
+  // Carregar dados do domínio para edição
+  useEffect(() => {
+    if (editDomainId) {
+      setIsEditMode(true);
+      loadExistingDomain();
+    }
+  }, [editDomainId]);
+
+  const loadExistingDomain = async () => {
+    if (!editDomainId) return;
+    
+    try {
+      const domainDetails = await loadDomainDetails(editDomainId);
+      setDomain(domainDetails.domain.name);
+      
+      // Se o domínio já tem algumas configurações, buscar instruções DNS
+      if (domainDetails.domain.completion_percentage > 0) {
+        const dnsInstructions = await getDNSInstructions(editDomainId);
+        // Simular resultado do setup para permitir navegação
+        setSetupResult({
+          domain: domainDetails.domain,
+          dns_instructions: dnsInstructions.instructions,
+          setup_guide: dnsInstructions.setup_guide,
+          verification_token: domainDetails.domain.verification_token
+        });
+        setCurrentStep(1); // Ir direto para configuração DNS
+      }
+    } catch (error) {
+      console.error('Erro ao carregar domínio para edição:', error);
+    }
+  };
 
   const handleDomainSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,9 +193,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const renderDomainInputStep = () => (
     <Card className="p-6">
       <div className="text-center mb-6">
-        <h3 className="text-lg font-semibold mb-2">Adicionar Seu Domínio</h3>
+        <h3 className="text-lg font-semibold mb-2">{isEditMode ? 'Editar Domínio' : 'Adicionar Seu Domínio'}</h3>
         <p className="text-gray-600">
-          Insira o domínio que você deseja configurar para envio de emails através do UltraZend.
+          {isEditMode ? 'Revise e atualize as configurações do seu domínio.' : 'Insira o domínio que você deseja configurar para envio de emails através do UltraZend.'}
         </p>
       </div>
 
@@ -172,7 +209,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             onChange={(e) => setDomain(e.target.value)}
             placeholder="example.com"
             required
-            disabled={loading}
+            disabled={loading || isEditMode}
             className="mt-1"
           />
           <p className="text-sm text-gray-500 mt-1">
@@ -198,7 +235,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
                 Configurando...
               </>
             ) : (
-              'Configurar Domínio'
+              isEditMode ? 'Continuar Edição' : 'Configurar Domínio'
             )}
           </Button>
         </div>
