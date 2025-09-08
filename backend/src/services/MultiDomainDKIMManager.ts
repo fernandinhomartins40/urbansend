@@ -146,11 +146,10 @@ export class MultiDomainDKIMManager extends DKIMManager {
       const domainRecord = await db('domains')
         .select('*')
         .where('domain_name', domain)
-        .where('is_verified', true)
         .first();
 
       if (!domainRecord) {
-        logger.debug('Domain not found or not verified, cannot generate DKIM', { 
+        logger.debug('Domain not found, cannot generate DKIM', { 
           domain 
         });
         return null;
