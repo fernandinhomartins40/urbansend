@@ -141,6 +141,12 @@ export interface UseDomainSetupReturn {
   loadDomains: () => Promise<void>;
   loadDomainDetails: (domainId: number) => Promise<DomainDetails>;
   removeDomain: (domainId: number) => Promise<boolean>;
+  updateDomain: (domainId: number, updates: {
+    dkim_enabled?: boolean;
+    spf_enabled?: boolean;
+    dmarc_enabled?: boolean;
+    dmarc_policy?: string;
+  }) => Promise<boolean>;
   regenerateDKIMKeys: (domainId: number) => Promise<any>;
   getDNSInstructions: (domainId: number) => Promise<{
     domain: string;
@@ -337,6 +343,46 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
   }, [currentDomain]);
 
   /**
+   * Atualiza configurações de um domínio
+   */
+  const updateDomain = useCallback(async (domainId: number, updates: {
+    dkim_enabled?: boolean;
+    spf_enabled?: boolean;
+    dmarc_enabled?: boolean;
+    dmarc_policy?: string;
+  }): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.put(`/domain-setup/domains/${domainId}`, updates);
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Falha ao atualizar domínio');
+      }
+
+      toast.success('Configurações do domínio atualizadas com sucesso');
+
+      // Recarregar lista de domínios
+      await loadDomains();
+
+      // Recarregar detalhes se estiver visualizando
+      if (currentDomain && currentDomain.domain.id === domainId) {
+        await loadDomainDetails(domainId);
+      }
+
+      return true;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao atualizar domínio';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [currentDomain, loadDomains, loadDomainDetails]);
+
+  /**
    * Regenera chaves DKIM para um domínio
    */
   const regenerateDKIMKeys = useCallback(async (domainId: number): Promise<any> => {
@@ -425,6 +471,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     loadDomains,
     loadDomainDetails,
     removeDomain,
+    updateDomain,
     regenerateDKIMKeys,
     getDNSInstructions,
     

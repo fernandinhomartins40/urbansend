@@ -395,7 +395,7 @@ export class DomainSetupService {
   }
 
   /**
-   * Remove um domínio (marca como inativo)
+   * Remove um domínio PERMANENTEMENTE do banco de dados
    * 
    * @param userId - ID do usuário
    * @param domainId - ID do domínio
@@ -415,23 +415,27 @@ export class DomainSetupService {
         throw new Error('Domínio não encontrado ou acesso negado');
       }
 
-      // Marcar domínio como inativo (não deletar para preservar histórico)
+      // REMOÇÃO REAL do domínio e dados relacionados
       await db.transaction(async (trx) => {
-        // Desativar domínio
-        await trx('domains')
-          .where('id', domainId)
-          .update({
-            is_verified: false,
-            updated_at: new Date()
-          });
-
-        // Desativar chaves DKIM associadas
+        // Remover chaves DKIM associadas
         await trx('dkim_keys')
           .where('domain_id', domainId)
-          .update({
-            is_active: false,
-            updated_at: new Date()
-          });
+          .del();
+
+        // Remover registros de verificação DNS se existirem
+        await trx('dns_verification_records')
+          .where('domain_id', domainId)
+          .del();
+
+        // Remover qualquer histórico de verificação
+        await trx('domain_verification_history')
+          .where('domain_id', domainId)
+          .del();
+
+        // Finalmente, remover o domínio
+        await trx('domains')
+          .where('id', domainId)
+          .del();
       });
 
       logger.info('Domain removed successfully', {

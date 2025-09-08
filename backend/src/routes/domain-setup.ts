@@ -560,4 +560,75 @@ router.get('/dns-instructions/:domainId',
   })
 );
 
+/**
+ * PUT /api/domain-setup/domains/:domainId
+ * Atualiza configurações de um domínio existente
+ */
+router.put('/domains/:domainId',
+  validateRequest({ params: domainIdSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { domainId } = req.params;
+    const userId = req.user!.id;
+    const { dkim_enabled, spf_enabled, dmarc_enabled, dmarc_policy } = req.body;
+
+    logger.debug('Domain update request received', { userId, domainId, updates: req.body });
+
+    try {
+      // Verificar se domínio pertence ao usuário
+      const domain = await db('domains')
+        .where('id', domainId)
+        .where('user_id', userId)
+        .first();
+
+      if (!domain) {
+        return res.status(404).json({
+          success: false,
+          error: 'Domínio não encontrado ou acesso negado',
+          code: 'DOMAIN_NOT_FOUND'
+        });
+      }
+
+      // Atualizar configurações do domínio
+      await db('domains')
+        .where('id', domainId)
+        .update({
+          dkim_enabled: dkim_enabled ?? domain.dkim_enabled,
+          spf_enabled: spf_enabled ?? domain.spf_enabled,
+          dmarc_enabled: dmarc_enabled ?? domain.dmarc_enabled,
+          dmarc_policy: dmarc_policy ?? domain.dmarc_policy,
+          updated_at: new Date()
+        });
+
+      logger.info('Domain updated successfully', {
+        userId,
+        domainId,
+        domainName: domain.domain_name,
+        updates: { dkim_enabled, spf_enabled, dmarc_enabled, dmarc_policy }
+      });
+
+      res.json({
+        success: true,
+        message: 'Configurações do domínio atualizadas com sucesso',
+        data: {
+          domainId: parseInt(domainId),
+          updated_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to update domain', {
+        userId,
+        domainId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Falha ao atualizar configurações do domínio',
+        code: 'DOMAIN_UPDATE_FAILED'
+      });
+    }
+  })
+);
+
 export default router;
