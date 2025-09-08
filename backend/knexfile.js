@@ -58,26 +58,20 @@ module.exports = {
     pool: {
       min: 1,
       max: 1, // SQLite single connection for data integrity
-      acquireTimeoutMillis: 60000,
-      createTimeoutMillis: 30000,
-      destroyTimeoutMillis: 5000,
+      acquireTimeoutMillis: 120000, // 2 minutes for 66 migrations
+      createTimeoutMillis: 60000, // Extended for migrations
+      destroyTimeoutMillis: 10000,
       idleTimeoutMillis: 300000, // 5 minutes
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 200,
       propagateCreateError: false,
       afterCreate: (conn, cb) => {
-        // Production-optimized PRAGMA settings
+        // Essential PRAGMA settings only (optimized for migrations)
         const queries = [
           'PRAGMA foreign_keys = ON',
           'PRAGMA journal_mode = WAL',
           'PRAGMA synchronous = NORMAL',
-          'PRAGMA cache_size = -64000', // 64MB cache
-          'PRAGMA temp_store = memory',
-          'PRAGMA mmap_size = 536870912', // 512MB
-          'PRAGMA wal_autocheckpoint = 1000',
-          'PRAGMA optimize',
-          'PRAGMA analysis_limit = 400',
-          'PRAGMA threads = 4'
+          'PRAGMA cache_size = -32000' // 32MB cache
         ];
         
         let completed = 0;
