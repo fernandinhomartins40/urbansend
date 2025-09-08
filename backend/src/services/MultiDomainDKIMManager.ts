@@ -425,11 +425,10 @@ export class MultiDomainDKIMManager extends DKIMManager {
       const domainRecord = await db('domains')
         .select('id')
         .where('domain_name', domain.toLowerCase())
-        .where('is_verified', true)
         .first();
 
       if (!domainRecord) {
-        logger.warn('Domain not found or not verified for DKIM regeneration', { domain });
+        logger.warn('Domain not found for DKIM regeneration', { domain });
         return false;
       }
 
