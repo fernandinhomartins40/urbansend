@@ -178,19 +178,19 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.post('/domain-setup/setup', { domain });
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to setup domain');
+        throw new Error(response.data.error || 'Falha ao configurar domínio');
       }
 
       const result = response.data.data as DomainSetupResult;
 
-      toast.success(`Domain setup initiated for ${domain}`);
+      toast.success(`Configuração de domínio iniciada para ${domain}`);
 
       // Recarregar lista de domínios
       await loadDomains();
 
       return result;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to setup domain';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao configurar domínio';
       setError(errorMessage);
       toast.error(errorMessage);
       throw new Error(errorMessage);
@@ -210,20 +210,20 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.post(`/domain-setup/${domainId}/verify`);
 
       if (!response.data.success && !response.data.data) {
-        throw new Error(response.data.error || 'Failed to verify domain');
+        throw new Error(response.data.error || 'Falha ao verificar domínio');
       }
 
       const result = response.data.data as VerificationResult;
 
       if (result.all_passed) {
-        toast.success(`Domain ${result.domain} verified successfully! ✅`);
+        toast.success(`Domínio ${result.domain} verificado com sucesso! ✅`);
       } else {
         const failedChecks = Object.entries(result.results)
           .filter(([_, check]) => !check.valid)
           .map(([name, _]) => name.replace('_', ' '))
           .join(', ');
         
-        toast.error(`Verification incomplete. Failed: ${failedChecks}`);
+        toast.error(`Verificação incompleta. Falharam: ${failedChecks}`);
       }
 
       // Recarregar lista de domínios
@@ -236,7 +236,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
 
       return result;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to verify domain';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao verificar domínio';
       setError(errorMessage);
       toast.error(errorMessage);
       throw new Error(errorMessage);
@@ -256,12 +256,12 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.get('/domain-setup/domains');
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to load domains');
+        throw new Error(response.data.error || 'Falha ao carregar domínios');
       }
 
       setDomains(response.data.data.domains);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to load domains';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao carregar domínios';
       setError(errorMessage);
       
       // Não mostrar toast para erro de carregamento se for primeira vez
@@ -284,7 +284,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.get(`/domain-setup/domains/${domainId}`);
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to load domain details');
+        throw new Error(response.data.error || 'Falha ao carregar detalhes do domínio');
       }
 
       const details = response.data.data as DomainDetails;
@@ -292,7 +292,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
 
       return details;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to load domain details';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao carregar detalhes do domínio';
       setError(errorMessage);
       toast.error(errorMessage);
       throw new Error(errorMessage);
@@ -312,10 +312,10 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.delete(`/domain-setup/domains/${domainId}`);
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to remove domain');
+        throw new Error(response.data.error || 'Falha ao remover domínio');
       }
 
-      toast.success('Domain removed successfully');
+      toast.success('Domínio removido com sucesso');
 
       // Recarregar lista de domínios
       await loadDomains();
@@ -327,7 +327,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
 
       return true;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to remove domain';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao remover domínio';
       setError(errorMessage);
       toast.error(errorMessage);
       return false;
@@ -347,10 +347,10 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.post(`/domain-setup/domains/${domainId}/regenerate-dkim`);
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to regenerate DKIM keys');
+        throw new Error(response.data.error || 'Falha ao regenerar chaves DKIM');
       }
 
-      toast.success('DKIM keys regenerated successfully! Please update your DNS records.');
+      toast.success('Chaves DKIM regeneradas com sucesso! Por favor, atualize seus registros DNS.');
 
       // Recarregar detalhes do domínio se estiver visualizando
       if (currentDomain && currentDomain.domain.id === domainId) {
@@ -362,7 +362,7 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
 
       return response.data.data;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to regenerate DKIM keys';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao regenerar chaves DKIM';
       setError(errorMessage);
       toast.error(errorMessage);
       throw new Error(errorMessage);
@@ -386,12 +386,12 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
       const response = await api.get(`/domain-setup/dns-instructions/${domainId}`);
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to get DNS instructions');
+        throw new Error(response.data.error || 'Falha ao obter instruções DNS');
       }
 
       return response.data.data;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to get DNS instructions';
+      const errorMessage = err.response?.data?.error || err.message || 'Falha ao obter instruções DNS';
       setError(errorMessage);
       toast.error(errorMessage);
       throw new Error(errorMessage);

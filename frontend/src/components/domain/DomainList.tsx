@@ -81,15 +81,15 @@ export const DomainList: React.FC<DomainListProps> = ({
   const getStatusLabel = (status: DomainStatus['status']) => {
     switch (status) {
       case 'verified':
-        return 'Verified';
+        return 'Verificado';
       case 'partial':
-        return 'Partial Setup';
+        return 'Configuração Parcial';
       case 'pending':
-        return 'Pending';
+        return 'Pendente';
       case 'failed':
-        return 'Failed';
+        return 'Falhado';
       default:
-        return 'Unknown';
+        return 'Desconhecido';
     }
   };
 
@@ -108,7 +108,7 @@ export const DomainList: React.FC<DomainListProps> = ({
   const handleRefreshDomain = async (domainId: number) => {
     try {
       await refreshDomain(domainId);
-      toast.success('Domain status refreshed');
+      toast.success('Status do domínio atualizado');
     } catch (error) {
       console.error('Failed to refresh domain:', error);
     }
@@ -117,9 +117,9 @@ export const DomainList: React.FC<DomainListProps> = ({
   const copyDomainName = async (domainName: string) => {
     try {
       await navigator.clipboard.writeText(domainName);
-      toast.success('Domain name copied to clipboard');
+      toast.success('Nome do domínio copiado para área de transferência');
     } catch (error) {
-      toast.error('Failed to copy domain name');
+      toast.error('Falha ao copiar nome do domínio');
     }
   };
 
@@ -189,15 +189,15 @@ export const DomainList: React.FC<DomainListProps> = ({
             {domain.is_verified && (
               <Badge variant="outline" className="text-green-600">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                Verified
+                Verificado
               </Badge>
             )}
           </div>
 
           <div className="text-sm text-gray-600 space-y-1">
-            <div>Created: {format(new Date(domain.created_at), 'MMM dd, yyyy')}</div>
+            <div>Criado: {format(new Date(domain.created_at), 'dd/MM/yyyy')}</div>
             {domain.verified_at && (
-              <div>Verified: {format(new Date(domain.verified_at), 'MMM dd, yyyy HH:mm')}</div>
+              <div>Verificado: {format(new Date(domain.verified_at), 'dd/MM/yyyy HH:mm')}</div>
             )}
           </div>
         </div>
@@ -242,7 +242,7 @@ export const DomainList: React.FC<DomainListProps> = ({
       {/* Progress Bar */}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium">Setup Progress</span>
+          <span className="text-sm font-medium">Progresso da Configuração</span>
           <span className="text-sm text-gray-600">{domain.completion_percentage}%</span>
         </div>
         <Progress value={domain.completion_percentage} className="h-2" />
@@ -250,7 +250,7 @@ export const DomainList: React.FC<DomainListProps> = ({
 
       {/* DNS Status */}
       <div className="mb-4">
-        <div className="text-sm font-medium mb-2">DNS Configuration</div>
+        <div className="text-sm font-medium mb-2">Configuração DNS</div>
         {renderDNSStatus(domain)}
       </div>
 
@@ -260,7 +260,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           <div className="flex items-center">
             <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
             <span className="text-sm text-red-700">
-              Domain verification failed. Click the settings button to view details and retry.
+              Verificação do domínio falhou. Clique no botão de configurações para ver detalhes e tentar novamente.
             </span>
           </div>
         </div>
@@ -271,7 +271,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           <div className="flex items-center">
             <AlertCircle className="w-4 h-4 text-yellow-600 mr-2" />
             <span className="text-sm text-yellow-700">
-              Some DNS records are missing or incorrect. Complete the setup to start sending emails.
+              Alguns registros DNS estão faltando ou incorretos. Complete a configuração para começar a enviar emails.
             </span>
           </div>
         </div>
@@ -282,7 +282,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           <div className="flex items-center">
             <Clock className="w-4 h-4 text-blue-600 mr-2" />
             <span className="text-sm text-blue-700">
-              DNS records are being verified. This may take a few minutes.
+              Registros DNS estão sendo verificados. Isso pode levar alguns minutos.
             </span>
           </div>
         </div>
@@ -293,7 +293,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           <div className="flex items-center">
             <CheckCircle2 className="w-4 h-4 text-green-600 mr-2" />
             <span className="text-sm text-green-700">
-              Domain is fully configured and ready for sending emails!
+              Domínio está totalmente configurado e pronto para enviar emails!
             </span>
           </div>
         </div>
@@ -305,7 +305,7 @@ export const DomainList: React.FC<DomainListProps> = ({
     return (
       <div className="flex items-center justify-center py-12">
         <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-        <span>Loading domains...</span>
+        <span>Carregando domínios...</span>
       </div>
     );
   }

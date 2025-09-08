@@ -135,7 +135,7 @@ export class DomainSetupService {
 
       // 1. Validar formato do domínio
       if (!this.isValidDomainFormat(domain)) {
-        throw new Error('Invalid domain format. Please use a valid domain like example.com');
+        throw new Error('Formato de domínio inválido. Use um domínio válido como exemplo.com');
       }
 
       // Normalizar domínio
@@ -144,12 +144,12 @@ export class DomainSetupService {
       // 2. Verificar se domínio já existe para este usuário
       const existingDomain = await this.checkExistingDomain(userId, normalizedDomain);
       if (existingDomain) {
-        throw new Error(`Domain ${normalizedDomain} is already configured for this account`);
+        throw new Error(`Domínio ${normalizedDomain} já está configurado para esta conta`);
       }
 
       // 3. Verificar se domínio é interno (UltraZend)
       if (this.isUltraZendDomain(normalizedDomain)) {
-        throw new Error('UltraZend domains are managed automatically and cannot be configured manually');
+        throw new Error('Domínios UltraZend são gerenciados automaticamente e não podem ser configurados manualmente');
       }
 
       // 4. Gerar token de verificação
@@ -242,7 +242,7 @@ export class DomainSetupService {
         .first() as DomainRecord | undefined;
 
       if (!domain) {
-        throw new Error('Domain not found or access denied');
+        throw new Error('Domínio não encontrado ou acesso negado');
       }
 
       logger.debug('Found domain for verification', {
@@ -412,7 +412,7 @@ export class DomainSetupService {
         .first();
 
       if (!domain) {
-        throw new Error('Domain not found or access denied');
+        throw new Error('Domínio não encontrado ou acesso negado');
       }
 
       // Marcar domínio como inativo (não deletar para preservar histórico)
@@ -469,7 +469,7 @@ export class DomainSetupService {
       const regenerated = await this.dkimManager.regenerateDKIMKeysForDomain(domain);
       
       if (!regenerated) {
-        throw new Error('Failed to generate DKIM keys');
+        throw new Error('Falha ao gerar chaves DKIM');
       }
 
       // Buscar chaves geradas
@@ -478,7 +478,7 @@ export class DomainSetupService {
         .first();
 
       if (!dkimRecord) {
-        throw new Error('DKIM keys were not saved properly');
+        throw new Error('Chaves DKIM não foram salvas corretamente');
       }
 
       logger.info('DKIM keys generated successfully', { 
@@ -781,7 +781,7 @@ export class DomainSetupService {
       }
     }
     
-    throw lastError || new Error('DNS resolution failed after retries');
+    throw lastError || new Error('Resolução DNS falhou após tentativas');
   }
 
   /**

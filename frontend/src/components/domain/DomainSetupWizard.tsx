@@ -37,10 +37,10 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   } = useDomainSetup();
 
   const steps = [
-    { label: 'Enter Domain', description: 'Provide your domain name' },
-    { label: 'Configure DNS', description: 'Add DNS records to your domain' },
-    { label: 'Verify Setup', description: 'Verify DNS configuration' },
-    { label: 'Complete', description: 'Setup completed successfully' }
+    { label: 'Inserir Domínio', description: 'Forneça o nome do seu domínio' },
+    { label: 'Configurar DNS', description: 'Adicionar registros DNS ao seu domínio' },
+    { label: 'Verificar Config.', description: 'Verificar configuração DNS' },
+    { label: 'Concluído', description: 'Configuração concluída com sucesso' }
   ];
 
   // Limpar erros quando o componente for montado ou o step mudar
@@ -52,7 +52,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     e.preventDefault();
     
     if (!domain.trim()) {
-      toast.error('Please enter a domain name');
+      toast.error('Por favor, insira um nome de domínio');
       return;
     }
 
@@ -89,9 +89,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`${label} copied to clipboard!`);
+      toast.success(`${label} copiado para área de transferência!`);
     } catch (error) {
-      toast.error('Failed to copy to clipboard');
+      toast.error('Falha ao copiar para área de transferência');
     }
   };
 
@@ -108,9 +108,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const renderStepIndicator = () => (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Domain Setup Wizard</h2>
+        <h2 className="text-2xl font-bold">Assistente de Configuração de Domínio</h2>
         <Badge variant="outline">
-          Step {currentStep + 1} of {steps.length}
+          Etapa {currentStep + 1} de {steps.length}
         </Badge>
       </div>
       
@@ -156,15 +156,15 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const renderDomainInputStep = () => (
     <Card className="p-6">
       <div className="text-center mb-6">
-        <h3 className="text-lg font-semibold mb-2">Add Your Domain</h3>
+        <h3 className="text-lg font-semibold mb-2">Adicionar Seu Domínio</h3>
         <p className="text-gray-600">
-          Enter the domain you want to configure for sending emails through UltraZend.
+          Insira o domínio que você deseja configurar para envio de emails através do UltraZend.
         </p>
       </div>
 
       <form onSubmit={handleDomainSubmit} className="space-y-4">
         <div>
-          <Label htmlFor="domain">Domain Name</Label>
+          <Label htmlFor="domain">Nome do Domínio</Label>
           <Input
             id="domain"
             type="text"
@@ -176,7 +176,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             className="mt-1"
           />
           <p className="text-sm text-gray-500 mt-1">
-            Enter your domain without "www" or "https://"
+            Digite seu domínio sem "www" ou "https://"
           </p>
         </div>
 
@@ -189,16 +189,16 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
         <div className="flex justify-between pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            Cancelar
           </Button>
           <Button type="submit" disabled={loading || !domain.trim()}>
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Setting up...
+                Configurando...
               </>
             ) : (
-              'Configure Domain'
+              'Configurar Domínio'
             )}
           </Button>
         </div>
@@ -211,7 +211,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       <div className="flex items-center justify-between">
         <h4 className="font-medium text-gray-900 uppercase">{type}</h4>
         <Badge variant="outline" className="text-xs">
-          Priority: {record.priority}
+          Prioridade: {record.priority}
         </Badge>
       </div>
       
@@ -219,7 +219,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       
       <div className="space-y-2">
         <div>
-          <Label className="text-xs text-gray-500">Record Name</Label>
+          <Label className="text-xs text-gray-500">Nome do Registro</Label>
           <div className="flex items-center space-x-2">
             <code className="bg-white p-2 rounded border text-sm flex-1">
               {record.record}
@@ -235,7 +235,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
         </div>
         
         <div>
-          <Label className="text-xs text-gray-500">Record Value</Label>
+          <Label className="text-xs text-gray-500">Valor do Registro</Label>
           <div className="flex items-center space-x-2">
             <code className="bg-white p-2 rounded border text-sm flex-1 break-all">
               {record.value}
@@ -256,9 +256,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const renderDNSConfigurationStep = () => (
     <Card className="p-6">
       <div className="text-center mb-6">
-        <h3 className="text-lg font-semibold mb-2">Configure DNS Records</h3>
+        <h3 className="text-lg font-semibold mb-2">Configurar Registros DNS</h3>
         <p className="text-gray-600">
-          Add the following DNS records to your domain's DNS settings.
+          Adicione os seguintes registros DNS nas configurações do seu domínio.
         </p>
       </div>
 
@@ -267,10 +267,10 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <div>
-              <h4 className="font-medium">Important Instructions</h4>
+              <h4 className="font-medium">Instruções Importantes</h4>
               <p className="text-sm mt-1">
-                Log into your domain registrar or DNS provider and add these TXT records. 
-                DNS changes can take 5-60 minutes to propagate.
+                Faça login no seu registrador de domínio ou provedor DNS e adicione estes registros TXT. 
+                Mudanças DNS podem levar de 5 a 60 minutos para se propagar.
               </p>
             </div>
           </Alert>
@@ -284,7 +284,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           <Separator className="my-6" />
 
           <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Setup Guide</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Guia de Configuração</h4>
             <ol className="text-sm text-blue-800 space-y-1">
               {setupResult.setup_guide.map((step, index) => (
                 <li key={index} className="flex items-start">
@@ -301,13 +301,13 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
               variant="outline" 
               onClick={() => setCurrentStep(0)}
             >
-              Back
+              Voltar
             </Button>
             <Button 
               type="button" 
               onClick={() => setCurrentStep(2)}
             >
-              I've Added These Records
+              Adicionei Estes Registros
             </Button>
           </div>
         </>
@@ -318,9 +318,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const renderVerificationStep = () => (
     <Card className="p-6">
       <div className="text-center mb-6">
-        <h3 className="text-lg font-semibold mb-2">Verify Configuration</h3>
+        <h3 className="text-lg font-semibold mb-2">Verificar Configuração</h3>
         <p className="text-gray-600">
-          Click verify to check your DNS records and complete the setup.
+          Clique em verificar para checar seus registros DNS e completar a configuração.
         </p>
       </div>
 
@@ -355,7 +355,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <div>
-                <h4 className="font-medium">Next Steps Required</h4>
+                <h4 className="font-medium">Próximos Passos Necessários</h4>
                 <ul className="text-sm mt-1 space-y-1">
                   {verificationResult.next_steps.map((step, index) => (
                     <li key={index}>• {step}</li>
@@ -373,7 +373,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           variant="outline" 
           onClick={() => setCurrentStep(1)}
         >
-          Back to DNS
+          Voltar para DNS
         </Button>
         <div className="space-x-2">
           <Button
@@ -393,10 +393,10 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             {isVerifying ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Verifying...
+                Verificando...
               </>
             ) : (
-              'Verify DNS Records'
+              'Verificar Registros DNS'
             )}
           </Button>
         </div>
@@ -409,21 +409,21 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       <div className="mb-6">
         <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
         <h3 className="text-2xl font-bold text-green-600 mb-2">
-          🎉 Domain Setup Complete!
+          🎉 Configuração de Domínio Concluída!
         </h3>
         <p className="text-gray-600">
-          Your domain {setupResult?.domain.name} is now configured and ready to send authenticated emails.
+          Seu domínio {setupResult?.domain.name} agora está configurado e pronto para enviar emails autenticados.
         </p>
       </div>
 
       {verificationResult && (
         <div className="bg-green-50 p-4 rounded-lg mb-6">
-          <h4 className="font-medium text-green-900 mb-2">What's Configured</h4>
+          <h4 className="font-medium text-green-900 mb-2">O que foi Configurado</h4>
           <div className="text-sm text-green-800 space-y-1">
-            <div>✅ Domain ownership verified</div>
-            <div>✅ SPF record configured for email authorization</div>
-            <div>✅ DKIM keys set up for email authentication</div>
-            <div>✅ DMARC policy configured for email security</div>
+            <div>✅ Propriedade do domínio verificada</div>
+            <div>✅ Registro SPF configurado para autorização de email</div>
+            <div>✅ Chaves DKIM configuradas para autenticação de email</div>
+            <div>✅ Política DMARC configurada para segurança de email</div>
           </div>
         </div>
       )}
@@ -433,7 +433,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           onClick={() => onComplete?.(setupResult!.domain.id)}
           className="w-full"
         >
-          Go to Dashboard
+          Ir para o Painel
         </Button>
         <Button
           variant="outline"
@@ -441,7 +441,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           className="w-full"
         >
           <ExternalLink className="w-4 h-4 mr-2" />
-          View Documentation
+          Ver Documentação
         </Button>
       </div>
     </Card>
