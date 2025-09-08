@@ -12,7 +12,7 @@ import { Env } from '../utils/env';
 const getCookieOptions = () => ({
   httpOnly: true, // Prevent XSS attacks
   secure: Env.isProduction, // HTTPS only in production
-  sameSite: 'strict' as const, // Prevent CSRF attacks
+  sameSite: 'lax' as const, // Allow same-site requests for SPAs
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: '/'
 });
@@ -20,7 +20,7 @@ const getCookieOptions = () => ({
 const getRefreshCookieOptions = () => ({
   httpOnly: true,
   secure: Env.isProduction,
-  sameSite: 'strict' as const,
+  sameSite: 'lax' as const, // Allow same-site requests for SPAs
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   path: '/'
 });
@@ -370,14 +370,14 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
   res.clearCookie('access_token', {
     httpOnly: true,
     secure: Env.isProduction,
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/'
   });
   
   res.clearCookie('refresh_token', {
     httpOnly: true,
     secure: Env.isProduction,
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/'
   });
 
@@ -430,7 +430,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     res.clearCookie('refresh_token', {
       httpOnly: true,
       secure: Env.isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/'
     });
     
