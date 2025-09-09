@@ -56,6 +56,12 @@ export const DomainSelector = ({
 
   // Formatador de email baseado no domínio selecionado
   const formatEmailFromDomain = (domain: string): string => {
+    // Se o valor atual já é um email completo, manter o prefixo existente
+    if (value && value.includes('@')) {
+      const currentPrefix = value.split('@')[0]
+      return `${currentPrefix}@${domain}`
+    }
+    // Caso contrário, usar um prefixo padrão
     return `noreply@${domain}`
   }
 

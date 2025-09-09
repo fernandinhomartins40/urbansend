@@ -90,11 +90,63 @@ module.exports = {
         '--max-old-space-size=512',
         '--optimize-for-size'
       ]
+    },
+
+    // ✅ WORKERS REATIVADOS: Processamento de emails
+    {
+      name: 'ultrazend-email-worker',
+      script: 'dist/workers/emailWorker.js',
+      cwd: '/var/www/ultrazend/backend',
+      env_file: '/var/www/ultrazend/backend/.env',
+      instances: 1,
+      exec_mode: 'fork',
+      
+      env_production: {
+        NODE_ENV: 'production',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        REDIS_ENABLED: 'true', // ✅ Habilitado para workers
+        DATABASE_URL: './ultrazend.sqlite'
+      },
+      
+      error_file: '/var/www/ultrazend/logs/email-worker-error.log',
+      out_file: '/var/www/ultrazend/logs/email-worker-out.log',
+      log_file: '/var/www/ultrazend/logs/email-worker-combined.log',
+      time: true,
+      
+      max_memory_restart: '256M',
+      autorestart: true,
+      watch: false,
+      max_restarts: 5,
+      min_uptime: '10s'
+    },
+
+    // ✅ QUEUE PROCESSOR: Processamento de filas
+    {
+      name: 'ultrazend-queue-processor',
+      script: 'dist/workers/queueProcessor.js',
+      cwd: '/var/www/ultrazend/backend',
+      env_file: '/var/www/ultrazend/backend/.env',
+      instances: 1,
+      exec_mode: 'fork',
+      
+      env_production: {
+        NODE_ENV: 'production',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        REDIS_ENABLED: 'true', // ✅ Habilitado para workers
+        DATABASE_URL: './ultrazend.sqlite'
+      },
+      
+      error_file: '/var/www/ultrazend/logs/queue-processor-error.log',
+      out_file: '/var/www/ultrazend/logs/queue-processor-out.log',
+      log_file: '/var/www/ultrazend/logs/queue-processor-combined.log',
+      time: true,
+      
+      max_memory_restart: '256M',
+      autorestart: true,
+      watch: false,
+      max_restarts: 5,
+      min_uptime: '10s'
     }
-    
-    // ✅ REMOVIDO: Workers temporariamente desabilitados
-    // Apenas ultrazend-api principal para deploy determinístico
-    // Workers serão reativados após validação completa
   ],
 
   // Deploy configuration (optional)
