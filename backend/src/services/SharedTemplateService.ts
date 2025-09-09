@@ -11,7 +11,7 @@
  * - Analytics de uso
  */
 
-import { db } from '../config/database'
+import db from '../config/database'
 import { logger } from '../config/logger'
 
 interface TemplateFilters {
@@ -166,8 +166,8 @@ export class SharedTemplateService {
           current_page: page,
           per_page: limit,
           total_count: totalCount.total,
-          total_pages: Math.ceil(totalCount.total / limit),
-          has_next: page < Math.ceil(totalCount.total / limit),
+          total_pages: Math.ceil(Number(totalCount.total) / limit),
+          has_next: page < Math.ceil(Number(totalCount.total) / limit),
           has_prev: page > 1
         }
       }
@@ -276,7 +276,7 @@ export class SharedTemplateService {
           .count('* as total')
           .first()
 
-        if (userTemplateCount.total >= 100) { // Limite de 100 templates por usuário
+        if (Number(userTemplateCount.total) >= 100) { // Limite de 100 templates por usuário
           throw new Error('Limite de templates por usuário atingido')
         }
 
@@ -465,8 +465,8 @@ export class SharedTemplateService {
           current_page: page,
           per_page: limit,
           total_count: totalCount.total,
-          total_pages: Math.ceil(totalCount.total / limit),
-          has_next: page < Math.ceil(totalCount.total / limit),
+          total_pages: Math.ceil(Number(totalCount.total) / limit),
+          has_next: page < Math.ceil(Number(totalCount.total) / limit),
           has_prev: page > 1
         }
       }
@@ -533,8 +533,8 @@ export class SharedTemplateService {
           current_page: page,
           per_page: limit,
           total_count: totalCount.total,
-          total_pages: Math.ceil(totalCount.total / limit),
-          has_next: page < Math.ceil(totalCount.total / limit),
+          total_pages: Math.ceil(Number(totalCount.total) / limit),
+          has_next: page < Math.ceil(Number(totalCount.total) / limit),
           has_prev: page > 1
         }
       }

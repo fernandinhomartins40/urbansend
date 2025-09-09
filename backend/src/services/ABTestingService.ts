@@ -8,7 +8,7 @@
  * - Declaração automática de vencedor
  */
 
-import { db } from '../config/database'
+import db from '../config/database'
 import { logger } from '../config/logger'
 
 interface ABTestConfig {
@@ -317,8 +317,8 @@ export class ABTestingService {
           current_page: page,
           per_page: limit,
           total_count: totalCount.total,
-          total_pages: Math.ceil(totalCount.total / limit),
-          has_next: page < Math.ceil(totalCount.total / limit),
+          total_pages: Math.ceil(Number(totalCount.total) / limit),
+          has_next: page < Math.ceil(Number(totalCount.total) / limit),
           has_prev: page > 1
         }
       }

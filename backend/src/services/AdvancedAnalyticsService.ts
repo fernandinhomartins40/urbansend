@@ -11,7 +11,7 @@
  * - Relatórios personalizados
  */
 
-import { db } from '../config/database'
+import db from '../config/database'
 import { logger } from '../config/logger'
 
 interface SegmentFilters {
@@ -737,15 +737,15 @@ export class AdvancedAnalyticsService {
           db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked_count'),
           db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced_count')
         )
-        .first()
+        .first() as any
 
-      if (!metrics || metrics.delivered_count === 0) return null
+      if (!metrics || Number(metrics.delivered_count) === 0) return null
 
       return {
         ...metrics,
-        open_rate: (metrics.opened_count / metrics.delivered_count) * 100,
-        click_rate: (metrics.clicked_count / metrics.delivered_count) * 100,
-        bounce_rate: (metrics.bounced_count / metrics.sent_count) * 100
+        open_rate: (Number(metrics.opened_count) / Number(metrics.delivered_count)) * 100,
+        click_rate: (Number(metrics.clicked_count) / Number(metrics.delivered_count)) * 100,
+        bounce_rate: (Number(metrics.bounced_count) / Number(metrics.sent_count)) * 100
       }
 
     } catch (error) {
