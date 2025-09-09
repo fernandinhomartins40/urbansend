@@ -412,7 +412,8 @@ export class DomainSetupService {
         .first();
 
       if (!domain) {
-        throw new Error('Domínio não encontrado ou acesso negado');
+        logger.warn('Domain not found or access denied', { userId, domainId });
+        return false;
       }
 
       // REMOÇÃO REAL do domínio e dados relacionados
