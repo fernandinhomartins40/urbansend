@@ -8,6 +8,11 @@ export const validateEmailAddress = async (email: string): Promise<{
   isValid: boolean;
   reason?: string;
 }> => {
+  // 🔧 FIX: Verificar se email é válido antes de chamar validator
+  if (!email || typeof email !== 'string') {
+    return { isValid: false, reason: 'Email is required and must be a string' };
+  }
+
   // Basic format validation
   if (!validator.isEmail(email)) {
     return { isValid: false, reason: 'Invalid email format' };

@@ -48,10 +48,17 @@ export class DomainValidator {
    */
   async validateSenderDomain(userId: number, fromEmail: string): Promise<ValidatedSender> {
     try {
+      // 🔧 FIX: Verificar se fromEmail é válido primeiro
+      if (!fromEmail || typeof fromEmail !== 'string') {
+        logger.warn('Invalid fromEmail parameter', { userId, fromEmail });
+        return this.createFallbackSender(userId, 'Invalid email parameter');
+      }
+
       // 1. Validação básica do formato do email
-      if (!validateEmailAddress(fromEmail)) {
-        logger.warn('Invalid email format provided', { userId, fromEmail });
-        return this.createFallbackSender(userId, 'Invalid email format');
+      const emailValidation = await validateEmailAddress(fromEmail);
+      if (!emailValidation.isValid) {
+        logger.warn('Invalid email format provided', { userId, fromEmail, reason: emailValidation.reason });
+        return this.createFallbackSender(userId, `Invalid email format: ${emailValidation.reason}`);
       }
 
       const domain = this.extractDomain(fromEmail);
