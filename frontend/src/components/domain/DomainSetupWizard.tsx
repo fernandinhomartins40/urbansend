@@ -71,7 +71,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       // Se o domínio já tem algumas configurações, buscar instruções DNS
       if (domainDetails.domain.completion_percentage > 0) {
         const dnsInstructions = await getDNSInstructions(editDomainId);
-        // Simular resultado do setup para permitir navegação
+        // Reconstituir dados do setup para permitir navegação no wizard (domínio já cadastrado)
         setSetupResult({
           domain: domainDetails.domain,
           dns_instructions: dnsInstructions.instructions,
