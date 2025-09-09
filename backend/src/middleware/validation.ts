@@ -79,10 +79,10 @@ export const sendEmailSchema = z.object({
   text: z.string()
     .min(1, 'Conteúdo é obrigatório') // 🔧 FIX: Tornar obrigatório como no frontend
     .max(1024 * 1024, 'Conteúdo texto deve ter no máximo 1MB'),
-  template_id: z.number().int().positive().optional(),
+  template_id: z.preprocess((val) => val === "" ? undefined : val, z.number().int().positive().optional()),
   variables: z.record(z.string().max(1000)).optional(),
   tags: z.array(z.string().max(50)).max(10, 'Máximo de 10 tags por email').optional(),
-  reply_to: emailSchema.optional(),
+  reply_to: z.preprocess((val) => val === "" ? undefined : val, emailSchema.optional()),
   cc: z.array(emailSchema).max(10).default([]).optional(), // 🔧 FIX: Consistente com frontend
   bcc: z.array(emailSchema).max(10).default([]).optional(), // 🔧 FIX: Consistente com frontend
   attachments: z.array(z.object({
