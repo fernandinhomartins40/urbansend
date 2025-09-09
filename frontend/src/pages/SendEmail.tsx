@@ -12,8 +12,10 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'
 import { emailApi, templateApi } from '@/lib/api'
+import { DomainSelector, useDomainSelectorField } from '@/components/domain/DomainSelector'
+import { useHasVerifiedDomains } from '@/hooks/useUserDomains'
 import { 
   ArrowLeft, 
   Send, 
@@ -22,13 +24,16 @@ import {
   Plus,
   X,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Settings
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const sendEmailSchema = z.object({
   to_email: z.string().email('Email inválido'),
-  from_email: z.string().email('Email remetente inválido'),
+  from_email: z.string()
+    .min(1, 'Selecione um domínio remetente')
+    .email('Email remetente inválido'),
   reply_to: z.string().email('Email de resposta inválido').optional().or(z.literal('')),
   subject: z.string().min(1, 'Assunto é obrigatório'),
   html_content: z.string().optional(),
@@ -70,6 +75,10 @@ export function SendEmail() {
     }
   })
 
+  // Domain selector hook for validation
+  const domainSelectorField = useDomainSelectorField()
+  const hasVerifiedDomains = useHasVerifiedDomains()
+
   // Fetch templates
   const { data: templates } = useQuery({
     queryKey: ['templates'],
@@ -88,6 +97,18 @@ export function SendEmail() {
   })
 
   const onSubmit = (data: SendEmailForm) => {
+    // Verificar se há domínios verificados
+    if (!hasVerifiedDomains) {
+      toast.error('Configure pelo menos um domínio verificado para enviar emails')
+      return
+    }
+
+    // Verificar se o email remetente está configurado
+    if (!data.from_email || !data.from_email.includes('@')) {
+      toast.error('Selecione um domínio remetente válido')
+      return
+    }
+
     const emailData = {
       ...data,
       cc_emails: ccEmails,
@@ -178,9 +199,20 @@ export function SendEmail() {
                         <FormItem>
                           <FormLabel>De *</FormLabel>
                           <FormControl>
-                            <Input placeholder="seu@dominio.com" {...field} />
+                            <DomainSelector
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Selecione um domínio verificado"
+                              disabled={!hasVerifiedDomains}
+                              className="w-full"
+                            />
                           </FormControl>
                           <FormMessage />
+                          {!hasVerifiedDomains && (
+                            <FormDescription className="text-amber-600">
+                              Configure pelo menos um domínio verificado para enviar emails.
+                            </FormDescription>
+                          )}
                         </FormItem>
                       )}
                     />
@@ -474,10 +506,15 @@ export function SendEmail() {
                     <Button 
                       type="submit" 
                       className="w-full"
-                      disabled={sendEmailMutation.isPending}
+                      disabled={sendEmailMutation.isPending || !hasVerifiedDomains}
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      {sendEmailMutation.isPending ? 'Enviando...' : 'Enviar Email'}
+                      {sendEmailMutation.isPending 
+                        ? 'Enviando...' 
+                        : !hasVerifiedDomains 
+                          ? 'Configure um domínio primeiro'
+                          : 'Enviar Email'
+                      }
                     </Button>
                     
                     <Button 

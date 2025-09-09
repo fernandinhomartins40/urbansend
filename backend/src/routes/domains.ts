@@ -8,8 +8,48 @@ const router = Router();
 router.use(authenticateJWT);
 
 router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const domains = await db('domains').where('user_id', req.user!.id);
-  res.json({ domains });
+  const { verified_only, status, sort = 'created_at', order = 'desc' } = req.query;
+  
+  let query = db('domains').where('user_id', req.user!.id);
+  
+  // Filtrar apenas domínios verificados se solicitado
+  if (verified_only === 'true') {
+    query = query.where('is_verified', true);
+  }
+  
+  // Filtrar por status se especificado
+  if (status && typeof status === 'string') {
+    query = query.where('verification_status', status);
+  }
+  
+  // Aplicar ordenação
+  const domains = await query.orderBy(sort as string, order as string);
+  
+  // Calcular estatísticas para cada domínio
+  const domainsWithStats = domains.map(domain => ({
+    ...domain,
+    configuration_score: [
+      domain.dkim_enabled,
+      domain.spf_enabled, 
+      domain.dmarc_enabled
+    ].filter(Boolean).length
+  }));
+  
+  // Contar totais por status
+  const stats = {
+    total: domains.length,
+    verified: domains.filter(d => d.is_verified).length,
+    pending: domains.filter(d => d.verification_status === 'pending').length,
+    failed: domains.filter(d => d.verification_status === 'failed').length
+  };
+  
+  res.json({ 
+    data: {
+      domains: domainsWithStats,
+      stats
+    },
+    success: true
+  });
 }));
 
 router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

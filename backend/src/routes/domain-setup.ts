@@ -26,6 +26,14 @@ const domainIdSchema = z.object({
   domainId: z.string().regex(/^\d+$/, 'Domain ID must be numeric').transform(Number)
 });
 
+const domainValidationSchema = z.object({
+  domain: z.string()
+    .min(3, 'Domain must be at least 3 characters')
+    .max(253, 'Domain must be less than 253 characters')
+    .regex(/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/, 'Invalid domain format')
+    .transform(domain => domain.toLowerCase().trim())
+});
+
 /**
  * POST /api/domain-setup/setup
  * Inicia configuração de um novo domínio
@@ -626,6 +634,146 @@ router.put('/domains/:domainId',
         success: false,
         error: 'Falha ao atualizar configurações do domínio',
         code: 'DOMAIN_UPDATE_FAILED'
+      });
+    }
+  })
+);
+
+/**
+ * POST /api/domain-setup/validate
+ * Valida um domínio antes de configurá-lo
+ */
+router.post('/validate',
+  validateRequest({ body: domainValidationSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { domain } = req.body;
+    const userId = req.user!.id;
+
+    logger.debug('Domain validation request received', { userId, domain });
+
+    try {
+      // Verificar se domínio já está cadastrado pelo usuário
+      const existingDomain = await db('domains')
+        .where('domain_name', domain)
+        .where('user_id', userId)
+        .first();
+
+      if (existingDomain) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            domain,
+            available: false,
+            message: 'Este domínio já está cadastrado em sua conta',
+            reason: 'DOMAIN_ALREADY_EXISTS',
+            existing_status: existingDomain.is_verified ? 'verified' : 'pending'
+          }
+        });
+      }
+
+      // Verificar se domínio está sendo usado por outro usuário
+      const domainInUse = await db('domains')
+        .where('domain_name', domain)
+        .first();
+
+      if (domainInUse) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            domain,
+            available: false,
+            message: 'Este domínio já está sendo usado por outra conta',
+            reason: 'DOMAIN_IN_USE'
+          }
+        });
+      }
+
+      // Validação adicional de formato (já validada pelo schema, mas reforçando)
+      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+      if (!domainRegex.test(domain)) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            domain,
+            available: false,
+            message: 'Formato de domínio inválido',
+            reason: 'INVALID_FORMAT'
+          }
+        });
+      }
+
+      // Verificar TLD válido (lista básica)
+      const validTlds = ['.com', '.net', '.org', '.edu', '.gov', '.mil', '.br', '.co.uk', 
+                        '.de', '.fr', '.it', '.es', '.nl', '.au', '.ca', '.jp', '.cn', 
+                        '.in', '.ru', '.mx', '.ar', '.cl', '.pe', '.co', '.io', '.me', 
+                        '.tv', '.info', '.biz', '.name', '.pro'];
+      
+      const hasValidTld = validTlds.some(tld => domain.toLowerCase().endsWith(tld));
+      
+      if (!hasValidTld) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            domain,
+            available: false,
+            message: 'Extensão de domínio não suportada',
+            reason: 'UNSUPPORTED_TLD'
+          }
+        });
+      }
+
+      // Validações básicas de segurança
+      const forbiddenPatterns = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com'];
+      const isForbidden = forbiddenPatterns.some(pattern => domain.toLowerCase().includes(pattern));
+      
+      if (isForbidden) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            domain,
+            available: false,
+            message: 'Este domínio não pode ser usado',
+            reason: 'FORBIDDEN_DOMAIN'
+          }
+        });
+      }
+
+      // Se chegou até aqui, domínio é válido e disponível
+      logger.info('Domain validation successful', { userId, domain });
+
+      res.json({
+        success: true,
+        data: {
+          valid: true,
+          domain,
+          available: true,
+          message: 'Domínio válido e disponível para configuração',
+          reason: 'VALID_AND_AVAILABLE',
+          next_steps: [
+            'Clique em "Configurar Domínio" para prosseguir',
+            'Você receberá instruções DNS detalhadas',
+            'Configure os registros DNS em seu provedor',
+            'Execute a verificação DNS'
+          ]
+        }
+      });
+
+    } catch (error) {
+      logger.error('Domain validation failed', {
+        userId,
+        domain,
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to validate domain',
+        code: 'DOMAIN_VALIDATION_ERROR'
       });
     }
   })

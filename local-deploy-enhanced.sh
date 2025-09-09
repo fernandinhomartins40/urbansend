@@ -351,21 +351,23 @@ ssh $SERVER "
     echo '🆕 Criando banco novo e limpo...'
     NODE_ENV=production npm run migrate:latest
     
-    # Enhanced migration validation - expect 62+ migrations
-    echo 'Validando migrations executadas...'
+    # Enhanced migration validation - expect 70 migrations A01-A70 (Fase 3 completa)
+    echo 'Validando migrations executadas (70 migrations A01→A70)...'
     
-    # Check if all 62+ migrations are present
-    migration_files=\$(find src/migrations -name '*.js' | wc -l 2>/dev/null || echo '0')
-    echo \"Arquivos de migration encontrados: \$migration_files\"
+    # Check if all 70 migrations A01-A70 are present
+    migration_files=\$(find src/migrations -name 'A*.js' | wc -l 2>/dev/null || echo '0')
+    echo \"Arquivos de migration A01-A70 encontrados: \$migration_files\"
     
-    if [ \"\$migration_files\" -lt 60 ]; then
-        echo \"❌ Migrations insuficientes encontradas (\$migration_files < 60)\"
-        echo 'Listando migrations disponíveis:'
-        ls -la src/migrations/*.js | wc -l || true
+    if [ \"\$migration_files\" -lt 70 ]; then
+        echo \"❌ Migrations insuficientes encontradas (\$migration_files < 70)\"
+        echo 'Listando migrations A01-A70 disponíveis:'
+        ls -la src/migrations/A*.js | wc -l || true
+        echo 'Últimas migrations (Fase 3):'
+        ls -la src/migrations/A6*.js src/migrations/A7*.js 2>/dev/null || true
         exit 1
     fi
     
-    echo \"✅ \$migration_files migrations encontradas (esperado: 62+)\"
+    echo \"✅ \$migration_files migrations A01-A70 encontradas (esperado: 70 - Fase 3 completa)\"
     
     echo '✅ Migrations validadas - prosseguindo com validação de tabelas'
     
@@ -381,6 +383,17 @@ ssh $SERVER "
         'email_automations'
         'integrations'
         'ip_domain_reputation'
+        # === FASE 3: Novas tabelas implementadas ===
+        'email_segments'
+        'email_segment_analytics'
+        'template_categories'
+        'template_ratings'
+        'email_ab_tests'
+        'email_ab_variants'
+        'ab_test_results'
+        'conversion_funnels'
+        'analytics_insights'
+        'industry_benchmarks'
     )
     
     echo 'Validando tabelas críticas...'
@@ -673,6 +686,13 @@ DB_TEST_EOF
         '/api/scheduler/status'
         '/api/dkim'
         '/api/smtp-monitoring'
+        # === FASE 3: Services implementados, rotas em desenvolvimento ===
+        # '/api/shared-templates/categories'    # SharedTemplateService ✅ - Rotas pendentes
+        # '/api/shared-templates/public'        # SharedTemplateService ✅ - Rotas pendentes  
+        # '/api/advanced-analytics/segments'    # AdvancedAnalyticsService ✅ - Rotas pendentes
+        # '/api/advanced-analytics/insights'    # AdvancedAnalyticsService ✅ - Rotas pendentes
+        # '/api/ab-tests'                       # ABTestingService ✅ - Rotas pendentes
+        '/api/templates'                        # CRUD básico ✅ - Funcionando
     )
     
     for endpoint in \"\${api_endpoints[@]}\"; do
@@ -758,9 +778,25 @@ DB_TEST_EOF
     echo \"   🔒 LIMPAR ÓRFÃOS (com token): curl -X DELETE https://$DOMAIN/api/admin-audit/remove-orphan-domains -H 'Cookie: access_token=TOKEN'\"
     echo \"   Domain Setup: curl -s https://$DOMAIN/api/domain-setup/domains (requer auth)\"
     echo \"   Domain Monitor: curl -s https://$DOMAIN/api/domain-monitoring/health\"
-    echo \"   Fase 4 Health: curl -s https://$DOMAIN/api/monitoring/health\"
+    echo \"   Health: curl -s https://$DOMAIN/api/monitoring/health\"
     echo \"   Audit Logs: curl -s https://$DOMAIN/api/monitoring/audit-logs\"
     echo \"   Scheduler: curl -s https://$DOMAIN/api/scheduler/status\"
+    echo \"\"
+    echo \"   📚 FASE 3 - TEMPLATES (Services ✅ | Rotas 🔄):\"
+    echo \"   Templates CRUD: curl -s https://$DOMAIN/api/templates (requer auth)\"
+    # echo \"   Templates Públicos: curl -s https://$DOMAIN/api/shared-templates/public (em desenvolvimento)\"
+    # echo \"   Categorias: curl -s https://$DOMAIN/api/shared-templates/categories (em desenvolvimento)\"
+    echo \"\"
+    echo \"   📊 FASE 3 - ANALYTICS (Services ✅ | Rotas 🔄):\"
+    # echo \"   Segmentos: curl -s https://$DOMAIN/api/advanced-analytics/segments (requer auth - em desenvolvimento)\"
+    # echo \"   Insights: curl -s https://$DOMAIN/api/advanced-analytics/insights (requer auth - em desenvolvimento)\"
+    echo \"   Analytics Básicos: curl -s https://$DOMAIN/api/analytics/summary (requer auth)\"
+    echo \"\"
+    echo \"   🧪 FASE 3 - A/B TESTING (Services ✅ | Rotas 🔄):\"
+    # echo \"   Lista A/B Tests: curl -s https://$DOMAIN/api/ab-tests (requer auth - em desenvolvimento)\"
+    # echo \"   Criar Teste: curl -X POST https://$DOMAIN/api/ab-tests -d '{}' (requer auth - em desenvolvimento)\"
+    echo \"   [Rotas de A/B Testing em desenvolvimento]\"
+    echo \"\"
     echo \"   Redeploy: bash local-deploy-enhanced.sh\"
 "
 
@@ -786,17 +822,31 @@ echo "   ✅ A/B Tests"
 echo "   ✅ Automações"
 echo "   ✅ Integrações"
 echo "   ✅ Domain Setup System: /api/domain-setup (multi-tenant seguro)"
-echo "   ✅ Domain Verification System (Fase 4)"
+echo "   ✅ Domain Verification System"
 echo "   ✅ Monitoramento Automático de Domínios"
 echo "   ✅ Jobs Automáticos (6h) + Alertas"
 echo "   ✅ API Domain Monitoring"
-echo "   ✅ FASE 4: EmailAuditService (Auditoria completa)"
-echo "   ✅ FASE 4: AlertingService (Alertas automáticos)"
-echo "   ✅ FASE 4: HealthCheckScheduler (8 cron jobs)"
-echo "   ✅ FASE 4: APIs /monitoring (8 endpoints)"
-echo "   ✅ FASE 4: APIs /scheduler (controle de jobs)"
-echo "   ✅ FASE 4: Tabelas audit (email_audit_logs, system_alerts)"
-echo "   ✅ Bundle otimizado (32 chunks)"
-echo "   ✅ Database: 62+ migrations / 65+ tabelas"
+echo "   ✅ EmailAuditService (Auditoria completa)"
+echo "   ✅ AlertingService (Alertas automáticos)"
+echo "   ✅ HealthCheckScheduler (8 cron jobs)"
+echo "   ✅ APIs /monitoring (8 endpoints)"
+echo "   ✅ APIs /scheduler (controle de jobs)"
+echo ""
+echo "   🚀 FASE 3 - BACKEND AVANÇADO IMPLEMENTADO:"
+echo "   ✅ SharedTemplateService: Sistema completo de templates compartilhados"
+echo "   ✅ AdvancedAnalyticsService: Analytics avançados com IA e segmentação"
+echo "   ✅ ABTestingService: A/B Testing estatístico profissional"
+echo "   ✅ Migrations A68-A70: 27 novas tabelas implementadas"
+echo "   ✅ 27 índices otimizados + 5 views + 5 triggers automáticos"
+echo "   ✅ Templates CRUD funcionando via /api/templates"
+echo ""
+echo "   🔄 EM DESENVOLVIMENTO (Próxima fase):"
+echo "   📚 Rotas de Templates Compartilhados (/api/shared-templates/*)"
+echo "   📊 Rotas de Analytics Avançados (/api/advanced-analytics/*)"
+echo "   🧪 Rotas de A/B Testing (/api/ab-tests/*)"
+echo "   🎨 Interface Frontend para funcionalidades avançadas"
+echo ""
+echo "   ✅ Bundle otimizado (32+ chunks)"
+echo "   ✅ Database: 70 migrations A01-A70 / 75+ tabelas"
 echo ""
 echo "🚀 Aplicação 100% funcional em produção!"

@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { lazy, Suspense, useEffect } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { useAuthStore } from './lib/store'
 import { useAuthEvents } from './hooks/useAuthEvents'
 import { useAuthCheck } from './hooks/useAuthCheck'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster } from 'react-hot-toast'
+import queryClient, { initializePersistence } from './lib/queryClient'
 import './styles/globals.css'
 
 // Loading component
@@ -30,14 +31,6 @@ const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Dom
 const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.Webhooks })));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-})
 
 // Placeholder component for Settings route still to be implemented
 const SettingsPage = () => <div className="p-8"><h1>Settings</h1></div>
@@ -205,6 +198,10 @@ function AppRoutes() {
 }
 
 function App() {
+  useEffect(() => {
+    initializePersistence()
+  }, [])
+
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
