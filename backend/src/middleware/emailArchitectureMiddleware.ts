@@ -15,12 +15,12 @@ export const emailArchitectureMiddleware = asyncHandler(async (
   next: NextFunction
 ) => {
   try {
-    const { from } = req.body;
+    const { from_email } = req.body;
     const userId = req.user!.id;
     
     logger.debug('Applying email architecture middleware', {
       userId,
-      originalFrom: from,
+      originalFrom: from_email,
       endpoint: req.path
     });
 
@@ -41,23 +41,23 @@ export const emailArchitectureMiddleware = asyncHandler(async (
     const domainValidator = (await import('../services/DomainValidator')).DomainValidator;
     const validator = new domainValidator();
     
-    const validatedSender = await validator.validateSenderDomain(userId, from);
+    const validatedSender = await validator.validateSenderDomain(userId, from_email);
     
     // Aplicar correções se necessário
     if (validatedSender.fallback) {
       logger.info('Email sender corrected by architecture middleware', {
         userId,
-        originalFrom: from,
+        originalFrom: from_email,
         correctedFrom: validatedSender.email,
         reason: validatedSender.reason
       });
       
-      // Atualizar o from no body da requisição
-      req.body.from = validatedSender.email;
+      // Atualizar o from_email no body da requisição
+      req.body.from_email = validatedSender.email;
       
       // Adicionar metadados para auditoria
       req.body._senderCorrected = true;
-      req.body._originalFrom = from;
+      req.body._originalFrom = from_email;
       req.body._correctionReason = validatedSender.reason;
     }
 
@@ -72,8 +72,8 @@ export const emailArchitectureMiddleware = asyncHandler(async (
     await auditService.logEmailEvent({
       userId,
       emailId,
-      originalFrom: from,
-      finalFrom: req.body.from,
+      originalFrom: from_email,
+      finalFrom: req.body.from_email,
       wasModified: validatedSender.fallback || false,
       modificationReason: validatedSender.reason,
       dkimDomain: validatedSender.dkimDomain,
@@ -101,7 +101,7 @@ export const emailArchitectureMiddleware = asyncHandler(async (
   } catch (error) {
     logger.error('Email architecture middleware error', {
       userId: req.user?.id,
-      originalFrom: req.body?.from,
+      originalFrom: req.body?.from_email,
       error: error instanceof Error ? error.message : String(error)
     });
     
