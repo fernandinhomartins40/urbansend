@@ -18,13 +18,13 @@ const router = Router();
 
 // Send single email
 router.post('/send', 
-  authenticateApiKey,
+  authenticateJWT,
   requirePermission('email:send'),
   emailArchitectureMiddleware, // 🆕 Nova arquitetura Fase 2
   emailSendRateLimit,
   validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const emailData = { ...req.body, userId: req.user!.id, apiKeyId: req.apiKey?.id };
+    const emailData = { ...req.body, userId: req.user!.id };
     const queueService = new QueueService();
     const job = await queueService.addEmailJob(emailData);
     
@@ -63,7 +63,7 @@ router.post('/send',
 
 // Send batch emails
 router.post('/send-batch',
-  authenticateApiKey,
+  authenticateJWT,
   requirePermission('email:send'),
   emailArchitectureBatchMiddleware, // 🆕 Nova arquitetura Fase 2 para lotes
   emailSendRateLimit,
@@ -71,8 +71,7 @@ router.post('/send-batch',
     const { emails } = req.body;
     const emailsWithUser = emails.map((email: any) => ({
       ...email,
-      userId: req.user!.id,
-      apiKeyId: req.apiKey?.id
+      userId: req.user!.id
     }));
     
     const queueService = new QueueService();
