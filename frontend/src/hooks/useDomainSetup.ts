@@ -315,10 +315,10 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
     setError(null);
 
     try {
-      const response = await api.delete(`/domain-setup/domains/${domainId}`);
+      const response = await api.delete(`/domains/${domainId}`);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Falha ao remover domínio');
+      if (response.status !== 200) {
+        throw new Error(response.data?.error || 'Falha ao remover domínio');
       }
 
       toast.success('Domínio removido com sucesso');
