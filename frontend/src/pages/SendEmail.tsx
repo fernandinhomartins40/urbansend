@@ -30,16 +30,16 @@ import {
 import toast from 'react-hot-toast'
 
 const sendEmailSchema = z.object({
-  to_email: z.string().email('Email inválido'),
-  from_email: z.string()
+  to: z.string().email('Email inválido'),
+  from: z.string()
     .min(1, 'Selecione um domínio remetente')
     .email('Email remetente inválido'),
   reply_to: z.string().email('Email de resposta inválido').optional().or(z.literal('')),
   subject: z.string().min(1, 'Assunto é obrigatório'),
-  html_content: z.string().optional(),
-  text_content: z.string().min(1, 'Conteúdo é obrigatório'),
-  cc_emails: z.array(z.string().email()).default([]),
-  bcc_emails: z.array(z.string().email()).default([]),
+  html: z.string().optional(),
+  text: z.string().min(1, 'Conteúdo é obrigatório'),
+  cc: z.array(z.string().email()).default([]),
+  bcc: z.array(z.string().email()).default([]),
   template_id: z.string().optional(),
   tracking_enabled: z.boolean().default(true),
   variables: z.record(z.string()).default({})
@@ -61,14 +61,14 @@ export function SendEmail() {
   const form = useForm<SendEmailForm>({
     resolver: zodResolver(sendEmailSchema),
     defaultValues: {
-      from_email: '',
-      to_email: '',
+      from: '',
+      to: '',
       reply_to: '',
       subject: '',
-      html_content: '',
-      text_content: '',
-      cc_emails: [],
-      bcc_emails: [],
+      html: '',
+      text: '',
+      cc: [],
+      bcc: [],
       template_id: '',
       tracking_enabled: true,
       variables: {}
@@ -104,15 +104,15 @@ export function SendEmail() {
     }
 
     // Verificar se o email remetente está configurado
-    if (!data.from_email || !data.from_email.includes('@')) {
+    if (!data.from || !data.from.includes('@')) {
       toast.error('Selecione um domínio remetente válido')
       return
     }
 
     const emailData = {
       ...data,
-      cc_emails: ccEmails,
-      bcc_emails: bccEmails,
+      cc: ccEmails,
+      bcc: bccEmails,
       variables: customVariables
     }
     
@@ -158,8 +158,8 @@ export function SendEmail() {
     const template = templates?.data?.find((t: any) => t.id.toString() === templateId)
     if (template) {
       form.setValue('subject', template.subject || '')
-      form.setValue('html_content', template.html_content || '')
-      form.setValue('text_content', template.text_content || '')
+      form.setValue('html', template.html_content || '')
+      form.setValue('text', template.text_content || '')
       setCustomVariables(template.variables || {})
     }
   }
@@ -194,7 +194,7 @@ export function SendEmail() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="from_email"
+                      name="from"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>De *</FormLabel>
@@ -219,7 +219,7 @@ export function SendEmail() {
                     
                     <FormField
                       control={form.control}
-                      name="to_email"
+                      name="to"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Para *</FormLabel>
@@ -345,7 +345,7 @@ export function SendEmail() {
                     <TabsContent value="text" className="space-y-4">
                       <FormField
                         control={form.control}
-                        name="text_content"
+                        name="text"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Conteúdo em Texto *</FormLabel>
@@ -365,7 +365,7 @@ export function SendEmail() {
                     <TabsContent value="html" className="space-y-4">
                       <FormField
                         control={form.control}
-                        name="html_content"
+                        name="html"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Conteúdo HTML</FormLabel>
@@ -385,11 +385,11 @@ export function SendEmail() {
                     
                     <TabsContent value="preview">
                       <div className="border rounded-lg p-4">
-                        {form.watch('html_content') ? (
-                          <div dangerouslySetInnerHTML={{ __html: form.watch('html_content') }} />
+                        {form.watch('html') ? (
+                          <div dangerouslySetInnerHTML={{ __html: form.watch('html') }} />
                         ) : (
                           <pre className="whitespace-pre-wrap">
-                            {form.watch('text_content') || 'Nenhum conteúdo para preview'}
+                            {form.watch('text') || 'Nenhum conteúdo para preview'}
                           </pre>
                         )}
                       </div>
