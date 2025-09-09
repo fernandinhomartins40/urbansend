@@ -705,7 +705,7 @@ export class DKIMManager {
         user_id: userId,
         domain_name: domain,
         verification_token: generateVerificationToken(),
-        is_verified: true, // Assumir como verificado para domínio principal
+        is_verified: false, // Deve passar por verificação DNS real - CORREÇÃO CRÍTICA
         verification_method: 'manual',
         dkim_enabled: true,
         spf_enabled: true,

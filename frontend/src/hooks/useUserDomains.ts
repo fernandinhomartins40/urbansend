@@ -64,12 +64,26 @@ export const useVerifiedDomains = () => {
     staleTime: 5 * 60 * 1000,
     cacheTime: 15 * 60 * 1000,
     select: (data) => {
-      // Filtrar apenas domínios verificados no frontend também
+      // 🔧 CORREÇÃO CRÍTICA: Filtrar domínios com verificação rigorosa
       return {
         ...data,
         data: {
           ...data.data,
-          domains: data.data?.domains?.filter((domain: UserDomain) => domain.is_verified) || []
+          domains: data.data?.domains?.filter((domain: UserDomain) => {
+            // Verificação dupla: is_verified E status verificado
+            const isFullyVerified = domain.is_verified && 
+                                   domain.verification_status === 'verified';
+            
+            if (!isFullyVerified) {
+              console.warn('🔒 Domain filtered out: not fully verified', {
+                domain: domain.domain_name,
+                is_verified: domain.is_verified,
+                verification_status: domain.verification_status
+              });
+            }
+            
+            return isFullyVerified;
+          }) || []
         }
       }
     },

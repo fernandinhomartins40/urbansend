@@ -311,6 +311,71 @@ export class DomainSetupService {
   }
 
   /**
+   * Garante que o domínio principal esteja verificado
+   * CORREÇÃO CRÍTICA: Validação obrigatória do domínio principal
+   * 
+   * @returns Promise<boolean> - true se verificado, false caso contrário
+   */
+  async ensureMainDomainVerification(): Promise<boolean> {
+    try {
+      const mainDomain = 'ultrazend.com.br';
+      logger.info('🔧 CORREÇÃO CRÍTICA: Verificando domínio principal obrigatoriamente', {
+        domain: mainDomain
+      });
+
+      // Buscar usuário sistema ou admin para o domínio principal
+      const systemUser = await db('users')
+        .where('email', 'like', '%ultrazend.com.br')
+        .orWhere('is_admin', true)
+        .first();
+
+      if (!systemUser) {
+        logger.error('❌ CRÍTICO: Usuário sistema não encontrado para domínio principal');
+        return false;
+      }
+
+      // Buscar domínio principal
+      const mainDomainRecord = await db('domains')
+        .where('domain_name', mainDomain)
+        .where('user_id', systemUser.id)
+        .first();
+
+      if (!mainDomainRecord) {
+        logger.error('❌ CRÍTICO: Registro do domínio principal não encontrado');
+        return false;
+      }
+
+      // Se já está verificado, validar se DNS ainda funciona
+      if (mainDomainRecord.is_verified) {
+        logger.info('🔍 Revalidando domínio principal já verificado');
+        const revalidation = await this.verifyDomainSetup(systemUser.id, mainDomainRecord.id);
+        return revalidation.all_passed;
+      }
+
+      // Se não verificado, fazer verificação completa
+      logger.info('⚡ Verificando domínio principal pela primeira vez');
+      const verification = await this.verifyDomainSetup(systemUser.id, mainDomainRecord.id);
+
+      if (!verification.all_passed) {
+        logger.error('❌ CRÍTICO: Domínio principal falhou na verificação DNS', {
+          domain: mainDomain,
+          results: verification.results
+        });
+        return false;
+      }
+
+      logger.info('✅ SUCESSO: Domínio principal verificado com sucesso');
+      return true;
+
+    } catch (error) {
+      logger.error('❌ ERRO CRÍTICO: Falha na verificação do domínio principal', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
    * Obtém o status de todos os domínios de um usuário
    * 
    * @param userId - ID do usuário

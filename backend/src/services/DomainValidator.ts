@@ -87,21 +87,38 @@ export class DomainValidator {
         };
       }
 
-      // 3. Verificar propriedade e verificação do domínio pelo usuário
+      // 3. 🔧 CORREÇÃO CRÍTICA: Verificar propriedade E verificação RIGOROSA do domínio
       const domainRecord = await this.checkDomainOwnership(userId, domain);
 
       if (domainRecord && domainRecord.is_verified) {
-        logger.debug('Verified domain found for user', { 
+        logger.info('✅ DKIM autorizado: Domain verified and owned by user', { 
           userId, 
           domain, 
-          domainId: domainRecord.id 
+          domainId: domainRecord.id,
+          verifiedAt: domainRecord.updated_at // usando updated_at como proxy para verified_at
         });
         
         return {
           email: fromEmail,
-          dkimDomain: domain,
+          dkimDomain: domain, // ✅ Usar domínio real verificado
           valid: true
         };
+      }
+
+      // 🚨 CRÍTICO: Log detalhado para domínios rejeitados
+      if (domainRecord && !domainRecord.is_verified) {
+        logger.warn('🔒 DKIM bloqueado: Domain owned but NOT VERIFIED', {
+          userId,
+          domain,
+          domainId: domainRecord.id,
+          isVerified: domainRecord.is_verified,
+          createdAt: domainRecord.created_at
+        });
+      } else if (!domainRecord) {
+        logger.warn('🔒 DKIM bloqueado: Domain NOT OWNED by user', {
+          userId,
+          domain
+        });
       }
 
       // 4. Domínio não verificado ou não pertence ao usuário - aplicar fallback

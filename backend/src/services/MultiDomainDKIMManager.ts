@@ -142,7 +142,7 @@ export class MultiDomainDKIMManager extends DKIMManager {
    */
   private async generateDKIMConfigForDomain(domain: string): Promise<DKIMConfig | null> {
     try {
-      // Verificar se o domínio existe na tabela domains e está verificado
+      // 🔧 CORREÇÃO CRÍTICA: Verificar se o domínio existe na tabela domains e está VERIFICADO
       const domainRecord = await db('domains')
         .select('*')
         .where('domain_name', domain)
@@ -154,6 +154,22 @@ export class MultiDomainDKIMManager extends DKIMManager {
         });
         return null;
       }
+
+      // 🚨 CRÍTICO: Só gerar DKIM para domínios VERIFICADOS
+      if (!domainRecord.is_verified) {
+        logger.warn('🔒 DKIM generation blocked: Domain not verified', { 
+          domain,
+          domainId: domainRecord.id,
+          isVerified: domainRecord.is_verified
+        });
+        return null; // Não gerar DKIM para domínios não verificados
+      }
+
+      logger.info('✅ Domain verified, proceeding with DKIM generation', {
+        domain,
+        domainId: domainRecord.id,
+        verifiedAt: domainRecord.verified_at
+      });
 
       // Verificar se já existe configuração DKIM (pode estar inativa)
       const existingKey = await db('dkim_keys')

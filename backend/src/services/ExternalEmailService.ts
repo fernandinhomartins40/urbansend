@@ -97,11 +97,28 @@ export class ExternalEmailService implements IEmailService {
         validatedSender.dkimDomain
       );
 
+      // 🔧 FASE 4.1: Log detalhado de DKIM - CORREÇÃO CRÍTICA
+      const extractDomain = (email: string) => {
+        const match = email.match(/@(.+)$/);
+        return match ? match[1] : null;
+      };
+
       if (!dkimConfig) {
-        logger.error('Failed to get DKIM config for domain', {
+        logger.error('❌ DKIM configuration FAILED to load', {
           emailId,
           userId: emailData.userId,
-          dkimDomain: validatedSender.dkimDomain
+          fromEmail: emailData.from,
+          fromDomain: extractDomain(emailData.from),
+          dkimDomain: validatedSender.dkimDomain,
+          validatedSender: {
+            email: validatedSender.email,
+            dkimDomain: validatedSender.dkimDomain,
+            valid: validatedSender.valid,
+            fallback: validatedSender.fallback || false,
+            reason: validatedSender.reason
+          },
+          configFound: !!dkimConfig,
+          timestamp: new Date().toISOString()
         });
 
         return {
@@ -109,6 +126,31 @@ export class ExternalEmailService implements IEmailService {
           error: 'DKIM configuration not available'
         };
       }
+
+      // ✅ SUCESSO: Log detalhado quando DKIM é aplicado corretamente
+      logger.info('✅ DKIM configuration successfully applied', {
+        emailId,
+        userId: emailData.userId,
+        fromEmail: emailData.from,
+        fromDomain: extractDomain(emailData.from),
+        dkimDomain: validatedSender.dkimDomain,
+        validatedSender: {
+          email: validatedSender.email,
+          dkimDomain: validatedSender.dkimDomain,
+          valid: validatedSender.valid,
+          fallback: validatedSender.fallback || false,
+          reason: validatedSender.reason || 'Domain verified and owned'
+        },
+        dkimConfig: {
+          selector: dkimConfig.selector,
+          hasDKIMKey: !!dkimConfig.privateKey,
+          keyLength: dkimConfig.privateKey ? dkimConfig.privateKey.length : 0
+        },
+        wasForced: validatedSender.fallback || false,
+        configFound: !!dkimConfig,
+        domainStatus: extractDomain(emailData.from) === validatedSender.dkimDomain ? 'original' : 'fallback',
+        timestamp: new Date().toISOString()
+      });
 
       // 4. Preparar dados do email com configurações corretas
       const processedEmailData = await this.prepareEmailForDelivery(
