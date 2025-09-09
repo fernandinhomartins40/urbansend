@@ -8,7 +8,7 @@ const router = Router();
 router.use(authenticateJWT);
 
 router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { verified_only, status, sort = 'created_at', order = 'desc' } = req.query;
+  const { verified_only, sort = 'created_at', order = 'desc' } = req.query;
   
   let query = db('domains').where('user_id', req.user!.id);
   
@@ -17,17 +17,13 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
     query = query.where('is_verified', true);
   }
   
-  // Filtrar por status se especificado
-  if (status && typeof status === 'string') {
-    query = query.where('verification_status', status);
-  }
-  
   // Aplicar ordenação
   const domains = await query.orderBy(sort as string, order as string);
   
-  // Calcular estatísticas para cada domínio
+  // Calcular estatísticas para cada domínio e adicionar verification_status baseado em is_verified
   const domainsWithStats = domains.map(domain => ({
     ...domain,
+    verification_status: domain.is_verified ? 'verified' : 'pending', // 🔧 FIX: Calcular status baseado em is_verified
     configuration_score: [
       domain.dkim_enabled,
       domain.spf_enabled, 
@@ -39,8 +35,8 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   const stats = {
     total: domains.length,
     verified: domains.filter(d => d.is_verified).length,
-    pending: domains.filter(d => d.verification_status === 'pending').length,
-    failed: domains.filter(d => d.verification_status === 'failed').length
+    pending: domains.filter(d => !d.is_verified).length,
+    failed: 0 // Não temos campo específico para failed, consideramos 0
   };
   
   res.json({ 
@@ -94,7 +90,7 @@ router.post('/:id/verify', asyncHandler(async (req: AuthenticatedRequest, res: R
   
   // DNS verification logic would go here
   await db('domains').where('id', id).update({
-    verification_status: 'verified',
+    is_verified: true, // 🔧 FIX: Usar is_verified em vez de verification_status
     verified_at: new Date()
   });
   

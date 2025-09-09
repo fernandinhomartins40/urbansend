@@ -136,7 +136,16 @@ export class DomainValidator {
    */
   private isInternalDomain(domain: string): boolean {
     const normalizedDomain = domain.toLowerCase();
-    return this.INTERNAL_DOMAINS.includes(normalizedDomain);
+    
+    // 🔧 PROTEÇÃO EXTRA: Lista expandida de domínios principais para garantir funcionamento
+    const allInternalDomains = [
+      ...this.INTERNAL_DOMAINS,
+      'ultrazend.com.br',      // Domínio principal
+      'www.ultrazend.com.br',  // Subdomínio www
+      'mail.ultrazend.com.br'  // Subdomínio mail
+    ];
+    
+    return allInternalDomains.includes(normalizedDomain);
   }
 
   /**
