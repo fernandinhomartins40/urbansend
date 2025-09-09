@@ -88,13 +88,48 @@ router.post('/:id/verify', asyncHandler(async (req: AuthenticatedRequest, res: R
     return res.status(404).json({ error: 'Domínio não encontrado' });
   }
   
-  // DNS verification logic would go here
-  await db('domains').where('id', id).update({
-    is_verified: true, // 🔧 FIX: Usar is_verified em vez de verification_status
-    verified_at: new Date()
-  });
+  // 🔧 CORREÇÃO CRÍTICA: Implementar verificação DNS REAL
+  const { DomainVerificationService } = await import('../services/DomainVerificationService');
+  const verificationService = new DomainVerificationService();
   
-  res.json({ message: 'Domínio verificado com sucesso' });
+  try {
+    const verificationResult = await verificationService.verifyAndUpdateDomain(parseInt(id));
+    
+    if (verificationResult.success) {
+      res.json({ 
+        message: 'Domínio verificado com sucesso',
+        verification: {
+          spf: verificationResult.spf.verified,
+          dkim: verificationResult.dkim.verified, 
+          dmarc: verificationResult.dmarc.verified,
+          timestamp: verificationResult.timestamp
+        }
+      });
+    } else {
+      res.status(400).json({ 
+        error: 'Falha na verificação DNS',
+        details: {
+          spf: {
+            verified: verificationResult.spf.verified,
+            error: verificationResult.spf.error
+          },
+          dkim: {
+            verified: verificationResult.dkim.verified,
+            error: verificationResult.dkim.error
+          },
+          dmarc: {
+            verified: verificationResult.dmarc.verified,
+            error: verificationResult.dmarc.error
+          }
+        }
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Erro interno na verificação DNS',
+      message: error instanceof Error ? error.message : 'Erro desconhecido'
+    });
+  }
 }));
 
 router.delete('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
