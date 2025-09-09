@@ -67,8 +67,7 @@ router.post('/setup',
             created_at: result.domain.created_at
           },
           dns_instructions: result.dnsInstructions,
-          setup_guide: result.setupGuide,
-          verification_token: result.verificationToken // Cliente precisa deste token
+          setup_guide: result.setupGuide
         }
       };
 
@@ -134,11 +133,6 @@ router.post('/:domainId/verify',
           all_passed: verification.all_passed,
           verified_at: verification.verified_at,
           results: {
-            verification_token: {
-              valid: verification.results.verification.valid,
-              status: verification.results.verification.valid ? 'verified' : 'pending',
-              error: verification.results.verification.error
-            },
             spf: {
               valid: verification.results.spf.valid,
               status: verification.results.spf.valid ? 'verified' : 'failed',
@@ -171,7 +165,6 @@ router.post('/:domainId/verify',
         domain: verification.domain,
         allPassed: verification.all_passed,
         results: {
-          verification: verification.results.verification.valid,
           spf: verification.results.spf.valid,
           dkim: verification.results.dkim.valid,
           dmarc: verification.results.dmarc.valid
@@ -311,7 +304,6 @@ router.get('/domains/:domainId',
             status: domainStatus.overall_status,
             completion_percentage: domainStatus.completion_percentage,
             is_verified: domainStatus.domain.is_verified,
-            verification_token: domainStatus.domain.verification_token,
             verification_method: domainStatus.domain.verification_method,
             created_at: domainStatus.domain.created_at,
             updated_at: domainStatus.domain.updated_at,
@@ -536,7 +528,6 @@ router.get('/dns-instructions/:domainId',
       const setupService = new DomainSetupService();
       const dnsInstructions = setupService['createDNSInstructions'](
         domainRecord.domain_name,
-        domainRecord.verification_token,
         dkimKey.public_key
       );
 

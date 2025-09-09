@@ -5,9 +5,7 @@ export interface DomainVerificationAttempt {
   domainId: number;
   domainName: string;
   userId?: number;
-  verificationToken?: string;
   attempts: {
-    ownership: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
     spf: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
     dkim: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
     dmarc: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
@@ -50,7 +48,6 @@ export class DomainVerificationLogger {
   // Log início da verificação de domínio
   public async logVerificationStart(domainId: number, domainName: string, options: {
     userId?: number;
-    verificationToken?: string;
     isAutomatedVerification?: boolean;
     jobId?: string;
     retryCount?: number;
@@ -60,9 +57,7 @@ export class DomainVerificationLogger {
         domainId,
         domainName,
         userId: options.userId,
-        verificationToken: options.verificationToken,
         attempts: {
-          ownership: { status: 'pending' },
           spf: { status: 'pending' },
           dkim: { status: 'pending' },
           dmarc: { status: 'pending' }
@@ -78,7 +73,6 @@ export class DomainVerificationLogger {
         domain_id: verificationAttempt.domainId,
         domain_name: verificationAttempt.domainName,
         user_id: verificationAttempt.userId,
-        verification_token: verificationAttempt.verificationToken,
         attempts: JSON.stringify(verificationAttempt.attempts),
         overall_status: verificationAttempt.overallStatus,
         start_time: verificationAttempt.startTime,
@@ -110,7 +104,7 @@ export class DomainVerificationLogger {
   }
 
   // Log resultado individual de verificação (SPF, DKIM, etc.)
-  public async logVerificationStep(logId: number, step: 'ownership' | 'spf' | 'dkim' | 'dmarc', result: {
+  public async logVerificationStep(logId: number, step: 'spf' | 'dkim' | 'dmarc', result: {
     status: 'success' | 'failed';
     error?: string;
     recordFound?: string;

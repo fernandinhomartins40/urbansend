@@ -45,12 +45,6 @@ export interface DNSInstructions {
     priority: number;
     description: string;
   };
-  verification: {
-    record: string;
-    value: string;
-    priority: number;
-    description: string;
-  };
 }
 
 export interface DomainSetupResult {
@@ -76,7 +70,6 @@ export interface VerificationResult {
     spf: DNSVerificationResult;
     dkim: DNSVerificationResult;
     dmarc: DNSVerificationResult;
-    verification: DNSVerificationResult;
   };
   verified_at: Date;
   nextSteps: string[];
@@ -192,7 +185,6 @@ export class DomainSetupService {
       // 7. Criar instruções DNS detalhadas
       const dnsInstructions = this.createDNSInstructions(
         normalizedDomain,
-        verificationToken,
         dkimKeys.publicKey
       );
 
@@ -252,23 +244,22 @@ export class DomainSetupService {
         isVerified: domain.is_verified
       });
 
-      // Executar verificações DNS em paralelo
-      const [spfResult, dkimResult, dmarcResult, verificationResult] = await Promise.allSettled([
+      // Executar verificações DNS essenciais em paralelo (SPF+DKIM+DMARC)
+      const [spfResult, dkimResult, dmarcResult] = await Promise.allSettled([
         this.verifySpfRecord(domain.domain_name),
         this.verifyDkimRecord(domain.domain_name, domain.dkim_selector),
-        this.verifyDmarcRecord(domain.domain_name),
-        this.verifyDomainOwnership(domain.domain_name, domain.verification_token)
+        this.verifyDmarcRecord(domain.domain_name)
       ]);
 
-      // Processar resultados
+      // Processar resultados (apenas registros essenciais)
       const results = {
         spf: this.processVerificationResult(spfResult, 'SPF'),
         dkim: this.processVerificationResult(dkimResult, 'DKIM'),
-        dmarc: this.processVerificationResult(dmarcResult, 'DMARC'),
-        verification: this.processVerificationResult(verificationResult, 'Domain Verification')
+        dmarc: this.processVerificationResult(dmarcResult, 'DMARC')
       };
 
-      const all_passed = Object.values(results).every(r => r.valid);
+      // Domínio aprovado quando SPF+DKIM+DMARC estão válidos
+      const all_passed = results.spf.valid && results.dkim.valid && results.dmarc.valid;
 
       logger.info('DNS verification completed', {
         userId,
@@ -278,8 +269,7 @@ export class DomainSetupService {
         results: {
           spf: results.spf.valid,
           dkim: results.dkim.valid,
-          dmarc: results.dmarc.valid,
-          verification: results.verification.valid
+          dmarc: results.dmarc.valid
         }
       });
 
@@ -515,7 +505,7 @@ export class DomainSetupService {
    * @param dkimPublicKey - Chave pública DKIM
    * @returns Instruções DNS estruturadas
    */
-  private createDNSInstructions(domain: string, verificationToken: string, dkimPublicKey: string): DNSInstructions {
+  private createDNSInstructions(domain: string, dkimPublicKey: string): DNSInstructions {
     return {
       spf: {
         record: `${domain}`,
@@ -535,12 +525,6 @@ export class DomainSetupService {
         priority: 3,
         description: 'DMARC policy instructs receivers how to handle emails that fail SPF/DKIM checks'
       },
-      verification: {
-        record: `ultrazend-verification.${domain}`,
-        value: verificationToken,
-        priority: 0,
-        description: 'Temporary verification record to prove domain ownership (can be removed after verification)'
-      }
     };
   }
 
@@ -554,13 +538,12 @@ export class DomainSetupService {
     return [
       '1. Access your domain registrar or DNS hosting provider (GoDaddy, Cloudflare, etc.)',
       '2. Navigate to DNS management or DNS records section',
-      '3. Add the verification TXT record first to prove ownership',
-      '4. Add the SPF TXT record to authorize email sending',
-      '5. Add the DKIM TXT record for email authentication', 
-      '6. Add the DMARC TXT record for email policy',
-      '7. Wait 5-15 minutes for DNS propagation',
-      '8. Click "Verify DNS Records" to complete setup',
-      '9. Once verified, your domain is ready to send authenticated emails!'
+      '3. Add the SPF TXT record to authorize email sending',
+      '4. Add the DKIM TXT record for email authentication', 
+      '5. Add the DMARC TXT record for email policy',
+      '6. Wait 5-15 minutes for DNS propagation',
+      '7. Click "Verify DNS Records" to complete setup',
+      '8. Once verified, your domain is ready to send authenticated emails!'
     ];
   }
 
@@ -821,10 +804,6 @@ export class DomainSetupService {
    */
   private generateNextSteps(results: VerificationResult['results']): string[] {
     const steps: string[] = [];
-
-    if (!results.verification.valid) {
-      steps.push('Add the verification TXT record to prove domain ownership');
-    }
 
     if (!results.spf.valid) {
       steps.push('Configure SPF record to authorize UltraZend servers');

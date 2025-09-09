@@ -3,7 +3,6 @@ import db from '../config/database';
 
 export interface DomainVerificationConfig {
   domain: string;
-  verificationToken: string;
   dkimSelector: string;
   userId: number;
 }
@@ -11,11 +10,6 @@ export interface DomainVerificationConfig {
 export interface VerificationResult {
   success: boolean;
   domain: string;
-  ownership: {
-    verified: boolean;
-    error?: string;
-    record?: string;
-  };
   spf: {
     verified: boolean;
     error?: string;
@@ -42,7 +36,6 @@ export interface DomainStatus {
   spf_enabled: boolean;
   dkim_enabled: boolean;
   dmarc_enabled: boolean;
-  verification_token: string;
   dkim_selector: string;
   last_verification_attempt?: Date;
   verification_errors?: string;
@@ -92,7 +85,7 @@ export class DomainVerificationService {
   }
 
   public async verifyDomain(config: DomainVerificationConfig): Promise<VerificationResult> {
-    const { domain, verificationToken, dkimSelector } = config;
+    const { domain, dkimSelector } = config;
     
     this.logVerificationAttempt(domain, 'START_VERIFICATION', 'success');
 
@@ -106,7 +99,6 @@ export class DomainVerificationService {
     const result: VerificationResult = {
       success: false,
       domain,
-      ownership: { verified: false },
       spf: { verified: false },
       dkim: { verified: false },
       dmarc: { verified: false },
@@ -124,29 +116,20 @@ export class DomainVerificationService {
       }
 
       // Run all verifications in parallel for better performance
-      const [ownershipResult, spfResult, dkimResult, dmarcResult] = await Promise.all([
-        this.timeoutPromise(this.verifyOwnership(domain, verificationToken), DomainVerificationService.VERIFICATION_TIMEOUT),
+      const [spfResult, dkimResult, dmarcResult] = await Promise.all([
         this.timeoutPromise(this.verifySPF(domain), DomainVerificationService.VERIFICATION_TIMEOUT),
         this.timeoutPromise(this.verifyDKIM(domain, dkimSelector), DomainVerificationService.VERIFICATION_TIMEOUT),
         this.timeoutPromise(this.verifyDMARC(domain), DomainVerificationService.VERIFICATION_TIMEOUT)
       ]);
 
-      result.ownership = ownershipResult;
       result.spf = spfResult;
       result.dkim = dkimResult;
       result.dmarc = dmarcResult;
 
-      // Overall success if at least ownership is verified
-      result.success = result.ownership.verified;
+      // Overall success if SPF, DKIM and DMARC are all verified
+      result.success = result.spf.verified && result.dkim.verified && result.dmarc.verified;
 
       // Log individual results
-      this.logVerificationAttempt(
-        domain, 
-        'OWNERSHIP_CHECK', 
-        result.ownership.verified ? 'success' : 'error',
-        result.ownership.error
-      );
-
       this.logVerificationAttempt(
         domain, 
         'SPF_CHECK', 
@@ -199,31 +182,6 @@ export class DomainVerificationService {
     ]);
   }
 
-  private async verifyOwnership(
-    domain: string, 
-    verificationToken: string
-  ): Promise<VerificationResult['ownership']> {
-    try {
-      const isVerified = await DNSUtils.verifyDomainOwnership(domain, verificationToken);
-      
-      if (isVerified) {
-        return {
-          verified: true,
-          record: `_ultrazend-verification.${domain} TXT "ultrazend-verification=${verificationToken}"`
-        };
-      } else {
-        return {
-          verified: false,
-          error: 'Verification TXT record not found or incorrect'
-        };
-      }
-    } catch (error: any) {
-      return {
-        verified: false,
-        error: `Ownership verification error: ${error.message}`
-      };
-    }
-  }
 
   private async verifySPF(domain: string): Promise<VerificationResult['spf']> {
     try {
@@ -285,7 +243,7 @@ export class DomainVerificationService {
   ): Promise<void> {
     try {
       const updateData = {
-        is_verified: verificationResult.ownership.verified,
+        is_verified: verificationResult.success,
         spf_enabled: verificationResult.spf.verified,
         dkim_enabled: verificationResult.dkim.verified,
         dmarc_enabled: verificationResult.dmarc.verified,
@@ -296,9 +254,9 @@ export class DomainVerificationService {
         updated_at: new Date()
       };
 
-      // Only set verified_at if ownership is verified and wasn't verified before
+      // Only set verified_at if domain is verified and wasn't verified before
       const currentDomain = await db('domains').where('id', domainId).first();
-      if (verificationResult.ownership.verified && !currentDomain?.is_verified) {
+      if (verificationResult.success && !currentDomain?.is_verified) {
         (updateData as any).verified_at = new Date();
       }
 
@@ -333,7 +291,6 @@ export class DomainVerificationService {
 
       const config: DomainVerificationConfig = {
         domain: domain.domain_name,
-        verificationToken: domain.verification_token,
         dkimSelector: domain.dkim_selector || 'default',
         userId: domain.user_id
       };
@@ -367,7 +324,6 @@ export class DomainVerificationService {
           'spf_enabled',
           'dkim_enabled',
           'dmarc_enabled',
-          'verification_token',
           'dkim_selector',
           'last_verification_attempt',
           'verification_errors'
@@ -391,7 +347,6 @@ export class DomainVerificationService {
   public async getDNSInstructions(domainId: number): Promise<{
     domain: string;
     instructions: {
-      ownership: string;
       spf: string;
       dkim: string;
       dmarc: string;
@@ -409,7 +364,6 @@ export class DomainVerificationService {
       return {
         domain: domain.domain_name,
         instructions: {
-          ownership: `_ultrazend-verification.${domain.domain_name} TXT "ultrazend-verification=${domain.verification_token}"`,
           spf: `${domain.domain_name} TXT "v=spf1 include:ultrazend.com.br ~all"`,
           dkim: `${dkimSelector}._domainkey.${domain.domain_name} TXT "v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY_HERE"`,
           dmarc: `_dmarc.${domain.domain_name} TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@ultrazend.com.br"`

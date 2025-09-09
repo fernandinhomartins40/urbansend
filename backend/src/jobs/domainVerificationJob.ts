@@ -337,7 +337,6 @@ export class DomainVerificationJob {
         domain.domain_name,
         {
           userId: domain.user_id,
-          verificationToken: domain.verification_token,
           isAutomatedVerification: true,
           jobId,
           retryCount: 0
@@ -348,12 +347,6 @@ export class DomainVerificationJob {
       const verificationResult = await this.verificationService.verifyAndUpdateDomain(domain.id);
 
       // Log de cada step
-      await domainVerificationLogger.logVerificationStep(logId, 'ownership', {
-        status: verificationResult.ownership.verified ? 'success' : 'failed',
-        error: verificationResult.ownership.error,
-        recordFound: verificationResult.ownership.record
-      });
-
       await domainVerificationLogger.logVerificationStep(logId, 'spf', {
         status: verificationResult.spf.verified ? 'success' : 'failed',
         error: verificationResult.spf.error,
@@ -374,16 +367,15 @@ export class DomainVerificationJob {
 
       // Determinar status geral
       const verifiedCount = [
-        verificationResult.ownership.verified,
         verificationResult.spf.verified,
         verificationResult.dkim.verified,
         verificationResult.dmarc.verified
       ].filter(Boolean).length;
 
       let overallStatus: 'verified' | 'failed' | 'partial';
-      if (verificationResult.ownership.verified && verifiedCount >= 3) {
+      if (verifiedCount === 3) {
         overallStatus = 'verified';
-      } else if (verificationResult.ownership.verified || verifiedCount > 0) {
+      } else if (verifiedCount > 0) {
         overallStatus = 'partial';
       } else {
         overallStatus = 'failed';
