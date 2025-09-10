@@ -432,6 +432,16 @@ ssh $SERVER "
     done
     
     echo '✅ Migrations e tabelas validadas com sucesso'
+    
+    # 🧹 CRITICAL: Clear Redis queue to remove orphaned emails from previous deploy
+    echo '🧹 Limpando fila Redis para remover emails órfãos...'
+    if systemctl is-active redis-server >/dev/null 2>&1; then
+        echo 'Redis ativo - limpando todas as filas de email órfãos'
+        redis-cli flushdb >/dev/null 2>&1 || echo 'Redis flush com warnings'
+        echo '✅ Redis limpo - emails órfãos do deploy anterior removidos'
+    else
+        echo '⚠️ Redis inativo - não foi possível limpar filas'
+    fi
 "
 
 # 7. ENHANCED NGINX CONFIGURATION WITH HTTPS
