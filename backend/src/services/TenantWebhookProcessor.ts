@@ -12,19 +12,19 @@ import db from '../config/database';
 import axios from 'axios';
 
 export interface WebhookJobData {
-  userId: number;
+  tenantId: number;
+  jobId: string;
+  createdAt: Date;
+  metadata?: any;
   webhookId?: string;
   eventType: string;
   url: string;
+  method: string;
   payload: Record<string, any>;
   headers?: Record<string, string>;
-  retryAttempt?: number;
+  retryCount?: number;
   maxRetries?: number;
-  tenantContext?: {
-    userId: number;
-    domain: string;
-    plan: string;
-  };
+  entityId: number;
 }
 
 export class TenantWebhookProcessor {
@@ -38,17 +38,17 @@ export class TenantWebhookProcessor {
    * Processa job de webhook com isolamento completo de tenant
    */
   async processWebhookJob(job: Job<WebhookJobData>): Promise<void> {
-    const { userId, webhookId, eventType, url } = job.data;
+    const { tenantId, webhookId, eventType, url } = job.data;
 
     try {
       // 🔒 STEP 1: Validar contexto do tenant
-      const tenantContext = await this.tenantContextService.getTenantContext(userId);
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
       if (!tenantContext) {
-        throw new Error(`Tenant context não encontrado para usuário ${userId}`);
+        throw new Error(`Tenant context não encontrado para tenant ${tenantId}`);
       }
 
       logger.info('🔒 Iniciando processamento de webhook para tenant', {
-        userId,
+        tenantId,
         webhookId,
         eventType,
         url,
@@ -58,9 +58,9 @@ export class TenantWebhookProcessor {
 
       // 🔒 STEP 2: Validar se o webhook pertence ao tenant
       if (webhookId) {
-        const isWebhookValid = await this.validateWebhookOwnership(userId, webhookId);
+        const isWebhookValid = await this.validateWebhookOwnership(tenantId, webhookId);
         if (!isWebhookValid) {
-          throw new Error(`Usuário ${userId} não possui webhook ${webhookId}`);
+          throw new Error(`Tenant ${tenantId} não possui webhook ${webhookId}`);
         }
       }
 

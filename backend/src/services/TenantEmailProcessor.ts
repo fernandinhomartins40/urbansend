@@ -6,212 +6,244 @@
  */
 
 import { Job } from 'bull';
-import { TenantContextService } from './TenantContextService';
+import { TenantContextService, TenantContext } from './TenantContextService';
+import { DomainValidator } from './DomainValidator';
+import { MultiDomainDKIMManager } from './MultiDomainDKIMManager';
+import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import db from '../config/database';
+import { EmailJobData } from './TenantQueueManager';
 
-export interface EmailJobData {
-  userId: number;
-  emailId: string;
-  recipientEmail: string;
-  subject: string;
-  htmlContent?: string;
-  textContent?: string;
-  fromDomain: string;
-  priority?: 'high' | 'normal' | 'low';
-  tenantContext?: {
-    userId: number;
-    domain: string;
-    plan: string;
-  };
+export interface EmailProcessingResult {
+  success: boolean;
+  messageId?: string;
+  errorMessage?: string;
+  deliveryTime?: number;
 }
 
 export class TenantEmailProcessor {
   private tenantContextService: TenantContextService;
+  private domainValidator: DomainValidator;
+  private dkimManager: MultiDomainDKIMManager;
+  private smtpService: SMTPDeliveryService;
 
   constructor() {
     this.tenantContextService = TenantContextService.getInstance();
+    this.domainValidator = new DomainValidator();
+    this.dkimManager = new MultiDomainDKIMManager();
+    this.smtpService = new SMTPDeliveryService();
   }
 
   /**
    * Processa job de email com isolamento completo de tenant
    */
-  async processEmailJob(job: Job<EmailJobData>): Promise<void> {
-    const { userId, emailId, fromDomain } = job.data;
+  async processEmailJob(job: Job<EmailJobData>): Promise<EmailProcessingResult> {
+    const startTime = Date.now();
+    const { tenantId, emailId, from, to, subject, html, text, priority } = job.data;
 
     try {
-      // 🔒 STEP 1: Validar contexto do tenant
-      const tenantContext = await this.tenantContextService.getTenantContext(userId);
-      if (!tenantContext) {
-        throw new Error(`Tenant context não encontrado para usuário ${userId}`);
-      }
-
-      logger.info('🔒 Iniciando processamento de email para tenant', {
-        userId,
+      logger.info('🚀 Processando job de email Bull', {
+        jobId: job.id,
+        tenantId,
         emailId,
-        domain: fromDomain,
-        plan: tenantContext.plan,
+        from,
+        to,
+        priority,
         queueName: job.queue.name
       });
 
+      // 🔒 STEP 1: Validar contexto do tenant
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
+      if (!tenantContext || !tenantContext.isActive) {
+        throw new Error(`Tenant ${tenantId} não está ativo ou não existe`);
+      }
+
       // 🔒 STEP 2: Validar propriedade do domínio
-      const isDomainValid = await this.validateDomainOwnership(userId, fromDomain);
-      if (!isDomainValid) {
-        throw new Error(`Usuário ${userId} não possui domínio ${fromDomain}`);
+      const fromDomain = this.extractDomain(from);
+      const domainOwned = tenantContext.verifiedDomains.some(
+        domain => domain.domainName === fromDomain && domain.isVerified
+      );
+
+      if (!domainOwned) {
+        throw new Error(`Domínio ${fromDomain} não pertence ao tenant ${tenantId}`);
       }
 
       // 🔒 STEP 3: Aplicar rate limiting por tenant
-      const canSend = await this.checkTenantRateLimit(tenantContext);
-      if (!canSend) {
-        throw new Error(`Rate limit excedido para tenant ${userId}`);
-      }
-
-      // 🔒 STEP 4: Processar email com isolamento
-      await this.processEmailWithIsolation(job.data, tenantContext);
-
-      // 🔒 STEP 5: Atualizar métricas por tenant
-      await this.updateTenantMetrics(userId, 'email_sent');
-
-      logger.info('✅ Email processado com sucesso para tenant', {
-        userId,
-        emailId,
-        domain: fromDomain
-      });
-
-    } catch (error) {
-      logger.error('❌ Erro no processamento de email para tenant', {
-        userId,
-        emailId,
-        error: error instanceof Error ? error.message : String(error)
-      });
-
-      // Atualizar métricas de erro por tenant
-      await this.updateTenantMetrics(userId, 'email_failed');
-      
-      throw error;
-    }
-  }
-
-  /**
-   * Valida se o usuário possui o domínio especificado
-   */
-  private async validateDomainOwnership(userId: number, domain: string): Promise<boolean> {
-    try {
-      const domainRecord = await db('domains')
-        .where('user_id', userId)
-        .where('domain', domain)
-        .where('status', 'verified')
-        .first();
-
-      return !!domainRecord;
-    } catch (error) {
-      logger.error('Erro na validação de propriedade do domínio', {
-        userId,
-        domain,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return false;
-    }
-  }
-
-  /**
-   * Verifica rate limiting específico do tenant
-   */
-  private async checkTenantRateLimit(tenantContext: any): Promise<boolean> {
-    try {
-      const validation = await this.tenantContextService.validateTenantOperation(
-        tenantContext.userId,
+      const canSend = await this.tenantContextService.validateTenantOperation(
+        tenantId,
         {
           operation: 'send_email',
-          resource: 'domain',
-          resourceId: 0 // Will be validated by domain ownership check
+          resource: fromDomain,
+          metadata: { from, to, subject }
         }
       );
 
-      return validation.allowed;
-    } catch (error) {
-      logger.error('Erro na verificação de rate limit do tenant', {
-        userId: tenantContext.userId,
-        error: error instanceof Error ? error.message : String(error)
+      if (!canSend.allowed) {
+        throw new Error(`Rate limit excedido: ${canSend.reason}`);
+      }
+
+      // 🔒 STEP 4: Obter configuração DKIM
+      const dkimConfig = tenantContext.dkimConfigurations.find(
+        config => config.domainName === fromDomain && config.isActive
+      );
+
+      if (!dkimConfig) {
+        throw new Error(`Configuração DKIM não encontrada para domínio ${fromDomain}`);
+      }
+
+      // 🔒 STEP 5: Assinar email com DKIM
+      const signedEmail = await this.dkimManager.signEmail({
+        from,
+        to,
+        subject,
+        html,
+        text,
+        messageId: `email_${job.id}_${Date.now()}`
       });
-      return false;
-    }
-  }
 
-  /**
-   * Processa o email com isolamento completo de tenant
-   */
-  private async processEmailWithIsolation(
-    emailData: EmailJobData,
-    tenantContext: any
-  ): Promise<void> {
-    const { userId, emailId } = emailData;
+      // 🔒 STEP 6: Entregar email via SMTP
+      const messageId = signedEmail.messageId || `email_${job.id}_${Date.now()}`;
+      const deliverySuccess = await this.smtpService.deliverEmail({
+        from: signedEmail.from,
+        to: signedEmail.to,
+        subject: signedEmail.subject,
+        html: signedEmail.html,
+        text: signedEmail.text || text,
+        message_id: messageId,
+        headers: signedEmail.headers
+      });
 
-    try {
-      // Atualizar status no banco com isolamento
-      await db('email_delivery_queue')
-        .where('id', emailId)
-        .where('user_id', userId) // 🔒 CRÍTICO: Isolamento por user_id
-        .update({
-          status: 'processing',
-          attempts: db.raw('attempts + 1'),
-          last_attempt: new Date(),
-          updated_at: new Date()
-        });
+      if (!deliverySuccess) {
+        throw new Error('SMTP delivery failed');
+      }
 
-      // Simular processamento de entrega
-      await this.simulateEmailDelivery(emailData);
+      // 🔒 STEP 7: Registrar entrega bem-sucedida
+      await this.recordEmailDelivery(job.data, 'delivered', messageId);
 
-      // Atualizar status final com isolamento
-      await db('email_delivery_queue')
-        .where('id', emailId)
-        .where('user_id', userId) // 🔒 CRÍTICO: Isolamento por user_id
-        .update({
-          status: 'sent',
-          sent_at: new Date(),
-          updated_at: new Date()
-        });
+      // 🔒 STEP 8: Atualizar métricas por tenant
+      await this.updateTenantMetrics(tenantId, 'email_sent');
+
+      const processingTime = Date.now() - startTime;
+
+      logger.info('✅ Email Bull job processado com sucesso', {
+        jobId: job.id,
+        tenantId,
+        emailId,
+        messageId: deliveryResult.messageId,
+        from,
+        to,
+        processingTime
+      });
+
+      return {
+        success: true,
+        messageId: messageId,
+        deliveryTime: processingTime
+      };
 
     } catch (error) {
-      // Atualizar status de erro com isolamento
-      await db('email_delivery_queue')
-        .where('id', emailId)
-        .where('user_id', userId) // 🔒 CRÍTICO: Isolamento por user_id
-        .update({
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : String(error),
-          failed_at: new Date(),
-          updated_at: new Date()
-        });
-      
+      const processingTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+
+      logger.error('❌ Falha no processamento Bull job', {
+        jobId: job.id,
+        tenantId,
+        emailId,
+        from,
+        to,
+        error: errorMessage,
+        processingTime
+      });
+
+      // Registrar falha
+      await this.recordEmailDelivery(job.data, 'failed', undefined, errorMessage);
+      await this.updateTenantMetrics(tenantId, 'email_failed');
+
       throw error;
     }
   }
 
   /**
-   * Simula entrega do email (substituir por integração real)
+   * Registra entrega ou falha de email
    */
-  private async simulateEmailDelivery(emailData: EmailJobData): Promise<void> {
-    // Simular delay de processamento
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    logger.info('📧 Email entregue (simulação)', {
-      emailId: emailData.emailId,
-      recipient: emailData.recipientEmail,
-      domain: emailData.fromDomain
-    });
+  private async recordEmailDelivery(
+    jobData: EmailJobData,
+    status: 'delivered' | 'failed' | 'processing',
+    messageId?: string,
+    errorMessage?: string
+  ): Promise<void> {
+    try {
+      // Verificar se já existe um registro para este email
+      const existing = await db('emails')
+        .where('email_id', jobData.emailId)
+        .where('user_id', jobData.tenantId)
+        .first();
+
+      if (existing) {
+        // Atualizar registro existente
+        await db('emails')
+          .where('id', existing.id)
+          .update({
+            status,
+            message_id: messageId || existing.message_id,
+            error_message: errorMessage,
+            delivered_at: status === 'delivered' ? new Date() : null,
+            updated_at: new Date()
+          });
+      } else {
+        // Criar novo registro
+        await db('emails').insert({
+          email_id: jobData.emailId,
+          user_id: jobData.tenantId,
+          message_id: messageId || `email_${jobData.emailId}_${Date.now()}`,
+          from_address: jobData.from,
+          to_address: jobData.to,
+          subject: jobData.subject,
+          html_body: jobData.html,
+          text_body: jobData.text,
+          status,
+          error_message: errorMessage,
+          priority: jobData.priority || 0,
+          delivered_at: status === 'delivered' ? new Date() : null,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      }
+
+      logger.debug('📝 Registro de email atualizado', {
+        emailId: jobData.emailId,
+        tenantId: jobData.tenantId,
+        status,
+        messageId
+      });
+
+    } catch (error) {
+      logger.error('❌ Falha ao registrar entrega de email', {
+        emailId: jobData.emailId,
+        tenantId: jobData.tenantId,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    }
   }
+
+  /**
+   * Extrai domínio do email
+   */
+  private extractDomain(email: string): string {
+    return email.split('@')[1] || '';
+  }
+
 
   /**
    * Atualiza métricas específicas do tenant
    */
-  private async updateTenantMetrics(userId: number, metricType: string): Promise<void> {
+  private async updateTenantMetrics(tenantId: number, metricType: string): Promise<void> {
     try {
       const now = new Date();
       
-      // Buscar ou criar registro de métrica
+      // Buscar ou criar registro de métrica na tabela de analytics
       const existingMetric = await db('email_analytics')
-        .where('user_id', userId)
+        .where('user_id', tenantId)
         .where('date', now.toISOString().split('T')[0])
         .first();
 
@@ -230,12 +262,12 @@ export class TenantEmailProcessor {
 
         await db('email_analytics')
           .where('id', existingMetric.id)
-          .where('user_id', userId) // 🔒 CRÍTICO: Isolamento por user_id
+          .where('user_id', tenantId) // 🔒 CRÍTICO: Isolamento por tenant
           .update(updateData);
       } else {
         // Criar nova métrica
         const newMetric: Record<string, any> = {
-          user_id: userId,
+          user_id: tenantId,
           date: now.toISOString().split('T')[0],
           sent_count: metricType === 'email_sent' ? 1 : 0,
           failed_count: metricType === 'email_failed' ? 1 : 0,
@@ -246,88 +278,17 @@ export class TenantEmailProcessor {
         await db('email_analytics').insert(newMetric);
       }
 
-      logger.debug('Métricas do tenant atualizadas', {
-        userId,
+      logger.debug('📊 Métricas do tenant atualizadas', {
+        tenantId,
         metricType
       });
 
     } catch (error) {
-      logger.error('Erro ao atualizar métricas do tenant', {
-        userId,
+      logger.error('❌ Erro ao atualizar métricas do tenant', {
+        tenantId,
         metricType,
         error: error instanceof Error ? error.message : String(error)
       });
     }
-  }
-
-  /**
-   * Processa múltiplos emails para um tenant específico
-   */
-  async processEmailsForTenant(userId: number, limit: number = 10): Promise<number> {
-    try {
-      // Buscar emails pendentes APENAS do tenant especificado
-      const pendingEmails = await db('email_delivery_queue')
-        .where('user_id', userId) // 🔒 CRÍTICO: Isolamento por user_id
-        .where('status', 'pending')
-        .whereNull('next_attempt')
-        .orWhere('next_attempt', '<=', new Date())
-        .orderBy('created_at', 'asc')
-        .limit(limit);
-
-      let processedCount = 0;
-
-      for (const email of pendingEmails) {
-        try {
-          const jobData: EmailJobData = {
-            userId: email.user_id,
-            emailId: email.id,
-            recipientEmail: email.to_email,
-            subject: email.subject,
-            htmlContent: email.html_body,
-            textContent: email.text_body,
-            fromDomain: this.extractDomainFromEmail(email.from_email),
-            priority: 'normal'
-          };
-
-          // Criar job mock para processamento
-          const mockJob = {
-            data: jobData,
-            queue: { name: `email-processing:user:${userId}` }
-          } as Job<EmailJobData>;
-
-          await this.processEmailJob(mockJob);
-          processedCount++;
-
-        } catch (error) {
-          logger.error('Erro ao processar email individual', {
-            emailId: email.id,
-            userId,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
-
-      logger.info('Processamento em lote concluído para tenant', {
-        userId,
-        processedCount,
-        totalPending: pendingEmails.length
-      });
-
-      return processedCount;
-
-    } catch (error) {
-      logger.error('Erro no processamento em lote para tenant', {
-        userId,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return 0;
-    }
-  }
-
-  /**
-   * Extrai domínio do email
-   */
-  private extractDomainFromEmail(email: string): string {
-    return email.split('@')[1] || '';
   }
 }

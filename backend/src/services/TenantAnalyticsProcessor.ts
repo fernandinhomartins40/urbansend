@@ -11,8 +11,13 @@ import { logger } from '../config/logger';
 import db from '../config/database';
 
 export interface AnalyticsJobData {
-  userId: number;
+  tenantId: number;
+  jobId: string;
+  createdAt: Date;
+  metadata?: any;
   eventType: string;
+  entityId: number;
+  entityType: string;
   eventData: Record<string, any>;
   timestamp: Date;
   sessionId?: string;
@@ -20,11 +25,6 @@ export interface AnalyticsJobData {
   userAgent?: string;
   campaignId?: string;
   emailId?: string;
-  tenantContext?: {
-    userId: number;
-    domain: string;
-    plan: string;
-  };
 }
 
 export class TenantAnalyticsProcessor {
@@ -38,17 +38,17 @@ export class TenantAnalyticsProcessor {
    * Processa job de analytics com isolamento completo de tenant
    */
   async processAnalyticsJob(job: Job<AnalyticsJobData>): Promise<void> {
-    const { userId, eventType, eventData } = job.data;
+    const { tenantId, eventType, eventData } = job.data;
 
     try {
       // 🔒 STEP 1: Validar contexto do tenant
-      const tenantContext = await this.tenantContextService.getTenantContext(userId);
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
       if (!tenantContext) {
-        throw new Error(`Tenant context não encontrado para usuário ${userId}`);
+        throw new Error(`Tenant context não encontrado para tenant ${tenantId}`);
       }
 
       logger.debug('🔒 Processando analytics para tenant', {
-        userId,
+        tenantId,
         eventType,
         plan: tenantContext.plan,
         queueName: job.queue.name
@@ -57,7 +57,7 @@ export class TenantAnalyticsProcessor {
       // 🔒 STEP 2: Validar se o evento pertence ao tenant
       const isEventValid = await this.validateEventOwnership(job.data, tenantContext);
       if (!isEventValid) {
-        throw new Error(`Evento ${eventType} não pertence ao tenant ${userId}`);
+        throw new Error(`Evento ${eventType} não pertence ao tenant ${tenantId}`);
       }
 
       // 🔒 STEP 3: Processar analytics com isolamento
