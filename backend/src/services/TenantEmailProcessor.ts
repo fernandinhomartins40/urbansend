@@ -121,10 +121,14 @@ export class TenantEmailProcessor {
     try {
       const validation = await this.tenantContextService.validateTenantOperation(
         tenantContext.userId,
-        'send_email'
+        {
+          operation: 'send_email',
+          resource: 'domain',
+          resourceId: 0 // Will be validated by domain ownership check
+        }
       );
 
-      return validation;
+      return validation.allowed;
     } catch (error) {
       logger.error('Erro na verificação de rate limit do tenant', {
         userId: tenantContext.userId,

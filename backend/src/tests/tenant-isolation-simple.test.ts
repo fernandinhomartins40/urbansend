@@ -116,16 +116,24 @@ describe('🔥 ISOLAMENTO CRÍTICO DE TENANTS - SaaS (CORE)', () => {
     it('deve validar operação apenas para o tenant correto', async () => {
       const validA = await tenantService.validateTenantOperation(
         TENANT_A.userId, 
-        'send_email'
+        {
+          operation: 'send_email',
+          resource: 'domain',
+          resourceId: 2001
+        }
       );
       
       const validB = await tenantService.validateTenantOperation(
         TENANT_B.userId,
-        'send_email'
+        {
+          operation: 'send_email',
+          resource: 'domain',
+          resourceId: 2002
+        }
       );
 
-      expect(validA).toBe(true);
-      expect(validB).toBe(true);
+      expect(validA.allowed).toBe(true);
+      expect(validB.allowed).toBe(true);
 
       // Verificar que validação é específica por tenant
       expect(typeof validA).toBe('boolean');
@@ -276,7 +284,7 @@ describe('🔥 ISOLAMENTO CRÍTICO DE TENANTS - SaaS (CORE)', () => {
       // Verificar que limites existem e são diferentes
       expect(contextA.rateLimits).toBeDefined();
       expect(contextB.rateLimits).toBeDefined();
-      expect(contextA.rateLimits.emailsPerHour).not.toBe(contextB.rateLimits.emailsPerHour);
+      expect(contextA.rateLimits.emailsSending.perHour).not.toBe(contextB.rateLimits.emailsSending.perHour);
     });
   });
 

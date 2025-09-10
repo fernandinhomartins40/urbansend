@@ -127,10 +127,14 @@ export class TenantWebhookProcessor {
     try {
       const validation = await this.tenantContextService.validateTenantOperation(
         tenantContext.userId,
-        'send_webhook'
+        {
+          operation: 'send_webhook',
+          resource: 'webhook',
+          resourceId: 0
+        }
       );
 
-      return validation;
+      return validation.allowed;
     } catch (error) {
       logger.error('Erro na verificação de rate limit do tenant para webhook', {
         userId: tenantContext.userId,
