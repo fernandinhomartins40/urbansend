@@ -81,7 +81,7 @@ export class DomainVerificationJob {
   }
 
   // Processar job de verificação em lote
-  private async processDomainVerificationJob(job: Job<DomainVerificationJobData>): Promise<DomainVerificationResult> {
+  public async processDomainVerificationJob(job: Job<DomainVerificationJobData>): Promise<DomainVerificationResult> {
     const startTime = Date.now();
     const jobData = job.data || {};
     

@@ -286,9 +286,9 @@ export class TenantQueueManager {
 
       // Importar e usar EmailProcessor de forma tenant-aware
       const { TenantEmailProcessor } = await import('./TenantEmailProcessor');
-      const emailProcessor = new TenantEmailProcessor(context);
+      const emailProcessor = new TenantEmailProcessor();
       
-      const result = await emailProcessor.processEmail(job.data);
+      const result = await emailProcessor.processEmailJob(job);
 
       logger.info('Email job processed successfully', {
         tenantId,
@@ -324,9 +324,9 @@ export class TenantQueueManager {
 
       // Importar e usar WebhookProcessor de forma tenant-aware
       const { TenantWebhookProcessor } = await import('./TenantWebhookProcessor');
-      const webhookProcessor = new TenantWebhookProcessor(context);
+      const webhookProcessor = new TenantWebhookProcessor();
       
-      const result = await webhookProcessor.processWebhook(job.data);
+      const result = await webhookProcessor.processWebhookJob(job);
 
       logger.info('Webhook job processed successfully', {
         tenantId,
@@ -361,9 +361,9 @@ export class TenantQueueManager {
 
       // Importar e usar AnalyticsProcessor de forma tenant-aware
       const { TenantAnalyticsProcessor } = await import('./TenantAnalyticsProcessor');
-      const analyticsProcessor = new TenantAnalyticsProcessor(context);
+      const analyticsProcessor = new TenantAnalyticsProcessor();
       
-      const result = await analyticsProcessor.processAnalytics(job.data);
+      const result = await analyticsProcessor.processAnalyticsJob(job);
 
       logger.debug('Analytics job processed successfully', {
         tenantId,
