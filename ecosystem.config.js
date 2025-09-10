@@ -105,6 +105,8 @@ module.exports = {
         NODE_ENV: 'production',
         REDIS_URL: 'redis://127.0.0.1:6379',
         REDIS_ENABLED: 'true', // ✅ Habilitado para workers
+        REDIS_HOST: '127.0.0.1', // ✅ Necessário para QueueService
+        REDIS_PORT: '6379', // ✅ Necessário para QueueService
         DATABASE_URL: './ultrazend.sqlite'
       },
       
@@ -133,6 +135,8 @@ module.exports = {
         NODE_ENV: 'production',
         REDIS_URL: 'redis://127.0.0.1:6379',
         REDIS_ENABLED: 'true', // ✅ Habilitado para workers
+        REDIS_HOST: '127.0.0.1', // ✅ Necessário para QueueService
+        REDIS_PORT: '6379', // ✅ Necessário para QueueService
         DATABASE_URL: './ultrazend.sqlite'
       },
       
