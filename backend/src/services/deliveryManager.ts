@@ -2,6 +2,7 @@ import { logger } from '../config/logger';
 import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';
 import { SecurityManager } from './securityManager';
+import { TenantContextService } from './TenantContextService';
 import { createTransport, Transporter, SendMailOptions } from 'nodemailer';
 import { simpleParser } from 'mailparser';
 import db from '../config/database';
@@ -61,20 +62,41 @@ export interface DeliveryQueueStats {
   averageDeliveryTime: number;
 }
 
+// 🔥 NOVA INTERFACE: Stats por tenant
+export interface TenantDeliveryStats {
+  tenantId: number;
+  pending: number;
+  processing: number;
+  delivered: number;
+  failed: number;
+  bounced: number;
+  deferred: number;
+  totalToday: number;
+  averageDeliveryTime: number;
+  rateLimitsRemaining: {
+    daily: number;
+    hourly: number;
+    perMinute: number;
+  };
+}
+
 export class DeliveryManager {
   private config: DeliveryConfig;
   private reputationManager: ReputationManager;
   private dkimManager: DKIMManager;
   private securityManager: SecurityManager;
+  private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
   private isProcessing = false;
   private activeDeliveries = 0;
   private deliveryQueue: Map<number, NodeJS.Timeout> = new Map();
   private transporter: Transporter;
+  private tenantProcessors: Map<number, NodeJS.Timeout> = new Map(); // 🔥 NOVO: Processadores por tenant
 
   constructor(
     reputationManager: ReputationManager,
     dkimManager: DKIMManager,
     securityManager: SecurityManager,
+    tenantContextService: TenantContextService, // 🔥 NOVO: Parâmetro tenant context service
     config: Partial<DeliveryConfig> = {}
   ) {
     this.config = {
@@ -92,10 +114,11 @@ export class DeliveryManager {
     this.reputationManager = reputationManager;
     this.dkimManager = dkimManager;
     this.securityManager = securityManager;
+    this.tenantContextService = tenantContextService; // 🔥 NOVO: Inicializar tenant context service
 
     this.setupTransporter();
     this.validateRequiredTables();
-    this.startDeliveryProcessor();
+    this.startTenantAwareDeliveryProcessor(); // 🔥 NOVO: Processador tenant-aware
   }
 
   private setupTransporter(): void {
@@ -116,11 +139,40 @@ export class DeliveryManager {
     });
   }
 
+  // 🔥 NOVO MÉTODO: Queue email com validação de tenant
   public async queueEmail(emailData: Partial<EmailDelivery>): Promise<number> {
     try {
+      // 🔥 CRÍTICO: Validar tenant obrigatório
+      if (!emailData.userId) {
+        throw new Error('Missing required tenant userId for email delivery');
+      }
+
       // Validar dados obrigatórios
       if (!emailData.from || !emailData.to || !emailData.subject || !emailData.body) {
         throw new Error('Missing required email fields');
+      }
+
+      // 🔥 NOVO: Validar contexto e permissões do tenant
+      const tenantContext = await this.tenantContextService.getTenantContext(emailData.userId);
+      if (!tenantContext.isActive) {
+        throw new Error(`Tenant ${emailData.userId} is inactive and cannot send emails`);
+      }
+
+      // 🔥 NOVO: Validar se tenant pode enviar este email
+      const canSendEmail = await this.tenantContextService.validateTenantOperation(
+        emailData.userId,
+        {
+          type: 'email_send',
+          data: {
+            from: emailData.from,
+            to: emailData.to,
+            domain: emailData.from.split('@')[1]
+          }
+        }
+      );
+
+      if (!canSendEmail.allowed) {
+        throw new Error(`Tenant ${emailData.userId} cannot send email: ${canSendEmail.reason}`);
       }
 
       // Gerar messageId se não fornecido
@@ -136,8 +188,8 @@ export class DeliveryManager {
         throw new Error(`Delivery blocked for domain ${domain}: ${reputationCheck.reason}`);
       }
 
-      // Determinar prioridade baseada na reputação
-      const priority = this.calculatePriority(reputationCheck, emailData.priority || 0);
+      // Determinar prioridade baseada na reputação e tenant
+      const priority = this.calculateTenantPriority(reputationCheck, tenantContext, emailData.priority || 0);
 
       // Inserir na fila de entrega
       const [deliveryId] = await db('email_delivery_queue').insert({
@@ -158,6 +210,7 @@ export class DeliveryManager {
 
       logger.info('Email queued for delivery', {
         deliveryId,
+        tenantId: emailData.userId, // 🔥 NOVO: Log do tenant
         messageId: emailData.messageId,
         from: emailData.from,
         to: emailData.to,
@@ -172,16 +225,34 @@ export class DeliveryManager {
     }
   }
 
-  public async processDelivery(deliveryId: number): Promise<DeliveryResult> {
+  // 🔥 NOVO MÉTODO: Process delivery com validação de tenant
+  public async processDelivery(deliveryId: number, tenantId?: number): Promise<DeliveryResult> {
     try {
-      // Buscar email na fila
-      const delivery = await db('email_delivery_queue')
+      // 🔥 CRÍTICO: Buscar email na fila COM validação de tenant
+      const deliveryQuery = db('email_delivery_queue')
         .where('id', deliveryId)
-        .where('status', 'pending')
-        .first();
+        .where('status', 'pending');
+
+      // Se tenantId fornecido, garantir que delivery pertence ao tenant
+      if (tenantId) {
+        deliveryQuery.where('user_id', tenantId);
+      }
+
+      const delivery = await deliveryQuery.first();
 
       if (!delivery) {
-        throw new Error(`Delivery ${deliveryId} not found or not pending`);
+        const errorMsg = tenantId 
+          ? `Delivery ${deliveryId} not found for tenant ${tenantId} or not pending`
+          : `Delivery ${deliveryId} not found or not pending`;
+        throw new Error(errorMsg);
+      }
+
+      // 🔥 NOVO: Validar contexto do tenant do delivery
+      if (delivery.user_id) {
+        const tenantContext = await this.tenantContextService.getTenantContext(delivery.user_id);
+        if (!tenantContext.isActive) {
+          throw new Error(`Tenant ${delivery.user_id} is inactive, cannot process delivery`);
+        }
       }
 
       // Marcar como processando
@@ -196,12 +267,31 @@ export class DeliveryManager {
       this.activeDeliveries++;
 
       try {
-        // Verificar reputação antes da entrega
+        // 🔥 NOVO: Verificar reputação e validação de tenant antes da entrega
         const domain = this.extractDomain(delivery.to_address);
         const reputationCheck = await this.reputationManager.checkDeliveryAllowed(domain);
 
         if (!reputationCheck.allowed) {
           throw new Error(`Delivery not allowed for domain ${domain}: ${reputationCheck.reason}`);
+        }
+
+        // 🔥 NOVO: Re-validar se tenant ainda pode enviar este email
+        if (delivery.user_id) {
+          const canStillSend = await this.tenantContextService.validateTenantOperation(
+            delivery.user_id,
+            {
+              type: 'email_send',
+              data: {
+                from: delivery.from_address,
+                to: delivery.to_address,
+                domain: delivery.from_address.split('@')[1]
+              }
+            }
+          );
+
+          if (!canStillSend.allowed) {
+            throw new Error(`Tenant ${delivery.user_id} can no longer send this email: ${canStillSend.reason}`);
+          }
         }
 
         // Assinar email com DKIM
@@ -237,6 +327,7 @@ export class DeliveryManager {
 
         logger.info('Email delivered successfully', {
           deliveryId,
+          tenantId: delivery.user_id, // 🔥 NOVO: Log do tenant
           messageId: delivery.message_id,
           to: delivery.to_address,
           deliveryTime
@@ -383,19 +474,36 @@ export class DeliveryManager {
     return email.split('@')[1] || 'unknown';
   }
 
-  private calculatePriority(reputationCheck: any, basePriority: number): number {
+  // 🔥 NOVO MÉTODO: Calcular prioridade baseada em tenant e reputação
+  private calculateTenantPriority(reputationCheck: any, tenantContext: any, basePriority: number): number {
     let priority = basePriority;
     
+    // Prioridade baseada na reputação do domínio
     if (reputationCheck.score > 0.8) {
       priority += 10; // Alta prioridade para domínios com boa reputação
     } else if (reputationCheck.score < 0.3) {
       priority -= 10; // Baixa prioridade para domínios com má reputação
     }
 
+    // 🔥 NOVO: Prioridade baseada no plano do tenant
+    if (tenantContext.plan === 'enterprise') {
+      priority += 20; // Máxima prioridade para enterprise
+    } else if (tenantContext.plan === 'professional') {
+      priority += 10; // Alta prioridade para professional
+    } else if (tenantContext.plan === 'basic') {
+      priority += 0; // Prioridade padrão para basic
+    }
+
+    // 🔥 NOVO: Ajustar prioridade baseada no histórico do tenant
+    if (tenantContext.reputation && tenantContext.reputation > 0.9) {
+      priority += 5; // Bonus para tenants com histórico excelente
+    }
+
     return Math.max(0, Math.min(100, priority));
   }
 
-  private async startDeliveryProcessor(): Promise<void> {
+  // 🔥 NOVO MÉTODO: Processador de entrega tenant-aware
+  private async startTenantAwareDeliveryProcessor(): Promise<void> {
     if (this.isProcessing) {
       return;
     }
@@ -408,27 +516,107 @@ export class DeliveryManager {
           return;
         }
 
-        // Buscar próximos emails para entrega
-        const pendingDeliveries = await db('email_delivery_queue')
-          .where('status', 'pending')
-          .where('next_attempt', '<=', new Date())
-          .orderBy('priority', 'desc')
-          .orderBy('created_at', 'asc')
-          .limit(this.config.maxConcurrentDeliveries - this.activeDeliveries)
-          .select('id');
+        // 🔥 NOVA ABORDAGEM: Descobrir tenants ativos e processar por tenant
+        const activeTenants = await this.discoverTenantsWithPendingDeliveries();
 
-        for (const delivery of pendingDeliveries) {
-          this.processDelivery(delivery.id);
+        for (const tenantId of activeTenants) {
+          if (this.activeDeliveries >= this.config.maxConcurrentDeliveries) {
+            break;
+          }
+
+          try {
+            await this.processTenantDeliveries(tenantId);
+          } catch (error) {
+            logger.error(`Error processing deliveries for tenant ${tenantId}`, { error, tenantId });
+          }
         }
 
       } catch (error) {
-        logger.error('Error in delivery processor', { error });
+        logger.error('Error in tenant-aware delivery processor', { error });
       }
     }, 5000); // Verificar a cada 5 segundos
 
-    logger.info('Delivery processor started');
+    logger.info('Tenant-aware delivery processor started');
   }
 
+  // 🔥 NOVO MÉTODO: Descobrir tenants com entregas pendentes
+  private async discoverTenantsWithPendingDeliveries(): Promise<number[]> {
+    try {
+      const tenants = await db('email_delivery_queue')
+        .distinct('user_id')
+        .where('status', 'pending')
+        .where('next_attempt', '<=', new Date())
+        .whereNotNull('user_id')
+        .pluck('user_id');
+
+      return tenants;
+    } catch (error) {
+      logger.error('Error discovering tenants with pending deliveries', { error });
+      return [];
+    }
+  }
+
+  // 🔥 NOVO MÉTODO: Processar entregas de um tenant específico
+  private async processTenantDeliveries(tenantId: number): Promise<void> {
+    try {
+      // Validar contexto do tenant primeiro
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
+      if (!tenantContext.isActive) {
+        logger.warn(`Skipping deliveries for inactive tenant ${tenantId}`);
+        return;
+      }
+
+      // Calcular limite de entregas concorrentes para este tenant
+      const tenantDeliveryLimit = this.calculateTenantDeliveryLimit(tenantContext);
+      const availableSlots = Math.min(
+        tenantDeliveryLimit,
+        this.config.maxConcurrentDeliveries - this.activeDeliveries
+      );
+
+      if (availableSlots <= 0) {
+        return;
+      }
+
+      // 🔥 CRÍTICO: Buscar entregas SOMENTE deste tenant
+      const pendingDeliveries = await db('email_delivery_queue')
+        .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
+        .where('status', 'pending')
+        .where('next_attempt', '<=', new Date())
+        .orderBy('priority', 'desc')
+        .orderBy('created_at', 'asc')
+        .limit(availableSlots)
+        .select('id');
+
+      logger.debug(`Processing ${pendingDeliveries.length} deliveries for tenant ${tenantId}`, {
+        tenantId,
+        pendingCount: pendingDeliveries.length,
+        availableSlots
+      });
+
+      for (const delivery of pendingDeliveries) {
+        this.processDelivery(delivery.id, tenantId); // Passa tenantId para validação
+      }
+
+    } catch (error) {
+      logger.error(`Error processing tenant ${tenantId} deliveries`, { error, tenantId });
+    }
+  }
+
+  // 🔥 NOVO MÉTODO: Calcular limite de entregas concorrentes por tenant
+  private calculateTenantDeliveryLimit(tenantContext: any): number {
+    switch (tenantContext.plan) {
+      case 'enterprise':
+        return 5; // 50% dos slots disponíveis para enterprise
+      case 'professional':
+        return 3; // 30% dos slots para professional  
+      case 'basic':
+        return 1; // 10% dos slots para basic
+      default:
+        return 1;
+    }
+  }
+
+  // 🔥 MÉTODO MODIFICADO: Stats globais (para admin) - mantido para compatibilidade 
   public async getStats(): Promise<DeliveryQueueStats> {
     try {
       const today = new Date();
@@ -484,16 +672,85 @@ export class DeliveryManager {
     }
   }
 
-  public async cancelDelivery(deliveryId: number): Promise<boolean> {
+  // 🔥 NOVO MÉTODO: Stats por tenant com isolamento completo
+  public async getTenantStats(tenantId: number): Promise<TenantDeliveryStats> {
     try {
-      const updated = await db('email_delivery_queue')
+      // Validar tenant primeiro
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
+      if (!tenantContext.isActive) {
+        throw new Error(`Tenant ${tenantId} is inactive`);
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const [statusCounts, totalToday, avgDeliveryTime] = await Promise.all([
+        db('email_delivery_queue')
+          .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
+          .groupBy('status')
+          .count('* as count')
+          .select('status'),
+        db('email_delivery_queue')
+          .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
+          .where('created_at', '>=', today)
+          .count('* as total')
+          .first(),
+        db('email_delivery_queue')
+          .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
+          .where('status', 'delivered')
+          .where('delivered_at', '>=', today)
+          .avg('delivery_time as avg_time')
+          .first()
+      ]);
+
+      const stats: TenantDeliveryStats = {
+        tenantId,
+        pending: 0,
+        processing: 0,
+        delivered: 0,
+        failed: 0,
+        bounced: 0,
+        deferred: 0,
+        totalToday: parseInt(String(totalToday?.total || '0')),
+        averageDeliveryTime: parseFloat(avgDeliveryTime?.avg_time || '0'),
+        rateLimitsRemaining: {
+          daily: Math.max(0, tenantContext.dailyEmailLimit - (tenantContext.dailyEmailsSent || 0)),
+          hourly: Math.max(0, tenantContext.hourlyEmailLimit - (tenantContext.hourlyEmailsSent || 0)),
+          perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0))
+        }
+      };
+
+      statusCounts.forEach(({ status, count }) => {
+        if (stats.hasOwnProperty(status)) {
+          (stats as any)[status] = parseInt(count);
+        }
+      });
+
+      return stats;
+
+    } catch (error) {
+      logger.error(`Failed to get tenant ${tenantId} delivery stats`, { error, tenantId });
+      throw error;
+    }
+  }
+
+  // 🔥 MÉTODO MODIFICADO: Cancel delivery com validação de tenant
+  public async cancelDelivery(deliveryId: number, tenantId?: number): Promise<boolean> {
+    try {
+      const query = db('email_delivery_queue')
         .where('id', deliveryId)
-        .whereIn('status', ['pending', 'deferred'])
-        .update({
-          status: 'failed',
-          error_message: 'Cancelled by user',
-          updated_at: new Date()
-        });
+        .whereIn('status', ['pending', 'deferred']);
+
+      // 🔥 NOVO: Se tenantId fornecido, garantir que delivery pertence ao tenant
+      if (tenantId) {
+        query.where('user_id', tenantId);
+      }
+
+      const updated = await query.update({
+        status: 'failed',
+        error_message: 'Cancelled by user',
+        updated_at: new Date()
+      });
 
       if (updated > 0) {
         // Cancelar timeout se existir
@@ -503,7 +760,7 @@ export class DeliveryManager {
           this.deliveryQueue.delete(deliveryId);
         }
 
-        logger.info('Delivery cancelled', { deliveryId });
+        logger.info('Delivery cancelled', { deliveryId, tenantId }); // 🔥 NOVO: Log do tenant
         return true;
       }
 
@@ -567,11 +824,17 @@ export class DeliveryManager {
     }
     this.deliveryQueue.clear();
 
+    // 🔥 NOVO: Cancelar processadores por tenant
+    for (const timeout of this.tenantProcessors.values()) {
+      clearTimeout(timeout);
+    }
+    this.tenantProcessors.clear();
+
     // Fechar transporter
     if (this.transporter) {
       this.transporter.close();
     }
 
-    logger.info('Delivery manager stopped');
+    logger.info('Tenant-aware delivery manager stopped');
   }
 }

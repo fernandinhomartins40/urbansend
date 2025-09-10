@@ -378,15 +378,22 @@ const initializeServices = async () => {
     throw error;
   }
 
-  // Step 3: Initialize services that need database tables (SEQUENTIAL)
+  // Step 3: Initialize tenant-aware services (SEQUENTIAL)
   const services = [
     {
-      name: 'Queue Service',
+      name: 'Tenant Context Service',
       init: async () => {
-        const { QueueService } = await import('./services/queueService');
-        const queueService = new QueueService();
-        const stats = await queueService.getQueueStats();
-        logger.info('✅ Queue service initialized', stats);
+        const { TenantContextService } = await import('./services/TenantContextService');
+        const tenantService = new TenantContextService();
+        logger.info('✅ Tenant Context Service initialized');
+      }
+    },
+    {
+      name: 'Tenant Queue Manager',
+      init: async () => {
+        const { TenantQueueManager } = await import('./services/TenantQueueManager');
+        const queueManager = new TenantQueueManager();
+        logger.info('✅ Tenant Queue Manager initialized');
       }
     },
     {
@@ -399,21 +406,32 @@ const initializeServices = async () => {
       }
     },
     {
-      name: 'Email Queue Processor',
+      name: 'Tenant-Aware Queue Processor',
       init: async () => {
-        const { SMTPDeliveryService } = await import('./services/smtpDelivery');
-        const smtpDelivery = new SMTPDeliveryService();
+        const { startQueueProcessor } = await import('./workers/queueProcessor');
         
-        const processQueue = async () => {
+        // 🔥 NOVO: Usar o QueueProcessor tenant-aware
+        setTimeout(async () => {
           try {
-            await smtpDelivery.processEmailQueue();
+            await startQueueProcessor();
+            logger.info('✅ Tenant-aware queue processor started');
           } catch (error) {
-            logger.error('Error in queue processing:', error);
+            logger.error('Error starting tenant queue processor:', error);
           }
-        };
+        }, 2000); // Delay para garantir que outros serviços estejam prontos
+      }
+    },
+    {
+      name: 'Email Worker',
+      init: async () => {
+        const { EmailWorker } = await import('./workers/emailWorker');
+        const emailWorker = new EmailWorker();
         
-        setInterval(processQueue, 30000);
-        logger.info('✅ Email queue processor started (30s intervals)');
+        // 🔥 NOVO: Start tenant-aware email worker
+        setTimeout(() => {
+          emailWorker.start();
+          logger.info('✅ Tenant-aware email worker started');
+        }, 3000);
       }
     }
   ];

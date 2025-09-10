@@ -2,6 +2,7 @@ import { Queue, Job } from 'bull';
 import { logger } from '../config/logger';
 import { Knex } from 'knex';
 import db from '../config/database';
+import { TenantContextService } from './TenantContextService';
 
 export interface QueueMetrics {
   name: string;
@@ -40,6 +41,7 @@ export interface AlertConfig {
 
 export class QueueMonitorService {
   private db: Knex;
+  private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
   
   private queues: Queue[] = [];
   private monitorInterval: NodeJS.Timeout | null = null;
@@ -52,6 +54,7 @@ export class QueueMonitorService {
   constructor(queues: Queue[], database?: Knex) {
     this.queues = queues;
     this.db = database || db;
+    this.tenantContextService = new TenantContextService(); // 🔥 NOVO: Inicializar tenant context
     
     this.validateRequiredTables();
     this.loadAlertConfigs();
@@ -429,10 +432,14 @@ export class QueueMonitorService {
     }
   }
 
+  // 🔥 MÉTODO MODIFICADO: Webhook alert com tenant sistema
   private async sendWebhookAlert(webhookUrl: string, payload: any): Promise<void> {
     try {
       const { QueueService } = await import('./queueService');
       const queueService = new QueueService();
+
+      // 🔥 NOVO: Usar tenant sistema (ID 1) para alertas de sistema
+      const systemTenantId = 1;
 
       await queueService.addWebhookJob({
         url: webhookUrl,
@@ -440,22 +447,27 @@ export class QueueMonitorService {
         payload,
         headers: {
           'Content-Type': 'application/json',
-          'X-Alert-Source': 'UltraZend-Queue-Monitor'
+          'X-Alert-Source': 'UltraZend-Queue-Monitor',
+          'X-System-Alert': 'true'
         },
         maxRetries: 3,
         eventType: 'queue_alert',
         entityId: 0,
-        userId: 0
+        userId: systemTenantId // 🔒 USAR TENANT SISTEMA!
       });
     } catch (error) {
       logger.error('Erro ao enviar webhook de alerta:', error);
     }
   }
 
+  // 🔥 MÉTODO MODIFICADO: Email alert com tenant sistema
   private async sendEmailAlert(recipients: string[], alertData: any): Promise<void> {
     try {
       const { QueueService } = await import('./queueService');
       const queueService = new QueueService();
+
+      // 🔥 NOVO: Usar tenant sistema (ID 1) para alertas de sistema
+      const systemTenantId = 1;
 
       for (const recipient of recipients) {
         await queueService.addEmailJob({
@@ -465,8 +477,8 @@ export class QueueMonitorService {
           subject: alertData.subject,
           html: this.generateAlertEmailHtml(alertData),
           text: alertData.message,
-          priority: 1,
-          userId: 0
+          priority: 10, // Máxima prioridade para alertas de sistema
+          userId: systemTenantId // 🔒 USAR TENANT SISTEMA!
         });
       }
     } catch (error) {

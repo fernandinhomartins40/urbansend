@@ -3,16 +3,31 @@ import { logger } from '../config/logger';
 import { createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
 import { WebhookJobData } from './queueService';
+import { TenantContextService } from './TenantContextService';
 
 interface WebhookPayload {
   event: string;
   data: any;
   timestamp: string;
   webhook_id: string;
+  tenant_id?: number; // 🔥 NOVO: Identificador do tenant
+}
+
+// 🔥 NOVA INTERFACE: Stats por tenant
+interface TenantWebhookStats {
+  tenantId: number;
+  total_attempts: number;
+  successful_deliveries: number;
+  failed_deliveries: number;
+  success_rate: number;
+  events: Record<string, any>;
 }
 
 export class WebhookService {
+  private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
+
   constructor() {
+    this.tenantContextService = new TenantContextService(); // 🔥 NOVO: Inicializar tenant context
     this.validateRequiredTables();
   }
 
@@ -37,39 +52,164 @@ export class WebhookService {
     }
   }
 
-  async sendWebhook(event: string, payload: any, webhookId?: number): Promise<void> {
+  // 🔥 MÉTODO MODIFICADO: Enviar webhook com validação de tenant
+  async sendWebhook(event: string, payload: any, tenantId: number, webhookId?: number): Promise<void> {
     try {
+      // 🔥 CRÍTICO: Validar contexto do tenant primeiro
+      if (!tenantId) {
+        throw new Error('Missing tenant ID for webhook sending');
+      }
+
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
+      if (!tenantContext.isActive) {
+        logger.warn(`Skipping webhook for inactive tenant ${tenantId}`, { event });
+        return;
+      }
+
       let webhooks;
 
       if (webhookId) {
-        // Send to specific webhook
+        // 🔥 CRÍTICO: Send to specific webhook COM validação de tenant
         webhooks = await db('webhooks')
           .where('id', webhookId)
+          .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
           .where('is_active', true);
       } else {
-        // Find all active webhooks that listen to this event
+        // 🔥 CRÍTICO: Find webhooks SOMENTE deste tenant
         webhooks = await db('webhooks')
+          .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
           .where('is_active', true)
           .whereRaw("JSON_EXTRACT(events, '$') LIKE ?", [`%"${event}"%`]);
       }
 
       if (!webhooks.length) {
-        logger.debug('No active webhooks found for event', { event });
+        logger.debug('No active webhooks found for tenant and event', { 
+          tenantId, 
+          event,
+          webhookId 
+        });
         return;
       }
 
-      // Send webhook to each endpoint
+      logger.info(`Sending webhooks for tenant ${tenantId}`, {
+        tenantId,
+        event,
+        webhookCount: webhooks.length
+      });
+
+      // Send webhook to each endpoint with tenant context
       const webhookPromises = webhooks.map(webhook => 
-        this.deliverWebhook(webhook, event, payload)
+        this.deliverWebhookWithTenant(webhook, event, payload, tenantId)
       );
 
       await Promise.allSettled(webhookPromises);
       
     } catch (error) {
-      logger.error('Failed to process webhooks', { error, event });
+      logger.error('Failed to process tenant webhooks', { 
+        error, 
+        event, 
+        tenantId,
+        webhookId 
+      });
     }
   }
 
+  // 🔥 NOVO MÉTODO: Deliver webhook com tenant context
+  private async deliverWebhookWithTenant(webhook: any, event: string, data: any, tenantId: number): Promise<void> {
+    const webhookPayload: WebhookPayload = {
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+      webhook_id: webhook.id.toString(),
+      tenant_id: tenantId // 🔥 NOVO: Incluir tenant ID no payload
+    };
+
+    const payloadString = JSON.stringify(webhookPayload);
+    const signature = createWebhookSignature(payloadString, webhook.secret);
+
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        const response = await axios.post(webhook.url, webhookPayload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Webhook-Signature': `sha256=${signature}`,
+            'X-Webhook-Event': event,
+            'X-Webhook-ID': webhook.id.toString(),
+            'X-Tenant-ID': tenantId.toString(), // 🔥 NOVO: Header com tenant ID
+            'User-Agent': 'UltraZend-Webhook/1.0'
+          },
+          timeout: 30000,
+          validateStatus: (status) => status >= 200 && status < 300
+        });
+
+        // Log successful delivery com tenant ID
+        await this.logWebhookAttemptWithTenant(webhook.id, event, payloadString, tenantId, {
+          success: true,
+          status_code: response.status,
+          response_body: JSON.stringify(response.data).substring(0, 1000),
+          attempt: attempt + 1
+        });
+
+        logger.info('Webhook delivered successfully for tenant', {
+          tenantId,
+          webhookId: webhook.id,
+          event,
+          url: webhook.url,
+          status: response.status
+        });
+
+        return; // Success, exit retry loop
+
+      } catch (error) {
+        attempt++;
+        const isLastAttempt = attempt >= maxRetries;
+        
+        let errorInfo: any = {
+          success: false,
+          attempt,
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        };
+
+        if (axios.isAxiosError(error)) {
+          errorInfo.status_code = error.response?.status;
+          errorInfo.response_body = error.response?.data ? 
+            JSON.stringify(error.response.data).substring(0, 1000) : null;
+        }
+
+        // Log failed attempt com tenant ID
+        await this.logWebhookAttemptWithTenant(webhook.id, event, payloadString, tenantId, errorInfo);
+
+        if (isLastAttempt) {
+          logger.error('Webhook delivery failed after all retries for tenant', {
+            tenantId,
+            webhookId: webhook.id,
+            event,
+            url: webhook.url,
+            attempts: maxRetries,
+            error: errorInfo
+          });
+        } else {
+          // Wait before retry (exponential backoff)
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          logger.warn('Webhook delivery failed, retrying for tenant', {
+            tenantId,
+            webhookId: webhook.id,
+            event,
+            url: webhook.url,
+            attempt,
+            nextRetryIn: delay
+          });
+        }
+      }
+    }
+  }
+
+  // 🔥 MÉTODO MANTIDO: Deliver webhook sem tenant (para compatibilidade)
   private async deliverWebhook(webhook: any, event: string, data: any): Promise<void> {
     const webhookPayload: WebhookPayload = {
       event,
@@ -159,6 +299,45 @@ export class WebhookService {
     }
   }
 
+  // 🔥 NOVO MÉTODO: Log webhook attempt com tenant ID
+  private async logWebhookAttemptWithTenant(
+    webhookId: number,
+    event: string,
+    payload: string,
+    tenantId: number,
+    result: {
+      success: boolean;
+      status_code?: number;
+      response_body?: string;
+      attempt: number;
+      error_message?: string;
+    }
+  ): Promise<void> {
+    try {
+      await db('webhook_logs').insert({
+        webhook_id: webhookId,
+        event,
+        payload: payload.substring(0, 10000), // Limit payload size in logs
+        success: result.success,
+        status_code: result.status_code,
+        response_body: result.response_body,
+        attempt: result.attempt,
+        error_message: result.error_message,
+        tenant_id: tenantId, // 🔥 NOVO: Registrar tenant ID
+        created_at: new Date()
+      });
+
+    } catch (error) {
+      logger.error('Failed to log webhook attempt for tenant', { 
+        error, 
+        webhookId, 
+        event,
+        tenantId 
+      });
+    }
+  }
+
+  // 🔥 MÉTODO MANTIDO: Log webhook attempt sem tenant (para compatibilidade)
   private async logWebhookAttempt(
     webhookId: number,
     event: string,
@@ -189,46 +368,75 @@ export class WebhookService {
     }
   }
 
-  async getWebhookLogs(webhookId: number, limit: number = 50): Promise<any[]> {
+  // 🔥 MÉTODO MODIFICADO: Get webhook logs com validação de tenant
+  async getWebhookLogs(webhookId: number, tenantId: number, limit: number = 50): Promise<any[]> {
     try {
+      // 🔥 CRÍTICO: Validar que webhook pertence ao tenant
+      const webhook = await db('webhooks')
+        .where('id', webhookId)
+        .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
+        .first();
+
+      if (!webhook) {
+        logger.warn(`Webhook ${webhookId} not found for tenant ${tenantId}`);
+        return [];
+      }
+
       const logs = await db('webhook_logs')
         .where('webhook_id', webhookId)
+        .where('tenant_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
         .orderBy('created_at', 'desc')
         .limit(limit);
 
       return logs;
     } catch (error) {
-      logger.error('Failed to get webhook logs', { error, webhookId });
+      logger.error('Failed to get webhook logs for tenant', { 
+        error, 
+        webhookId,
+        tenantId 
+      });
       return [];
     }
   }
 
-  async testWebhook(webhookId: number): Promise<{ success: boolean; error?: string }> {
+  // 🔥 MÉTODO MODIFICADO: Test webhook com validação de tenant
+  async testWebhook(webhookId: number, tenantId: number): Promise<{ success: boolean; error?: string }> {
     try {
+      // 🔥 CRÍTICO: Validar que webhook pertence ao tenant
       const webhook = await db('webhooks')
         .where('id', webhookId)
+        .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
         .first();
 
       if (!webhook) {
-        return { success: false, error: 'Webhook not found' };
+        return { 
+          success: false, 
+          error: `Webhook ${webhookId} not found for tenant ${tenantId}` 
+        };
       }
 
-      // Send test payload
+      // Send test payload with tenant context
       const testPayload = {
-        event: 'webhook.test',
-        data: {
-          message: 'This is a test webhook from UltraZend',
-          timestamp: new Date().toISOString()
-        },
+        message: 'This is a test webhook from UltraZend',
         timestamp: new Date().toISOString(),
-        webhook_id: webhookId.toString()
+        tenant_id: tenantId
       };
 
-      await this.deliverWebhook(webhook, 'webhook.test', testPayload.data);
+      await this.deliverWebhookWithTenant(webhook, 'webhook.test', testPayload, tenantId);
+
+      logger.info('Webhook test completed for tenant', { 
+        webhookId, 
+        tenantId,
+        url: webhook.url 
+      });
 
       return { success: true };
     } catch (error) {
-      logger.error('Webhook test failed', { error, webhookId });
+      logger.error('Webhook test failed for tenant', { 
+        error, 
+        webhookId,
+        tenantId 
+      });
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -256,14 +464,27 @@ export class WebhookService {
     }
   }
 
-  async getWebhookStats(webhookId: number, days: number = 7): Promise<any> {
+  // 🔥 MÉTODO MODIFICADO: Get webhook stats com validação de tenant
+  async getWebhookStats(webhookId: number, tenantId: number, days: number = 7): Promise<TenantWebhookStats | null> {
     try {
+      // 🔥 CRÍTICO: Validar que webhook pertence ao tenant
+      const webhook = await db('webhooks')
+        .where('id', webhookId)
+        .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
+        .first();
+
+      if (!webhook) {
+        logger.warn(`Webhook ${webhookId} not found for tenant ${tenantId}`);
+        return null;
+      }
+
       const sinceDate = new Date();
       sinceDate.setDate(sinceDate.getDate() - days);
 
       const hasLogsTable = await db.schema.hasTable('webhook_logs');
       if (!hasLogsTable) {
         return {
+          tenantId,
           total_attempts: 0,
           successful_deliveries: 0,
           failed_deliveries: 0,
@@ -279,6 +500,7 @@ export class WebhookService {
           db.raw('SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_deliveries')
         )
         .where('webhook_id', webhookId)
+        .where('tenant_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
         .where('created_at', '>=', sinceDate)
         .first();
 
@@ -287,6 +509,7 @@ export class WebhookService {
         .count('* as count')
         .sum(db.raw('CASE WHEN success = 1 THEN 1 ELSE 0 END as successful'))
         .where('webhook_id', webhookId)
+        .where('tenant_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
         .where('created_at', '>=', sinceDate)
         .groupBy('event');
 
@@ -308,6 +531,7 @@ export class WebhookService {
         : '0';
 
       return {
+        tenantId,
         total_attempts: totalAttempts,
         successful_deliveries: successfulDeliveries,
         failed_deliveries: Number(statsData?.failed_deliveries) || 0,
@@ -315,7 +539,11 @@ export class WebhookService {
         events
       };
     } catch (error) {
-      logger.error('Failed to get webhook stats', { error, webhookId });
+      logger.error('Failed to get webhook stats for tenant', { 
+        error, 
+        webhookId,
+        tenantId 
+      });
       return null;
     }
   }

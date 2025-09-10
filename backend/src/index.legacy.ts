@@ -362,25 +362,68 @@ const startServer = async () => {
       });
     }
 
-    // Start SMTP server
-    const smtpServer = new UltraZendSMTPServer();
-    await smtpServer.start();
+    // 🔧 INITIALIZE TENANT-AWARE SERVICES (SEQUENTIAL)
+    logger.info('🔄 Starting tenant-aware service initialization...');
 
-    // Start email queue processor
-    const smtpDelivery = new SMTPDeliveryService();
-    
-    // Process email queue every 30 seconds
-    const processQueue = async () => {
-      try {
-        await smtpDelivery.processEmailQueue();
-      } catch (error) {
-        logger.error('Error in queue processing:', error);
-      }
-    };
-    
-    // Start queue processor
-    setInterval(processQueue, 30000); // Process every 30 seconds
-    logger.info('📧 Email queue processor started (30s intervals)');
+    // Step 1: Initialize Tenant Context Service
+    try {
+      const { TenantContextService } = await import('./services/TenantContextService');
+      const tenantService = new TenantContextService();
+      logger.info('✅ Tenant Context Service initialized');
+    } catch (error) {
+      logger.warn('⚠️ Tenant Context Service failed, continuing...', { error: (error as Error).message });
+    }
+
+    // Step 2: Initialize Tenant Queue Manager
+    try {
+      const { TenantQueueManager } = await import('./services/TenantQueueManager');
+      const queueManager = new TenantQueueManager();
+      logger.info('✅ Tenant Queue Manager initialized');
+    } catch (error) {
+      logger.warn('⚠️ Tenant Queue Manager failed, continuing...', { error: (error as Error).message });
+    }
+
+    // Step 3: Start SMTP server
+    try {
+      const smtpServer = new UltraZendSMTPServer();
+      await smtpServer.start();
+      logger.info('✅ SMTP Server initialized');
+    } catch (error) {
+      logger.warn('⚠️ SMTP Server failed, continuing...', { error: (error as Error).message });
+    }
+
+    // Step 4: Initialize Tenant-Aware Queue Processor
+    try {
+      const { startQueueProcessor } = await import('./workers/queueProcessor');
+      
+      // 🔥 NOVO: Usar o QueueProcessor tenant-aware em vez do global
+      setTimeout(async () => {
+        try {
+          await startQueueProcessor();
+          logger.info('✅ Tenant-aware queue processor started');
+        } catch (error) {
+          logger.error('Error starting tenant queue processor:', error);
+        }
+      }, 2000); // Delay para garantir que outros serviços estejam prontos
+    } catch (error) {
+      logger.warn('⚠️ Tenant-aware queue processor failed, continuing...', { error: (error as Error).message });
+    }
+
+    // Step 5: Initialize Email Worker
+    try {
+      const { EmailWorker } = await import('./workers/emailWorker');
+      const emailWorker = new EmailWorker();
+      
+      // 🔥 NOVO: Start tenant-aware email worker
+      setTimeout(() => {
+        emailWorker.start();
+        logger.info('✅ Tenant-aware email worker started');
+      }, 3000);
+    } catch (error) {
+      logger.warn('⚠️ Email Worker failed, continuing...', { error: (error as Error).message });
+    }
+
+    logger.info('✅ All tenant-aware services initialization completed');
     
   } catch (error) {
     logger.error('Failed to start server:', error);

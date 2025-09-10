@@ -7,6 +7,7 @@ import { RateLimiter } from './rateLimiter';
 import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';
 import { DeliveryManager } from './deliveryManager';
+import { TenantContextService } from './TenantContextService';
 
 export interface ProcessingResult {
   success: boolean;
@@ -29,12 +30,23 @@ export interface RecipientValidation {
   userExists?: boolean;
 }
 
+// 🔥 NOVA INTERFACE: Processamento tenant-aware
+export interface TenantProcessingResult extends ProcessingResult {
+  tenantId?: number;
+  rateLimitsRemaining?: {
+    daily: number;
+    hourly: number;
+    perMinute: number;
+  };
+}
+
 export class EmailProcessor {
   private securityManager: SecurityManager;
   private rateLimiter: RateLimiter;
   private reputationManager: ReputationManager;
   private dkimManager: DKIMManager;
   private deliveryManager: DeliveryManager;
+  private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
   private localDomains: Set<string>;
 
   constructor() {
@@ -42,10 +54,12 @@ export class EmailProcessor {
     this.rateLimiter = new RateLimiter();
     this.reputationManager = new ReputationManager();
     this.dkimManager = new DKIMManager();
+    this.tenantContextService = new TenantContextService(); // 🔥 NOVO: Inicializar tenant context
     this.deliveryManager = new DeliveryManager(
       this.reputationManager,
       this.dkimManager,
-      this.securityManager
+      this.securityManager,
+      this.tenantContextService // 🔥 NOVO: Passar tenant context para DeliveryManager
     );
     this.localDomains = new Set();
     
@@ -250,28 +264,80 @@ export class EmailProcessor {
     }
   }
 
-  // Processar email enviado (Submission Server)
+  // 🔥 MÉTODO MODIFICADO: Processar email enviado com validação de tenant
   public async processOutgoingEmail(
     parsedEmail: ParsedMail,
     session: any
-  ): Promise<ProcessingResult> {
+  ): Promise<TenantProcessingResult> {
     const messageId = this.generateMessageId(parsedEmail);
     const fromAddress = parsedEmail.from?.text || 'unknown';
     const toAddresses = this.extractRecipients(parsedEmail);
+    const tenantId = session.user;
 
     logger.info('Processing outgoing email', {
       messageId,
+      tenantId, // 🔥 NOVO: Log do tenant
       from: fromAddress,
       to: toAddresses,
       subject: parsedEmail.subject,
-      userId: session.user,
       sessionId: session.id
     });
 
     try {
-      // 1. Verificar rate limiting do usuário
+      // 🔥 CRÍTICO: Validar contexto do tenant primeiro
+      if (!tenantId) {
+        throw new Error('Missing tenant ID for outgoing email');
+      }
+
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
+      if (!tenantContext.isActive) {
+        return {
+          success: false,
+          messageId,
+          tenantId,
+          action: 'rejected',
+          reason: `Tenant ${tenantId} is inactive`
+        };
+      }
+
+      // 🔥 NOVO: Validar se tenant pode enviar este email
+      const canSendEmail = await this.tenantContextService.validateTenantOperation(
+        tenantId,
+        {
+          type: 'email_send',
+          data: {
+            from: fromAddress,
+            to: toAddresses,
+            domain: fromAddress.split('@')[1]
+          }
+        }
+      );
+
+      if (!canSendEmail.allowed) {
+        await this.handleRejectedEmail(
+          parsedEmail,
+          session,
+          'tenant_validation',
+          canSendEmail.reason || 'Tenant validation failed'
+        );
+
+        return {
+          success: false,
+          messageId,
+          tenantId,
+          action: 'rejected',
+          reason: canSendEmail.reason,
+          rateLimitsRemaining: {
+            daily: Math.max(0, tenantContext.dailyEmailLimit - (tenantContext.dailyEmailsSent || 0)),
+            hourly: Math.max(0, tenantContext.hourlyEmailLimit - (tenantContext.hourlyEmailsSent || 0)),
+            perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0))
+          }
+        };
+      }
+
+      // 1. Verificar rate limiting do usuário (agora tenant-aware)
       const rateLimitCheck = await this.rateLimiter.checkEmailSending(
-        session.user,
+        tenantId,
         session.remoteAddress
       );
 
@@ -286,8 +352,14 @@ export class EmailProcessor {
         return {
           success: false,
           messageId,
+          tenantId,
           action: 'rejected',
-          reason: rateLimitCheck.reason
+          reason: rateLimitCheck.reason,
+          rateLimitsRemaining: {
+            daily: Math.max(0, tenantContext.dailyEmailLimit - (tenantContext.dailyEmailsSent || 0)),
+            hourly: Math.max(0, tenantContext.hourlyEmailLimit - (tenantContext.hourlyEmailsSent || 0)),
+            perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0))
+          }
         };
       }
 
@@ -309,8 +381,14 @@ export class EmailProcessor {
         return {
           success: false,
           messageId,
+          tenantId,
           action: 'rejected',
-          reason: securityCheck.reason
+          reason: securityCheck.reason,
+          rateLimitsRemaining: {
+            daily: Math.max(0, tenantContext.dailyEmailLimit - (tenantContext.dailyEmailsSent || 0)),
+            hourly: Math.max(0, tenantContext.hourlyEmailLimit - (tenantContext.hourlyEmailsSent || 0)),
+            perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0))
+          }
         };
       }
 
@@ -324,17 +402,19 @@ export class EmailProcessor {
         messageId
       });
 
-      // 4. Enfileirar para delivery
-      const queueResult = await this.queueForDelivery(signedEmail, session);
+      // 4. Enfileirar para delivery com tenant ID
+      const queueResult = await this.queueForDeliveryWithTenant(signedEmail, session, tenantId);
 
       // 5. Registrar processamento
       await this.recordProcessedEmail(parsedEmail, session, 'outgoing', 'queued', {
         queueId: queueResult.queueId,
-        dkimSigned: !!signedEmail.dkimSignature
+        dkimSigned: !!signedEmail.dkimSignature,
+        tenantId // 🔥 NOVO: Registrar tenant ID
       });
 
       logger.info('Outgoing email processed successfully', {
         messageId,
+        tenantId, // 🔥 NOVO: Log do tenant
         action: 'queued',
         to: toAddresses,
         queueId: queueResult.queueId
@@ -343,11 +423,17 @@ export class EmailProcessor {
       return {
         success: true,
         messageId,
+        tenantId,
         action: 'queued',
         details: {
           queueId: queueResult.queueId,
           dkimSigned: !!signedEmail.dkimSignature,
           estimatedDelivery: queueResult.estimatedDelivery
+        },
+        rateLimitsRemaining: {
+          daily: Math.max(0, tenantContext.dailyEmailLimit - (tenantContext.dailyEmailsSent || 0) - 1),
+          hourly: Math.max(0, tenantContext.hourlyEmailLimit - (tenantContext.hourlyEmailsSent || 0) - 1),
+          perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0) - 1)
         }
       };
 
@@ -355,12 +441,14 @@ export class EmailProcessor {
       logger.error('Failed to process outgoing email', {
         error,
         messageId,
+        tenantId, // 🔥 NOVO: Log do tenant
         from: fromAddress
       });
 
       return {
         success: false,
         messageId,
+        tenantId,
         action: 'rejected',
         reason: 'Processing error'
       };
@@ -571,21 +659,40 @@ export class EmailProcessor {
     }
   }
 
-  private async queueForDelivery(emailData: any, session: any): Promise<any> {
-    // Integração com sistema de filas
-    const queueId = `queue-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Aqui seria integrado com o sistema de filas real (Bull/Redis)
-    logger.info('Email queued for delivery', {
-      queueId,
-      to: emailData.to,
-      userId: session.user
-    });
+  // 🔥 NOVO MÉTODO: Queue para delivery com tenant ID
+  private async queueForDeliveryWithTenant(emailData: any, session: any, tenantId: number): Promise<any> {
+    try {
+      // 🔥 CRÍTICO: Usar DeliveryManager tenant-aware
+      const deliveryId = await this.deliveryManager.queueEmail({
+        from: emailData.from,
+        to: emailData.to,
+        subject: emailData.subject,
+        body: emailData.html || emailData.text,
+        headers: emailData.headers || {},
+        messageId: emailData.messageId,
+        userId: tenantId, // 🔒 ISOLAMENTO POR TENANT!
+        priority: 1 // Prioridade alta para emails de usuários
+      });
 
-    return {
-      queueId,
-      estimatedDelivery: new Date(Date.now() + 60000) // 1 minuto
-    };
+      logger.info('Email queued for delivery with tenant isolation', {
+        deliveryId,
+        tenantId,
+        to: emailData.to,
+        messageId: emailData.messageId
+      });
+
+      return {
+        queueId: deliveryId,
+        estimatedDelivery: new Date(Date.now() + 60000) // 1 minuto
+      };
+    } catch (error) {
+      logger.error('Failed to queue email for delivery', {
+        error,
+        tenantId,
+        to: emailData.to
+      });
+      throw error;
+    }
   }
 
   private async handleRejectedEmail(
@@ -716,11 +823,12 @@ export class EmailProcessor {
     }
   }
 
-  // Método para enviar email de verificação
+  // 🔥 MÉTODO MODIFICADO: Enviar email de verificação com tenant ID
   public async sendVerificationEmail(
     email: string,
     name: string,
-    verificationToken: string
+    verificationToken: string,
+    tenantId?: number // 🔥 NOVO: Parâmetro tenant ID (opcional para compatibilidade)
   ): Promise<any> {
     try {
       logger.info('Sending verification email', { email, name });
@@ -792,7 +900,9 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
 © ${new Date().getFullYear()} UltraZend - Plataforma de Email Marketing
       `;
 
-      // Usar DeliveryManager para enviar o email
+      // 🔥 NOVO: Usar DeliveryManager com tenant ID (sistema interno usa tenant ID especial)
+      const systemTenantId = tenantId || 1; // Se não fornecido, usar tenant sistema (ID 1)
+      
       const deliveryId = await this.deliveryManager.queueEmail({
         from: `noreply@ultrazend.com.br`,
         to: email,
@@ -803,7 +913,8 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
           'X-Priority': '1',
           'Content-Type': 'text/html; charset=UTF-8'
         },
-        priority: 1 // Alta prioridade para emails de verificação
+        userId: systemTenantId, // 🔒 ISOLAMENTO POR TENANT!
+        priority: 10 // Máxima prioridade para emails de verificação
       });
 
       const messageId = `<verification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@ultrazend.com.br>`;
@@ -811,7 +922,8 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
       logger.info('Verification email queued successfully', { 
         email, 
         messageId,
-        deliveryId 
+        deliveryId,
+        tenantId: systemTenantId // 🔥 NOVO: Log do tenant
       });
 
       return {
@@ -839,7 +951,7 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
     }
   }
 
-  // Métodos públicos para estatísticas
+  // 🔥 MÉTODO MODIFICADO: Estatísticas globais (para admin) - mantido para compatibilidade
   public async getProcessingStats(): Promise<any> {
     try {
       const [
@@ -892,6 +1004,76 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
         local_domains: [],
         timestamp: new Date().toISOString()
       };
+    }
+  }
+
+  // 🔥 NOVO MÉTODO: Estatísticas por tenant com isolamento completo
+  public async getTenantProcessingStats(tenantId: number): Promise<any> {
+    try {
+      // Validar tenant primeiro
+      const tenantContext = await this.tenantContextService.getTenantContext(tenantId);
+      if (!tenantContext.isActive) {
+        throw new Error(`Tenant ${tenantId} is inactive`);
+      }
+
+      const [
+        todayProcessed,
+        todayIncoming,
+        todayOutgoing,
+        todayRejected,
+        todayQuarantined
+      ] = await Promise.all([
+        db('processed_emails')
+          .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .count('* as count')
+          .first(),
+        db('processed_emails')
+          .where('direction', 'incoming')
+          .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .count('* as count')
+          .first(),
+        db('processed_emails')
+          .where('direction', 'outgoing')
+          .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .count('* as count')
+          .first(),
+        db('processed_emails')
+          .where('status', 'rejected')
+          .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .count('* as count')
+          .first(),
+        db('email_quarantine')
+          .where('quarantined_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+          .whereRaw("JSON_EXTRACT(security_details, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .count('* as count')
+          .first()
+      ]);
+
+      return {
+        tenantId,
+        last_24h: {
+          total_processed: todayProcessed?.count || 0,
+          incoming: todayIncoming?.count || 0,
+          outgoing: todayOutgoing?.count || 0,
+          rejected: todayRejected?.count || 0,
+          quarantined: todayQuarantined?.count || 0
+        },
+        rate_limits_remaining: {
+          daily: Math.max(0, tenantContext.dailyEmailLimit - (tenantContext.dailyEmailsSent || 0)),
+          hourly: Math.max(0, tenantContext.hourlyEmailLimit - (tenantContext.hourlyEmailsSent || 0)),
+          perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0))
+        },
+        plan: tenantContext.plan,
+        domains: tenantContext.verifiedDomains?.map(d => d.domain) || [],
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      logger.error(`Failed to get tenant ${tenantId} processing stats`, { error, tenantId });
+      throw error;
     }
   }
 }
