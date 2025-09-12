@@ -306,7 +306,6 @@ export class EmailProcessor {
         {
           operation: 'send_email',
           resource: fromAddress.split('@')[1],
-          type: 'email_send',
           data: {
             from: fromAddress,
             to: toAddresses,

@@ -192,7 +192,6 @@ class QueueProcessor {
             {
               operation: 'send_email',
               resource: emailRecord.from_address.split('@')[1],
-              type: 'email_send',
               data: { 
                 from: emailRecord.from_address,
                 to: emailRecord.to_address,
