@@ -33,7 +33,16 @@
     "fresh-install": "npm run clean && npm install",
     "audit:security": "npm audit --audit-level=moderate",
     "audit:deps": "npm-check-updates",
-    "pre-deploy": "npm run typecheck"
+    "pre-deploy": "npm run typecheck",
+    "dkim:check": "ts-node src/scripts/fix-dkim-issues.ts check",
+    "dkim:check:export": "ts-node src/scripts/fix-dkim-issues.ts check --export dkim-report.json",
+    "dkim:check:domain": "ts-node src/scripts/fix-dkim-issues.ts check --domain",
+    "dkim:migrate": "ts-node src/scripts/fix-dkim-issues.ts migrate",
+    "dkim:migrate:dry": "ts-node src/scripts/fix-dkim-issues.ts migrate --dry-run",
+    "dkim:migrate:force": "ts-node src/scripts/fix-dkim-issues.ts migrate --force",
+    "dkim:migrate:domain": "ts-node src/scripts/fix-dkim-issues.ts migrate --domain",
+    "dkim:fix": "ts-node src/scripts/fix-dkim-issues.ts fix",
+    "dkim:fix:dry": "ts-node src/scripts/fix-dkim-issues.ts fix --dry-run"
   },
   "dependencies": {
     "axios": "^1.7.7",

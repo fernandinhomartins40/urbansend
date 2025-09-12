@@ -82,14 +82,63 @@ export class TenantEmailProcessor {
         throw new Error(`Rate limit excedido: ${canSend.reason}`);
       }
 
-      // 🔒 STEP 4: Obter configuração DKIM
+      // 🔒 STEP 4: VALIDAÇÃO PROFISSIONAL DE DKIM
       const dkimConfig = tenantContext.dkimConfigurations.find(
         config => config.domainName === fromDomain && config.isActive
       );
 
       if (!dkimConfig) {
-        throw new Error(`Configuração DKIM não encontrada para domínio ${fromDomain}`);
+        // VALIDAÇÃO PROFISSIONAL: Informações detalhadas sobre o problema
+        const availableDomains = tenantContext.dkimConfigurations.map(c => c.domainName);
+        const verifiedDomains = tenantContext.verifiedDomains.map(d => d.domainName);
+        
+        logger.error('❌ DKIM Configuration Missing - Professional Error', {
+          jobId: job.id,
+          tenantId,
+          requestedDomain: fromDomain,
+          availableDkimDomains: availableDomains,
+          verifiedDomains: verifiedDomains,
+          totalDkimConfigs: tenantContext.dkimConfigurations.length,
+          from,
+          to,
+          severity: 'CRITICAL',
+          actionRequired: 'DOMAIN_SETUP_REQUIRED'
+        });
+
+        // ERRO PROFISSIONAL: Mensagem clara com instruções
+        const errorMessage = [
+          `DKIM Configuration Missing: Domain '${fromDomain}' is not configured for email sending.`,
+          `Available DKIM domains: ${availableDomains.length > 0 ? availableDomains.join(', ') : 'None'}`,
+          `Verified domains: ${verifiedDomains.length > 0 ? verifiedDomains.join(', ') : 'None'}`,
+          `Solution: Configure DKIM for domain '${fromDomain}' in Domain Management.`,
+          `Tenant ID: ${tenantId} | Job ID: ${job.id}`
+        ].join(' | ');
+
+        throw new Error(errorMessage);
       }
+
+      // ✅ VALIDAÇÃO ADICIONAL: Verificar integridade da configuração DKIM
+      if (!dkimConfig.selector || !dkimConfig.privateKey || !dkimConfig.publicKey) {
+        logger.error('❌ DKIM Configuration Corrupted', {
+          jobId: job.id,
+          tenantId,
+          domain: fromDomain,
+          hasSelector: !!dkimConfig.selector,
+          hasPrivateKey: !!dkimConfig.privateKey,
+          hasPublicKey: !!dkimConfig.publicKey,
+          severity: 'CRITICAL'
+        });
+
+        throw new Error(`DKIM Configuration Corrupted: Domain '${fromDomain}' has incomplete DKIM setup. Please regenerate DKIM keys.`);
+      }
+
+      logger.info('✅ DKIM Configuration validated successfully', {
+        jobId: job.id,
+        tenantId,
+        domain: fromDomain,
+        selector: dkimConfig.selector,
+        keyLength: dkimConfig.privateKey.length
+      });
 
       // 🔒 STEP 5: Assinar email com DKIM
       const signedEmail = await this.dkimManager.signEmail({

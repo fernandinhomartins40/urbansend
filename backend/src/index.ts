@@ -50,6 +50,8 @@ import schedulerRoutes from './routes/scheduler';
 import { healthCheckScheduler } from './scheduler/healthCheckScheduler';
 // TEMPORÁRIO - Admin audit para corrigir vazamento de dados
 import adminAuditRoutes from './routes/admin-audit';
+// Professional DKIM Administration
+import adminDkimRoutes from './routes/admin-dkim';
 // TEMPORÁRIO - Rotas de teste para Fase 2 - Integração de domínios
 import testIntegrationRoutes from './routes/test-integration';
 // Fase 6 - Feature flags routes para rollout gradual
@@ -379,6 +381,8 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 // TEMPORÁRIO - Admin audit para diagnóstico e correção
 app.use('/api/admin-audit', adminAuditRoutes);
+// Professional DKIM Administration routes
+app.use('/api/admin/dkim', adminDkimRoutes);
 // TEMPORÁRIO - Rotas de teste para Fase 2 - Integração de domínios  
 app.use('/api/test', testIntegrationRoutes);
 // Fase 6 - Feature flags para rollout gradual da integração

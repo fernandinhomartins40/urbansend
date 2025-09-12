@@ -155,33 +155,70 @@ export class DomainSetupService {
         tokenLength: verificationToken.length 
       });
 
-      // 5. Criar registro do domínio
-      const domainData = {
-        user_id: userId,
-        domain_name: normalizedDomain,
-        verification_token: verificationToken,
-        verification_method: 'dns',
-        is_verified: false,
-        dkim_enabled: true,
-        dkim_selector: 'default',
-        spf_enabled: true,
-        dmarc_enabled: true,
-        dmarc_policy: 'quarantine',
-        created_at: new Date(),
-        updated_at: new Date()
-      };
+      // 5. TRANSAÇÃO ATÔMICA: Criar domínio + DKIM obrigatoriamente
+      let domainRecord: DomainRecord;
+      let dkimKeys: { privateKey: string; publicKey: string };
+      
+      await db.transaction(async (trx) => {
+        try {
+          // Criar registro do domínio
+          const domainData = {
+            user_id: userId,
+            domain_name: normalizedDomain,
+            verification_token: verificationToken,
+            verification_method: 'dns',
+            is_verified: false,
+            dkim_enabled: true,
+            dkim_selector: 'default',
+            spf_enabled: true,
+            dmarc_enabled: true,
+            dmarc_policy: 'quarantine',
+            created_at: new Date(),
+            updated_at: new Date()
+          };
 
-      const [domainId] = await db('domains').insert(domainData);
-      const domainRecord = await db('domains').where('id', domainId).first() as DomainRecord;
+          const [domainId] = await trx('domains').insert(domainData);
+          domainRecord = await trx('domains').where('id', domainId).first() as DomainRecord;
 
-      logger.info('Domain record created', { 
-        userId, 
-        domain: normalizedDomain, 
-        domainId 
+          logger.info('Domain record created in transaction', { 
+            userId, 
+            domain: normalizedDomain, 
+            domainId 
+          });
+
+          // 6. CRÍTICO: Gerar chaves DKIM obrigatoriamente na mesma transação
+          dkimKeys = await this.generateDKIMKeysForDomainTransaction(trx, domainId, normalizedDomain);
+
+          // 7. VALIDAÇÃO CRÍTICA: Verificar se DKIM foi realmente criado
+          const dkimValidation = await trx('dkim_keys').where('domain_id', domainId).first();
+          
+          if (!dkimValidation || !dkimValidation.public_key || !dkimValidation.private_key) {
+            throw new Error(`CRÍTICO: Falha na validação de chaves DKIM para ${normalizedDomain}`);
+          }
+
+          if (!dkimKeys.publicKey || !dkimKeys.privateKey) {
+            throw new Error(`CRÍTICO: Chaves DKIM retornadas inválidas para ${normalizedDomain}`);
+          }
+
+          logger.info('✅ Domain + DKIM created successfully in atomic transaction', {
+            userId,
+            domain: normalizedDomain,
+            domainId,
+            dkimPublicKeyLength: dkimKeys.publicKey.length,
+            dkimPrivateKeyLength: dkimKeys.privateKey.length
+          });
+
+        } catch (transactionError) {
+          logger.error('❌ CRITICAL: Domain creation transaction failed', {
+            userId,
+            domain: normalizedDomain,
+            error: transactionError instanceof Error ? transactionError.message : String(transactionError)
+          });
+          
+          // Transação será automaticamente revertida
+          throw new Error(`Falha crítica na criação do domínio: ${transactionError instanceof Error ? transactionError.message : 'Erro desconhecido'}`);
+        }
       });
-
-      // 6. Gerar chaves DKIM para o domínio
-      const dkimKeys = await this.generateDKIMKeysForDomain(domainId, normalizedDomain);
       
       // 7. Criar instruções DNS detalhadas
       const dnsInstructions = this.createDNSInstructions(
@@ -560,6 +597,109 @@ export class DomainSetupService {
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;
+    }
+  }
+
+  /**
+   * Gera chaves DKIM para um domínio dentro de uma transação de banco
+   * Versão profissional que trabalha com transações atômicas
+   * 
+   * @param trx - Transação do Knex
+   * @param domainId - ID do domínio
+   * @param domain - Nome do domínio
+   * @returns Chaves DKIM geradas
+   */
+  private async generateDKIMKeysForDomainTransaction(
+    trx: any, 
+    domainId: number, 
+    domain: string
+  ): Promise<{
+    privateKey: string;
+    publicKey: string;
+  }> {
+    try {
+      logger.debug('Generating DKIM keys for domain in transaction', { domainId, domain });
+
+      // CRÍTICO: Verificar se já existem chaves para evitar duplicatas
+      const existingDkimKey = await trx('dkim_keys').where('domain_id', domainId).first();
+      if (existingDkimKey) {
+        logger.warn('DKIM keys already exist for domain, removing old keys first', { 
+          domainId, 
+          domain 
+        });
+        await trx('dkim_keys').where('domain_id', domainId).del();
+      }
+
+      // Usar MultiDomainDKIMManager para gerar chaves
+      const regenerated = await this.dkimManager.regenerateDKIMKeysForDomain(domain);
+      
+      if (!regenerated) {
+        throw new Error(`MultiDomainDKIMManager falhou ao gerar chaves para ${domain}`);
+      }
+
+      // VALIDAÇÃO: Buscar chaves geradas na transação
+      const dkimRecord = await trx('dkim_keys').where('domain_id', domainId).first();
+
+      if (!dkimRecord) {
+        // Tentar buscar por nome do domínio como fallback
+        const dkimByDomain = await trx('dkim_keys')
+          .join('domains', 'dkim_keys.domain_id', 'domains.id')
+          .where('domains.domain_name', domain)
+          .select('dkim_keys.*')
+          .first();
+
+        if (dkimByDomain) {
+          logger.info('DKIM found by domain name, updating domain_id', {
+            domainId,
+            domain,
+            foundDkimId: dkimByDomain.id
+          });
+          
+          // Atualizar domain_id correto
+          await trx('dkim_keys').where('id', dkimByDomain.id).update({ domain_id: domainId });
+          
+          return {
+            privateKey: dkimByDomain.private_key,
+            publicKey: dkimByDomain.public_key
+          };
+        }
+        
+        throw new Error(`Chaves DKIM não foram salvas na transação para domínio ${domain}`);
+      }
+
+      // VALIDAÇÃO CRÍTICA: Verificar se as chaves são válidas
+      if (!dkimRecord.private_key || !dkimRecord.public_key) {
+        throw new Error(`Chaves DKIM inválidas geradas para domínio ${domain}`);
+      }
+
+      if (dkimRecord.private_key.length < 100 || dkimRecord.public_key.length < 100) {
+        throw new Error(`Chaves DKIM muito curtas para domínio ${domain} - possível corrupção`);
+      }
+
+      logger.info('✅ DKIM keys generated successfully in transaction', { 
+        domainId, 
+        domain,
+        privateKeyLength: dkimRecord.private_key.length,
+        publicKeyLength: dkimRecord.public_key.length,
+        hasPrivateKey: !!dkimRecord.private_key,
+        hasPublicKey: !!dkimRecord.public_key
+      });
+
+      return {
+        privateKey: dkimRecord.private_key,
+        publicKey: dkimRecord.public_key
+      };
+
+    } catch (error) {
+      logger.error('❌ CRITICAL: Failed to generate DKIM keys in transaction', {
+        domainId,
+        domain,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      // Re-throw para fazer rollback da transação
+      throw new Error(`Falha crítica na geração de DKIM: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
