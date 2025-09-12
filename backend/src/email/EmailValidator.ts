@@ -224,11 +224,11 @@ export class SimpleEmailValidator {
     verifiedAt?: Date;
   }> {
     try {
-      const domainRecord = await db('user_domains')
+      const domainRecord = await db('domains')
         .where('user_id', userId)
-        .where('domain', domain.toLowerCase())
-        .where('verified', true)
-        .first() as UserDomain | undefined;
+        .where('domain_name', domain.toLowerCase())
+        .where('is_verified', true)
+        .first();
 
       if (domainRecord) {
         return {
