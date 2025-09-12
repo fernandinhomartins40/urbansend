@@ -155,38 +155,13 @@ export class DomainSetupService {
         tokenLength: verificationToken.length 
       });
 
-      // 5. PRÉ-GERAR CHAVES DKIM para evitar timeout na transação
-      logger.info('Pre-generating DKIM keys to avoid transaction timeout', { 
-        domain: normalizedDomain 
-      });
-      
-      const dkimGenerated = await this.dkimManager.regenerateDKIMKeysForDomain(normalizedDomain);
-      if (!dkimGenerated) {
-        throw new Error(`Falha ao gerar chaves DKIM para ${normalizedDomain}`);
-      }
-
-      // 6. BUSCAR CHAVES RECÉM-GERADAS (via JOIN com domains)
-      const dkimRecord = await db('dkim_keys as dk')
-        .join('domains as d', 'dk.domain_id', 'd.id')
-        .select('dk.private_key', 'dk.public_key', 'dk.domain_id', 'd.domain_name')
-        .where('d.domain_name', normalizedDomain)
-        .first();
-
-      if (!dkimRecord || !dkimRecord.private_key || !dkimRecord.public_key) {
-        throw new Error(`Chaves DKIM não encontradas após geração para ${normalizedDomain}`);
-      }
-
-      const dkimKeys = {
-        privateKey: dkimRecord.private_key,
-        publicKey: dkimRecord.public_key
-      };
-
-      // 7. TRANSAÇÃO RÁPIDA: Criar apenas registro de domínio
+      // 5. CRIAR DOMÍNIO PRIMEIRO, depois DKIM
       let domainRecord: DomainRecord;
+      let domainId: number;
       
       await db.transaction(async (trx) => {
         try {
-          // Criar registro do domínio
+          // Criar registro do domínio PRIMEIRO
           const domainData = {
             user_id: userId,
             domain_name: normalizedDomain,
@@ -202,36 +177,14 @@ export class DomainSetupService {
             updated_at: new Date()
           };
 
-          const [domainId] = await trx('domains').insert(domainData);
+          const [insertedId] = await trx('domains').insert(domainData);
+          domainId = insertedId;
           domainRecord = await trx('domains').where('id', domainId).first() as DomainRecord;
 
-          logger.info('Domain record created in fast transaction', { 
+          logger.info('✅ Domain record created successfully', { 
             userId, 
             domain: normalizedDomain, 
             domainId 
-          });
-
-          // 8. VALIDAÇÃO CRÍTICA: Verificar se DKIM foi realmente criado
-          const dkimValidation = await trx('dkim_keys as dk')
-            .join('domains as d', 'dk.domain_id', 'd.id')
-            .select('dk.private_key', 'dk.public_key')
-            .where('d.domain_name', normalizedDomain)
-            .first();
-          
-          if (!dkimValidation || !dkimValidation.public_key || !dkimValidation.private_key) {
-            throw new Error(`CRÍTICO: Falha na validação de chaves DKIM para ${normalizedDomain}`);
-          }
-
-          if (!dkimKeys.publicKey || !dkimKeys.privateKey) {
-            throw new Error(`CRÍTICO: Chaves DKIM retornadas inválidas para ${normalizedDomain}`);
-          }
-
-          logger.info('✅ Domain + DKIM created successfully in fast transaction', {
-            userId,
-            domain: normalizedDomain,
-            domainId: domainRecord.id,
-            dkimPublicKeyLength: dkimKeys.publicKey.length,
-            dkimPrivateKeyLength: dkimKeys.privateKey.length
           });
 
         } catch (transactionError) {
@@ -246,13 +199,45 @@ export class DomainSetupService {
         }
       });
       
-      // 7. Criar instruções DNS detalhadas
+      // 6. AGORA GERAR DKIM para o domínio que já existe
+      logger.info('Generating DKIM keys for domain after creation', { 
+        domain: normalizedDomain, 
+        domainId 
+      });
+      
+      const dkimGenerated = await this.dkimManager.regenerateDKIMKeysForDomain(normalizedDomain);
+      if (!dkimGenerated) {
+        throw new Error(`Falha ao gerar chaves DKIM para ${normalizedDomain}`);
+      }
+
+      // 7. BUSCAR CHAVES DKIM GERADAS
+      const dkimRecord = await db('dkim_keys')
+        .select('private_key', 'public_key')
+        .where('domain_id', domainId)
+        .first();
+
+      if (!dkimRecord || !dkimRecord.private_key || !dkimRecord.public_key) {
+        throw new Error(`Chaves DKIM não encontradas após geração para ${normalizedDomain}`);
+      }
+
+      const dkimKeys = {
+        privateKey: dkimRecord.private_key,
+        publicKey: dkimRecord.public_key
+      };
+
+      logger.info('✅ DKIM keys generated successfully', {
+        domain: normalizedDomain,
+        domainId,
+        publicKeyLength: dkimKeys.publicKey.length
+      });
+      
+      // 8. Criar instruções DNS detalhadas
       const dnsInstructions = this.createDNSInstructions(
         normalizedDomain,
         dkimKeys.publicKey
       );
 
-      // 8. Gerar guia de configuração
+      // 9. Gerar guia de configuração
       const setupGuide = this.generateSetupGuide(normalizedDomain);
 
       const result: DomainSetupResult = {
