@@ -38,7 +38,15 @@ router.post('/send',
   validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const emailData = { ...req.body, userId: req.user!.id };
-    const job = await activeQueueService.addEmailJob(emailData);
+    console.log("🚨 DEBUG /send - Antes addEmailJob:", { USE_UNIFIED_QUEUE, activeQueueService: typeof activeQueueService });
+    let job;
+    try {
+      job = await activeQueueService.addEmailJob(emailData);
+      console.log("🚨 DEBUG /send - addEmailJob SUCCESS:", { jobId: job?.id });
+    } catch (error) {
+      console.error("🚨 DEBUG /send - addEmailJob ERROR:", error);
+      throw error;
+    }
     
     // Atualizar auditoria se email foi processado pelo middleware
     if (req.body._emailId) {
