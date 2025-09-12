@@ -155,9 +155,33 @@ export class DomainSetupService {
         tokenLength: verificationToken.length 
       });
 
-      // 5. TRANSAÇÃO ATÔMICA: Criar domínio + DKIM obrigatoriamente
+      // 5. PRÉ-GERAR CHAVES DKIM para evitar timeout na transação
+      logger.info('Pre-generating DKIM keys to avoid transaction timeout', { 
+        domain: normalizedDomain 
+      });
+      
+      const dkimGenerated = await this.dkimManager.regenerateDKIMKeysForDomain(normalizedDomain);
+      if (!dkimGenerated) {
+        throw new Error(`Falha ao gerar chaves DKIM para ${normalizedDomain}`);
+      }
+
+      // 6. BUSCAR CHAVES RECÉM-GERADAS
+      const dkimRecord = await db('dkim_keys')
+        .select('private_key', 'public_key')
+        .where('domain', normalizedDomain)
+        .first();
+
+      if (!dkimRecord || !dkimRecord.private_key || !dkimRecord.public_key) {
+        throw new Error(`Chaves DKIM não encontradas após geração para ${normalizedDomain}`);
+      }
+
+      const dkimKeys = {
+        privateKey: dkimRecord.private_key,
+        publicKey: dkimRecord.public_key
+      };
+
+      // 7. TRANSAÇÃO RÁPIDA: Criar apenas registro de domínio
       let domainRecord: DomainRecord;
-      let dkimKeys: { privateKey: string; publicKey: string };
       
       await db.transaction(async (trx) => {
         try {
@@ -180,17 +204,14 @@ export class DomainSetupService {
           const [domainId] = await trx('domains').insert(domainData);
           domainRecord = await trx('domains').where('id', domainId).first() as DomainRecord;
 
-          logger.info('Domain record created in transaction', { 
+          logger.info('Domain record created in fast transaction', { 
             userId, 
             domain: normalizedDomain, 
             domainId 
           });
 
-          // 6. CRÍTICO: Gerar chaves DKIM obrigatoriamente na mesma transação
-          dkimKeys = await this.generateDKIMKeysForDomainTransaction(trx, domainId, normalizedDomain);
-
-          // 7. VALIDAÇÃO CRÍTICA: Verificar se DKIM foi realmente criado
-          const dkimValidation = await trx('dkim_keys').where('domain_id', domainId).first();
+          // 8. VALIDAÇÃO CRÍTICA: Verificar se DKIM foi realmente criado
+          const dkimValidation = await trx('dkim_keys').where('domain', normalizedDomain).first();
           
           if (!dkimValidation || !dkimValidation.public_key || !dkimValidation.private_key) {
             throw new Error(`CRÍTICO: Falha na validação de chaves DKIM para ${normalizedDomain}`);
@@ -200,10 +221,10 @@ export class DomainSetupService {
             throw new Error(`CRÍTICO: Chaves DKIM retornadas inválidas para ${normalizedDomain}`);
           }
 
-          logger.info('✅ Domain + DKIM created successfully in atomic transaction', {
+          logger.info('✅ Domain + DKIM created successfully in fast transaction', {
             userId,
             domain: normalizedDomain,
-            domainId,
+            domainId: domainRecord.id,
             dkimPublicKeyLength: dkimKeys.publicKey.length,
             dkimPrivateKeyLength: dkimKeys.privateKey.length
           });
@@ -239,7 +260,7 @@ export class DomainSetupService {
       logger.info('Domain setup initiated successfully', {
         userId,
         domain: normalizedDomain,
-        domainId,
+        domainId: domainRecord.id,
         dkimGenerated: !!dkimKeys.publicKey
       });
 
