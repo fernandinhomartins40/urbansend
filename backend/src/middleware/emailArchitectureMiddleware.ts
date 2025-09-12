@@ -3,7 +3,16 @@ import { AuthenticatedRequest } from './auth';
 import { logger } from '../config/logger';
 import { EmailServiceFactory, EmailServiceType } from '../services/EmailServiceFactory';
 import { asyncHandler } from './errorHandler';
-import { EmailAuditService } from '../services/EmailAuditService';
+import { EmailAuditService, emailAuditService } from '../services/EmailAuditService';
+import { DomainValidator } from '../services/DomainValidator';
+import {
+  validateEmailData,
+  checkServiceHealth,
+  sendErrorResponse,
+  sendServiceUnavailableResponse,
+  generateEmailId,
+  logMiddlewareEvent
+} from './emailMiddlewareHelpers';
 
 /**
  * Middleware para aplicar a nova arquitetura de emails da Fase 2
@@ -15,189 +24,140 @@ export const emailArchitectureMiddleware = asyncHandler(async (
   next: NextFunction
 ) => {
   try {
-    // 🔒 VALIDAÇÃO ROBUSTA: Verificar dados de entrada obrigatórios
-    const { from, to, subject } = req.body;
-    const userId = req.user?.id;
-
-    // Validar user ID
-    if (!userId || typeof userId !== 'number') {
-      logger.error('Invalid user ID in email architecture middleware', { userId, path: req.path });
-      return res.status(401).json({
-        error: 'User authentication required',
-        code: 'AUTH_REQUIRED'
-      });
-    }
-
-    // Validar campos obrigatórios do email
-    const validationErrors: string[] = [];
+    // 🔒 VALIDAÇÃO OTIMIZADA: Usar helper para validação rápida
+    const validation = validateEmailData(req);
+    const { from } = req.body;
     
-    if (!from || typeof from !== 'string') {
-      validationErrors.push('from: must be a valid string');
-    }
-    
-    if (!to || typeof to !== 'string') {
-      validationErrors.push('to: must be a valid string');
-    }
-    
-    if (!subject || typeof subject !== 'string') {
-      validationErrors.push('subject: must be a valid string');
-    }
-
-    if (validationErrors.length > 0) {
-      logger.warn('Email validation failed in architecture middleware', {
-        userId,
-        validationErrors,
-        receivedData: { from: typeof from, to: typeof to, subject: typeof subject },
+    if (!validation.isValid) {
+      if (validation.errors.some(e => e.field === 'userId')) {
+        logMiddlewareEvent('error', 'Invalid user ID in email architecture middleware', {
+          userId: req.user?.id,
+          path: req.path
+        });
+        return sendErrorResponse(res, 401, 'User authentication required', 'AUTH_REQUIRED');
+      }
+      
+      logMiddlewareEvent('warn', 'Email validation failed in architecture middleware', {
+        userId: validation.userId,
+        errors: validation.errors,
         path: req.path
       });
       
-      return res.status(400).json({
-        error: 'Invalid email data',
-        code: 'VALIDATION_ERROR',
-        details: validationErrors
-      });
+      return sendErrorResponse(res, 400, 'Invalid email data', 'VALIDATION_ERROR', validation.errors);
     }
     
-    logger.debug('Email architecture middleware validation passed', {
-      userId,
+    logMiddlewareEvent('debug', 'Email architecture middleware validation passed', {
+      userId: validation.userId,
       from,
-      to,
-      subject,
       endpoint: req.path
     });
 
-    // Criar serviço de email externo para validação
-    const externalEmailService = await EmailServiceFactory.createExternalService();
-    
-    // 🔒 VALIDAÇÃO DE SERVIÇO: Verificar saúde do serviço externo
-    let serviceHealthy = false;
-    try {
-      serviceHealthy = await externalEmailService.testConnection?.() ?? false;
-    } catch (error) {
-      logger.error('External email service connection test failed', { 
-        userId, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
-    }
+    // 🔒 VALIDAÇÃO DE SERVIÇO OTIMIZADA: Usar cache para health check
+    const serviceHealthy = await checkServiceHealth('external');
     
     if (!serviceHealthy) {
-      logger.error('External email service unavailable', { userId, path: req.path });
-      return res.status(503).json({
-        error: 'Email service temporarily unavailable',
-        code: 'SERVICE_UNAVAILABLE',
-        message: 'The email delivery service is currently unavailable. Please try again later.'
+      logMiddlewareEvent('error', 'External email service unavailable', {
+        userId: validation.userId,
+        path: req.path
       });
+      return sendServiceUnavailableResponse(res);
     }
 
-    // 🔒 VALIDAÇÃO DE DOMÍNIO: Usar DomainValidator com tratamento robusto de erros
+    // 🔒 VALIDAÇÃO DE DOMÍNIO OTIMIZADA
     let validatedSender;
     try {
-      const { DomainValidator } = await import('../services/DomainValidator');
       const validator = new DomainValidator();
-      
-      validatedSender = await validator.validateSenderDomain(userId, from);
+      validatedSender = await validator.validateSenderDomain(validation.userId, from);
       
       if (!validatedSender) {
         throw new Error('Domain validation returned null result');
       }
     } catch (error) {
-      logger.error('Domain validation failed', {
-        userId,
+      logMiddlewareEvent('error', 'Domain validation failed', {
+        userId: validation.userId,
         from,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
       
-      return res.status(400).json({
-        error: 'Invalid sender domain',
-        code: 'DOMAIN_VALIDATION_ERROR',
-        message: 'The sender email domain could not be validated'
-      });
+      return sendErrorResponse(res, 400, 'Invalid sender domain', 'DOMAIN_VALIDATION_ERROR');
     }
     
     // Aplicar correções se necessário
     if (validatedSender.fallback) {
-      logger.info('Email sender corrected by architecture middleware', {
-        userId,
+      logMiddlewareEvent('info', 'Email sender corrected by architecture middleware', {
+        userId: validation.userId,
         originalFrom: from,
         correctedFrom: validatedSender.email,
         reason: validatedSender.reason
       });
       
-      // Atualizar o from no body da requisição
-      req.body.from = validatedSender.email;
-      
-      // Adicionar metadados para auditoria
-      req.body._senderCorrected = true;
-      req.body._originalFrom = from;
-      req.body._correctionReason = validatedSender.reason;
-    }
-
-    // Adicionar informações do DKIM domain para o processamento posterior
-    req.body._dkimDomain = validatedSender.dkimDomain;
-    req.body._emailServiceType = EmailServiceType.EXTERNAL;
-
-    // 🔒 AUDITORIA: Registrar evento com tratamento robusto de erros
-    const emailId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const auditService = EmailAuditService.getInstance();
-      await auditService.logEmailEvent({
-        userId,
-        emailId,
-        originalFrom: from,
-        finalFrom: req.body.from,
-        wasModified: validatedSender.fallback || false,
-        modificationReason: validatedSender.reason,
-        dkimDomain: validatedSender.dkimDomain,
-        deliveryStatus: 'queued',
-        metadata: {
-          endpoint: req.path,
-          userAgent: req.get('User-Agent'),
-          ip: req.ip,
-          correctionApplied: validatedSender.fallback || false,
-          serviceType: EmailServiceType.EXTERNAL
-        }
-      });
-    } catch (auditError) {
-      // Log audit error but don't fail the email - audit is non-critical
-      logger.warn('Email audit logging failed', {
-        userId,
-        emailId,
-        error: auditError instanceof Error ? auditError.message : 'Unknown audit error'
+      // Atualizar dados da requisição
+      Object.assign(req.body, {
+        from: validatedSender.email,
+        _senderCorrected: true,
+        _originalFrom: from,
+        _correctionReason: validatedSender.reason
       });
     }
 
-    // 🔒 METADADOS: Armazenar dados processados no request
-    req.body._emailId = emailId;
+    // Adicionar metadados otimizados
+    const emailId = generateEmailId();
+    Object.assign(req.body, {
+      _dkimDomain: validatedSender.dkimDomain,
+      _emailServiceType: EmailServiceType.EXTERNAL,
+      _emailId: emailId
+    });
+
+    // 🔒 AUDITORIA ASSÍNCRONA (não bloqueante)
+    emailAuditService.logEmailEvent({
+      userId: validation.userId,
+      emailId,
+      originalFrom: from,
+      finalFrom: req.body.from,
+      wasModified: validatedSender.fallback || false,
+      modificationReason: validatedSender.reason,
+      dkimDomain: validatedSender.dkimDomain,
+      deliveryStatus: 'queued',
+      metadata: {
+        endpoint: req.path,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip,
+        correctionApplied: validatedSender.fallback || false,
+        serviceType: EmailServiceType.EXTERNAL
+      }
+    }).catch(error => {
+      logMiddlewareEvent('warn', 'Email audit logging failed', {
+        userId: validation.userId,
+        emailId,
+        error: error instanceof Error ? error.message : 'Unknown audit error'
+      });
+    });
     
-    logger.debug('Email architecture middleware completed', {
-      userId,
+    logMiddlewareEvent('debug', 'Email architecture middleware completed', {
+      userId: validation.userId,
       finalFrom: req.body.from,
       wasCorrected: validatedSender.fallback || false,
       dkimDomain: validatedSender.dkimDomain
     });
 
-    // ✅ SUCESSO: Middleware completado, continuar com o processamento
+    // ✅ SUCESSO: Continuar com processamento
     next();
     
   } catch (error) {
-    // 🚨 ERRO CRÍTICO: Falha não tratada no middleware
-    logger.error('Critical error in email architecture middleware', {
+    // 🚨 ERRO CRÍTICO OTIMIZADO
+    logMiddlewareEvent('error', 'Critical error in email architecture middleware', {
       userId: req.user?.id,
       from: req.body?.from,
-      to: req.body?.to,
       path: req.path,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
     
-    // Retornar erro HTTP apropriado - não fazer fallback inseguro
-    return res.status(500).json({
-      error: 'Internal server error during email processing',
-      code: 'EMAIL_MIDDLEWARE_ERROR',
-      message: 'An unexpected error occurred while preparing your email for delivery. Please try again.'
-    });
+    return sendErrorResponse(
+      res, 
+      500, 
+      'Internal server error during email processing',
+      'EMAIL_MIDDLEWARE_ERROR'
+    );
   }
 });
 
@@ -211,38 +171,31 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
 ) => {
   try {
     const { emails } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user?.id;
+    
+    // Validação otimizada para batch
+    if (!userId || typeof userId !== 'number') {
+      return sendErrorResponse(res, 401, 'User authentication required', 'AUTH_REQUIRED');
+    }
     
     if (!Array.isArray(emails)) {
-      return res.status(400).json({
-        error: 'Emails field must be an array',
-        code: 'INVALID_BATCH_FORMAT'
-      });
+      return sendErrorResponse(res, 400, 'Emails field must be an array', 'INVALID_BATCH_FORMAT');
     }
 
-    logger.debug('Applying email architecture batch middleware', {
+    logMiddlewareEvent('debug', 'Applying email architecture batch middleware', {
       userId,
       emailCount: emails.length
     });
 
-    // Criar serviço de email externo para validação
-    const externalEmailService = await EmailServiceFactory.createExternalService();
-    
-    // Testar se o serviço está funcionando
-    const serviceHealthy = await externalEmailService.testConnection?.();
+    // Health check otimizado com cache
+    const serviceHealthy = await checkServiceHealth('external');
     if (!serviceHealthy) {
-      logger.error('External email service health check failed for batch', { userId });
-      return res.status(500).json({
-        error: 'Email service temporarily unavailable',
-        code: 'SERVICE_UNAVAILABLE'
-      });
+      logMiddlewareEvent('error', 'External email service health check failed for batch', { userId });
+      return sendServiceUnavailableResponse(res);
     }
 
     // Usar DomainValidator para processar todos os emails
-    const domainValidator = (await import('../services/DomainValidator')).DomainValidator;
-    const validator = new domainValidator();
-    
-    const auditService = EmailAuditService.getInstance();
+    const validator = new DomainValidator();
     const processedEmails = [];
     const corrections = [];
     const auditLogs = [];
@@ -257,10 +210,11 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
 
       try {
         const validatedSender = await validator.validateSenderDomain(userId, email.from);
-        const emailId = `email_batch_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`;
+        const emailId = generateEmailId('email_batch');
         
         const processedEmail = { ...email };
         
+        // Aplicar correções se necessário
         if (validatedSender.fallback) {
           corrections.push({
             index: i,
@@ -269,18 +223,23 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
             reason: validatedSender.reason
           });
           
-          processedEmail.from = validatedSender.email;
-          processedEmail._senderCorrected = true;
-          processedEmail._originalFrom = email.from;
-          processedEmail._correctionReason = validatedSender.reason;
+          Object.assign(processedEmail, {
+            from: validatedSender.email,
+            _senderCorrected: true,
+            _originalFrom: email.from,
+            _correctionReason: validatedSender.reason
+          });
         }
         
-        processedEmail._dkimDomain = validatedSender.dkimDomain;
-        processedEmail._emailServiceType = EmailServiceType.EXTERNAL;
-        processedEmail._emailId = emailId;
+        // Metadados otimizados
+        Object.assign(processedEmail, {
+          _dkimDomain: validatedSender.dkimDomain,
+          _emailServiceType: EmailServiceType.EXTERNAL,
+          _emailId: emailId
+        });
 
-        // Registrar evento de auditoria para cada email do batch
-        auditLogs.push(auditService.logEmailEvent({
+        // Auditoria assíncrona (não bloqueante)
+        auditLogs.push(emailAuditService.logEmailEvent({
           userId,
           emailId,
           originalFrom: email.from,
@@ -302,18 +261,19 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
         
         processedEmails.push(processedEmail);
       } catch (error) {
-        logger.error('Error processing email in batch', {
+        logMiddlewareEvent('error', 'Error processing email in batch', {
           userId,
           index: i,
           originalFrom: email.from,
           error: error instanceof Error ? error.message : String(error)
         });
         
-        // Incluir email original em caso de erro
+        // Email original com metadados padrão
         processedEmails.push({
           ...email,
           _dkimDomain: 'ultrazend.com.br',
-          _emailServiceType: EmailServiceType.EXTERNAL
+          _emailServiceType: EmailServiceType.EXTERNAL,
+          _emailId: generateEmailId('email_batch_error')
         });
       }
     }
@@ -321,33 +281,32 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
     // Atualizar o body com emails processados
     req.body.emails = processedEmails;
 
-    // Aguardar todos os logs de auditoria serem processados
+    // Processar logs de auditoria de forma assíncrona (não bloqueia a resposta)
     if (auditLogs.length > 0) {
-      try {
-        await Promise.all(auditLogs);
-        logger.debug('All batch audit logs processed successfully', {
+      Promise.all(auditLogs).then(() => {
+        logMiddlewareEvent('debug', 'All batch audit logs processed successfully', {
           userId,
           auditLogCount: auditLogs.length
         });
-      } catch (error) {
-        logger.error('Error processing batch audit logs', {
+      }).catch(error => {
+        logMiddlewareEvent('error', 'Error processing batch audit logs', {
           userId,
           error: error instanceof Error ? error.message : String(error),
           auditLogCount: auditLogs.length
         });
-      }
-    }
-
-    if (corrections.length > 0) {
-      logger.info('Batch email senders corrected by architecture middleware', {
-        userId,
-        totalEmails: emails.length,
-        correctedCount: corrections.length,
-        corrections: corrections.slice(0, 5) // Log apenas os primeiros 5
       });
     }
 
-    logger.debug('Email architecture batch middleware completed', {
+    if (corrections.length > 0) {
+      logMiddlewareEvent('info', 'Batch email senders corrected by architecture middleware', {
+        userId,
+        totalEmails: emails.length,
+        correctedCount: corrections.length,
+        corrections: corrections.slice(0, 5)
+      });
+    }
+
+    logMiddlewareEvent('debug', 'Email architecture batch middleware completed', {
       userId,
       originalCount: emails.length,
       processedCount: processedEmails.length,
@@ -356,14 +315,14 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
 
     next();
   } catch (error) {
-    logger.error('Email architecture batch middleware error', {
+    logMiddlewareEvent('error', 'Email architecture batch middleware error', {
       userId: req.user?.id,
       emailCount: req.body?.emails?.length,
       error: error instanceof Error ? error.message : String(error)
     });
     
-    // Em caso de erro, permitir que o sistema antigo funcione
-    logger.warn('Falling back to legacy batch email processing due to middleware error');
+    // Fallback gracioso para sistema legado
+    logMiddlewareEvent('warn', 'Falling back to legacy batch email processing', {});
     next();
   }
 });

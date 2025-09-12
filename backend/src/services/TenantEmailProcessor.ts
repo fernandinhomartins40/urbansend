@@ -109,7 +109,6 @@ export class TenantEmailProcessor {
         subject: signedEmail.subject,
         html: signedEmail.html,
         text: signedEmail.text || text,
-        message_id: messageId,
         headers: signedEmail.headers
       });
 
@@ -129,7 +128,7 @@ export class TenantEmailProcessor {
         jobId: job.id,
         tenantId,
         emailId,
-        messageId: deliveryResult.messageId,
+        messageId: messageId,
         from,
         to,
         processingTime

@@ -13,6 +13,7 @@ import axios from 'axios';
 
 export interface WebhookJobData {
   tenantId: number;
+  userId: number; // Adicionado para correção de erros TypeScript
   jobId: string;
   createdAt: Date;
   metadata?: any;
@@ -23,6 +24,7 @@ export interface WebhookJobData {
   payload: Record<string, any>;
   headers?: Record<string, string>;
   retryCount?: number;
+  retryAttempt?: number; // Adicionado para correção de erros TypeScript
   maxRetries?: number;
   entityId: number;
 }
@@ -67,17 +69,17 @@ export class TenantWebhookProcessor {
       // 🔒 STEP 3: Aplicar rate limiting por tenant
       const canSend = await this.checkTenantRateLimit(tenantContext);
       if (!canSend) {
-        throw new Error(`Rate limit excedido para tenant ${userId}`);
+        throw new Error(`Rate limit excedido para tenant ${tenantContext.userId}`);
       }
 
       // 🔒 STEP 4: Processar webhook com isolamento
       await this.processWebhookWithIsolation(job.data, tenantContext);
 
       // 🔒 STEP 5: Atualizar métricas por tenant
-      await this.updateTenantMetrics(userId, 'webhook_sent');
+      await this.updateTenantMetrics(tenantContext.userId, 'webhook_sent');
 
       logger.info('✅ Webhook processado com sucesso para tenant', {
-        userId,
+        userId: tenantContext.userId,
         webhookId,
         eventType,
         url
@@ -85,14 +87,14 @@ export class TenantWebhookProcessor {
 
     } catch (error) {
       logger.error('❌ Erro no processamento de webhook para tenant', {
-        userId,
+        userId: tenantId, // usar tenantId como fallback
         webhookId,
         eventType,
         error: error instanceof Error ? error.message : String(error)
       });
 
       // Atualizar métricas de erro por tenant
-      await this.updateTenantMetrics(userId, 'webhook_failed');
+      await this.updateTenantMetrics(tenantId, 'webhook_failed');
       
       throw error;
     }
@@ -332,7 +334,12 @@ export class TenantWebhookProcessor {
       for (const webhook of pendingWebhooks) {
         try {
           const jobData: WebhookJobData = {
+            tenantId: webhook.user_id, // usar user_id como tenantId
             userId: webhook.user_id,
+            jobId: `webhook_${webhook.id}_${Date.now()}`,
+            createdAt: new Date(),
+            entityId: webhook.id,
+            method: webhook.method || 'POST',
             webhookId: webhook.webhook_id,
             eventType: webhook.event_type,
             url: webhook.url,

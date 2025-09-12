@@ -12,6 +12,7 @@ import db from '../config/database';
 
 export interface AnalyticsJobData {
   tenantId: number;
+  userId: number; // Adicionado para correção de erros TypeScript
   jobId: string;
   createdAt: Date;
   metadata?: any;
@@ -64,16 +65,16 @@ export class TenantAnalyticsProcessor {
       await this.processAnalyticsWithIsolation(job.data, tenantContext);
 
       // 🔒 STEP 4: Atualizar métricas agregadas por tenant
-      await this.updateAggregatedMetrics(userId, eventType, eventData);
+      await this.updateAggregatedMetrics(tenantContext.userId, eventType, eventData);
 
       logger.debug('✅ Analytics processado para tenant', {
-        userId,
+        userId: tenantContext.userId,
         eventType
       });
 
     } catch (error) {
       logger.error('❌ Erro no processamento de analytics para tenant', {
-        userId,
+        userId: tenantId, // usar tenantId como fallback
         eventType,
         error: error instanceof Error ? error.message : String(error)
       });
@@ -525,7 +526,12 @@ export class TenantAnalyticsProcessor {
       for (const event of pendingEvents) {
         try {
           const jobData: AnalyticsJobData = {
+            tenantId: event.user_id, // usar user_id como tenantId
             userId: event.user_id,
+            jobId: `analytics_${event.id}_${Date.now()}`,
+            createdAt: new Date(),
+            entityId: event.id,
+            entityType: 'analytics_event',
             eventType: event.event_type,
             eventData: JSON.parse(event.event_data || '{}'),
             timestamp: event.timestamp,
@@ -539,7 +545,7 @@ export class TenantAnalyticsProcessor {
           // Criar job mock para processamento
           const mockJob = {
             data: jobData,
-            queue: { name: `analytics-processing:user:${userId}` }
+            queue: { name: `analytics-processing:user:${event.user_id}` }
           } as Job<AnalyticsJobData>;
 
           await this.processAnalyticsJob(mockJob);

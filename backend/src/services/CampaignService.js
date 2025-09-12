@@ -1,5 +1,5 @@
 const db = require('../config/database');
-const { QueueService } = require('./queueService');
+const { queueService } = require('./queueService');
 
 /**
  * FASE 2.1 - Campaign Service
@@ -344,7 +344,6 @@ class CampaignService {
       });
 
     // Enfileirar emails para envio
-    const queueService = new QueueService();
     await this.queueCampaignEmails(campaignId, executionId);
 
     return this.getCampaignById(userId, campaignId);
@@ -404,7 +403,6 @@ class CampaignService {
       .where('status', 'pending');
 
     const campaign = await db('campaigns').where('id', campaignId).first();
-    const queueService = new QueueService();
 
     for (const recipient of recipients) {
       const emailData = {

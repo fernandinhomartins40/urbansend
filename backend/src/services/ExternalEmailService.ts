@@ -7,6 +7,7 @@ import { generateTrackingId } from '../utils/crypto';
 import { sanitizeEmailHtml } from '../middleware/validation';
 import { validateEmailAddress } from '../utils/email';
 import db from '../config/database';
+import { UserEmailStats, parseCount } from '../types/database';
 
 export interface ExternalEmailServiceOptions {
   domainValidator: DomainValidator;
@@ -528,10 +529,11 @@ export class ExternalEmailService implements IEmailService {
         .where('timestamp', '>=', db.raw(`datetime('now', '-${days} days')`))
         .first();
 
-      const totalEmails = parseInt((stats as any).total_emails) || 0;
-      const sentEmails = parseInt((stats as any).sent_emails) || 0;
-      const failedEmails = parseInt((stats as any).failed_emails) || 0;
-      const modifiedEmails = parseInt((stats as any).modified_emails) || 0;
+      const emailStats = stats as any;
+      const totalEmails = parseCount(emailStats.total_emails);
+      const sentEmails = parseCount(emailStats.sent_emails);
+      const failedEmails = parseCount(emailStats.failed_emails);
+      const modifiedEmails = parseCount(emailStats.modified_emails);
 
       return {
         totalEmails,

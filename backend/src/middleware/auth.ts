@@ -12,6 +12,7 @@ export interface AuthenticatedRequest extends Request {
     id: number;
     email: string;
     name: string;
+    permissions?: string[];
   };
   apiKey?: {
     id: number;

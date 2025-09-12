@@ -1,0 +1,62 @@
+{
+  "name": "@ultrazend/smtp-server",
+  "version": "1.0.0",
+  "description": "Servidor SMTP completo independente - Mini UltraZend para qualquer aplicação Node.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "start:server": "node dist/start-server.js",
+    "migrate": "node dist/migrations/migrate.js",
+    "test": "jest",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "smtp",
+    "email-server",
+    "mail-server",
+    "mx-delivery",
+    "dkim",
+    "direct-delivery",
+    "independent-smtp",
+    "ultrazend",
+    "typescript"
+  ],
+  "author": "UltraZend Team",
+  "license": "MIT",
+  "dependencies": {
+    "smtp-server": "^3.14.0",
+    "mailparser": "^3.7.4",
+    "nodemailer": "^6.9.14",
+    "knex": "^3.1.0",
+    "sqlite3": "^5.1.6",
+    "bcrypt": "^5.1.1",
+    "winston": "^3.14.2",
+    "dns": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@types/nodemailer": "^6.4.15",
+    "@types/bcrypt": "^5.0.2",
+    "@types/smtp-server": "^3.5.12",
+    "@types/mailparser": "^3.4.6",
+    "typescript": "^5.6.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.12"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ultrazend/smtp-server"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ]
+}

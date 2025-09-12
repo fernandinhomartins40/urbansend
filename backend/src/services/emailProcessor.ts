@@ -304,6 +304,8 @@ export class EmailProcessor {
       const canSendEmail = await this.tenantContextService.validateTenantOperation(
         tenantId,
         {
+          operation: 'send_email',
+          resource: fromAddress.split('@')[1],
           type: 'email_send',
           data: {
             from: fromAddress,
@@ -1068,7 +1070,7 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
           perMinute: Math.max(0, tenantContext.perMinuteEmailLimit - (tenantContext.perMinuteEmailsSent || 0))
         },
         plan: tenantContext.plan,
-        domains: tenantContext.verifiedDomains?.map(d => d.domain) || [],
+        domains: tenantContext.verifiedDomains?.map(d => d.domainName) || [],
         timestamp: new Date().toISOString()
       };
     } catch (error) {

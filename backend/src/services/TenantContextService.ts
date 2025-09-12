@@ -15,6 +15,13 @@ export interface TenantContext {
   isActive: boolean;
   createdAt: Date;
   lastActivity: Date;
+  // Propriedades para rate limiting em tempo real
+  dailyEmailLimit: number;
+  dailyEmailsSent: number;
+  hourlyEmailLimit: number;
+  hourlyEmailsSent: number;
+  perMinuteEmailLimit: number;
+  perMinuteEmailsSent: number;
 }
 
 export interface PlanLimits {
@@ -78,6 +85,8 @@ export interface TenantOperation {
   resource: string;
   resourceId?: number;
   metadata?: any;
+  type?: string; // Propriedade type opcional
+  data?: any; // Propriedade data opcional
 }
 
 export class TenantContextService {
@@ -173,7 +182,14 @@ export class TenantContextService {
         tenantSettings,
         isActive: user.is_verified && !user.is_suspended,
         createdAt: new Date(user.created_at),
-        lastActivity: new Date(user.last_activity || user.created_at)
+        lastActivity: new Date(user.last_activity || user.created_at),
+        // Rate limiting em tempo real
+        dailyEmailLimit: planLimits.emailsPerDay,
+        dailyEmailsSent: 0, // Será calculado dinamicamente
+        hourlyEmailLimit: rateLimits.emailsSending.perHour,
+        hourlyEmailsSent: 0, // Será calculado dinamicamente
+        perMinuteEmailLimit: rateLimits.emailsSending.perMinute,
+        perMinuteEmailsSent: 0 // Será calculado dinamicamente
       };
 
       // Atualizar cache

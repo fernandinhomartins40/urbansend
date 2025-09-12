@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import db from '../config/database';
 import { generateVerificationToken } from '../utils/crypto';
+import { KnexCountResult, parseCount } from '../types/database';
 
 export interface DKIMConfig {
   domain: string;
@@ -25,6 +26,7 @@ export interface SignedEmailData {
   text?: string;
   headers?: Record<string, string>;
   dkimSignature?: string;
+  messageId?: string;
 }
 
 export class DKIMManager {
@@ -517,7 +519,7 @@ export class DKIMManager {
   }
 
   private canonicalizeHeaders(emailData: any): string {
-    const headers = [];
+    const headers: string[] = [];
     
     // Cabeçalhos obrigatórios para assinatura
     if (emailData.from) headers.push(`from:${emailData.from.toLowerCase()}`);
@@ -952,16 +954,16 @@ export class DKIMManager {
           db.raw('COUNT(*) as total'),
           db.raw('COUNT(CASE WHEN signature_valid = true THEN 1 END) as successful')
         )
-        .first() as any;
+        .first();
 
-      const totalSignatures = signatureStats?.total || 0;
-      const successfulSignatures = signatureStats?.successful || 0;
+      const totalSignatures = parseCount((signatureStats as any)?.total);
+      const successfulSignatures = parseCount((signatureStats as any)?.successful);
       const successRate = totalSignatures > 0 ? (successfulSignatures / totalSignatures) * 100 : 0;
 
       return {
-        totalKeys: (totalKeys as any)?.count || 0,
-        activeKeys: (activeKeys as any)?.count || 0,
-        domainsWithDKIM: (domainsWithDKIM as any)?.count || 0,
+        totalKeys: parseCount((totalKeys as any)?.count),
+        activeKeys: parseCount((activeKeys as any)?.count),
+        domainsWithDKIM: parseCount((domainsWithDKIM as any)?.count),
         recentSignatures: totalSignatures,
         signatureSuccessRate: Math.round(successRate * 100) / 100
       };

@@ -2,11 +2,11 @@ import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import db from '../config/database';
 import { TenantContextService } from '../services/TenantContextService';
-import { TenantQueueManager } from '../services/TenantQueueManager';
+import { TenantAwareQueueService } from '../services/TenantAwareQueueService';
 
 class QueueProcessor {
   private tenantContextService: TenantContextService;
-  private tenantQueueManager: TenantQueueManager;
+  private queueService: TenantAwareQueueService;
   private isRunning: boolean = false;
   private processInterval: NodeJS.Timeout | null = null;
   private cleanupInterval: NodeJS.Timeout | null = null;
@@ -14,7 +14,7 @@ class QueueProcessor {
 
   constructor() {
     this.tenantContextService = new TenantContextService();
-    this.tenantQueueManager = new TenantQueueManager();
+    this.queueService = new TenantAwareQueueService();
   }
 
   async start(): Promise<void> {
@@ -25,9 +25,9 @@ class QueueProcessor {
 
     this.isRunning = true;
     logger.info('🚀 UltraZend Queue Processor starting...', {
-      mode: 'Pure UltraZend SMTP',
+      mode: 'Unified Architecture Complement',
       environment: Env.get('NODE_ENV'),
-      version: '1.0.0'
+      version: '4.0.0-Unified'
     });
 
     // Processar filas a cada 10 segundos
@@ -71,9 +71,9 @@ class QueueProcessor {
     }
 
     try {
-      await this.tenantQueueManager.closeAllQueues();
+      await this.queueService.shutdown();
     } catch (error) {
-      logger.error('Error closing tenant queue manager:', error);
+      logger.error('Error closing unified queue service:', error);
     }
 
     this.activeTenants.clear();
@@ -190,6 +190,8 @@ class QueueProcessor {
           const canSendEmail = await this.tenantContextService.validateTenantOperation(
             tenantId, 
             {
+              operation: 'send_email',
+              resource: emailRecord.from_address.split('@')[1],
               type: 'email_send',
               data: { 
                 from: emailRecord.from_address,
@@ -502,7 +504,7 @@ class QueueProcessor {
       });
 
       // TODO: Implementar limpeza de filas Redis antigas/órfãs
-      // Isso deve ser feito quando TenantQueueManager estiver totalmente implementado
+      // Com arquitetura unificada, limpeza pode ser feita via TenantAwareQueueService
 
     } catch (error) {
       logger.error('Error cleaning up tenant queues:', error);

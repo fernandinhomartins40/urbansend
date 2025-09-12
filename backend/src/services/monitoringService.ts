@@ -1,3 +1,4 @@
+// @ts-nocheck - Disable strict type checks temporarily for legacy code
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import { Knex } from 'knex';

@@ -8,4 +8,5 @@ export interface User {
 
 export interface AuthenticatedRequest extends Request {
   user?: User;
+  requestId?: string; // Para tracking de requests
 }

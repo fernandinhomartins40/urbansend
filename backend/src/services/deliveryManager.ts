@@ -162,6 +162,8 @@ export class DeliveryManager {
       const canSendEmail = await this.tenantContextService.validateTenantOperation(
         emailData.userId,
         {
+          operation: 'send_email',
+          resource: emailData.from.split('@')[1],
           type: 'email_send',
           data: {
             from: emailData.from,
@@ -280,6 +282,8 @@ export class DeliveryManager {
           const canStillSend = await this.tenantContextService.validateTenantOperation(
             delivery.user_id,
             {
+              operation: 'send_email',
+              resource: delivery.from_address.split('@')[1],
               type: 'email_send',
               data: {
                 from: delivery.from_address,

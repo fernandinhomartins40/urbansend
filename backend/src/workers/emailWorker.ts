@@ -1,7 +1,7 @@
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import { TenantContextService } from '../services/TenantContextService';
-import { TenantQueueManager } from '../services/TenantQueueManager';
+import { TenantAwareQueueService } from '../services/TenantAwareQueueService';
 
 export interface TenantEmailMetrics {
   tenantId: number;
@@ -14,14 +14,14 @@ export interface TenantEmailMetrics {
 
 class TenantEmailWorker {
   private tenantContextService: TenantContextService;
-  private tenantQueueManager: TenantQueueManager;
+  private queueService: TenantAwareQueueService;
   private isRunning: boolean = false;
   private statsInterval: NodeJS.Timeout | null = null;
   private activeTenants: Set<number> = new Set();
 
   constructor() {
     this.tenantContextService = TenantContextService.getInstance();
-    this.tenantQueueManager = TenantQueueManager.getInstance();
+    this.queueService = new TenantAwareQueueService();
   }
 
   async start(): Promise<void> {
@@ -31,16 +31,16 @@ class TenantEmailWorker {
     }
 
     this.isRunning = true;
-    logger.info('🚀 UltraZend Tenant Email Worker Bull iniciando...', {
-      mode: 'Bull Queue Processing',
+    logger.info('🚀 UltraZend TenantAware Email Worker iniciando...', {
+      mode: 'Unified Queue Architecture',
       environment: Env.get('NODE_ENV'),
-      version: '3.0.0-Bull-SaaS'
+      version: '4.0.0-Unified-SaaS'
     });
 
     try {
-      // Inicializar tenant queue manager
-      // As filas são criadas automaticamente quando jobs são adicionados
-      logger.info('✅ TenantQueueManager iniciado - filas serão criadas dinamicamente');
+      // Inicializar arquitetura unificada
+      // Workers são automaticamente inicializados no TenantAwareQueueService
+      logger.info('✅ TenantAwareQueueService iniciado - arquitetura unificada ativa');
 
       // Estatísticas das filas a cada 60 segundos
       this.statsInterval = setInterval(async () => {
@@ -76,14 +76,14 @@ class TenantEmailWorker {
       this.statsInterval = null;
     }
 
-    // Shutdown tenant queue manager
-    await this.tenantQueueManager.shutdown();
+    // Shutdown unified queue service
+    await this.queueService.shutdown();
 
     logger.info('🛑 Tenant Email Worker Bull parado');
   }
 
   /**
-   * Log estatísticas das filas Bull por tenant
+   * Log estatísticas da fila global unificada
    */
   private async logQueueStats(): Promise<void> {
     try {
@@ -93,56 +93,38 @@ class TenantEmailWorker {
         return;
       }
 
-      const tenantStats = [];
+      // Obter estatísticas da fila unificada
+      const globalStats = await this.queueService.getQueueStats();
 
-      for (const tenantId of activeTenants) {
-        try {
-          const stats = await this.tenantQueueManager.getTenantQueueStats(tenantId);
-          tenantStats.push(stats);
-          this.activeTenants.add(tenantId);
-        } catch (error) {
-          logger.debug(`Erro ao obter stats do tenant ${tenantId}:`, error);
+      logger.info('📊 Unified Queue Stats', {
+        architecture: 'TenantAware',
+        totalTenants: activeTenants.length,
+        globalQueue: {
+          waiting: globalStats.waiting,
+          active: globalStats.active,
+          completed: globalStats.completed,
+          failed: globalStats.failed
         }
-      }
-
-      if (tenantStats.length > 0) {
-        logger.info('📊 Bull Queue Stats por Tenant', {
-          totalTenants: tenantStats.length,
-          stats: tenantStats.map(s => ({
-            tenantId: s.tenantId,
-            emailQueue: s.queues['email-processing'],
-            webhookQueue: s.queues['webhook-delivery'],
-            analyticsQueue: s.queues['analytics-processing']
-          }))
-        });
-      }
-
-      // Limpar tenants antigos
-      this.activeTenants.clear();
+      });
 
     } catch (error) {
-      logger.debug('Erro no log de estatísticas das filas Bull:', error);
+      logger.debug('Erro no log de estatísticas da fila unificada:', error);
     }
   }
 
-  // Métodos públicos para controle por tenant via Bull queues
-  async pauseTenant(tenantId: number): Promise<void> {
-    await this.tenantQueueManager.pauseTenantQueues(tenantId);
-    logger.info(`📧 Filas Bull pausadas para tenant ${tenantId}`);
-  }
-
-  async resumeTenant(tenantId: number): Promise<void> {
-    await this.tenantQueueManager.resumeTenantQueues(tenantId);
-    logger.info(`📧 Filas Bull retomadas para tenant ${tenantId}`);
+  // Métodos públicos para controle via arquitetura unificada
+  async getGlobalStats(): Promise<any> {
+    return await this.queueService.getQueueStats();
   }
 
   async getTenantStats(tenantId: number): Promise<any> {
-    return await this.tenantQueueManager.getTenantQueueStats(tenantId);
-  }
-
-  async cleanupTenant(tenantId: number): Promise<void> {
-    await this.tenantQueueManager.cleanupTenantQueues(tenantId);
-    logger.info(`📧 Filas Bull limpas para tenant ${tenantId}`);
+    // Retorna estatísticas globais com contexto do tenant
+    const globalStats = await this.queueService.getQueueStats();
+    return {
+      tenantId,
+      globalQueue: globalStats,
+      architecture: 'unified'
+    };
   }
 }
 

@@ -5,35 +5,38 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": false,
+    "strict": true,                    // ← REABILITADO - corrigir erros sistematicamente
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmitOnError": false,
+    "noEmitOnError": false,           // Permite build com erros TypeScript
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "declaration": false,             // ← DESABILITADO para build mais rápido
+    "declarationMap": false,          // ← DESABILITADO para build mais rápido
+    "sourceMap": false,               // ← DESABILITADO para build mais rápido em prod
     "removeComments": true,
-    "noImplicitAny": false,
-    "noImplicitReturns": false,
+    "noImplicitAny": false,           // ← TEMPORARIAMENTE DESABILITADO para deps updates
+    "noImplicitReturns": false,       // ← TEMPORARIAMENTE DESABILITADO para deps updates
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitOverride": false,
-    "noPropertyAccessFromIndexSignature": false,
-    "strictNullChecks": false,
-    "strictFunctionTypes": false,
-    "strictBindCallApply": false,
-    "strictPropertyInitialization": false,
-    "noImplicitThis": false,
+    "strictNullChecks": false,        // ← TEMPORARIAMENTE DESABILITADO (causa dos erros never[])
+    "strictFunctionTypes": false,     // ← TEMPORARIAMENTE DESABILITADO  
+    "strictBindCallApply": false,     // ← TEMPORARIAMENTE DESABILITADO
+    "noImplicitThis": false,          // ← TEMPORARIAMENTE DESABILITADO
     "useUnknownInCatchVariables": true,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
+    "incremental": true,              // ← CACHE INCREMENTAL para builds mais rápidos
+    "tsBuildInfoFile": "./dist/.tsbuildinfo", // ← ARQUIVO CACHE
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "exclude": [
+    "node_modules", 
+    "dist", 
+    "tests",
+    "src/__tests__/**/*",
+    "src/tests/**/*",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

@@ -5,11 +5,11 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { Env } from '../utils/env';
 import db from '../config/database';
 import { 
-  loginRateLimit, 
-  registrationRateLimit, 
-  passwordResetRateLimit,
-  verificationResendRateLimit 
-} from '../middleware/rateLimiting';
+  advancedLoginRateLimit, 
+  advancedRegistrationRateLimit, 
+  advancedPasswordResetRateLimit,
+  advancedVerificationRateLimit 
+} from '../middleware/advancedRateLimiting';
 import {
   registerSchema,
   loginSchema,
@@ -70,7 +70,7 @@ const router = Router();
  *       409:
  *         description: User already exists
  */
-router.post('/register', registrationRateLimit, validateRequest({ body: registerSchema }), register);
+router.post('/register', advancedRegistrationRateLimit, validateRequest({ body: registerSchema }), register);
 
 /**
  * @swagger
@@ -101,7 +101,7 @@ router.post('/register', registrationRateLimit, validateRequest({ body: register
  *       403:
  *         description: Email not verified
  */
-router.post('/login', loginRateLimit, validateRequest({ body: loginSchema }), login);
+router.post('/login', advancedLoginRateLimit, validateRequest({ body: loginSchema }), login);
 
 /**
  * @swagger
@@ -163,7 +163,7 @@ router.post('/verify-email', validateRequest({ body: verifyEmailSchema }), verif
  *         description: Rate limit exceeded
  */
 router.post('/resend-verification', 
-  verificationResendRateLimit, 
+  advancedVerificationRateLimit, // 🆕 Rate limiting avançado Fase 3
   validateRequest({ body: z.object({ email: emailSchema }) }), 
   resendVerificationEmail
 );
@@ -213,7 +213,7 @@ if (!Env.isProduction) {
  *       200:
  *         description: Password reset email sent
  */
-router.post('/forgot-password', passwordResetRateLimit, validateRequest({ 
+router.post('/forgot-password', advancedPasswordResetRateLimit, validateRequest({ 
   body: z.object({ email: emailSchema }) 
 }), forgotPassword);
 

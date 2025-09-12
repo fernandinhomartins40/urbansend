@@ -19,11 +19,18 @@ import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
+import { queueService } from './services/queueService';
+import UltraZendSMTPServer from './services/smtpServer';
+import { SMTPDeliveryService } from './services/smtpDelivery';
+import { domainVerificationInitializer } from './services/domainVerificationInitializer';
+import { autoRollbackService } from './services/AutoRollbackService';
+import { getFeatureFlags } from './config/features';
 
 // Routes
 import authRoutes from './routes/auth';
 import keysRoutes from './routes/keys';
-import emailsRoutes from './routes/emails';
+import emailsRoutes from './routes/emails'; // Rota funcional (nova arquitetura em email/emailRoutes.ts quando tipos forem corrigidos)
+import emailsV2Routes from './routes/emails-v2'; // 🆕 Fase 3 - Rota híbrida com integração de domínios
 import templatesRoutes from './routes/templates';
 import domainsRoutes from './routes/domains';
 import analyticsRoutes from './routes/analytics';
@@ -43,6 +50,12 @@ import schedulerRoutes from './routes/scheduler';
 import { healthCheckScheduler } from './scheduler/healthCheckScheduler';
 // TEMPORÁRIO - Admin audit para corrigir vazamento de dados
 import adminAuditRoutes from './routes/admin-audit';
+// TEMPORÁRIO - Rotas de teste para Fase 2 - Integração de domínios
+import testIntegrationRoutes from './routes/test-integration';
+// Fase 6 - Feature flags routes para rollout gradual
+import featureFlagsRoutes from './routes/feature-flags';
+import migrationMonitoringRoutes from './routes/migration-monitoring';
+import autoRollbackRoutes from './routes/auto-rollback';
 // Temporarily commented - JS routes need TS conversion
 // import campaignsRoutes from './routes/campaigns';
 // import schedulerRoutes from './routes/scheduler';
@@ -128,9 +141,9 @@ const app = express();
 const PORT = Env.getNumber('PORT', 3001);
 const HTTPS_PORT = Env.getNumber('HTTPS_PORT', 443);
 
-let server;
-let httpsServer;
-let primaryServer;
+let server: any;
+let httpsServer: any;
+let primaryServer: any;
 
 // SSL Certificate paths to try
 const sslCertPaths = [
@@ -344,7 +357,11 @@ app.use('/api/health', healthRoutes);
 app.use('/api/version', healthRoutes); // Version endpoint shares health routes for consistency
 app.use('/api/auth', authRoutes);
 app.use('/api/keys', keysRoutes);
+// Manter rota atual funcionando (Fase 3.2)
 app.use('/api/emails', emailsRoutes);
+
+// Nova rota com integração de domínios (Fase 3.2)
+app.use('/api/emails-v2', emailsV2Routes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -362,6 +379,12 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 // TEMPORÁRIO - Admin audit para diagnóstico e correção
 app.use('/api/admin-audit', adminAuditRoutes);
+// TEMPORÁRIO - Rotas de teste para Fase 2 - Integração de domínios  
+app.use('/api/test', testIntegrationRoutes);
+// Fase 6 - Feature flags para rollout gradual da integração
+app.use('/api/feature-flags', featureFlagsRoutes);
+app.use('/api/migration-monitoring', migrationMonitoringRoutes);
+app.use('/api/auto-rollback', autoRollbackRoutes);
 // app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion  
 // app.use('/api/segmentation', segmentationRoutes); // Temporarily disabled - needs TS conversion
 // app.use('/api/trend-analytics', trendAnalyticsRoutes); // Temporarily disabled - needs TS conversion
@@ -417,9 +440,9 @@ if (Env.isProduction) {
       
       const indexPath = path.join(frontendPath, 'index.html');
       if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
+        return res.sendFile(indexPath);
       } else {
-        res.status(404).json({ error: 'Frontend not found', message: 'Frontend files not available' });
+        return res.status(404).json({ error: 'Frontend not found', message: 'Frontend files not available' });
       }
     });
   } else {
@@ -475,10 +498,10 @@ const initializeServices = async () => {
     logger.info('✅ Database connection established');
 
     // CRÍTICO: Execute migrations OBRIGATORIAMENTE antes de qualquer serviço
-    logger.info('🔄 Executando migrations obrigatórias (66 tabelas A01→A66)...');
+    logger.info('🔄 Executando migrations obrigatórias (71 tabelas A01→A71)...');
     
     const migrationTimeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Migration timeout - 66 migrations A01→A66 took longer than 60s')), 60000)
+      setTimeout(() => reject(new Error('Migration timeout - 71 migrations A01→A71 took longer than 300s')), 300000) // 5 minutos
     );
     
     const migrationResult = await Promise.race([
@@ -494,7 +517,7 @@ const initializeServices = async () => {
       throw new Error(`${pendingMigrations.length} migrations ainda pendentes: ${pendingMigrations.join(', ')}`);
     }
     
-    logger.info('✅ Todas as 66 migrations A01→A66 executadas com sucesso - Schema centralizado ativo');
+    logger.info('✅ Todas as 71 migrations A01→A71 executadas com sucesso - Schema centralizado ativo');
     logger.info(`📊 Migrations batch: ${migrationResult[0]}`);
     
   } catch (error) {
@@ -514,36 +537,42 @@ const initializeServices = async () => {
     logger.warn('⚠️ Monitoring service failed, continuing...', { error: (error as Error).message });
   }
 
-  // Step 3: Initialize services (SEQUENTIAL) - agora apenas validam tabelas existentes
+  // Step 3: Initialize services with dependency graph
   const services = [
     {
       name: 'Queue Service',
+      dependencies: [], // Nenhuma dependência
+      critical: true,   // Falha para todo o sistema
       init: async () => {
-        const { QueueService } = await import('./services/queueService');
-        const queueService = new QueueService();
         const stats = await queueService.getQueueStats();
         logger.info('✅ Queue service initialized', stats);
+        return { queueService, stats };
       }
     },
     {
       name: 'SMTP Server',
+      dependencies: ['Queue Service'], // Depende de Queue
+      critical: true,
       init: async () => {
         try {
           // OPÇÃO 1 - ARQUITETURA DUAL: Portas diferentes para evitar conflito
-          const UltraZendSMTPServer = (await import('./services/smtpServer')).default;
           
-          // Configuração robusta com portas específicas
+          // Portas não conflitantes para desenvolvimento
           const smtpServerConfig = {
-            mxPort: 2525,        // API/Aplicação (não conflita com Postfix:25)
-            submissionPort: 587,  // Submission padrão (autenticado)
+            mxPort: Env.isDevelopment ? 2526 : 25,         // Dev: 2526, Prod: 25
+            submissionPort: Env.isDevelopment ? 2587 : 587, // Dev: 2587, Prod: 587
             hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br'),
             maxConnections: Env.getNumber('SMTP_MAX_CLIENTS', 100),
-            authRequired: true,   // Sempre requer autenticação para segurança
+            authRequired: true,
             tlsEnabled: true
           };
-          
-          // DEBUG: Log da configuração sendo aplicada
-          logger.info('🔧 SMTP Server Config Applied', smtpServerConfig);
+
+          logger.info('🔧 SMTP Server Config - Development Safe Ports', {
+            environment: process.env.NODE_ENV,
+            mxPort: smtpServerConfig.mxPort,
+            submissionPort: smtpServerConfig.submissionPort,
+            isDevelopment: Env.isDevelopment
+          });
           
           const smtpServer = new UltraZendSMTPServer(smtpServerConfig);
           await smtpServer.start();
@@ -565,8 +594,9 @@ const initializeServices = async () => {
     },
     {
       name: 'Email Queue Processor',
+      dependencies: ['Queue Service', 'SMTP Server'], // Depende de ambos
+      critical: false, // Pode falhar sem parar sistema
       init: async () => {
-        const { SMTPDeliveryService } = await import('./services/smtpDelivery');
         const smtpDelivery = new SMTPDeliveryService();
         
         const processQueue = async () => {
@@ -583,10 +613,25 @@ const initializeServices = async () => {
     },
     {
       name: 'Domain Verification System',
+      dependencies: [], // Independente
+      critical: false, // Não crítico
       init: async () => {
-        const { domainVerificationInitializer } = await import('./services/domainVerificationInitializer');
         await domainVerificationInitializer.initialize();
         logger.info('✅ Domain Verification System initialized - Full monitoring active');
+      }
+    },
+    {
+      name: 'Auto Rollback Service',
+      dependencies: [], // Independente
+      critical: false, // Não crítico
+      init: async () => {
+        const flags = getFeatureFlags();
+        if (flags.ENABLE_AUTO_ROLLBACK) {
+          autoRollbackService.start();
+          logger.info('✅ Auto Rollback Service inicializado e ativo');
+        } else {
+          logger.info('⚪ Auto Rollback Service inicializado mas desabilitado por feature flag');
+        }
       }
     }
     // {
@@ -604,34 +649,49 @@ const initializeServices = async () => {
     // } // Temporarily disabled - needs TS conversion
   ];
 
-  // Initialize remaining services sequentially (sem race conditions)
-  logger.info('🔄 Iniciando serviços restantes com schema centralizado validado...');
-  
-  for (const service of services) {
-    try {
-      logger.info(`🔄 Inicializando ${service.name}...`);
-      await service.init();
-      logger.info(`✅ ${service.name} inicializado com sucesso`);
-      
-      // Delay pequeno entre serviços para evitar contenção de recursos
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-      logger.error(`❌ ${service.name} falhou na inicialização`, { 
-        error: (error as Error).message,
-        stack: (error as Error).stack
-      });
-      
-      // Para serviços críticos como SMTP, não continuar
-      if (service.name === 'SMTP Server') {
-        logger.error('🚫 SMTP Server é crítico - parando inicialização');
-        throw error;
-      }
-      
-      logger.warn(`⚠️ Continuando sem ${service.name}...`);
-    }
-  }
+  // Inicialização respeitando dependências
+  const initializeServicesWithDependencies = async () => {
+    const initializedServices = new Map();
+    const results = new Map();
 
-  logger.info('✅ Inicialização sequencial completa - Sistema profissional ativo!');
+    for (const service of services) {
+      // Verificar se dependências foram inicializadas
+      for (const dependency of service.dependencies) {
+        if (!initializedServices.has(dependency)) {
+          throw new Error(`Service '${service.name}' depends on '${dependency}' which is not initialized`);
+        }
+      }
+
+      try {
+        logger.info(`🔄 Inicializando ${service.name}...`);
+        const result = await service.init();
+        
+        initializedServices.set(service.name, true);
+        results.set(service.name, result);
+        
+        logger.info(`✅ ${service.name} inicializado com sucesso`);
+        
+        // Delay entre serviços críticos
+        if (service.critical) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+      } catch (error) {
+        logger.error(`❌ ${service.name} falhou na inicialização`, { error });
+        
+        if (service.critical) {
+          throw error; // Parar tudo se crítico
+        } else {
+          logger.warn(`⚠️ Continuando sem ${service.name}...`);
+        }
+      }
+    }
+
+    return results;
+  };
+
+  await initializeServicesWithDependencies();
+  logger.info('✅ Inicialização com dependency graph completa - Sistema profissional ativo!');
 };
 
 const startServer = async () => {
@@ -649,7 +709,7 @@ const startServer = async () => {
       // Start HTTPS server
       httpsServer.listen(HTTPS_PORT, () => {
         logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTPS) na porta ${HTTPS_PORT}`);
-        logger.info('✅ Schema: 66 tabelas centralizadas via migrations A01→A66');
+        logger.info('✅ Schema: 71 tabelas centralizadas via migrations A01→A71');
         logger.info('✅ Serviços: Validação defensiva implementada');
         logger.info('✅ Deploy: Determinístico e confiável');
         logger.info(`📚 API Documentation: https://www.ultrazend.com.br/api-docs`);
@@ -665,7 +725,7 @@ const startServer = async () => {
       // Start HTTP server only
       server.listen(PORT, () => {
         logger.info(`🎉 UltraZend Sistema Profissional ATIVO (HTTP) na porta ${PORT}`);
-        logger.info('✅ Schema: 66 tabelas centralizadas via migrations A01→A66');
+        logger.info('✅ Schema: 71 tabelas centralizadas via migrations A01→A71');
         logger.info('✅ Serviços: Validação defensiva implementada');
         logger.info('✅ Deploy: Determinístico e confiável');
         
@@ -690,83 +750,119 @@ const startServer = async () => {
   }
 };
 
-// Enhanced graceful shutdown with robust error handling
+// ✅ GRACEFUL SHUTDOWN ROBUSTO - TASK 2.7
 const gracefulShutdown = async (signal: string) => {
-  // Prevent multiple shutdown attempts
+  // Prevent multiple shutdowns
   if (isShutdownInProgress) {
     logger.warn(`Graceful shutdown already in progress, ignoring ${signal}`);
     return;
   }
   
   isShutdownInProgress = true;
-  logger.info(`Received ${signal}, starting graceful shutdown...`);
+  
+  logger.info(`🔄 Graceful shutdown initiated by ${signal}`);
   
   const shutdownTimeout = setTimeout(() => {
-    logger.error('Graceful shutdown timeout reached, forcing exit');
+    logger.error('🚨 Graceful shutdown timeout - force exiting');
     process.exit(1);
-  }, 30000); // 30 seconds timeout
+  }, 30000); // 30 segundos máximo
 
   try {
-    // Cleanup performance monitor with timeout protection
-    try {
-      await Promise.race([
-        performanceMonitor.destroy(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Performance monitor timeout')), 5000))
-      ]);
-      logger.info('Performance monitor cleaned up');
-    } catch (error) {
-      logger.warn('Performance monitor cleanup failed, continuing...', { error: (error as Error).message });
-    }
-    
-    // Cleanup monitoring service with timeout protection
-    try {
-      await Promise.race([
-        monitoringService.close(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Monitoring service timeout')), 10000))
-      ]);
-      logger.info('Monitoring service shutdown completed');
-    } catch (error) {
-      logger.warn('Monitoring service cleanup failed, continuing...', { error: (error as Error).message });
-    }
-    
-    // Close servers with timeout protection
-    const closePromises = [];
-    
-    if (server) {
-      closePromises.push(new Promise((resolve) => {
+    // 1. Stop accepting new connections
+    if (primaryServer) {
+      logger.info('🔄 Closing HTTP server...');
+      await new Promise((resolve) => {
         const serverTimeout = setTimeout(() => {
           logger.warn('HTTP server close timeout, forcing...');
           resolve(void 0);
         }, 5000);
         
-        server.close(() => {
+        primaryServer.close(() => {
           clearTimeout(serverTimeout);
-          logger.info('HTTP Server closed');
+          logger.info('✅ HTTP server closed');
           resolve(void 0);
         });
-      }));
+      });
     }
-    
-    if (httpsServer) {
-      closePromises.push(new Promise((resolve) => {
-        const httpsTimeout = setTimeout(() => {
-          logger.warn('HTTPS server close timeout, forcing...');
+
+    // Also close additional servers (HTTP redirect server)
+    if (server && server !== primaryServer) {
+      logger.info('🔄 Closing HTTP redirect server...');
+      await new Promise((resolve) => {
+        const redirectTimeout = setTimeout(() => {
+          logger.warn('HTTP redirect server close timeout, forcing...');
           resolve(void 0);
-        }, 5000);
+        }, 3000);
         
-        httpsServer.close(() => {
-          clearTimeout(httpsTimeout);
-          logger.info('HTTPS Server closed');
+        server.close(() => {
+          clearTimeout(redirectTimeout);
+          logger.info('✅ HTTP redirect server closed');
           resolve(void 0);
         });
-      }));
+      });
+    }
+
+    // 2. Close WebSocket connections
+    if (io) {
+      logger.info('🔄 Closing WebSocket connections...');
+      try {
+        await new Promise((resolve) => {
+          const ioTimeout = setTimeout(() => {
+            logger.warn('WebSocket close timeout, forcing...');
+            resolve(void 0);
+          }, 3000);
+          
+          io.close(() => {
+            clearTimeout(ioTimeout);
+            logger.info('✅ WebSocket connections closed');
+            resolve(void 0);
+          });
+        });
+      } catch (error) {
+        logger.warn('WebSocket close error, continuing...', { error: (error as Error).message });
+      }
+    }
+
+    // 3. Close queue service
+    try {
+      logger.info('🔄 Closing queue service...');
+      await Promise.race([
+        queueService.close(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Queue service timeout')), 8000))
+      ]);
+      logger.info('✅ Queue service closed');
+    } catch (error) {
+      logger.warn('Queue service close error, continuing...', { error: (error as Error).message });
+    }
+
+    // 4. Cleanup performance monitor with timeout protection
+    try {
+      logger.info('🔄 Cleaning up performance monitor...');
+      await Promise.race([
+        performanceMonitor.destroy(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Performance monitor timeout')), 5000))
+      ]);
+      logger.info('✅ Performance monitor cleaned up');
+    } catch (error) {
+      logger.warn('Performance monitor cleanup failed, continuing...', { error: (error as Error).message });
     }
     
-    await Promise.all(closePromises);
-    
-    // CORREÇÃO FINAL: Database fechamento robusto com pool cleanup
+    // 5. Cleanup monitoring service with timeout protection
     try {
-      if (!isDatabaseClosed) {
+      logger.info('🔄 Closing monitoring service...');
+      await Promise.race([
+        monitoringService.close(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Monitoring service timeout')), 8000))
+      ]);
+      logger.info('✅ Monitoring service shutdown completed');
+    } catch (error) {
+      logger.warn('Monitoring service cleanup failed, continuing...', { error: (error as Error).message });
+    }
+
+    // 6. Close database connection (only if not already closed)
+    if (db && !isDatabaseClosed) {
+      logger.info('🔄 Closing database connection...');
+      try {
         // Aguardar operações pendentes antes de fechar
         await new Promise(resolve => setTimeout(resolve, 1000));
         
@@ -781,7 +877,7 @@ const gracefulShutdown = async (signal: string) => {
             
             // Fechar pool
             await db.destroy();
-            logger.info('Database connection pool closed successfully');
+            logger.info('✅ Database connection pool closed successfully');
           } catch (poolError) {
             logger.warn('Pool close with issues, but completing shutdown...', { 
               error: (poolError as Error).message 
@@ -804,24 +900,35 @@ const gracefulShutdown = async (signal: string) => {
         ]);
         
         isDatabaseClosed = true;
-        logger.info('Database graceful shutdown completed');
-      } else {
-        logger.info('Database connection already closed by monitoring service');
+        logger.info('✅ Database graceful shutdown completed');
+      } catch (error) {
+        logger.warn('Database graceful shutdown completed with warnings', { error: (error as Error).message });
+        isDatabaseClosed = true; // Always mark as closed to prevent retry
       }
-    } catch (error) {
-      logger.warn('Database graceful shutdown completed with warnings', { error: (error as Error).message });
-      isDatabaseClosed = true; // Always mark as closed to prevent retry
+    } else {
+      logger.info('✅ Database connection already closed');
     }
     
     clearTimeout(shutdownTimeout);
-    logger.info('Graceful shutdown completed successfully');
+    logger.info('✅ Graceful shutdown completed successfully');
     process.exit(0);
+    
   } catch (error) {
     clearTimeout(shutdownTimeout);
-    logger.error('Error during graceful shutdown', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error during graceful shutdown', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
     process.exit(1);
   }
 };
+
+// Remove existing listeners to prevent memory leaks
+const existingListeners = ['SIGTERM', 'SIGINT', 'SIGUSR2', 'uncaughtException', 'unhandledRejection'];
+existingListeners.forEach(event => {
+  process.removeAllListeners(event);
+});
+
+logger.info('🧹 Event listeners cleared before adding new ones');
 
 // Shutdown handlers
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
@@ -829,23 +936,37 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception detected', {
-    error: error.message,
-    stack: error.stack,
-    severity: 'CRITICAL'
-  });
-  gracefulShutdown('uncaughtException');
+  try {
+    logger.error('Uncaught exception detected', {
+      error: error.message,
+      stack: error.stack,
+      severity: 'CRITICAL',
+      timestamp: new Date().toISOString()
+    });
+  } catch (logError) {
+    // Fallback logging se logger falhar
+    console.error('CRITICAL: Uncaught exception + logging failed', error.message);
+  }
+  
+  // Exit immediately without graceful shutdown to avoid recursion
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  const reasonStr = reason instanceof Error ? reason.message : String(reason);
+  try {
+    const reasonStr = reason instanceof Error ? reason.message : String(reason);
+    
+    logger.error('Unhandled promise rejection detected', {
+      reason: reasonStr,
+      severity: 'HIGH',
+      timestamp: new Date().toISOString()
+    });
+  } catch (logError) {
+    const reasonStr = reason instanceof Error ? reason.message : String(reason);
+    console.error('HIGH: Unhandled rejection + logging failed', reasonStr);
+  }
   
-  logger.error('Unhandled promise rejection detected', {
-    reason: reasonStr,
-    promise: promise.toString(),
-    severity: 'HIGH'
-  });
-  gracefulShutdown('unhandledRejection');
+  // Log but don't exit - let the application continue
 });
 
 startServer();

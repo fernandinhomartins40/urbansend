@@ -2,17 +2,30 @@ import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { validateRequest, sendEmailSchema, paginationSchema, idParamSchema } from '../middleware/validation';
 import { authenticateJWT, authenticateApiKey, requirePermission } from '../middleware/auth';
-import { emailSendRateLimit } from '../middleware/rateLimiting';
-import { validateSenderMiddleware, validateBatchSenderMiddleware } from '../middleware/emailValidation';
+import { advancedEmailRateLimit, advancedBatchRateLimit } from '../middleware/advancedRateLimiting';
 import { 
   emailArchitectureMiddleware, 
   emailArchitectureBatchMiddleware,
   emailStatsMiddleware 
 } from '../middleware/emailArchitectureMiddleware';
-import { QueueService } from '../services/queueService';
+import { queueService } from '../services/queueService';
+import { TenantAwareQueueService } from '../services/TenantAwareQueueService';
 import { asyncHandler } from '../middleware/errorHandler';
-import { EmailAuditService } from '../services/EmailAuditService';
+import { emailAuditService } from '../services/EmailAuditService';
 import db from '../config/database';
+import { logger } from '../config/logger';
+
+// Feature flag para migração gradual para arquitetura unificada
+const USE_UNIFIED_QUEUE = process.env.ENABLE_UNIFIED_QUEUE === 'true';
+
+const activeQueueService = USE_UNIFIED_QUEUE 
+  ? new TenantAwareQueueService()
+  : queueService;
+
+logger.info('Email routes initialized', {
+  architecture: USE_UNIFIED_QUEUE ? 'unified' : 'legacy',
+  service: USE_UNIFIED_QUEUE ? 'TenantAwareQueueService' : 'queueService'
+});
 
 const router = Router();
 
@@ -21,25 +34,27 @@ router.post('/send',
   authenticateJWT,
   requirePermission('email:send'),
   emailArchitectureMiddleware, // 🆕 Nova arquitetura Fase 2
-  emailSendRateLimit,
+  advancedEmailRateLimit, // 🆕 Rate limiting avançado Fase 3
   validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const emailData = { ...req.body, userId: req.user!.id };
-    const queueService = new QueueService();
-    const job = await queueService.addEmailJob(emailData);
+    const job = await activeQueueService.addEmailJob(emailData);
     
     // Atualizar auditoria se email foi processado pelo middleware
     if (req.body._emailId) {
-      const auditService = EmailAuditService.getInstance();
       try {
-        await auditService.updateDeliveryStatus(req.body._emailId, 'queued', {
+        await emailAuditService.updateDeliveryStatus(req.body._emailId, 'queued', {
           jobId: job.id,
           queuedAt: new Date(),
           processedBy: 'email-send-api'
         });
       } catch (error) {
         // Log mas não falha o processo principal
-        console.error('Failed to update audit log for queued email:', error);
+        logger.warn('Failed to update audit log for queued email', {
+          error: error instanceof Error ? error.message : String(error),
+          emailId: req.body._emailId,
+          context: 'email-send-audit'
+        });
       }
     }
     
@@ -66,7 +81,7 @@ router.post('/send-batch',
   authenticateJWT,
   requirePermission('email:send'),
   emailArchitectureBatchMiddleware, // 🆕 Nova arquitetura Fase 2 para lotes
-  emailSendRateLimit,
+  advancedBatchRateLimit, // 🆕 Rate limiting avançado para batch Fase 3
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { emails } = req.body;
     const emailsWithUser = emails.map((email: any) => ({
@@ -74,29 +89,36 @@ router.post('/send-batch',
       userId: req.user!.id
     }));
     
-    const queueService = new QueueService();
-    const job = await queueService.addBatchEmailJob(emailsWithUser);
+    const job = await activeQueueService.addBatchEmailJob(emailsWithUser);
     
     // Atualizar auditoria para todos os emails no batch
-    const auditService = EmailAuditService.getInstance();
     const batchUpdatePromises = emails
       .filter((email: any) => email._emailId)
       .map(async (email: any) => {
         try {
-          await auditService.updateDeliveryStatus(email._emailId, 'queued', {
+          await emailAuditService.updateDeliveryStatus(email._emailId, 'queued', {
             jobId: job.id,
             queuedAt: new Date(),
             processedBy: 'email-batch-api',
             batchSize: emails.length
           });
         } catch (error) {
-          console.error(`Failed to update audit log for batch email ${email._emailId}:`, error);
+          logger.warn('Failed to update audit log for batch email', {
+            error: error instanceof Error ? error.message : String(error),
+            emailId: email._emailId,
+            context: 'email-batch-audit',
+            batchSize: emails.length
+          });
         }
       });
 
     // Executar atualizações em paralelo sem bloquear a resposta
     Promise.all(batchUpdatePromises).catch(error => {
-      console.error('Some batch audit updates failed:', error);
+      logger.warn('Some batch audit updates failed', {
+        error: error instanceof Error ? error.message : String(error),
+        context: 'batch-audit-parallel',
+        emailCount: emails.length
+      });
     });
     
     // Contar quantos emails foram corrigidos

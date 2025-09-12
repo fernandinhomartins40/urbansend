@@ -3,6 +3,7 @@ import { logger } from '../config/logger';
 import { Knex } from 'knex';
 import db from '../config/database';
 import { TenantContextService } from './TenantContextService';
+import { queueService } from './queueService';
 
 export interface QueueMetrics {
   name: string;
@@ -435,9 +436,6 @@ export class QueueMonitorService {
   // 🔥 MÉTODO MODIFICADO: Webhook alert com tenant sistema
   private async sendWebhookAlert(webhookUrl: string, payload: any): Promise<void> {
     try {
-      const { QueueService } = await import('./queueService');
-      const queueService = new QueueService();
-
       // 🔥 NOVO: Usar tenant sistema (ID 1) para alertas de sistema
       const systemTenantId = 1;
 
@@ -463,9 +461,6 @@ export class QueueMonitorService {
   // 🔥 MÉTODO MODIFICADO: Email alert com tenant sistema
   private async sendEmailAlert(recipients: string[], alertData: any): Promise<void> {
     try {
-      const { QueueService } = await import('./queueService');
-      const queueService = new QueueService();
-
       // 🔥 NOVO: Usar tenant sistema (ID 1) para alertas de sistema
       const systemTenantId = 1;
 

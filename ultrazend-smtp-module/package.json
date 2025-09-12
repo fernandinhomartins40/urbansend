@@ -1,0 +1,55 @@
+{
+  "name": "@ultrazend/smtp-internal",
+  "version": "1.0.0",
+  "description": "Módulo SMTP interno para aplicações Node.js - Emails de verificação, reset de senha e notificações do sistema",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepare": "npm run build",
+    "test": "jest",
+    "migrate": "node dist/migrations/migrate.js"
+  },
+  "keywords": [
+    "smtp",
+    "email",
+    "verification",
+    "password-reset",
+    "nodemailer",
+    "sqlite",
+    "typescript",
+    "internal-emails"
+  ],
+  "author": "UltraZend Team",
+  "license": "MIT",
+  "dependencies": {
+    "nodemailer": "^6.9.14",
+    "knex": "^3.1.0",
+    "sqlite3": "^5.1.6",
+    "winston": "^3.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@types/nodemailer": "^6.4.15",
+    "typescript": "^5.6.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.12"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ultrazend/smtp-internal"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ]
+}

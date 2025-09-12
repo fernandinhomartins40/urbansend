@@ -7,6 +7,7 @@ import { sanitizeEmailHtml } from '../middleware/validation';
 import db from '../config/database';
 import { Env } from '../utils/env';
 import { SMTPDeliveryService } from './smtpDelivery';
+import { queueService } from './queueService';
 
 interface EmailAttachment {
   filename: string;
@@ -229,8 +230,26 @@ export class EmailService {
         attachments
       };
 
-      // Enviar via SMTP delivery
+      // Gerar tracking ID se não fornecido
+      const trackingId = emailId || generateTrackingId();
+
+      // Enviar via SMTP delivery PRIMEIRO
       const result = await this.smtpDelivery.deliverEmail(emailData);
+
+      // Registrar email na tabela emails APENAS APÓS envio bem-sucedido
+      const dbEmailId = await this.insertEmailRecord({
+        userId,
+        from,
+        to: Array.isArray(to) ? to.join(',') : to,
+        subject,
+        html: processedHtml,
+        text: processedText,
+        tracking_id: trackingId,
+        status: 'delivered', // Já nasce como delivered pois foi enviado
+        campaign_id: campaignId,
+        priority,
+        sent_at: new Date()
+      });
 
       // Registrar evento de envio
       await this.recordEmailEvent(emailId, 'sent', {
@@ -247,13 +266,35 @@ export class EmailService {
     } catch (error) {
       logger.error('Erro ao processar job de email:', error);
       
-      // Registrar falha se tivermos o emailId
-      if (jobData.emailId) {
-        await this.recordEmailEvent(jobData.emailId, 'failed', {
-          error: (error as Error).message,
-          campaignId: jobData.campaignId,
-          userId: jobData.userId
-        });
+      // Registrar email como failed APENAS se houve erro no envio
+      if (jobData.userId) {
+        try {
+          const trackingId = jobData.emailId || generateTrackingId();
+          
+          // Registrar o email como failed no banco
+          await this.insertEmailRecord({
+            userId: jobData.userId,
+            from: jobData.from,
+            to: Array.isArray(jobData.to) ? jobData.to.join(',') : jobData.to,
+            subject: jobData.subject,
+            html: jobData.html,
+            text: jobData.text,
+            tracking_id: trackingId,
+            status: 'failed',
+            campaign_id: jobData.campaignId,
+            priority: jobData.priority,
+            error_message: (error as Error).message
+          });
+
+          // Registrar evento de falha
+          await this.recordEmailEvent(trackingId, 'failed', {
+            error: (error as Error).message,
+            campaignId: jobData.campaignId,
+            userId: jobData.userId
+          });
+        } catch (insertError) {
+          logger.error('Erro ao registrar email falhado:', insertError);
+        }
       }
 
       throw error;
@@ -268,8 +309,8 @@ export class EmailService {
 
     try {
       const { batchId, emails, template, variables, trackingEnabled } = jobData;
-      const results = [];
-      const errors = [];
+      const results: any[] = [];
+      const errors: any[] = [];
 
       // Processar emails em lotes menores para evitar sobrecarga
       const batchSize = 10;
@@ -334,9 +375,6 @@ export class EmailService {
   private async recordEmailEvent(emailId: string, eventType: string, data: any): Promise<void> {
     try {
       // Enviar evento para AnalyticsService via Queue
-      const { QueueService } = await import('./queueService');
-      const queueService = new QueueService();
-
       await queueService.addAnalyticsJob({
         type: 'email_event',
         emailId: emailId.toString(),
@@ -378,6 +416,78 @@ export class EmailService {
 
   private extractDomainFromEmail(email: string): string {
     return email.split('@')[1] || 'unknown';
+  }
+
+  private async insertEmailRecord(emailData: any): Promise<number> {
+    try {
+      const insertData: any = {
+        user_id: emailData.userId,
+        message_id: emailData.tracking_id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        from_email: emailData.from,
+        to_email: emailData.to,
+        subject: emailData.subject,
+        html_content: emailData.html,
+        text_content: emailData.text,
+        status: emailData.status || 'pending',
+        campaign_id: emailData.campaign_id,
+        metadata: JSON.stringify({ priority: emailData.priority || 0 }),
+        created_at: db.fn.now(),
+        updated_at: db.fn.now()
+      };
+
+      // Adicionar campos opcionais se fornecidos
+      if (emailData.sent_at) {
+        insertData.sent_at = emailData.sent_at;
+      }
+      
+      if (emailData.error_message) {
+        insertData.error_message = emailData.error_message;
+      }
+
+      const [emailId] = await db('emails').insert(insertData);
+
+      logger.info('Email registrado na tabela emails', { 
+        emailId, 
+        messageId: emailData.tracking_id,
+        to: emailData.to,
+        status: emailData.status 
+      });
+
+      return emailId;
+    } catch (error) {
+      logger.error('Erro ao inserir email na tabela:', error);
+      throw error;
+    }
+  }
+
+  private async updateEmailStatus(emailId: number, status: string, data?: any): Promise<void> {
+    try {
+      const updateData: any = {
+        status,
+        updated_at: db.fn.now()
+      };
+
+      if (data?.message_id) {
+        updateData.message_id = data.message_id;
+      }
+
+      if (data?.sent_at) {
+        updateData.sent_at = data.sent_at;
+      }
+
+      if (data?.error_message) {
+        updateData.error_message = data.error_message;
+      }
+
+      await db('emails')
+        .where('id', emailId)
+        .update(updateData);
+
+      logger.info('Status do email atualizado', { emailId, status });
+    } catch (error) {
+      logger.error('Erro ao atualizar status do email:', error);
+      throw error;
+    }
   }
 
   // Método para teste de conexão

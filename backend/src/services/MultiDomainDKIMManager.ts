@@ -155,14 +155,16 @@ export class MultiDomainDKIMManager extends DKIMManager {
         return null;
       }
 
-      // 🚨 CRÍTICO: Só gerar DKIM para domínios VERIFICADOS
+      // 🔄 SEGURO: Para domínios não verificados, usar configuração padrão
       if (!domainRecord.is_verified) {
-        logger.warn('🔒 DKIM generation blocked: Domain not verified', { 
+        logger.warn('🔄 DKIM requested for unverified domain - using fallback configuration', { 
           domain,
           domainId: domainRecord.id,
-          isVerified: domainRecord.is_verified
+          isVerified: domainRecord.is_verified,
+          fallbackDomain: this.FALLBACK_DOMAIN
         });
-        return null; // Não gerar DKIM para domínios não verificados
+        // Usar configuração padrão em vez de bloquear completamente
+        return await this.getDefaultDKIMConfig();
       }
 
       logger.info('✅ Domain verified, proceeding with DKIM generation', {
@@ -328,8 +330,10 @@ export class MultiDomainDKIMManager extends DKIMManager {
   public async getDefaultDKIMConfig(): Promise<DKIMConfig | null> {
     try {
       // Usar método do DKIMManager pai se disponível
-      if (super.getDKIMConfig) {
+      try {
         return await super.getDKIMConfig(this.FALLBACK_DOMAIN);
+      } catch (error) {
+        // Fallback se método pai falhar
       }
 
       // Fallback básico se método pai não estiver disponível

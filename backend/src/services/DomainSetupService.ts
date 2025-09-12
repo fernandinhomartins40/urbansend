@@ -3,6 +3,7 @@ import db from '../config/database';
 import { generateVerificationToken } from '../utils/crypto';
 import { MultiDomainDKIMManager } from './MultiDomainDKIMManager';
 import { DomainValidator } from './DomainValidator';
+import { SimpleEmailValidator } from '../email/EmailValidator';
 import dns from 'dns';
 import { promisify } from 'util';
 
@@ -914,7 +915,7 @@ export class DomainSetupService {
    * @returns true se válido
    */
   private isValidDomainFormat(domain: string): boolean {
-    return DomainValidator.isValidDomainFormat(domain);
+    return SimpleEmailValidator.isValidDomainFormat(domain);
   }
 
   /**
@@ -1061,3 +1062,6 @@ export class DomainSetupService {
     return Math.round((completedChecks / totalChecks) * 100);
   }
 }
+
+// Export singleton instance
+export const domainSetupService = new DomainSetupService();

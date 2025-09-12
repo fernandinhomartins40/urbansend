@@ -438,3 +438,6 @@ export class EmailAuditService {
     return recommendations;
   }
 }
+
+// Export singleton instance
+export const emailAuditService = EmailAuditService.getInstance();

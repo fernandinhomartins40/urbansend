@@ -33,6 +33,7 @@ export interface EmailJobData extends TenantJobData {
 }
 
 export interface WebhookJobData extends TenantJobData {
+  userId: number; // Adicionado para compatibilidade com TenantWebhookProcessor
   url: string;
   method: string;
   payload: any;
@@ -40,10 +41,12 @@ export interface WebhookJobData extends TenantJobData {
   eventType: string;
   entityId: number;
   retryCount?: number;
+  retryAttempt?: number; // Adicionado para compatibilidade
   maxRetries?: number;
 }
 
 export interface AnalyticsJobData extends TenantJobData {
+  userId: number; // Adicionado para compatibilidade com TenantAnalyticsProcessor
   eventType: string;
   entityId: number;
   entityType: string;

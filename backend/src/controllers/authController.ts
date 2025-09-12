@@ -7,6 +7,7 @@ import { AuthenticatedRequest, generateJWT, generateRefreshToken, hashPassword, 
 import { generateVerificationToken } from '../utils/crypto';
 import { validateEmailAddress } from '../utils/email';
 import { Env } from '../utils/env';
+import { InternalEmailService } from '../services/InternalEmailService';
 
 // Secure cookie configuration
 const getCookieOptions = () => ({
@@ -109,11 +110,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // Send verification email (async, don't block response)
   setImmediate(async () => {
     try {
-      const { EmailServiceFactory } = await import('../services/EmailServiceFactory');
-      // const emailService = EmailServiceFactory.getService(TYPES.EmailService); // Temporarily disabled
-    const { EmailService } = await import('../services/emailService');
-    const emailService = new EmailService();
-      await emailService.sendVerificationEmail(email, name, verificationToken);
+      const internalEmailService = new InternalEmailService();
+      await internalEmailService.sendVerificationEmail(email, name, verificationToken);
       logger.info('Verification email sent successfully', { 
         email,
         userId,
@@ -320,8 +318,10 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
   // Send password reset email (async, don't block response)
   setImmediate(async () => {
     try {
-      // TODO: Implement actual email sending
-      logger.info('Reset password email would be sent', { email, resetToken });
+      const internalEmailService = new InternalEmailService();
+      const resetUrl = `${process.env['FRONTEND_URL'] || 'https://ultrazend.com.br'}/reset-password?token=${resetToken}`;
+      await internalEmailService.sendPasswordResetEmail(email, user.name, resetUrl);
+      logger.info('Reset password email sent successfully', { email });
     } catch (error) {
       logger.error('Failed to send reset password email', { error, email });
     }
@@ -596,11 +596,8 @@ export const resendVerificationEmail = asyncHandler(async (req: Request, res: Re
   // Send verification email (async, don't block response)
   setImmediate(async () => {
     try {
-      const { EmailServiceFactory } = await import('../services/EmailServiceFactory');
-      // const emailService = EmailServiceFactory.getService(TYPES.EmailService); // Temporarily disabled
-    const { EmailService } = await import('../services/emailService');
-    const emailService = new EmailService();
-      await emailService.sendVerificationEmail(email, user.name, verificationToken);
+      const internalEmailService = new InternalEmailService();
+      await internalEmailService.sendVerificationEmail(email, user.name, verificationToken);
       logger.info('Verification email resent successfully', { 
         userId: user.id, 
         email,

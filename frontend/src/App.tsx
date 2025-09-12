@@ -203,10 +203,18 @@ function App() {
   }, [])
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
+    <ErrorBoundary 
+      onError={(error, errorInfo) => {
+        console.error('React Error Boundary:', error, errorInfo);
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
         <Router>
-          <AppRoutes />
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingSpinner />}>
+              <AppRoutes />
+            </Suspense>
+          </ErrorBoundary>
           {/* Toast global configurado para toda aplicação */}
           <div aria-live="polite" aria-atomic="true">
             <Toaster
@@ -264,8 +272,8 @@ function App() {
             />
           </div>
         </Router>
-      </ErrorBoundary>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 
