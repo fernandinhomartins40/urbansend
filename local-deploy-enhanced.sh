@@ -261,6 +261,13 @@ TENANT_QUEUE_ISOLATION=strict
 TENANT_PRIORITY_ENABLED=true
 TENANT_RATE_LIMITING_ENABLED=true
 
+# === FEATURE FLAGS - MIGRAÇÃO V1→V2 (CRÍTICO) ===
+USE_INTEGRATED_EMAIL_SEND=true
+ROLLOUT_PERCENTAGE=100
+ENABLE_MIGRATION_MONITORING=true
+ENABLE_AUTO_ROLLBACK=false
+CLEANUP_LEGACY_CODE=false
+
 # === AUTHENTICATION & SECURITY ===
 JWT_SECRET=\$(openssl rand -base64 64 | tr -d \"\\\\n\" | head -c 64)
 JWT_REFRESH_SECRET=\$(openssl rand -base64 64 | tr -d \"\\\\n\" | head -c 64)  
@@ -268,6 +275,11 @@ SESSION_SECRET=\$(openssl rand -base64 64 | tr -d \"\\\\n\" | head -c 64)
 COOKIE_SECRET=\$(openssl rand -base64 32 | tr -d \"\\\\n\" | head -c 32)
 SESSION_TIMEOUT=86400
 BCRYPT_ROUNDS=12
+
+# === URLS & ORIGINS ===
+FRONTEND_URL=https://www.ultrazend.com.br
+API_BASE_URL=https://www.ultrazend.com.br/api
+ALLOWED_ORIGINS=https://www.ultrazend.com.br,https://ultrazend.com.br
 
 # === RATE LIMITING (PER TENANT) ===
 RATE_LIMIT_WINDOW=900000
@@ -627,17 +639,18 @@ echo "🔒 SaaS Mode: ENABLED"
 echo "🏢 Multi-Tenant: CONFIGURED"
 echo "🔄 Deploy Version: $DEPLOY_VERSION"
 echo ""
-echo "🎯 Funcionalidades SaaS + Fase 3 Deployadas:"
+echo "🎯 Funcionalidades SaaS + Migração V1→V2 Deployadas:"
 echo "   🔒 ISOLAMENTO SAAS: Configurado e ativo"
 echo "   🔒 Redis SaaS: 64 databases para isolamento"
 echo "   🔒 Environment SaaS: Todas variáveis configuradas"
 echo "   🔒 Tenant Queue: Filas isoladas por tenant"
 echo "   🔒 Database SaaS: Estrutura multi-tenant"
-echo "   🔧 FASE 3: TypeScript type-safety completo"
-echo "   🔧 FASE 3: Sistema de monitoramento avançado"
-echo "   🔧 FASE 3: Rotas emails-v2 com validação domínios"
-echo "   🔧 FASE 3: Migração A71 sistema emails avançado"
-echo "   🔧 FASE 3: Testes de integração configurados"
-echo "   ✅ Deploy com validações Fase 3 integradas"
+echo "   ✅ MIGRAÇÃO V1→V2: Rotas legacy depreciadas (HTTP 410)"
+echo "   ✅ MIGRAÇÃO V1→V2: Feature flags ativadas (100% rollout)"
+echo "   ✅ MIGRAÇÃO V1→V2: Rotas emails-v2 com validação domínios"
+echo "   ✅ MIGRAÇÃO V1→V2: Multi-tenancy obrigatória"
+echo "   ✅ MIGRAÇÃO V1→V2: Arquivos index consolidados"
+echo "   ✅ MIGRAÇÃO V1→V2: Sistema de monitoramento ativo"
+echo "   ✅ Deploy com migração V1→V2 100% completa"
 echo ""
-echo "🚀 Sistema SaaS + Fase 3 deployado e funcionando!"
+echo "🚀 Sistema SaaS + Migração V1→V2 deployado e funcionando!"
