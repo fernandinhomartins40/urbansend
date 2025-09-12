@@ -137,12 +137,12 @@ export interface Alert {
   timestamp: Date;
 }
 
-// Database interfaces
+// Database interfaces - Updated to match domains table schema
 export interface UserDomain {
   id: number;
   user_id: number;
-  domain: string;
-  verified: boolean;
+  domain_name: string;  // Updated field name
+  is_verified: boolean; // Updated field name
   verified_at?: Date;
   verification_method?: string;
   verification_token?: string;
