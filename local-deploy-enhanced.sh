@@ -268,6 +268,14 @@ ENABLE_MIGRATION_MONITORING=true
 ENABLE_AUTO_ROLLBACK=false
 CLEANUP_LEGACY_CODE=false
 
+# === SMTP FALLBACK CONFIGURATION (PRODUÇÃO) ===
+SMTP_FALLBACK_HOST=smtp.gmail.com
+SMTP_FALLBACK_PORT=587
+SMTP_FALLBACK_SECURE=true
+SMTP_FALLBACK_USER=noreply@ultrazend.com.br
+SMTP_FALLBACK_PASS=\$(echo "app-password-placeholder")
+SMTP_HOSTNAME=mail.ultrazend.com.br
+
 # === AUTHENTICATION & SECURITY ===
 JWT_SECRET=\$(openssl rand -base64 64 | tr -d \"\\\\n\" | head -c 64)
 JWT_REFRESH_SECRET=\$(openssl rand -base64 64 | tr -d \"\\\\n\" | head -c 64)  

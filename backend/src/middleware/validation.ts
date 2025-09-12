@@ -38,9 +38,7 @@ export const validateRequest = (schema: {
 export const emailSchema = z.string()
   .email('Email deve ter formato válido')
   .min(5, 'Email deve ter pelo menos 5 caracteres')
-  .max(255, 'Email deve ter no máximo 255 caracteres')
-  .refine(email => validator.isEmail(email), 'Email inválido')
-  .transform(email => validator.normalizeEmail(email) || email);
+  .max(255, 'Email deve ter no máximo 255 caracteres');
 
 export const passwordSchema = z.string()
   .min(8, 'Senha deve ter pelo menos 8 caracteres')
@@ -69,32 +67,25 @@ export const sendEmailSchema = z.object({
   to: z.union([emailSchema, z.array(emailSchema).max(50, 'Máximo de 50 destinatários por envio')]),
   subject: z.string()
     .min(1, 'Assunto é obrigatório')
-    .max(255, 'Assunto deve ter no máximo 255 caracteres')
-    .refine(subject => !validator.contains(subject.toLowerCase(), 'spam'), 'Assunto contém palavras proibidas')
-    .refine(subject => !validator.contains(subject.toLowerCase(), 'free money'), 'Assunto contém palavras proibidas'),
+    .max(255, 'Assunto deve ter no máximo 255 caracteres'),
   html: z.string()
     .max(1024 * 1024, 'Conteúdo HTML deve ter no máximo 1MB')
-    .transform(html => html ? sanitizeHtml(html) : html)
     .optional(),
   text: z.string()
     .min(1, 'Conteúdo é obrigatório') // 🔧 FIX: Tornar obrigatório como no frontend
     .max(1024 * 1024, 'Conteúdo texto deve ter no máximo 1MB'),
-  template_id: z.preprocess((val) => val === "" ? undefined : val, z.number().int().positive().optional()),
+  template_id: z.union([z.string(), z.number()]).optional(),
   variables: z.record(z.string().max(1000)).optional(),
   tags: z.array(z.string().max(50)).max(10, 'Máximo de 10 tags por email').optional(),
-  reply_to: z.preprocess((val) => val === "" ? undefined : val, emailSchema.optional()),
+  reply_to: z.string().optional(),
   cc: z.array(emailSchema).max(10).default([]).optional(), // 🔧 FIX: Consistente com frontend
   bcc: z.array(emailSchema).max(10).default([]).optional(), // 🔧 FIX: Consistente com frontend
   attachments: z.array(z.object({
     filename: z.string()
       .min(1)
-      .max(100)
-      .refine(name => !/[<>:"/\\|?*]/.test(name), 'Nome de arquivo inválido'),
+      .max(100),
     content: z.string().max(10 * 1024 * 1024, 'Arquivo deve ter no máximo 10MB'),
-    contentType: z.string().refine(type => 
-      ['application/pdf', 'image/jpeg', 'image/png', 'text/plain', 'application/msword'].includes(type), 
-      'Tipo de arquivo não permitido'
-    ),
+    contentType: z.string(),
     encoding: z.string().optional()
   })).max(5, 'Máximo de 5 anexos por email').optional(),
   

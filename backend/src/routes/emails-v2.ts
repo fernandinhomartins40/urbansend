@@ -6,7 +6,7 @@
  * Valida propriedade do domínio antes de enviar
  */
 
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { validateRequest, sendEmailSchema } from '../middleware/validation';
 import { authenticateJWT, requirePermission } from '../middleware/auth';
@@ -57,16 +57,39 @@ function extractDomain(email: string): string | null {
  * 2. Se não verificado, retornar erro com redirecionamento
  * 3. Se verificado, processar email normalmente
  */
+// Middleware de debug temporário
+const debugMiddleware = (name: string) => (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+  logger.info(`🔍 MIDDLEWARE DEBUG - ${name}`, {
+    hasUser: !!req.user,
+    userId: req.user?.id,
+    ip: req.ip,
+    timestamp: new Date().toISOString()
+  });
+  next();
+};
+
 router.post('/send-v2', 
+  debugMiddleware('BEFORE_AUTH'),
   authenticateJWT,
+  debugMiddleware('AFTER_AUTH'),
   requirePermission('email:send'),
+  debugMiddleware('AFTER_PERMISSION'),
   emailSendRateLimit,
+  debugMiddleware('AFTER_RATE_LIMIT'),
   validateRequest({ body: sendEmailSchema }),
+  debugMiddleware('AFTER_VALIDATION'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    logger.info('🔍 V2 DEBUG - ENTERED ROUTE', {
+      hasUser: !!req.user,
+      userId: req.user?.id,
+      bodyKeys: Object.keys(req.body || {}),
+      timestamp: new Date().toISOString()
+    });
+
     const userId = req.user!.id;
     const { from, to, subject, html, text } = req.body;
     
-    logger.info('Email send request v2', {
+    logger.info('🔍 V2 DEBUG - EXTRACTED VARS', {
       userId,
       from,
       to: Array.isArray(to) ? to.length + ' recipients' : to,
@@ -76,7 +99,9 @@ router.post('/send-v2',
 
     try {
       // 1. Validar domínio primeiro
+      logger.info('🔍 V2 DEBUG - BEFORE EXTRACT DOMAIN', { from });
       const domain = extractDomain(from);
+      logger.info('🔍 V2 DEBUG - AFTER EXTRACT DOMAIN', { domain });
       
       if (!domain) {
         return res.status(400).json({
@@ -86,13 +111,22 @@ router.post('/send-v2',
         });
       }
 
-      logger.debug('Checking domain ownership', {
-        userId,
-        domain,
-        from
+      logger.info('🔍 V2 DEBUG - Checking domain ownership', {
+        userId: userId,
+        domain: domain,
+        from: from,
+        userType: typeof userId,
+        domainType: typeof domain
       });
 
       const domainCheck = await emailValidator.checkDomainOwnership(domain, userId);
+      
+      logger.info('🔍 V2 DEBUG - Domain check result', {
+        userId: userId,
+        domain: domain,
+        verified: domainCheck.verified,
+        verifiedAt: domainCheck.verifiedAt
+      });
       
       if (!domainCheck.verified) {
         logger.warn('Domain not verified, rejecting email', {

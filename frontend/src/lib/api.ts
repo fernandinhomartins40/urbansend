@@ -164,11 +164,11 @@ export const emailApi = {
     // 🔍 DEBUG: Log dados sendo enviados
     console.log('🔍 EMAIL API DEBUG - Dados enviados:', JSON.stringify(data, null, 2))
     console.log('🔍 EMAIL API DEBUG - Campos presentes:', Object.keys(data))
-    return api.post('/emails/send', data)
+    return api.post('/emails-v2/send-v2', data)
   },
   
   sendBatch: (emails: any[]) =>
-    api.post('/emails/send-batch', { emails }),
+    api.post('/emails-v2/send-v2-batch', { emails }),
   
   getEmails: (params?: any) =>
     api.get('/emails', { params }),
