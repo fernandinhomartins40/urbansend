@@ -1,153 +1,71 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { validateRequest, sendEmailSchema, paginationSchema, idParamSchema } from '../middleware/validation';
-import { authenticateJWT, authenticateApiKey, requirePermission } from '../middleware/auth';
-import { advancedEmailRateLimit, advancedBatchRateLimit } from '../middleware/advancedRateLimiting';
-import { 
-  emailArchitectureMiddleware, 
-  emailArchitectureBatchMiddleware,
-  emailStatsMiddleware 
-} from '../middleware/emailArchitectureMiddleware';
-import { queueService } from '../services/queueService';
-import { TenantAwareQueueService } from '../services/TenantAwareQueueService';
+import { validateRequest, paginationSchema, idParamSchema } from '../middleware/validation';
+import { authenticateJWT } from '../middleware/auth';
+import { emailStatsMiddleware } from '../middleware/emailArchitectureMiddleware';
 import { asyncHandler } from '../middleware/errorHandler';
-import { emailAuditService } from '../services/EmailAuditService';
 import db from '../config/database';
 import { logger } from '../config/logger';
 
-// Feature flag para migração gradual para arquitetura unificada
-const USE_UNIFIED_QUEUE = process.env.ENABLE_UNIFIED_QUEUE === 'true';
-
-const activeQueueService = USE_UNIFIED_QUEUE 
-  ? new TenantAwareQueueService()
-  : queueService;
-
-logger.info('Email routes initialized', {
-  architecture: USE_UNIFIED_QUEUE ? 'unified' : 'legacy',
-  service: USE_UNIFIED_QUEUE ? 'TenantAwareQueueService' : 'queueService'
-});
-
 const router = Router();
 
-// Send single email
+// DEPRECATED ROUTE - Migrated to V2 with multi-tenancy
 router.post('/send', 
   authenticateJWT,
-  requirePermission('email:send'),
-  emailArchitectureMiddleware, // 🆕 Nova arquitetura Fase 2
-  advancedEmailRateLimit, // 🆕 Rate limiting avançado Fase 3
-  validateRequest({ body: sendEmailSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const emailData = { ...req.body, userId: req.user!.id };
-    console.log("🚨 DEBUG /send - Antes addEmailJob:", { USE_UNIFIED_QUEUE, activeQueueService: typeof activeQueueService });
-    let job;
-    try {
-      job = await activeQueueService.addEmailJob(emailData);
-      console.log("🚨 DEBUG /send - addEmailJob SUCCESS:", { jobId: job?.id });
-    } catch (error) {
-      console.error("🚨 DEBUG /send - addEmailJob ERROR:", error);
-      throw error;
-    }
+    logger.warn('Legacy email route accessed', {
+      userId: req.user!.id,
+      deprecationWarning: 'Route /send is deprecated, use /emails-v2/send-v2',
+      timestamp: new Date().toISOString()
+    });
     
-    // Atualizar auditoria se email foi processado pelo middleware
-    if (req.body._emailId) {
-      try {
-        await emailAuditService.updateDeliveryStatus(req.body._emailId, 'queued', {
-          jobId: job.id,
-          queuedAt: new Date(),
-          processedBy: 'email-send-api'
-        });
-      } catch (error) {
-        // Log mas não falha o processo principal
-        logger.warn('Failed to update audit log for queued email', {
-          error: error instanceof Error ? error.message : String(error),
-          emailId: req.body._emailId,
-          context: 'email-send-audit'
-        });
-      }
-    }
-    
-    // Incluir informações da nova arquitetura na resposta
-    const response: any = {
-      message: 'Email queued for delivery',
-      job_id: job.id,
-      status: 'queued'
-    };
-
-    // Adicionar informações de correção se aplicável
-    if (req.body._senderCorrected) {
-      response.sender_corrected = true;
-      response.original_from = req.body._originalFrom;
-      response.correction_reason = req.body._correctionReason;
-    }
-    
-    res.status(202).json(response);
+    return res.status(410).json({
+      error: 'Route deprecated and removed',
+      message: 'This endpoint has been migrated to /api/emails-v2/send-v2 with improved security and multi-tenancy',
+      migration: {
+        oldEndpoint: '/api/emails/send',
+        newEndpoint: '/api/emails-v2/send-v2',
+        changes: [
+          'Domain ownership verification required',
+          'Improved multi-tenant isolation',
+          'Enhanced security validation'
+        ]
+      },
+      action: 'Please update your code to use the new endpoint',
+      documentation: '/api/docs#emails-v2',
+      removedAt: new Date().toISOString()
+    });
   })
 );
 
-// Send batch emails
+// DEPRECATED ROUTE - Migrated to V2 with multi-tenancy  
 router.post('/send-batch',
   authenticateJWT,
-  requirePermission('email:send'),
-  emailArchitectureBatchMiddleware, // 🆕 Nova arquitetura Fase 2 para lotes
-  advancedBatchRateLimit, // 🆕 Rate limiting avançado para batch Fase 3
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { emails } = req.body;
-    const emailsWithUser = emails.map((email: any) => ({
-      ...email,
-      userId: req.user!.id
-    }));
-    
-    const job = await activeQueueService.addBatchEmailJob(emailsWithUser);
-    
-    // Atualizar auditoria para todos os emails no batch
-    const batchUpdatePromises = emails
-      .filter((email: any) => email._emailId)
-      .map(async (email: any) => {
-        try {
-          await emailAuditService.updateDeliveryStatus(email._emailId, 'queued', {
-            jobId: job.id,
-            queuedAt: new Date(),
-            processedBy: 'email-batch-api',
-            batchSize: emails.length
-          });
-        } catch (error) {
-          logger.warn('Failed to update audit log for batch email', {
-            error: error instanceof Error ? error.message : String(error),
-            emailId: email._emailId,
-            context: 'email-batch-audit',
-            batchSize: emails.length
-          });
-        }
-      });
-
-    // Executar atualizações em paralelo sem bloquear a resposta
-    Promise.all(batchUpdatePromises).catch(error => {
-      logger.warn('Some batch audit updates failed', {
-        error: error instanceof Error ? error.message : String(error),
-        context: 'batch-audit-parallel',
-        emailCount: emails.length
-      });
+    logger.warn('Legacy batch email route accessed', {
+      userId: req.user!.id,
+      batchSize: req.body.emails?.length || 0,
+      deprecationWarning: 'Route /send-batch is deprecated, use /emails-v2/send-batch-v2',
+      timestamp: new Date().toISOString()
     });
     
-    // Contar quantos emails foram corrigidos
-    const correctedCount = emails.filter((email: any) => email._senderCorrected).length;
-    
-    const response: any = {
-      message: 'Batch emails queued for delivery',
-      job_id: job.id,
-      count: emails.length,
-      status: 'queued'
-    };
-
-    // Adicionar informações de correção se aplicável
-    if (correctedCount > 0) {
-      response.sender_corrections = {
-        total_corrected: correctedCount,
-        correction_rate: (correctedCount / emails.length) * 100
-      };
-    }
-    
-    res.status(202).json(response);
+    return res.status(410).json({
+      error: 'Route deprecated and removed',
+      message: 'This batch endpoint has been migrated to /api/emails-v2/send-batch-v2 with improved security and multi-tenancy',
+      migration: {
+        oldEndpoint: '/api/emails/send-batch',
+        newEndpoint: '/api/emails-v2/send-batch-v2',
+        changes: [
+          'Domain ownership verification required',
+          'Improved multi-tenant isolation', 
+          'Enhanced batch processing security',
+          'Better error handling and audit logs'
+        ]
+      },
+      action: 'Please update your code to use the new batch endpoint',
+      documentation: '/api/docs#emails-v2-batch',
+      removedAt: new Date().toISOString()
+    });
   })
 );
 

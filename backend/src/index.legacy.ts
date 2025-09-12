@@ -376,8 +376,8 @@ const startServer = async () => {
 
     // Step 2: Initialize Tenant Queue Manager
     try {
-      const { TenantQueueManager } = await import('./services/TenantQueueManager');
-      const queueManager = new TenantQueueManager();
+      const { TenantAwareQueueService } = await import('./services/TenantAwareQueueService');
+      const queueManager = new TenantAwareQueueService();
       logger.info('✅ Tenant Queue Manager initialized');
     } catch (error) {
       logger.warn('⚠️ Tenant Queue Manager failed, continuing...', { error: (error as Error).message });

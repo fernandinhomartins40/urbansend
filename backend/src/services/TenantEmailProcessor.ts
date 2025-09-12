@@ -12,7 +12,7 @@ import { MultiDomainDKIMManager } from './MultiDomainDKIMManager';
 import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import db from '../config/database';
-import { EmailJobData } from './TenantQueueManager';
+import { TenantEmailJobData } from './TenantAwareQueueService';
 
 export interface EmailProcessingResult {
   success: boolean;
@@ -37,7 +37,7 @@ export class TenantEmailProcessor {
   /**
    * Processa job de email com isolamento completo de tenant
    */
-  async processEmailJob(job: Job<EmailJobData>): Promise<EmailProcessingResult> {
+  async processEmailJob(job: Job<TenantEmailJobData>): Promise<EmailProcessingResult> {
     const startTime = Date.now();
     const { tenantId, emailId, from, to, subject, html, text, priority } = job.data;
 
@@ -215,7 +215,7 @@ export class TenantEmailProcessor {
    * Registra entrega ou falha de email
    */
   private async recordEmailDelivery(
-    jobData: EmailJobData,
+    jobData: TenantEmailJobData,
     status: 'delivered' | 'failed' | 'processing',
     messageId?: string,
     errorMessage?: string

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
@@ -21,38 +21,6 @@ const router = Router();
 // Apply authentication to all routes
 router.use(authenticateJWT);
 
-// Middleware to check admin privileges
-const requireAdmin = asyncHandler(async (req: AuthenticatedRequest, res: Response, next) => {
-  // Check if user is admin (you may need to adjust this based on your user model)
-  const user = req.user;
-  
-  // For now, checking if user exists and has admin role
-  // You may need to adjust this based on your actual user schema
-  if (!user || !user.is_admin) {
-    logger.warn('Unauthorized admin DKIM access attempt', {
-      userId: user?.id,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-      endpoint: req.path
-    });
-
-    return res.status(403).json({
-      success: false,
-      error: 'Admin privileges required',
-      code: 'ADMIN_REQUIRED'
-    });
-  }
-
-  logger.info('Admin DKIM access authorized', {
-    adminId: user.id,
-    adminEmail: user.email,
-    endpoint: req.path,
-    ip: req.ip
-  });
-
-  next();
-});
-
 // Validation schemas
 const domainSchema = z.object({
   domain: z.string()
@@ -72,7 +40,7 @@ const migrationOptionsSchema = z.object({
  * Comprehensive DKIM system health check
  */
 router.get('/health', 
-  requireAdmin,
+  requirePermission('admin:dkim'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domain, export: exportReport } = req.query;
     
@@ -165,7 +133,7 @@ router.get('/health',
  * DKIM migration for fixing issues
  */
 router.post('/migrate',
-  requireAdmin,
+  requirePermission('admin:dkim'),
   validateRequest({ body: migrationOptionsSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { dryRun, force, domain } = req.body;
@@ -249,7 +217,7 @@ router.post('/migrate',
  * Quick fix for specific domain
  */
 router.post('/fix-domain',
-  requireAdmin,
+  requirePermission('admin:dkim'),
   validateRequest({ body: domainSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domain } = req.body;
@@ -330,7 +298,7 @@ router.post('/fix-domain',
  * Environment configuration validation
  */
 router.get('/environment',
-  requireAdmin,
+  requirePermission('admin:dkim'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     logger.info('Admin environment validation requested', {
       adminId: req.user!.id,
@@ -378,7 +346,7 @@ router.get('/environment',
  * System statistics and metrics
  */
 router.get('/stats',
-  requireAdmin,
+  requirePermission('admin:dkim'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     logger.info('Admin DKIM stats requested', {
       adminId: req.user!.id

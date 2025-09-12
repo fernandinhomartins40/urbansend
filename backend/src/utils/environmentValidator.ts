@@ -162,24 +162,24 @@ export class EnvironmentValidator {
 
       // Verificar se variável obrigatória existe
       if (config.required && !value) {
-        const severity = config.critical ? 'CRITICAL' : 'HIGH';
+        const severity = ('critical' in config && config.critical) ? 'CRITICAL' : 'HIGH';
         
         issues.push({
           type: 'MISSING_VAR',
           severity,
           variable: varName,
           description: `Required environment variable ${varName} is missing`,
-          fix: `Set ${varName} in .env file${config.default ? ` (default: ${config.default})` : ''}`
+          fix: `Set ${varName} in .env file${('default' in config && config.default) ? ` (default: ${config.default})` : ''}`
         });
 
-        if (config.critical) {
+        if ('critical' in config && config.critical) {
           criticalErrors.push(`Critical environment variable missing: ${varName}`);
         }
         continue;
       }
 
       // Verificar se valor está na lista de valores válidos
-      if (value && config.validValues && !config.validValues.includes(value)) {
+      if (value && 'validValues' in config && config.validValues && !config.validValues.includes(value)) {
         issues.push({
           type: 'INVALID_VALUE',
           severity: 'MEDIUM',
