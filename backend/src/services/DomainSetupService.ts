@@ -165,10 +165,11 @@ export class DomainSetupService {
         throw new Error(`Falha ao gerar chaves DKIM para ${normalizedDomain}`);
       }
 
-      // 6. BUSCAR CHAVES RECÉM-GERADAS
-      const dkimRecord = await db('dkim_keys')
-        .select('private_key', 'public_key')
-        .where('domain', normalizedDomain)
+      // 6. BUSCAR CHAVES RECÉM-GERADAS (via JOIN com domains)
+      const dkimRecord = await db('dkim_keys as dk')
+        .join('domains as d', 'dk.domain_id', 'd.id')
+        .select('dk.private_key', 'dk.public_key', 'dk.domain_id', 'd.domain_name')
+        .where('d.domain_name', normalizedDomain)
         .first();
 
       if (!dkimRecord || !dkimRecord.private_key || !dkimRecord.public_key) {
@@ -211,7 +212,11 @@ export class DomainSetupService {
           });
 
           // 8. VALIDAÇÃO CRÍTICA: Verificar se DKIM foi realmente criado
-          const dkimValidation = await trx('dkim_keys').where('domain', normalizedDomain).first();
+          const dkimValidation = await trx('dkim_keys as dk')
+            .join('domains as d', 'dk.domain_id', 'd.id')
+            .select('dk.private_key', 'dk.public_key')
+            .where('d.domain_name', normalizedDomain)
+            .first();
           
           if (!dkimValidation || !dkimValidation.public_key || !dkimValidation.private_key) {
             throw new Error(`CRÍTICO: Falha na validação de chaves DKIM para ${normalizedDomain}`);
