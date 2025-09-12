@@ -74,7 +74,7 @@ export const sendEmailSchema = z.object({
   text: z.string()
     .min(1, 'Conteúdo é obrigatório') // 🔧 FIX: Tornar obrigatório como no frontend
     .max(1024 * 1024, 'Conteúdo texto deve ter no máximo 1MB'),
-  template_id: z.union([z.string(), z.number()]).optional(),
+  template_id: z.string().optional().or(z.literal("").transform(() => undefined)),
   variables: z.record(z.string().max(1000)).optional(),
   tags: z.array(z.string().max(50)).max(10, 'Máximo de 10 tags por email').optional(),
   reply_to: z.string().optional(),
