@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { logger } from '../config/logger';
 import db from '../config/database';
 import { Env } from '../utils/env';
-import IORedis from 'ioredis';
 import { performanceReportMiddleware } from '../middleware/performanceMonitoring';
 
 const router = Router();
@@ -72,43 +71,21 @@ async function checkDatabaseHealth(): Promise<HealthCheck> {
   }
 }
 
-// Helper function to check Redis health
+// Helper function to check Redis health (V3: Redis não é necessário)
 async function checkRedisHealth(): Promise<HealthCheck> {
   const start = Date.now();
-  try {
-    const redisUrl = Env.get('REDIS_URL', 'redis://127.0.0.1:6379');
-    const redis = new IORedis(redisUrl, {
-      connectTimeout: 5000,
-      lazyConnect: true,
-      maxRetriesPerRequest: 1
-    });
+  const responseTime = Date.now() - start;
 
-    await redis.ping();
-    const responseTime = Date.now() - start;
-    
-    const info = await redis.info('memory');
-    await redis.disconnect();
-    
-    return {
-      service: 'redis',
-      status: responseTime < 50 ? 'healthy' : 'warning',
-      message: `Redis responding in ${responseTime}ms`,
-      responseTime,
-      details: {
-        memory: info.includes('used_memory:') ? info.match(/used_memory:(\d+)/)?.[1] : 'unknown'
-      }
-    };
-  } catch (error) {
-    return {
-      service: 'redis',
-      status: 'warning',
-      message: `Redis connection failed: ${(error as Error).message}`,
-      responseTime: Date.now() - start,
-      details: {
-        note: 'Redis is optional for basic functionality'
-      }
-    };
-  }
+  return {
+    service: 'redis',
+    status: 'healthy',
+    message: 'V3 Architecture: Redis not required for simplified email service',
+    responseTime,
+    details: {
+      note: 'V3 Simplified: Using direct SMTP without queue system',
+      architecture: 'V3-Simplified'
+    }
+  };
 }
 
 // Helper function to check SMTP health
