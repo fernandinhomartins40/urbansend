@@ -11,6 +11,7 @@ import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import db from '../config/database';
+import { generateTrackingPixel } from '../utils/email';
 
 // Interfaces específicas para multi-tenancy
 export interface EmailRequest {
@@ -50,6 +51,7 @@ export interface EmailLogData {
   error_message?: string;
   timestamp: Date;
   message_id?: string;
+  tracking_id?: string;
 }
 
 /**
@@ -129,12 +131,13 @@ export class MultiTenantEmailService {
         };
       }
 
-      // 3. Gerar message_id único
+      // 3. Gerar IDs únicos
       const messageId = this.generateMessageId();
+      const trackingId = this.generateTrackingId();
 
       // 4. Processamento assíncrono (como InternalEmailService)
       setImmediate(async () => {
-        await this.processEmailAsync(emailData, user, domain, messageId);
+        await this.processEmailAsync(emailData, user, domain, messageId, trackingId);
       });
 
       // 5. Resposta imediata (não bloquear frontend)
@@ -165,17 +168,18 @@ export class MultiTenantEmailService {
 
   /**
    * Processamento assíncrono do email (inspirado no InternalEmailService)
-   * 
+   *
    * Executa em paralelo:
-   * - Entrega SMTP
+   * - Entrega SMTP com tracking
    * - Persistência no banco
    * - Logs estruturados
    */
   private async processEmailAsync(
-    emailData: EmailRequest, 
-    user: AuthUser, 
-    domain: string, 
-    messageId: string
+    emailData: EmailRequest,
+    user: AuthUser,
+    domain: string,
+    messageId: string,
+    trackingId: string
   ): Promise<void> {
     try {
       logger.info('🔄 Processing email asynchronously', {
@@ -184,15 +188,29 @@ export class MultiTenantEmailService {
         domain
       });
 
+      // Preparar HTML com tracking pixel (de forma segura)
+      let finalHtml = emailData.html;
+      if (emailData.html) {
+        finalHtml = this.addTrackingPixelSafely(emailData.html, trackingId);
+
+        logger.debug('📧 Tracking pixel added', {
+          userId: user.id,
+          messageId,
+          trackingId,
+          pixelAdded: finalHtml !== emailData.html
+        });
+      }
+
       // Preparar dados para SMTP (formato compatível)
       const smtpEmailData = {
         from: emailData.from,
         to: Array.isArray(emailData.to) ? emailData.to[0] : emailData.to, // Simplificar para um destinatário
         subject: emailData.subject,
-        html: emailData.html,
+        html: finalHtml,
         text: emailData.text,
         headers: {
           'X-Message-ID': messageId,
+          'X-Tracking-ID': trackingId,
           'X-UltraZend-Service': 'multi-tenant',
           'X-Domain-Verified': 'true',
           'X-User-ID': user.id.toString(),
@@ -213,6 +231,7 @@ export class MultiTenantEmailService {
         status: delivered ? 'sent' : 'failed',
         timestamp: new Date(),
         message_id: messageId,
+        tracking_id: trackingId,
         error_message: delivered ? null : 'SMTP delivery failed'
       };
 
@@ -251,6 +270,7 @@ export class MultiTenantEmailService {
         status: 'failed',
         timestamp: new Date(),
         message_id: messageId,
+        tracking_id: trackingId,
         error_message: error instanceof Error ? error.message : 'Processing failed'
       };
 
@@ -335,6 +355,44 @@ export class MultiTenantEmailService {
   }
 
   /**
+   * Gerar tracking ID único para rastreamento de abertura
+   */
+  private generateTrackingId(): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 15);
+    return `track-${timestamp}-${random}`;
+  }
+
+  /**
+   * Adicionar pixel de tracking ao HTML de forma segura (não crítica)
+   */
+  private addTrackingPixelSafely(html: string, trackingId: string): string {
+    try {
+      if (!html || typeof html !== 'string') {
+        return html;
+      }
+
+      // Usar domínio fixo para tracking (www.ultrazend.com.br)
+      const trackingDomain = 'www.ultrazend.com.br';
+      const trackingPixel = generateTrackingPixel(trackingId, trackingDomain);
+
+      // Adicionar pixel antes do </body> ou no final se não houver </body>
+      if (html.toLowerCase().includes('</body>')) {
+        return html.replace(/<\/body>/i, `${trackingPixel}</body>`);
+      } else {
+        return html + trackingPixel;
+      }
+    } catch (error) {
+      // Log mas não quebra o envio se tracking falhar
+      logger.debug('🟡 Tracking pixel addition failed (non-critical)', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        trackingId
+      });
+      return html; // Retorna HTML original
+    }
+  }
+
+  /**
    * Salvar log do email no banco de dados (multi-tenancy)
    */
   private async saveEmailLog(logData: EmailLogData): Promise<void> {
@@ -347,6 +405,7 @@ export class MultiTenantEmailService {
         subject: logData.subject,
         status: logData.status,
         message_id: logData.message_id,
+        tracking_id: logData.tracking_id,
         error_message: logData.error_message,
         sent_at: logData.status === 'sent' ? logData.timestamp : null,
         created_at: logData.timestamp,
