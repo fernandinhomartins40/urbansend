@@ -37,7 +37,7 @@ export function Dashboard() {
     queryKey: ['dashboard-stats'],
     queryFn: async (): Promise<DashboardStats> => {
       const overviewResponse = await analyticsApi.getOverview()
-      return overviewResponse.data.stats as DashboardStats
+      return overviewResponse.data as DashboardStats
     },
     baseInterval: 30000, // 30 seconds
     maxInterval: 300000, // 5 minutes
