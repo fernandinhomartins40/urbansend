@@ -515,8 +515,10 @@ router.get('/track/open/:trackingId',
 
         // Log analytics event ONLY if not already opened
         await db('email_analytics').insert({
+          user_id: email.user_id,
           email_id: email.id,
           event_type: 'open',
+          recipient_email: email.to_email,
           tracking_id: trackingId,
           user_agent: req.headers['user-agent'] || '',
           ip_address: req.ip,
@@ -568,12 +570,14 @@ router.get('/track/click/:trackingId',
           .update({ status: 'clicked' });
       }
 
-      // Log analytics event
+      // Log analytics event ONLY if not already clicked by this IP
       await db('email_analytics').insert({
+        user_id: email.user_id,
         email_id: email.id,
         event_type: 'click',
+        recipient_email: email.to_email,
         tracking_id: trackingId,
-        link_url: url as string,
+        metadata: JSON.stringify({ link_url: url }),
         user_agent: req.headers['user-agent'] || '',
         ip_address: req.ip,
         created_at: db.fn.now()
