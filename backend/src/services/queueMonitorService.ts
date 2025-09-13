@@ -3,7 +3,10 @@ import { logger } from '../config/logger';
 import { Knex } from 'knex';
 import db from '../config/database';
 import { TenantContextService } from './TenantContextService';
-import { queueService } from './queueService';
+import { TenantAwareQueueService } from './TenantAwareQueueService';
+
+// Instância singleton do serviço de queue
+const queueService = new TenantAwareQueueService();
 
 export interface QueueMetrics {
   name: string;
@@ -448,9 +451,8 @@ export class QueueMonitorService {
           'X-Alert-Source': 'UltraZend-Queue-Monitor',
           'X-System-Alert': 'true'
         },
-        maxRetries: 3,
         eventType: 'queue_alert',
-        entityId: 0,
+        entityId: '0',
         userId: systemTenantId // 🔒 USAR TENANT SISTEMA!
       });
     } catch (error) {

@@ -9,6 +9,8 @@ import { promisify } from 'util';
 
 // Promisificar métodos DNS para uso com async/await
 const resolveTxt = promisify(dns.resolveTxt);
+const resolveA = promisify(dns.resolve4);
+const resolveMx = promisify(dns.resolveMx);
 
 export interface DomainRecord {
   id: number;
@@ -28,6 +30,21 @@ export interface DomainRecord {
 }
 
 export interface DNSInstructions {
+  // Registros A para subdomínios de email (CRÍTICOS para funcionamento híbrido)
+  a_records: {
+    smtp: { record: string; value: string; priority: number; description: string; };
+    mail: { record: string; value: string; priority: number; description: string; };
+  };
+
+  // Registro MX (obrigatório para direcionamento de email)
+  mx: {
+    record: string;
+    value: string;
+    priority: number;
+    description: string;
+  };
+
+  // Registros TXT para autenticação (já existentes)
   spf: {
     record: string;
     value: string;
@@ -50,9 +67,9 @@ export interface DNSInstructions {
 
 export interface DomainSetupResult {
   domain: DomainRecord;
-  dnsInstructions: DNSInstructions;
-  verificationToken: string;
-  setupGuide: string[];
+  dns_instructions: DNSInstructions;
+  verification_token: string;
+  setup_guide: string[];
 }
 
 export interface DNSVerificationResult {
@@ -68,6 +85,9 @@ export interface VerificationResult {
   domain: string;
   all_passed: boolean;
   results: {
+    smtp_a: DNSVerificationResult;
+    mail_a: DNSVerificationResult;
+    mx: DNSVerificationResult;
     spf: DNSVerificationResult;
     dkim: DNSVerificationResult;
     dmarc: DNSVerificationResult;
@@ -242,9 +262,9 @@ export class DomainSetupService {
 
       const result: DomainSetupResult = {
         domain: domainRecord,
-        dnsInstructions,
-        verificationToken,
-        setupGuide
+        dns_instructions: dnsInstructions,
+        verification_token: verificationToken,
+        setup_guide: setupGuide
       };
 
       logger.info('Domain setup initiated successfully', {
@@ -293,22 +313,29 @@ export class DomainSetupService {
         isVerified: domain.is_verified
       });
 
-      // Executar verificações DNS essenciais em paralelo (SPF+DKIM+DMARC)
-      const [spfResult, dkimResult, dmarcResult] = await Promise.allSettled([
+      // Executar verificações DNS COMPLETAS em paralelo (A+MX+SPF+DKIM+DMARC)
+      const [smtpAResult, mailAResult, mxResult, spfResult, dkimResult, dmarcResult] = await Promise.allSettled([
+        this.verifyARecord(`smtp.${domain.domain_name}`, '31.97.162.155'),
+        this.verifyARecord(`mail.${domain.domain_name}`, '31.97.162.155'),
+        this.verifyMxRecord(domain.domain_name),
         this.verifySpfRecord(domain.domain_name),
         this.verifyDkimRecord(domain.domain_name, domain.dkim_selector),
         this.verifyDmarcRecord(domain.domain_name)
       ]);
 
-      // Processar resultados (apenas registros essenciais)
+      // Processar resultados (TODOS os registros necessários)
       const results = {
+        smtp_a: this.processVerificationResult(smtpAResult, 'SMTP-A'),
+        mail_a: this.processVerificationResult(mailAResult, 'MAIL-A'),
+        mx: this.processVerificationResult(mxResult, 'MX'),
         spf: this.processVerificationResult(spfResult, 'SPF'),
         dkim: this.processVerificationResult(dkimResult, 'DKIM'),
         dmarc: this.processVerificationResult(dmarcResult, 'DMARC')
       };
 
-      // Domínio aprovado quando SPF+DKIM+DMARC estão válidos
-      const all_passed = results.spf.valid && results.dkim.valid && results.dmarc.valid;
+      // Domínio aprovado quando TODOS os registros estão válidos (A+MX+SPF+DKIM+DMARC)
+      const all_passed = results.smtp_a.valid && results.mail_a.valid && results.mx.valid &&
+                        results.spf.valid && results.dkim.valid && results.dmarc.valid;
 
       logger.info('DNS verification completed', {
         userId,
@@ -316,6 +343,9 @@ export class DomainSetupService {
         domain: domain.domain_name,
         allPassed: all_passed,
         results: {
+          smtp_a: results.smtp_a.valid,
+          mail_a: results.mail_a.valid,
+          mx: results.mx.valid,
           spf: results.spf.valid,
           dkim: results.dkim.valid,
           dmarc: results.dmarc.valid
@@ -723,25 +753,55 @@ export class DomainSetupService {
    * @returns Instruções DNS estruturadas
    */
   private createDNSInstructions(domain: string, dkimPublicKey: string): DNSInstructions {
+    const ULTRAZEND_IP = '31.97.162.155';
+    const ULTRAZEND_MX = 'mail.ultrazend.com.br';
+
     return {
+      // ✅ REGISTROS A - Subdomínios de email (CRÍTICOS para configuração híbrida)
+      a_records: {
+        smtp: {
+          record: `smtp.${domain}`,
+          value: ULTRAZEND_IP,
+          priority: 1,
+          description: 'Registro A que aponta o subdomínio smtp do seu domínio para o servidor UltraZend (OBRIGATÓRIO para envio)'
+        },
+        mail: {
+          record: `mail.${domain}`,
+          value: ULTRAZEND_IP,
+          priority: 1,
+          description: 'Registro A que aponta o subdomínio mail do seu domínio para o servidor UltraZend (OBRIGATÓRIO para recebimento)'
+        }
+      },
+
+      // ✅ REGISTRO MX - Direcionamento de email
+      mx: {
+        record: `${domain}`,
+        value: `${ULTRAZEND_MX}`,
+        priority: 10,
+        description: 'Registro MX que direciona emails do seu domínio para o servidor UltraZend (OBRIGATÓRIO)'
+      },
+
+      // ✅ REGISTROS TXT - Autenticação (atualizados)
       spf: {
         record: `${domain}`,
-        value: `v=spf1 include:${this.ULTRAZEND_SPF_INCLUDE} ~all`,
-        priority: 1,
-        description: 'SPF record authorizes UltraZend to send emails on behalf of your domain'
+        value: `v=spf1 a mx ip4:${ULTRAZEND_IP} include:${this.ULTRAZEND_SPF_INCLUDE} ~all`,
+        priority: 2,
+        description: 'Registro SPF completo que autoriza servidores UltraZend (IP + subdomínios A/MX + include)'
       },
+
       dkim: {
         record: `default._domainkey.${domain}`,
         value: `v=DKIM1; k=rsa; p=${dkimPublicKey}`,
-        priority: 2,
-        description: 'DKIM record provides cryptographic authentication for emails from your domain'
+        priority: 3,
+        description: 'Chave DKIM para autenticação criptográfica de emails'
       },
+
       dmarc: {
         record: `_dmarc.${domain}`,
         value: `v=DMARC1; p=quarantine; rua=mailto:${this.DMARC_REPORT_EMAIL}`,
-        priority: 3,
-        description: 'DMARC policy instructs receivers how to handle emails that fail SPF/DKIM checks'
-      },
+        priority: 4,
+        description: 'Política DMARC para tratamento de emails não autenticados'
+      }
     };
   }
 
@@ -753,20 +813,95 @@ export class DomainSetupService {
    */
   private generateSetupGuide(domain: string): string[] {
     return [
-      '1. Access your domain registrar or DNS hosting provider (GoDaddy, Cloudflare, etc.)',
-      '2. Navigate to DNS management or DNS records section',
-      '3. Add the SPF TXT record to authorize email sending',
-      '4. Add the DKIM TXT record for email authentication', 
-      '5. Add the DMARC TXT record for email policy',
-      '6. Wait 5-15 minutes for DNS propagation',
-      '7. Click "Verify DNS Records" to complete setup',
-      '8. Once verified, your domain is ready to send authenticated emails!'
+      '🌐 CONFIGURAÇÃO HÍBRIDA - Mantenha seu site funcionando!',
+      '',
+      '1. Acesse seu provedor DNS (GoDaddy, Cloudflare, etc.)',
+      '2. Navegue até a seção de Gerenciamento DNS',
+      '3. ⚠️  IMPORTANTE: NÃO altere registros @ e www do seu site',
+      '4. 🎯 ADICIONE APENAS: Registros A para smtp.' + domain + ' e mail.' + domain,
+      '5. 📧 ADICIONE: Registro MX @ apontando para mail.ultrazend.com.br',
+      '6. 📝 ADICIONE: Registros TXT (SPF, DKIM, DMARC) conforme listados',
+      '7. ⏰ Aguarde 5-30 minutos para propagação DNS',
+      '8. ✅ Execute a verificação DNS para completar',
+      '9. 🎉 Resultado: Site continua funcionando + Emails via UltraZend!'
     ];
   }
 
   /**
+   * Verifica registro A de um subdomínio
+   *
+   * @param subdomain - Subdomínio completo (ex: smtp.exemplo.com)
+   * @param expectedIp - IP esperado
+   * @returns Resultado da verificação A
+   */
+  private async verifyARecord(subdomain: string, expectedIp: string): Promise<DNSVerificationResult> {
+    try {
+      logger.debug('Verifying A record', { subdomain, expectedIp });
+
+      const aRecords = await this.resolveAWithRetry(subdomain);
+      const hasExpectedIp = aRecords.includes(expectedIp);
+
+      return {
+        valid: hasExpectedIp,
+        expectedValue: expectedIp,
+        actualValue: aRecords.join(', '),
+        error: hasExpectedIp ? undefined : `Registro A não encontrado ou IP incorreto para ${subdomain}`
+      };
+    } catch (error) {
+      logger.debug('A record verification failed', {
+        subdomain,
+        expectedIp,
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return {
+        valid: false,
+        expectedValue: expectedIp,
+        error: `Resolução DNS falhou: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  /**
+   * Verifica registro MX de um domínio
+   *
+   * @param domain - Nome do domínio
+   * @returns Resultado da verificação MX
+   */
+  private async verifyMxRecord(domain: string): Promise<DNSVerificationResult> {
+    const expectedMx = 'mail.ultrazend.com.br';
+
+    try {
+      logger.debug('Verifying MX record', { domain, expectedMx });
+
+      const mxRecords = await this.resolveMxWithRetry(domain);
+      const hasExpectedMx = mxRecords.some(mx =>
+        mx.exchange.toLowerCase() === expectedMx.toLowerCase()
+      );
+
+      return {
+        valid: hasExpectedMx,
+        expectedValue: expectedMx,
+        actualValue: mxRecords.map(mx => `${mx.exchange} (${mx.priority})`).join(', '),
+        error: hasExpectedMx ? undefined : `Registro MX não aponta para ${expectedMx}`
+      };
+    } catch (error) {
+      logger.debug('MX record verification failed', {
+        domain,
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return {
+        valid: false,
+        expectedValue: expectedMx,
+        error: `Resolução DNS falhou: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  /**
    * Verifica registro SPF de um domínio
-   * 
+   *
    * @param domain - Nome do domínio
    * @returns Resultado da verificação SPF
    */
@@ -990,6 +1125,80 @@ export class DomainSetupService {
   }
 
   /**
+   * Resolve registros A com retry automático
+   *
+   * @param domain - Domínio a resolver
+   * @returns Array de IPs
+   */
+  private async resolveAWithRetry(domain: string): Promise<string[]> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= this.MAX_DNS_RETRIES; attempt++) {
+      try {
+        logger.debug(`DNS A resolution attempt ${attempt}/${this.MAX_DNS_RETRIES}`, { domain });
+
+        const records = await Promise.race([
+          resolveA(domain),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('DNS timeout')), this.DNS_TIMEOUT)
+          )
+        ]);
+
+        return records;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.debug(`DNS A resolution attempt ${attempt} failed`, {
+          domain,
+          error: lastError.message
+        });
+
+        if (attempt < this.MAX_DNS_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+    }
+
+    throw lastError || new Error('Resolução DNS A falhou após tentativas');
+  }
+
+  /**
+   * Resolve registros MX com retry automático
+   *
+   * @param domain - Domínio a resolver
+   * @returns Array de registros MX
+   */
+  private async resolveMxWithRetry(domain: string): Promise<{exchange: string, priority: number}[]> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= this.MAX_DNS_RETRIES; attempt++) {
+      try {
+        logger.debug(`DNS MX resolution attempt ${attempt}/${this.MAX_DNS_RETRIES}`, { domain });
+
+        const records = await Promise.race([
+          resolveMx(domain),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('DNS timeout')), this.DNS_TIMEOUT)
+          )
+        ]);
+
+        return records;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.debug(`DNS MX resolution attempt ${attempt} failed`, {
+          domain,
+          error: lastError.message
+        });
+
+        if (attempt < this.MAX_DNS_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+    }
+
+    throw lastError || new Error('Resolução DNS MX falhou após tentativas');
+  }
+
+  /**
    * Processa resultado de Promise.allSettled
    * 
    * @param result - Resultado da promise
@@ -1022,22 +1231,35 @@ export class DomainSetupService {
   private generateNextSteps(results: VerificationResult['results']): string[] {
     const steps: string[] = [];
 
+    if (!results.smtp_a.valid) {
+      steps.push('🎯 ADICIONAR URGENTE: Registro A smtp.seudominio.com apontando para 31.97.162.155');
+    }
+
+    if (!results.mail_a.valid) {
+      steps.push('🎯 ADICIONAR URGENTE: Registro A mail.seudominio.com apontando para 31.97.162.155');
+    }
+
+    if (!results.mx.valid) {
+      steps.push('📧 ADICIONAR: Registro MX @ apontando para mail.ultrazend.com.br (prioridade 10)');
+    }
+
     if (!results.spf.valid) {
-      steps.push('Configure SPF record to authorize UltraZend servers');
+      steps.push('📝 Configurar registro SPF para autorizar servidores UltraZend');
     }
 
     if (!results.dkim.valid) {
-      steps.push('Add DKIM record for email authentication');
+      steps.push('📝 Adicionar registro DKIM para autenticação de email');
     }
 
     if (!results.dmarc.valid) {
-      steps.push('Configure DMARC policy for email security');
+      steps.push('📝 Configurar política DMARC para segurança de email');
     }
 
     if (steps.length === 0) {
-      steps.push('All DNS records verified successfully!');
+      steps.push('✅ Todos os registros DNS verificados com sucesso! Seu domínio está pronto para enviar emails.');
     } else {
-      steps.push('Wait 5-15 minutes after making DNS changes before retrying verification');
+      steps.push('⏰ Aguarde 5-30 minutos após fazer alterações DNS antes de tentar verificar novamente');
+      steps.push('🔄 IMPORTANTE: Registros A são OBRIGATÓRIOS para o funcionamento do email!');
     }
 
     return steps;

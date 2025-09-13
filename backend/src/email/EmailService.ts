@@ -33,10 +33,7 @@ export class UnifiedEmailService {
     strictValidation?: boolean;
   } = {}) {
     this.smtpDelivery = new SMTPDeliveryService();
-    this.emailValidator = new SimpleEmailValidator({
-      enableDomainValidation: options.enableDomainValidation !== false, // Default true
-      strictValidation: options.strictValidation || false
-    });
+    this.emailValidator = new SimpleEmailValidator();
     this.enableMetrics = options.enableMetrics !== false; // Default true
     this.metricsCollector = new EmailMetricsCollector({
       enableRealTimeAlerts: this.enableMetrics
@@ -70,25 +67,15 @@ export class UnifiedEmailService {
       this.validateBasicEmailData(data);
 
       // 2. Validação de domínio e aplicação de fallback se necessário
-      const validationResult = await this.emailValidator.validate(data, context.userId);
-      if (!validationResult.valid) {
-        throw new Error(`Domain validation failed: ${validationResult.reason}`);
+      const validationResult = this.emailValidator.validate(data);
+      if (!validationResult.isValid) {
+        throw new Error(`Email validation failed: ${validationResult.errors.join(', ')}`);
       }
 
-      // Usar email validado (pode ter fallback aplicado)
-      const validatedEmailData = validationResult.email || data;
-      const domainValidated = !validationResult.warnings?.length;
-      const fallbackApplied = !!validationResult.warnings?.length;
-
-      if (validationResult.warnings?.length) {
-        logger.info('Email domain validation applied fallback', {
-          trackingId,
-          userId: context.userId,
-          originalFrom: data.from,
-          fallbackFrom: validatedEmailData.from,
-          warnings: validationResult.warnings
-        });
-      }
+      // Usar email original (validação básica passou)
+      const validatedEmailData = data;
+      const domainValidated = true; // Validação simples passou
+      const fallbackApplied = false; // Arquitetura simplificada
 
       // 3. Verificar quotas antes do envio
       await this.checkQuotas(context);

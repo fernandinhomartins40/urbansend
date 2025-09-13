@@ -12,10 +12,6 @@ export const validateRequest = (schema: {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (schema.body) {
-        // 🔍 DEBUG: Log dados recebidos antes da validação
-        console.log('🔍 VALIDATION DEBUG - req.body recebido:', JSON.stringify(req.body, null, 2))
-        console.log('🔍 VALIDATION DEBUG - Campos presentes:', Object.keys(req.body || {}))
-        console.log('🔍 VALIDATION DEBUG - URL:', req.url)
         req.body = schema.body.parse(req.body);
       }
       

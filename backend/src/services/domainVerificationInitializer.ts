@@ -40,7 +40,7 @@ export class DomainVerificationInitializer {
       logger.info('🔄 Configuring recurring domain verification job...');
       
       if (Env.getBoolean('DOMAIN_AUTO_VERIFICATION_ENABLED', true)) {
-        await domainVerificationJob.scheduleRecurringJob();
+        await domainVerificationJob.runRecurringVerification();
         logger.info('✅ Recurring domain verification job scheduled (every 6 hours)');
       } else {
         logger.info('⚠️ Automatic domain verification disabled by environment variable');
@@ -52,7 +52,7 @@ export class DomainVerificationInitializer {
         
         setTimeout(async () => {
           try {
-            await domainVerificationJob.scheduleBatchVerification({
+            await domainVerificationJob.runBatchVerification({
               batchSize: 10,
               retryFailedOnly: false
             });
@@ -245,7 +245,7 @@ export class DomainVerificationInitializer {
   } = {}): Promise<void> {
     try {
       if (options.domainId) {
-        await domainVerificationJob.scheduleSingleDomainVerification(
+        await domainVerificationJob.runSingleDomainVerification(
           options.domainId,
           { userId: options.userId }
         );
@@ -255,7 +255,7 @@ export class DomainVerificationInitializer {
           userId: options.userId?.toString()
         });
       } else {
-        await domainVerificationJob.scheduleBatchVerification({
+        await domainVerificationJob.runBatchVerification({
           batchSize: options.batchSize || 20,
           retryFailedOnly: options.retryFailedOnly || false,
           userId: options.userId

@@ -2,7 +2,19 @@ import axios from 'axios';
 import { logger } from '../config/logger';
 import { createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
-import { WebhookJobData } from './queueService';
+// WebhookJobData movido para interface local na arquitetura simplificada
+interface WebhookJobData {
+  webhookUrl: string;
+  eventType: string;
+  payload: any;
+  secret?: string;
+  userId: number;
+  url: string; // alias para webhookUrl
+  method?: string;
+  headers?: Record<string, string>;
+  entityId?: string;
+  retryCount?: number;
+}
 import { TenantContextService } from './TenantContextService';
 
 interface WebhookPayload {
@@ -620,7 +632,8 @@ export class WebhookService {
       });
 
       // Buscar dados do email para notificação
-      const emailData = await this.getEmailDeliveryData(jobData.entityId);
+      const emailId = jobData.entityId ? parseInt(jobData.entityId, 10) : 0;
+      const emailData = await this.getEmailDeliveryData(emailId);
       if (!emailData) {
         throw new Error(`Email ${jobData.entityId} not found for delivery notification`);
       }
@@ -807,6 +820,7 @@ export class WebhookService {
       for (const webhook of failedWebhooks) {
         try {
           const jobData: WebhookJobData = {
+            webhookUrl: webhook.url,
             url: webhook.url,
             method: webhook.method,
             eventType: webhook.event_type,

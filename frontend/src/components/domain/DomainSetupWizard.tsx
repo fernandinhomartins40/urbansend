@@ -8,7 +8,7 @@ import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { useDomainSetup, DNSInstructions, VerificationResult, DomainSetupResult } from '../../hooks/useDomainSetup';
-import { AlertCircle, CheckCircle2, Copy, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, ExternalLink, Loader2, RefreshCw, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface DomainSetupWizardProps {
@@ -301,21 +301,51 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
       {setupResult && (
         <>
-          <Alert className="mb-6">
-            <AlertCircle className="h-4 w-4" />
+          {/* Aviso sobre configuração híbrida */}
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <Info className="h-4 w-4" />
             <div>
-              <h4 className="font-medium">Instruções Importantes</h4>
+              <h4 className="font-medium">✅ Configuração Híbrida - Mantenha seu site funcionando!</h4>
               <p className="text-sm mt-1">
-                Faça login no seu registrador de domínio ou provedor DNS e adicione estes registros TXT. 
-                Mudanças DNS podem levar de 5 a 60 minutos para se propagar.
+                Adicione apenas os registros abaixo para habilitar emails via UltraZend.
+                <strong>NÃO altere</strong> seus registros @ e www existentes.
               </p>
             </div>
           </Alert>
 
-          <div className="space-y-4 mb-6">
-            {Object.entries(setupResult.dns_instructions).map(([type, record]) =>
-              renderDNSRecord(type, record)
-            )}
+          {/* Registros A para email */}
+          <div className="mb-6">
+            <h4 className="font-medium mb-4">🎯 Registros A - Subdomínios Email (OBRIGATÓRIOS)</h4>
+            <p className="text-sm text-gray-600 mb-3">Adicione estes registros SEM alterar seus registros @ e www existentes:</p>
+            <div className="space-y-4">
+              {setupResult.dns_instructions.a_records && Object.entries(setupResult.dns_instructions.a_records).map(([key, record]) =>
+                renderDNSRecord(`A - ${key.toUpperCase()}`, record)
+              )}
+            </div>
+          </div>
+
+          <Separator className="my-6" />
+
+          {/* Registro MX */}
+          <div className="mb-6">
+            <h4 className="font-medium mb-4">📧 Registro MX (OBRIGATÓRIO)</h4>
+            <p className="text-sm text-gray-600 mb-3">Direciona emails do seu domínio para UltraZend:</p>
+            <div className="space-y-4">
+              {setupResult.dns_instructions.mx && renderDNSRecord('MX', setupResult.dns_instructions.mx)}
+            </div>
+          </div>
+
+          <Separator className="my-6" />
+
+          {/* Registros TXT */}
+          <div className="mb-6">
+            <h4 className="font-medium mb-4">📝 Registros TXT (Autenticação)</h4>
+            <p className="text-sm text-gray-600 mb-3">Protegem contra spam e garantem entregabilidade:</p>
+            <div className="space-y-4">
+              {setupResult.dns_instructions.spf && renderDNSRecord('SPF', setupResult.dns_instructions.spf)}
+              {setupResult.dns_instructions.dkim && renderDNSRecord('DKIM', setupResult.dns_instructions.dkim)}
+              {setupResult.dns_instructions.dmarc && renderDNSRecord('DMARC', setupResult.dns_instructions.dmarc)}
+            </div>
           </div>
 
           <Separator className="my-6" />
@@ -325,7 +355,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             <ol className="text-sm text-blue-800 space-y-1">
               {setupResult.setup_guide.map((step, index) => (
                 <li key={index} className="flex items-start">
-                  <span className="mr-2">{index + 1}.</span>
+                  <span className="mr-2 font-medium">{index + 1}.</span>
                   <span>{step}</span>
                 </li>
               ))}
@@ -333,15 +363,15 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           </div>
 
           <div className="flex justify-between pt-6">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setCurrentStep(0)}
             >
               Voltar
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={() => setCurrentStep(2)}
             >
               Adicionei Estes Registros
@@ -362,33 +392,115 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       </div>
 
       {verificationResult && (
-        <div className="space-y-4 mb-6">
-          {Object.entries(verificationResult.results).map(([key, result]) => (
-            <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-3">
-                {result.valid ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                )}
-                <div>
-                  <div className="font-medium capitalize">
-                    {key.replace('_', ' ')} Record
-                  </div>
-                  {result.error && (
-                    <div className="text-sm text-red-600">
-                      {result.error}
+        <div className="space-y-6 mb-6">
+          {/* Registros A (críticos) */}
+          <div>
+            <h4 className="font-medium mb-3">🎯 Registros A (CRÍTICOS)</h4>
+            <div className="space-y-2">
+              {['smtp_a', 'mail_a'].map((key) => {
+                const result = verificationResult.results[key];
+                if (!result) return null;
+                return (
+                  <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      {result.valid ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                      )}
+                      <div>
+                        <div className="font-medium">
+                          {key === 'smtp_a' ? 'SMTP A Record' : 'MAIL A Record'}
+                        </div>
+                        {result.error && (
+                          <div className="text-sm text-red-600">
+                            {result.error}
+                          </div>
+                        )}
+                        {result.actualValue && (
+                          <div className="text-xs text-gray-500">
+                            Atual: {result.actualValue}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-              <Badge variant={result.valid ? "default" : "destructive"}>
-                {result.status}
-              </Badge>
+                    <Badge variant={result.valid ? "default" : "destructive"}>
+                      {result.valid ? '✅ OK' : '❌ FALHA'}
+                    </Badge>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          </div>
 
-          {!verificationResult.all_passed && verificationResult.next_steps.length > 0 && (
+          {/* Registro MX */}
+          <div>
+            <h4 className="font-medium mb-3">📧 Registro MX</h4>
+            {verificationResult.results.mx && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  {verificationResult.results.mx.valid ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                  )}
+                  <div>
+                    <div className="font-medium">MX Record</div>
+                    {verificationResult.results.mx.error && (
+                      <div className="text-sm text-red-600">
+                        {verificationResult.results.mx.error}
+                      </div>
+                    )}
+                    {verificationResult.results.mx.actualValue && (
+                      <div className="text-xs text-gray-500">
+                        Atual: {verificationResult.results.mx.actualValue}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Badge variant={verificationResult.results.mx.valid ? "default" : "destructive"}>
+                  {verificationResult.results.mx.valid ? '✅ OK' : '❌ FALHA'}
+                </Badge>
+              </div>
+            )}
+          </div>
+
+          {/* Registros TXT */}
+          <div>
+            <h4 className="font-medium mb-3">📝 Registros TXT (Autenticação)</h4>
+            <div className="space-y-2">
+              {['spf', 'dkim', 'dmarc'].map((key) => {
+                const result = verificationResult.results[key];
+                if (!result) return null;
+                return (
+                  <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      {result.valid ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                      )}
+                      <div>
+                        <div className="font-medium capitalize">
+                          {key.toUpperCase()} Record
+                        </div>
+                        {result.error && (
+                          <div className="text-sm text-red-600">
+                            {result.error}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={result.valid ? "default" : "destructive"}>
+                      {result.valid ? '✅ OK' : '❌ FALHA'}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {!verificationResult.all_passed && verificationResult.next_steps && verificationResult.next_steps.length > 0 && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <div>
@@ -457,10 +569,14 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
         <div className="bg-green-50 p-4 rounded-lg mb-6">
           <h4 className="font-medium text-green-900 mb-2">O que foi Configurado</h4>
           <div className="text-sm text-green-800 space-y-1">
-            <div>✅ Propriedade do domínio verificada</div>
+            <div>✅ Subdomínios de email (smtp + mail) configurados</div>
+            <div>✅ Registro MX configurado para direcionamento de email</div>
             <div>✅ Registro SPF configurado para autorização de email</div>
             <div>✅ Chaves DKIM configuradas para autenticação de email</div>
             <div>✅ Política DMARC configurada para segurança de email</div>
+            <div className="mt-2 pt-2 border-t border-green-200">
+              🌐 <strong>Configuração Híbrida:</strong> Seu site continua funcionando normalmente!
+            </div>
           </div>
         </div>
       )}

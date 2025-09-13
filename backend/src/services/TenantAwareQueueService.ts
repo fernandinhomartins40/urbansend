@@ -34,8 +34,19 @@ export interface TenantBatchEmailJobData extends TenantJobData {
   campaignId?: number;
 }
 
+export interface TenantWebhookJobData extends TenantJobData {
+  url: string;
+  method: string;
+  eventType?: string;
+  entityId?: string;
+  payload?: any;
+  headers?: Record<string, string>;
+  timeout?: number;
+}
+
 export class TenantAwareQueueService {
   private emailQueue: Queue;
+  private webhookQueue: Queue;
   private tenantContextService: TenantContextService;
   
   constructor() {
@@ -54,6 +65,16 @@ export class TenantAwareQueueService {
         removeOnFail: 50,
         attempts: 5,
         backoff: { type: 'exponential', delay: 2000 }
+      }
+    });
+
+    this.webhookQueue = new Bull('webhook-processing', {
+      redis: redisConfig,
+      defaultJobOptions: {
+        removeOnComplete: 50,
+        removeOnFail: 25,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 }
       }
     });
 
@@ -120,6 +141,33 @@ export class TenantAwareQueueService {
 
     return this.emailQueue.add('send-batch', enrichedBatchData, {
       priority: -10 // Lower priority for batch jobs
+    });
+  }
+
+  /**
+   * ✅ COMPATIBILIDADE: Método de webhook para notificações
+   */
+  async addWebhookJob(webhookData: Partial<TenantWebhookJobData>): Promise<Job> {
+    const tenantId = webhookData.tenantId || webhookData.userId || 1; // Default to system tenant
+
+    // Validações de tenant ANTES de adicionar na fila
+    await this.validateTenantLimits(tenantId, 'webhook');
+
+    // Enriquece dados com contexto do tenant
+    const enrichedData: TenantWebhookJobData = {
+      url: webhookData.url || '',
+      method: webhookData.method || 'POST',
+      payload: webhookData.payload,
+      headers: webhookData.headers || { 'Content-Type': 'application/json' },
+      timeout: webhookData.timeout || 10000,
+      tenantId,
+      userId: tenantId, // Compatibilidade
+      queuedAt: new Date(),
+      priority: await this.getTenantPriority(tenantId)
+    };
+
+    return this.webhookQueue.add('send-webhook', enrichedData, {
+      priority: enrichedData.priority || 0
     });
   }
 

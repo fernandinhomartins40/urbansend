@@ -158,17 +158,20 @@ export const authApi = {
     api.post('/auth/change-password', data),
 }
 
-// Email API
+// Email API - ARQUITETURA SIMPLIFICADA V3
 export const emailApi = {
   send: (data: any) => {
-    // 🔍 DEBUG: Log dados sendo enviados
-    console.log('🔍 EMAIL API DEBUG - Dados enviados:', JSON.stringify(data, null, 2))
-    console.log('🔍 EMAIL API DEBUG - Campos presentes:', Object.keys(data))
-    return api.post('/emails-v2/send-v2', data)
+    // 🔍 DEBUG: Log dados sendo enviados (V3)
+    console.log('🔍 EMAIL API V3 DEBUG - Dados enviados:', JSON.stringify(data, null, 2))
+    console.log('🔍 EMAIL API V3 DEBUG - Campos presentes:', Object.keys(data))
+    console.log('🔍 EMAIL API V3 DEBUG - URL simplificada: /api/emails/send')
+    // URL simplificada - sistema único (conforme Fase 3 do plano)
+    return api.post('/api/emails/send', data)
   },
   
   sendBatch: (emails: any[]) =>
-    api.post('/emails-v2/send-v2-batch', { emails }),
+    // URL simplificada - sistema único
+    api.post('/api/emails/send-batch', { emails }),
   
   getEmails: (params?: any) =>
     api.get('/emails', { params }),

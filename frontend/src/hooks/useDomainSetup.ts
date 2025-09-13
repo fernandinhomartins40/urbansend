@@ -14,6 +14,21 @@ export interface DomainRecord {
 }
 
 export interface DNSInstructions {
+  // Registros A para subdomínios de email (CRÍTICOS para funcionamento híbrido)
+  a_records: {
+    smtp: { record: string; value: string; priority: number; description: string; };
+    mail: { record: string; value: string; priority: number; description: string; };
+  };
+
+  // Registro MX (obrigatório para direcionamento de email)
+  mx: {
+    record: string;
+    value: string;
+    priority: number;
+    description: string;
+  };
+
+  // Registros TXT para autenticação
   spf: {
     record: string;
     value: string;
@@ -32,12 +47,6 @@ export interface DNSInstructions {
     priority: number;
     description: string;
   };
-  verification: {
-    record: string;
-    value: string;
-    priority: number;
-    description: string;
-  };
 }
 
 export interface DomainSetupResult {
@@ -49,9 +58,9 @@ export interface DomainSetupResult {
 
 export interface DNSVerificationResult {
   valid: boolean;
-  status: 'verified' | 'pending' | 'failed';
-  expected?: string;
-  found?: string;
+  status?: 'verified' | 'pending' | 'failed';
+  expectedValue?: string;
+  actualValue?: string;
   error?: string;
 }
 
@@ -61,7 +70,9 @@ export interface VerificationResult {
   all_passed: boolean;
   verified_at: string;
   results: {
-    verification_token: DNSVerificationResult;
+    smtp_a: DNSVerificationResult;
+    mail_a: DNSVerificationResult;
+    mx: DNSVerificationResult;
     spf: DNSVerificationResult;
     dkim: DNSVerificationResult;
     dmarc: DNSVerificationResult;

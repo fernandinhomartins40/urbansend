@@ -66,8 +66,8 @@ router.post('/setup',
             status: 'pending_verification',
             created_at: result.domain.created_at
           },
-          dns_instructions: result.dnsInstructions,
-          setup_guide: result.setupGuide
+          dns_instructions: result.dns_instructions,
+          setup_guide: result.setup_guide
         }
       };
 

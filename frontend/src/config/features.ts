@@ -59,7 +59,7 @@ export async function getFeatureFlags(): Promise<FrontendFeatureFlags> {
 }
 
 /**
- * Verificar se o usuário atual deve usar a integração V2
+ * Verificar se o usuário atual deve usar a integração V3
  */
 export async function shouldUseIntegratedEmailSend(): Promise<boolean> {
   try {
@@ -74,17 +74,17 @@ export async function shouldUseIntegratedEmailSend(): Promise<boolean> {
 /**
  * Hook personalizado para decidir qual sistema de email usar
  */
-import { useEmailSendV2 } from '../hooks/useEmailSendV2';
+import { useEmailSend } from '../hooks/useEmailSend';
 import { useSendEmail } from '../hooks/useEmails';
 import { useEffect, useState } from 'react';
 
 export function useSmartEmailSend() {
-  const [shouldUseV2, setShouldUseV2] = useState<boolean | null>(null);
+  const [shouldUseV3, setShouldUseV3] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [rolloutPhase, setRolloutPhase] = useState<string>('UNKNOWN');
   
-  // Hooks para ambas as versões
-  const emailSendV2 = useEmailSendV2();
+  // Hooks para ambas as versões (V3 simplificada + Legacy)
+  const emailSendV3 = useEmailSend();
   const emailSendLegacy = useSendEmail();
   
   // Verificar feature flags ao montar o componente
@@ -92,13 +92,13 @@ export function useSmartEmailSend() {
     async function checkFeatureFlags() {
       try {
         const flags = await getFeatureFlags();
-        setShouldUseV2(flags.USER_IN_ROLLOUT && flags.USE_INTEGRATED_EMAIL_SEND);
+        setShouldUseV3(flags.USER_IN_ROLLOUT && flags.USE_INTEGRATED_EMAIL_SEND);
         setRolloutPhase(flags.ROLLOUT_PHASE);
         
         // Log para debugging
         if (flags.ENABLE_MIGRATION_MONITORING) {
           console.log('🚩 Smart Email Send - Decisão de roteamento:', {
-            useV2: flags.USER_IN_ROLLOUT && flags.USE_INTEGRATED_EMAIL_SEND,
+            useV3: flags.USER_IN_ROLLOUT && flags.USE_INTEGRATED_EMAIL_SEND,
             rolloutPercentage: flags.ROLLOUT_PERCENTAGE,
             phase: flags.ROLLOUT_PHASE,
             timestamp: new Date().toISOString()
@@ -107,7 +107,7 @@ export function useSmartEmailSend() {
         
       } catch (error) {
         console.error('Erro ao carregar feature flags:', error);
-        setShouldUseV2(false); // Fallback para sistema antigo
+        setShouldUseV3(false); // Fallback para sistema antigo
         setRolloutPhase('ERROR');
       } finally {
         setLoading(false);
@@ -117,23 +117,23 @@ export function useSmartEmailSend() {
     checkFeatureFlags();
   }, []);
   
-  // Retornar o hook apropriado baseado na feature flag
+  // Retornar o hook apropriado baseado na feature flag (V3 vs Legacy)
   return {
-    sendEmail: shouldUseV2 ? emailSendV2.mutateAsync : emailSendLegacy.mutate,
-    sendEmailAsync: shouldUseV2 ? emailSendV2.mutateAsync : 
+    sendEmail: shouldUseV3 ? emailSendV3.mutateAsync : emailSendLegacy.mutate,
+    sendEmailAsync: shouldUseV3 ? emailSendV3.mutateAsync : 
       (data: any) => new Promise((resolve, reject) => {
         emailSendLegacy.mutate(data, {
           onSuccess: resolve,
           onError: reject
         });
       }),
-    isLoading: loading || emailSendV2.isPending || emailSendLegacy.isPending,
-    error: emailSendV2.error || emailSendLegacy.error,
-    isSuccess: emailSendV2.isSuccess || emailSendLegacy.isSuccess,
+    isLoading: loading || emailSendV3.isPending || emailSendLegacy.isPending,
+    error: emailSendV3.error || emailSendLegacy.error,
+    isSuccess: emailSendV3.isSuccess || emailSendLegacy.isSuccess,
     
     // Informações de rollout para debugging
     rolloutInfo: {
-      isUsingV2: shouldUseV2,
+      isUsingV3: shouldUseV3,
       phase: rolloutPhase,
       loading
     }
@@ -229,7 +229,7 @@ export function RolloutDebugInfo() {
     }}
     onClick={() => setShowDebug(!showDebug)}
     >
-      🚩 Email: {flags.USER_IN_ROLLOUT ? 'V2' : 'Legacy'} ({flags.ROLLOUT_PERCENTAGE}%)
+      🚩 Email: {flags.USER_IN_ROLLOUT ? 'V3-Simplificado' : 'Legacy'} ({flags.ROLLOUT_PERCENTAGE}%)
       
       {showDebug && (
         <div style={{

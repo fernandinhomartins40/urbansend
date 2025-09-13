@@ -19,7 +19,7 @@ import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
-import { queueService } from './services/queueService';
+// queueService removido - sistema simplificado sem queue
 import UltraZendSMTPServer from './services/smtpServer';
 import { SMTPDeliveryService } from './services/smtpDelivery';
 import { domainVerificationInitializer } from './services/domainVerificationInitializer';
@@ -30,7 +30,7 @@ import { getFeatureFlags } from './config/features';
 import authRoutes from './routes/auth';
 import keysRoutes from './routes/keys';
 import emailsRoutes from './routes/emails'; // Rota funcional (nova arquitetura em email/emailRoutes.ts quando tipos forem corrigidos)
-import emailsV2Routes from './routes/emails-v2'; // 🆕 Fase 3 - Rota híbrida com integração de domínios
+// emails-v2 removido - substituído por nova arquitetura simplificada
 import templatesRoutes from './routes/templates';
 import domainsRoutes from './routes/domains';
 import analyticsRoutes from './routes/analytics';
@@ -363,7 +363,7 @@ app.use('/api/keys', keysRoutes);
 app.use('/api/emails', emailsRoutes);
 
 // Nova rota com integração de domínios (Fase 3.2)
-app.use('/api/emails-v2', emailsV2Routes);
+// emails-v2 route removida - substituída por /api/emails com nova arquitetura
 app.use('/api/templates', templatesRoutes);
 app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -548,9 +548,9 @@ const initializeServices = async () => {
       dependencies: [], // Nenhuma dependência
       critical: true,   // Falha para todo o sistema
       init: async () => {
-        const stats = await queueService.getQueueStats();
-        logger.info('✅ Queue service initialized', stats);
-        return { queueService, stats };
+        // queueService removido - sistema simplificado sem queue
+        logger.info('✅ Sistema simplificado ativo - sem queue');
+        return { message: 'Sistema simplificado ativo' };
       }
     },
     {
@@ -827,17 +827,8 @@ const gracefulShutdown = async (signal: string) => {
       }
     }
 
-    // 3. Close queue service
-    try {
-      logger.info('🔄 Closing queue service...');
-      await Promise.race([
-        queueService.close(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Queue service timeout')), 8000))
-      ]);
-      logger.info('✅ Queue service closed');
-    } catch (error) {
-      logger.warn('Queue service close error, continuing...', { error: (error as Error).message });
-    }
+    // 3. Queue service removido - sistema simplificado
+    logger.info('✅ Sistema simplificado - sem queue service para fechar');
 
     // 4. Cleanup performance monitor with timeout protection
     try {

@@ -1,6 +1,6 @@
 import { Job } from 'bull';
 import { logger } from '../config/optimizedLogger';
-import { EmailService } from './emailService';
+import { UnifiedEmailService } from '../email/EmailService';
 import { logMiddlewareEvent } from '../middleware/emailMiddlewareHelpers';
 
 /**
@@ -65,7 +65,7 @@ export interface BatchStats {
 
 export class OptimizedBulkProcessor {
   private static instance: OptimizedBulkProcessor;
-  private emailServicePool: EmailService[] = [];
+  private emailServicePool: UnifiedEmailService[] = [];
   private readonly defaultConfig: BatchProcessingConfig = {
     maxConcurrency: 10, // Processar até 10 emails simultaneamente
     chunkSize: 50, // Processar em chunks de 50
@@ -93,7 +93,7 @@ export class OptimizedBulkProcessor {
   private initializeEmailServicePool(): void {
     const poolSize = this.defaultConfig.maxConcurrency * 2;
     for (let i = 0; i < poolSize; i++) {
-      this.emailServicePool.push(new EmailService());
+      this.emailServicePool.push(new UnifiedEmailService());
     }
     
     logMiddlewareEvent('debug', 'Email service pool initialized', {
@@ -105,7 +105,7 @@ export class OptimizedBulkProcessor {
   /**
    * Obter EmailService do pool (round-robin)
    */
-  private getEmailServiceFromPool(): EmailService {
+  private getEmailServiceFromPool(): UnifiedEmailService {
     const index = Math.floor(Math.random() * this.emailServicePool.length);
     return this.emailServicePool[index];
   }
@@ -304,7 +304,18 @@ export class OptimizedBulkProcessor {
         
         // Aplicar timeout por email
         const result = await Promise.race([
-          emailService.processEmailJob(email),
+          emailService.sendEmail(email, {
+            userId: email.userId || 1,
+            permissions: ['email:send'],
+            quotas: {
+              dailyLimit: 10000,
+              dailyUsed: 0,
+              hourlyLimit: 1000,
+              hourlyUsed: 0,
+              monthlyLimit: 100000,
+              monthlyUsed: 0
+            }
+          }),
           this.timeoutPromise(config.timeoutMs)
         ]);
 

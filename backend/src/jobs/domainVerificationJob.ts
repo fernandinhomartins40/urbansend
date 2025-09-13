@@ -1,7 +1,5 @@
-import { Job } from 'bull';
 import { DomainVerificationService } from '../services/DomainVerificationService';
 import { domainVerificationLogger } from '../services/DomainVerificationLogger';
-import { queueService } from '../services/queueService';
 import { logger, Logger } from '../config/logger';
 import { Env } from '../utils/env';
 import db from '../config/database';
@@ -52,13 +50,11 @@ export class DomainVerificationJob {
 
   private setupJobProcessors(): void {
     try {
-      // Adicionar processos de jobs de verificação de domínio ao queueService
-      this.addDomainVerificationProcessor();
-      
-      logger.info('Domain verification job processors configured', {
+      // Arquitetura simplificada V3 - sem Bull queues
+      logger.info('Domain verification service initialized - simplified architecture', {
         business: {
           entity: 'domain_verification_job',
-          action: 'processors_configured'
+          action: 'simplified_processor_ready'
         }
       });
     } catch (error) {
@@ -66,28 +62,14 @@ export class DomainVerificationJob {
     }
   }
 
-  private addDomainVerificationProcessor(): void {
-    // Como o queueService já tem queues configuradas, vamos usar o analyticsQueue 
-    // para jobs de verificação de domínio ou criar uma nova queue se necessário
-    
-    // Para manter simplicidade, vamos usar o analyticsQueue existente
-    // Em produção, seria ideal criar uma queue específica para domain verification
-    
-    const analyticsQueue = (queueService as any).analyticsQueue;
-    if (analyticsQueue) {
-      analyticsQueue.process('domain-verification', 5, this.processDomainVerificationJob.bind(this));
-      analyticsQueue.process('single-domain-verification', 10, this.processSingleDomainJob.bind(this));
-    }
-  }
-
-  // Processar job de verificação em lote
-  public async processDomainVerificationJob(job: Job<DomainVerificationJobData>): Promise<DomainVerificationResult> {
+  // Processar job de verificação em lote - Arquitetura Simplificada V3
+  public async processDomainVerificationJob(jobData: DomainVerificationJobData = {}): Promise<DomainVerificationResult> {
     const startTime = Date.now();
-    const jobData = job.data || {};
+    const jobId = `job_${Date.now()}`; // ID simples
     
     Logger.business('domain_verification_job', 'batch_job_started', {
       metadata: {
-        jobId: job.id,
+        jobId,
         batchSize: jobData.batchSize || 'unlimited',
         retryFailedOnly: jobData.retryFailedOnly || false,
         isManualTrigger: jobData.isManualTrigger || false
@@ -97,7 +79,7 @@ export class DomainVerificationJob {
     if (this.isRunning) {
       const message = 'Domain verification job already running, skipping';
       Logger.business('domain_verification_job', 'job_skipped', {
-        metadata: { reason: 'already_running', jobId: job.id }
+        metadata: { reason: 'already_running', jobId }
       });
       
       return {
@@ -115,15 +97,12 @@ export class DomainVerificationJob {
     this.isRunning = true;
 
     try {
-      // Atualizar progresso
-      job.progress(5);
-
       // Buscar domínios para verificação
       const domainsToVerify = await this.getDomainsForVerification(jobData);
       
       if (domainsToVerify.length === 0) {
         Logger.business('domain_verification_job', 'no_domains_found', {
-          metadata: { jobId: job.id, criteria: jobData }
+          metadata: { jobId, criteria: jobData }
         });
         
         return {
@@ -137,8 +116,6 @@ export class DomainVerificationJob {
           domainResults: []
         };
       }
-
-      job.progress(15);
 
       const result: DomainVerificationResult = {
         totalProcessed: domainsToVerify.length,
@@ -157,22 +134,21 @@ export class DomainVerificationJob {
       
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        const progress = 15 + ((i / batches.length) * 80); // 15% a 95%
-        job.progress(Math.round(progress));
+        const progress = Math.round(15 + ((i / batches.length) * 80)); // 15% a 95%
 
         Logger.business('domain_verification_job', 'processing_batch', {
           metadata: {
-            jobId: job.id,
+            jobId,
             batchIndex: i + 1,
             totalBatches: batches.length,
             batchSize: batch.length,
-            progress: Math.round(progress)
+            progress
           }
         });
 
         // Processar batch em paralelo (com limite de concorrência)
         const batchPromises = batch.map(domain => 
-          this.verifyDomainWithLogging(domain, jobData.maxRetries || 2, job.id?.toString())
+          this.verifyDomainWithLogging(domain, jobData.maxRetries || 2, jobId)
         );
 
         const batchResults = await Promise.allSettled(batchPromises);
@@ -230,18 +206,14 @@ export class DomainVerificationJob {
         }
       }
 
-      job.progress(95);
-
       // Verificar por problemas recorrentes após o job
       await this.checkAndAlertRecurringIssues();
-
-      job.progress(100);
 
       result.processingTime = Date.now() - startTime;
 
       Logger.business('domain_verification_job', 'batch_job_completed', {
         metadata: {
-          jobId: job.id,
+          jobId,
           ...result,
           performance: {
             responseTime: result.processingTime,
@@ -255,7 +227,7 @@ export class DomainVerificationJob {
     } catch (error) {
       const errorMessage = `Domain verification job failed: ${(error as Error).message}`;
       Logger.error('Domain verification batch job failed', error as Error, {
-        context: { jobId: job.id, jobData }
+        context: { jobId, jobData }
       });
 
       return {
@@ -273,9 +245,10 @@ export class DomainVerificationJob {
     }
   }
 
-  // Processar job de verificação de domínio único
-  private async processSingleDomainJob(job: Job<DomainVerificationJobData>): Promise<any> {
-    const { domainId, userId, maxRetries = 2 } = job.data;
+  // Processar job de verificação de domínio único - Arquitetura Simplificada V3
+  public async processSingleDomainJob(jobData: DomainVerificationJobData): Promise<any> {
+    const { domainId, userId, maxRetries = 2 } = jobData;
+    const jobId = `single_${Date.now()}`;
     
     if (!domainId) {
       throw new Error('Domain ID is required for single domain verification');
@@ -284,7 +257,7 @@ export class DomainVerificationJob {
     Logger.business('domain_verification_job', 'single_domain_job_started', {
       entityId: domainId.toString(),
       userId: userId?.toString(),
-      metadata: { jobId: job.id, maxRetries }
+      metadata: { jobId, maxRetries }
     });
 
     try {
@@ -294,18 +267,14 @@ export class DomainVerificationJob {
         throw new Error(`Domain with ID ${domainId} not found`);
       }
 
-      job.progress(25);
-
       // Verificar domínio com logging
-      const result = await this.verifyDomainWithLogging(domain, maxRetries, job.id?.toString());
-
-      job.progress(100);
+      const result = await this.verifyDomainWithLogging(domain, maxRetries, jobId);
 
       Logger.business('domain_verification_job', 'single_domain_job_completed', {
         entityId: domainId.toString(),
         userId: userId?.toString(),
         metadata: {
-          jobId: job.id,
+          jobId,
           domainName: domain.domain_name,
           status: result.overall_status,
           processingTime: result.processing_time
@@ -316,7 +285,7 @@ export class DomainVerificationJob {
 
     } catch (error) {
       Logger.error('Single domain verification job failed', error as Error, {
-        context: { jobId: job.id, domainId, userId }
+        context: { jobId, domainId, userId }
       });
       throw error;
     }
@@ -504,202 +473,128 @@ export class DomainVerificationJob {
 
   // Métodos públicos para agendar jobs
 
-  // Agendar job recorrente (a cada 6 horas)
-  public async scheduleRecurringJob(): Promise<void> {
-    try {
-      const analyticsQueue = (queueService as any).analyticsQueue;
-      if (!analyticsQueue) {
-        throw new Error('Analytics queue not available');
+  // Executar verificação recorrente - Arquitetura Simplificada V3
+  public async runRecurringVerification(): Promise<DomainVerificationResult> {
+    const jobData: DomainVerificationJobData = {
+      batchSize: Env.getNumber('DOMAIN_VERIFICATION_BATCH_SIZE', 50),
+      retryFailedOnly: false,
+      isManualTrigger: false,
+      maxRetries: 2,
+      skipCache: false
+    };
+
+    Logger.business('domain_verification_job', 'recurring_verification_started', {
+      metadata: {
+        batchSize: jobData.batchSize,
+        architecture: 'simplified-v3'
       }
+    });
 
-      // Remover jobs recorrentes existentes
-      const repeatableJobs = await analyticsQueue.getRepeatableJobs();
-      const existingJob = repeatableJobs.find((job: any) => job.name === 'domain-verification');
-      if (existingJob) {
-        await analyticsQueue.removeRepeatableByKey(existingJob.key);
-      }
-
-      // Agendar novo job recorrente
-      const jobData: DomainVerificationJobData = {
-        batchSize: Env.getNumber('DOMAIN_VERIFICATION_BATCH_SIZE', 50),
-        retryFailedOnly: false,
-        isManualTrigger: false,
-        maxRetries: 2,
-        skipCache: false
-      };
-
-      await analyticsQueue.add('domain-verification', jobData, {
-        repeat: { cron: '0 */6 * * *' }, // A cada 6 horas
-        removeOnComplete: 10,
-        removeOnFail: 5
-      });
-
-      Logger.business('domain_verification_job', 'recurring_job_scheduled', {
-        metadata: {
-          schedule: 'every 6 hours',
-          batchSize: jobData.batchSize
-        }
-      });
-
-    } catch (error) {
-      Logger.error('Failed to schedule recurring domain verification job', error as Error);
-      throw error;
-    }
+    return this.processDomainVerificationJob(jobData);
   }
 
-  // Agendar verificação de domínio único
-  public async scheduleSingleDomainVerification(
+  // Executar verificação de domínio único - Arquitetura Simplificada V3
+  public async runSingleDomainVerification(
     domainId: number, 
     options: {
       userId?: number;
-      priority?: number;
-      delay?: number;
       maxRetries?: number;
     } = {}
-  ): Promise<void> {
-    try {
-      const analyticsQueue = (queueService as any).analyticsQueue;
-      if (!analyticsQueue) {
-        throw new Error('Analytics queue not available');
-      }
+  ): Promise<any> {
+    const jobData: DomainVerificationJobData = {
+      domainId,
+      userId: options.userId,
+      maxRetries: options.maxRetries || 2,
+      isManualTrigger: true
+    };
 
-      const jobData: DomainVerificationJobData = {
-        domainId,
-        userId: options.userId,
-        maxRetries: options.maxRetries || 2,
-        isManualTrigger: true
-      };
+    Logger.business('domain_verification_job', 'single_domain_execution_started', {
+      entityId: domainId.toString(),
+      userId: options.userId?.toString(),
+      metadata: { jobData, options, architecture: 'simplified-v3' }
+    });
 
-      await analyticsQueue.add('single-domain-verification', jobData, {
-        priority: options.priority || 5,
-        delay: options.delay || 0,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 }
-      });
-
-      Logger.business('domain_verification_job', 'single_domain_scheduled', {
-        entityId: domainId.toString(),
-        userId: options.userId?.toString(),
-        metadata: { jobData, options }
-      });
-
-    } catch (error) {
-      Logger.error('Failed to schedule single domain verification', error as Error, {
-        context: { domainId, options }
-      });
-      throw error;
-    }
+    return this.processSingleDomainJob(jobData);
   }
 
-  // Agendar verificação em lote manual
-  public async scheduleBatchVerification(
+  // Executar verificação em lote manual - Arquitetura Simplificada V3  
+  public async runBatchVerification(
     options: {
       batchSize?: number;
       retryFailedOnly?: boolean;
       userId?: number;
-      priority?: number;
     } = {}
-  ): Promise<void> {
-    try {
-      const analyticsQueue = (queueService as any).analyticsQueue;
-      if (!analyticsQueue) {
-        throw new Error('Analytics queue not available');
-      }
+  ): Promise<DomainVerificationResult> {
+    const jobData: DomainVerificationJobData = {
+      batchSize: options.batchSize || 20,
+      retryFailedOnly: options.retryFailedOnly || false,
+      userId: options.userId,
+      isManualTrigger: true,
+      maxRetries: 2
+    };
 
-      const jobData: DomainVerificationJobData = {
-        batchSize: options.batchSize || 20,
-        retryFailedOnly: options.retryFailedOnly || false,
-        userId: options.userId,
-        isManualTrigger: true,
-        maxRetries: 2
-      };
+    Logger.business('domain_verification_job', 'batch_verification_execution_started', {
+      userId: options.userId?.toString(),
+      metadata: { jobData, options, architecture: 'simplified-v3' }
+    });
 
-      await analyticsQueue.add('domain-verification', jobData, {
-        priority: options.priority || 0,
-        attempts: 2,
-        backoff: { type: 'exponential', delay: 5000 }
-      });
-
-      Logger.business('domain_verification_job', 'batch_verification_scheduled', {
-        userId: options.userId?.toString(),
-        metadata: { jobData, options }
-      });
-
-    } catch (error) {
-      Logger.error('Failed to schedule batch domain verification', error as Error, {
-        context: { options }
-      });
-      throw error;
-    }
+    return this.processDomainVerificationJob(jobData);
   }
 
-  // Status e estatísticas
+  // Status e estatísticas - Arquitetura Simplificada V3
   public async getJobStats(): Promise<any> {
     try {
-      const analyticsQueue = (queueService as any).analyticsQueue;
-      if (!analyticsQueue) {
-        return { error: 'Analytics queue not available' };
-      }
-
-      const [waiting, active, completed, failed, delayed] = await Promise.all([
-        analyticsQueue.getWaiting(),
-        analyticsQueue.getActive(),
-        analyticsQueue.getCompleted(),
-        analyticsQueue.getFailed(),
-        analyticsQueue.getDelayed()
-      ]);
-
-      // Filtrar apenas jobs de verificação de domínio
-      const domainJobs = {
-        waiting: waiting.filter((j: any) => 
-          j.name === 'domain-verification' || j.name === 'single-domain-verification'
-        ).length,
-        active: active.filter((j: any) => 
-          j.name === 'domain-verification' || j.name === 'single-domain-verification'
-        ).length,
-        completed: completed.filter((j: any) => 
-          j.name === 'domain-verification' || j.name === 'single-domain-verification'
-        ).length,
-        failed: failed.filter((j: any) => 
-          j.name === 'domain-verification' || j.name === 'single-domain-verification'
-        ).length,
-        delayed: delayed.filter((j: any) => 
-          j.name === 'domain-verification' || j.name === 'single-domain-verification'
-        ).length
-      };
+      // Arquitetura simplificada - apenas status básico do serviço
+      const domainCount = await db('domains').count('* as total').first();
+      const verifiedCount = await db('domains').where('is_verified', true).count('* as verified').first();
+      const pendingCount = await db('domains').where('is_verified', false).count('* as pending').first();
 
       return {
-        ...domainJobs,
+        service: 'simplified-v3',
         isJobRunning: this.isRunning,
+        domains: {
+          total: domainCount?.total || 0,
+          verified: verifiedCount?.verified || 0,
+          pending: pendingCount?.pending || 0
+        },
+        architecture: 'direct-execution',
         timestamp: new Date().toISOString()
       };
 
     } catch (error) {
       Logger.error('Failed to get domain verification job stats', error as Error);
-      return { error: (error as Error).message };
+      return { error: (error as Error).message, architecture: 'simplified-v3' };
     }
   }
 
-  // Limpeza de jobs antigos
+  // Limpeza de logs antigos - Arquitetura Simplificada V3
   public async cleanupOldJobs(): Promise<void> {
     try {
-      const analyticsQueue = (queueService as any).analyticsQueue;
-      if (!analyticsQueue) {
-        return;
+      // Arquitetura simplificada - limpeza de logs de verificação antigos
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      
+      // Limpar logs de verificação antigos (se existir tabela de logs)
+      try {
+        await db.raw(`
+          DELETE FROM domain_verification_logs 
+          WHERE created_at < ? 
+          LIMIT 1000
+        `, [thirtyDaysAgo]);
+      } catch (error) {
+        // Tabela pode não existir, ignorar erro
+        logger.info('Tabela domain_verification_logs não encontrada, pulando limpeza');
       }
 
-      // Limpar jobs completados (manter apenas 50)
-      await analyticsQueue.clean(24 * 60 * 60 * 1000, 'completed', 50);
-      
-      // Limpar jobs falhos (manter apenas 25)
-      await analyticsQueue.clean(7 * 24 * 60 * 60 * 1000, 'failed', 25);
-
       Logger.business('domain_verification_job', 'cleanup_completed', {
-        metadata: { cleanupType: 'jobs_cleanup' }
+        metadata: { 
+          cleanupType: 'logs_cleanup',
+          architecture: 'simplified-v3',
+          cutoffDate: thirtyDaysAgo.toISOString()
+        }
       });
 
     } catch (error) {
-      Logger.error('Failed to cleanup old domain verification jobs', error as Error);
+      Logger.error('Failed to cleanup old domain verification logs', error as Error);
     }
   }
 }
