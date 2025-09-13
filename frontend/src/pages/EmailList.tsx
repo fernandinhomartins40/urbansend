@@ -58,8 +58,8 @@ export function EmailList() {
       sort: 'created_at',
       order: 'desc'
     }),
-    baseInterval: 15000, // 15 seconds
-    maxInterval: 120000, // 2 minutes
+    baseInterval: 3000, // 3 seconds
+    maxInterval: 30000, // 30 seconds
     onError: (error) => {
       console.error('Error fetching emails:', error)
       toast.error('Erro ao buscar emails')

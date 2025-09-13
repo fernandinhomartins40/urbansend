@@ -135,12 +135,28 @@ export class MultiTenantEmailService {
       const messageId = this.generateMessageId();
       const trackingId = this.generateTrackingId();
 
-      // 4. Processamento assíncrono (como InternalEmailService)
+      // 4. Salvar imediatamente no banco como 'processing' (rápido para UI)
+      const processingLog: EmailLogData = {
+        user_id: user.id,
+        tenant_id: user.tenant_id || null,
+        from: emailData.from,
+        to: Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
+        subject: emailData.subject,
+        status: 'processing',
+        timestamp: new Date(),
+        message_id: messageId,
+        tracking_id: trackingId,
+        error_message: null
+      };
+
+      await this.saveEmailLog(processingLog);
+
+      // 5. Processamento SMTP assíncrono (não bloquear UI)
       setImmediate(async () => {
         await this.processEmailAsync(emailData, user, domain, messageId, trackingId);
       });
 
-      // 5. Resposta imediata (não bloquear frontend)
+      // 6. Resposta imediata (email já aparece na lista)
       return {
         success: true,
         message: 'Email queued for delivery with verified domain',
@@ -221,21 +237,12 @@ export class MultiTenantEmailService {
       // Entrega via SMTP (comprovadamente funcional)
       const delivered = await this.smtpDelivery.deliverEmail(smtpEmailData);
 
-      // Log no banco (multi-tenancy)
-      const logData: EmailLogData = {
-        user_id: user.id,
-        tenant_id: user.tenant_id || null,
-        from: emailData.from,
-        to: Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
-        subject: emailData.subject,
+      // Atualizar status no banco (em vez de inserir novo)
+      await this.updateEmailStatus(messageId, {
         status: delivered ? 'sent' : 'failed',
-        timestamp: new Date(),
-        message_id: messageId,
-        tracking_id: trackingId,
+        sent_at: delivered ? new Date() : null,
         error_message: delivered ? null : 'SMTP delivery failed'
-      };
-
-      await this.saveEmailLog(logData);
+      });
 
       if (delivered) {
         logger.info('✅ MultiTenant: Email sent successfully', {
@@ -260,21 +267,11 @@ export class MultiTenantEmailService {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
 
-      // Salvar log de falha
-      const failureLog: EmailLogData = {
-        user_id: user.id,
-        tenant_id: user.tenant_id || null,
-        from: emailData.from,
-        to: Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
-        subject: emailData.subject,
+      // Atualizar como falha no banco
+      await this.updateEmailStatus(messageId, {
         status: 'failed',
-        timestamp: new Date(),
-        message_id: messageId,
-        tracking_id: trackingId,
         error_message: error instanceof Error ? error.message : 'Processing failed'
-      };
-
-      await this.saveEmailLog(failureLog);
+      });
     }
   }
 
@@ -389,6 +386,38 @@ export class MultiTenantEmailService {
         trackingId
       });
       return html; // Retorna HTML original
+    }
+  }
+
+  /**
+   * Atualizar status do email no banco de dados
+   */
+  private async updateEmailStatus(messageId: string, updates: {
+    status?: string;
+    sent_at?: Date | null;
+    error_message?: string | null;
+  }): Promise<void> {
+    try {
+      const updateData: any = {
+        ...updates,
+        updated_at: new Date()
+      };
+
+      await db('emails')
+        .where('message_id', messageId)
+        .update(updateData);
+
+      logger.debug('📝 Email status updated', {
+        messageId,
+        updates
+      });
+    } catch (error) {
+      logger.error('❌ Failed to update email status', {
+        messageId,
+        updates,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      // Não propagar erro - update é importante mas não crítico
     }
   }
 
