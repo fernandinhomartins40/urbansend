@@ -283,23 +283,66 @@ router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Respon
     .limit(parseInt(limit as string))
     .offset(offset);
 
-  // Get total count for pagination
-  const total = await query.clone().count('* as count').first();
+  // Get total count and stats in a single query to avoid conflicts
+  const statsQuery = db('emails').where('user_id', req.user!.id);
 
-  // Calculate stats for the current filtered result
-  const stats = await query.clone()
+  // Apply the same filters to stats query
+  if (status && status !== 'all') {
+    statsQuery.where('status', status as string);
+  }
+
+  if (search && typeof search === 'string' && search.trim() !== '') {
+    const searchTerm = search.trim();
+    statsQuery.where(function() {
+      this.where('to_email', 'like', `%${searchTerm}%`)
+          .orWhere('subject', 'like', `%${searchTerm}%`)
+          .orWhere('html_content', 'like', `%${searchTerm}%`)
+          .orWhere('text_content', 'like', `%${searchTerm}%`);
+    });
+  }
+
+  if (date_filter && date_filter !== 'all') {
+    const now = new Date();
+    let dateCondition: Date;
+
+    switch (date_filter) {
+      case 'today':
+        dateCondition = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        statsQuery.where('created_at', '>=', dateCondition.toISOString());
+        break;
+      case 'week':
+        dateCondition = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        statsQuery.where('created_at', '>=', dateCondition.toISOString());
+        break;
+      case 'month':
+        dateCondition = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        statsQuery.where('created_at', '>=', dateCondition.toISOString());
+        break;
+      case '3months':
+        dateCondition = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        statsQuery.where('created_at', '>=', dateCondition.toISOString());
+        break;
+    }
+  }
+
+  if (domain_filter && domain_filter !== 'all') {
+    statsQuery.where('to_email', 'like', `%@${domain_filter}`);
+  }
+
+  // Get stats using only fields that exist
+  const stats = await statsQuery
     .select([
       db.raw('COUNT(*) as total'),
       db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
       db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent'),
-      db.raw('COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END) as opened'),
-      db.raw('COUNT(CASE WHEN clicked_at IS NOT NULL THEN 1 END) as clicked'),
+      db.raw('COUNT(CASE WHEN status = "opened" THEN 1 END) as opened'),
+      db.raw('COUNT(CASE WHEN status = "clicked" THEN 1 END) as clicked'),
       db.raw('COUNT(CASE WHEN status = "bounced" OR bounce_reason IS NOT NULL THEN 1 END) as bounced'),
       db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed')
     ])
     .first();
 
-  const totalCount = (total as any)?.count || 0;
+  const totalCount = (stats as any)?.total || 0;
   const currentPage = parseInt(page as string);
   const limitNum = parseInt(limit as string);
   const totalPages = Math.ceil(totalCount / limitNum);
