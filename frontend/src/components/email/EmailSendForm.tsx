@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'
 import { DomainSelector } from '@/components/domain/DomainSelector'
 import { useUserDomains, useHasVerifiedDomains } from '@/hooks/useUserDomains'
-import { useEmailSendV2, extractDomain, type EmailDataV2 } from '@/hooks/useEmailSendV2'
+import { useEmailSend, extractDomain, type EmailData } from '@/hooks/useEmailSend'
 import { 
   Send, 
   Eye, 
@@ -29,33 +29,31 @@ import {
 import toast from 'react-hot-toast'
 
 /**
- * 🚀 EMAIL SEND FORM V2 - FASE 4 DO PLANO_INTEGRACAO_SEGURA.md
+ * 🚀 EMAIL SEND FORM V3 - ARQUITETURA SIMPLIFICADA
  * 
  * Componente de envio de emails com validação de domínio integrada
- * Valida domínio antes de enviar e redireciona para configuração se necessário
+ * Valida domínio antes de enviar usando nova arquitetura simplificada
  */
 
-const sendEmailV2Schema = z.object({
+const sendEmailV3Schema = z.object({
   to: z.string().email('Email inválido'),
   from: z.string()
     .min(1, 'Selecione um domínio remetente')
     .email('Email remetente inválido'),
-  reply_to: z.string().email('Email de resposta inválido').optional().or(z.literal('')),
   subject: z.string().min(1, 'Assunto é obrigatório'),
   html: z.string().optional(),
   text: z.string().min(1, 'Conteúdo é obrigatório'),
-  tracking_enabled: z.boolean().default(true),
   variables: z.record(z.string()).default({})
 })
 
-type SendEmailFormV2 = z.infer<typeof sendEmailV2Schema>
+type SendEmailFormV3 = z.infer<typeof sendEmailV3Schema>
 
 interface EmailSendFormProps {
   onSuccess?: () => void
   onCancel?: () => void
   className?: string
   showHeader?: boolean
-  defaultValues?: Partial<EmailDataV2>
+  defaultValues?: Partial<EmailData>
 }
 
 export function EmailSendForm({ 
@@ -76,16 +74,14 @@ export function EmailSendForm({
     message: string | null
   }>({ isValid: null, domain: null, message: null })
 
-  const form = useForm<SendEmailFormV2>({
-    resolver: zodResolver(sendEmailV2Schema),
+  const form = useForm<SendEmailFormV3>({
+    resolver: zodResolver(sendEmailV3Schema),
     defaultValues: {
       from: defaultValues.from || '',
       to: defaultValues.to as string || '',
-      reply_to: defaultValues.reply_to || '',
       subject: defaultValues.subject || '',
       html: defaultValues.html || '',
       text: defaultValues.text || '',
-      tracking_enabled: defaultValues.tracking_enabled ?? true,
       variables: defaultValues.variables || {}
     }
   })
@@ -93,7 +89,7 @@ export function EmailSendForm({
   // Hooks de domínios e envio
   const { data: domainsData } = useUserDomains()
   const hasVerifiedDomains = useHasVerifiedDomains()
-  const sendEmailMutation = useEmailSendV2()
+  const sendEmailMutation = useEmailSend()
 
   // Validação em tempo real do domínio selecionado
   useEffect(() => {
@@ -143,8 +139,8 @@ export function EmailSendForm({
     })
   }, [form.watch('from'), domainsData])
 
-  const onSubmit = async (data: SendEmailFormV2) => {
-    console.log('🚀 EMAIL SEND FORM V2 - Iniciando envio:', data)
+  const onSubmit = async (data: SendEmailFormV3) => {
+    console.log('🚀 EMAIL SEND FORM V3 - Iniciando envio:', data)
 
     // 1. Verificação prévia de domínios verificados
     if (!hasVerifiedDomains) {
@@ -175,18 +171,18 @@ export function EmailSendForm({
     }
 
     // 4. Preparar dados do email
-    const emailData: EmailDataV2 = {
+    const emailData: EmailData = {
       ...data,
       variables: customVariables
     }
 
-    console.log('✅ EMAIL SEND FORM V2 - Validações passaram, enviando:', {
+    console.log('✅ EMAIL SEND FORM V3 - Validações passaram, enviando:', {
       domain,
       verified: true,
       emailData
     })
 
-    // 5. Enviar usando o hook V2 que fará validação no backend também
+    // 5. Enviar usando o hook V3 que fará validação no backend também
     try {
       await sendEmailMutation.mutateAsync(emailData)
       
@@ -197,7 +193,7 @@ export function EmailSendForm({
         navigate('/app/emails')
       }
     } catch (error) {
-      console.error('🔴 EMAIL SEND FORM V2 - Erro no envio:', error)
+      console.error('🔴 EMAIL SEND FORM V3 - Erro no envio:', error)
       // O hook já trata erros com toasts e redirecionamentos
     }
   }
@@ -238,7 +234,7 @@ export function EmailSendForm({
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <Shield className="h-6 w-6 text-blue-600" />
-              Novo Email V2
+              Novo Email V3
               <span className="text-sm font-normal text-muted-foreground ml-2">
                 com validação de domínio
               </span>
@@ -355,20 +351,6 @@ export function EmailSendForm({
                   
                   <FormField
                     control={form.control}
-                    name="reply_to"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Responder para</FormLabel>
-                        <FormControl>
-                          <Input placeholder="resposta@dominio.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
                     name="subject"
                     render={({ field }) => (
                       <FormItem>
@@ -467,26 +449,6 @@ export function EmailSendForm({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="tracking_enabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel>Rastreamento</FormLabel>
-                          <div className="text-sm text-muted-foreground">
-                            Habilitar tracking de abertura e cliques
-                          </div>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
                 </CardContent>
               </Card>
 
@@ -556,7 +518,7 @@ export function EmailSendForm({
                           ? 'Configure um domínio primeiro'
                           : domainValidationStatus.isValid === false
                             ? 'Verifique o domínio primeiro'
-                            : 'Enviar Email V2'
+                            : 'Enviar Email V3'
                       }
                     </Button>
                     

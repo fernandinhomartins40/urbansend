@@ -34,14 +34,10 @@ const sendEmailSchema = z.object({
   from: z.string()
     .min(1, 'Selecione um domínio remetente')
     .email('Email remetente inválido'),
-  reply_to: z.string().email('Email de resposta inválido').optional().or(z.literal('')),
   subject: z.string().min(1, 'Assunto é obrigatório'),
   html: z.string().optional(),
   text: z.string().min(1, 'Conteúdo é obrigatório'),
-  cc: z.array(z.string().email()).default([]),
-  bcc: z.array(z.string().email()).default([]),
   template_id: z.string().optional(),
-  tracking_enabled: z.boolean().default(true),
   variables: z.record(z.string()).default({})
 })
 
@@ -50,10 +46,6 @@ type SendEmailForm = z.infer<typeof sendEmailSchema>
 export function SendEmail() {
   const navigate = useNavigate()
   const [previewMode, setPreviewMode] = useState<'text' | 'html'>('text')
-  const [ccEmails, setCcEmails] = useState<string[]>([])
-  const [bccEmails, setBccEmails] = useState<string[]>([])
-  const [newCcEmail, setNewCcEmail] = useState('')
-  const [newBccEmail, setNewBccEmail] = useState('')
   const [customVariables, setCustomVariables] = useState<Record<string, string>>({})
   const [newVarKey, setNewVarKey] = useState('')
   const [newVarValue, setNewVarValue] = useState('')
@@ -63,14 +55,10 @@ export function SendEmail() {
     defaultValues: {
       from: '',
       to: '',
-      reply_to: '',
       subject: '',
       html: '',
       text: '',
-      cc: [],
-      bcc: [],
       template_id: '',
-      tracking_enabled: true,
       variables: {}
     }
   })
@@ -111,35 +99,12 @@ export function SendEmail() {
 
     const emailData = {
       ...data,
-      cc: ccEmails,
-      bcc: bccEmails,
       variables: customVariables
     }
     
     sendEmailMutation.mutate(emailData)
   }
 
-  const addCcEmail = () => {
-    if (newCcEmail && !ccEmails.includes(newCcEmail)) {
-      setCcEmails([...ccEmails, newCcEmail])
-      setNewCcEmail('')
-    }
-  }
-
-  const addBccEmail = () => {
-    if (newBccEmail && !bccEmails.includes(newBccEmail)) {
-      setBccEmails([...bccEmails, newBccEmail])
-      setNewBccEmail('')
-    }
-  }
-
-  const removeCcEmail = (email: string) => {
-    setCcEmails(ccEmails.filter(e => e !== email))
-  }
-
-  const removeBccEmail = (email: string) => {
-    setBccEmails(bccEmails.filter(e => e !== email))
-  }
 
   const addCustomVariable = () => {
     if (newVarKey && newVarValue && !customVariables[newVarKey]) {
@@ -234,20 +199,6 @@ export function SendEmail() {
                   
                   <FormField
                     control={form.control}
-                    name="reply_to"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Responder para</FormLabel>
-                        <FormControl>
-                          <Input placeholder="resposta@dominio.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
                     name="subject"
                     render={({ field }) => (
                       <FormItem>
@@ -260,72 +211,6 @@ export function SendEmail() {
                     )}
                   />
 
-                  {/* CC/BCC */}
-                  <div className="space-y-4">
-                    <div>
-                      <Label>CC (Cópia)</Label>
-                      <div className="flex gap-2 mt-2">
-                        <Input
-                          placeholder="email@exemplo.com"
-                          value={newCcEmail}
-                          onChange={(e) => setNewCcEmail(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCcEmail())}
-                        />
-                        <Button type="button" onClick={addCcEmail}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {ccEmails.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {ccEmails.map((email) => (
-                            <div key={email} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1">
-                              <span className="text-sm">{email}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeCcEmail(email)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <Label>BCC (Cópia Oculta)</Label>
-                      <div className="flex gap-2 mt-2">
-                        <Input
-                          placeholder="email@exemplo.com"
-                          value={newBccEmail}
-                          onChange={(e) => setNewBccEmail(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addBccEmail())}
-                        />
-                        <Button type="button" onClick={addBccEmail}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {bccEmails.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {bccEmails.map((email) => (
-                            <div key={email} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1">
-                              <span className="text-sm">{email}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeBccEmail(email)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
 
@@ -430,26 +315,6 @@ export function SendEmail() {
                   <CardTitle>Configurações</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="tracking_enabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel>Rastreamento</FormLabel>
-                          <div className="text-sm text-muted-foreground">
-                            Habilitar tracking de abertura e cliques
-                          </div>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
                 </CardContent>
               </Card>
 
