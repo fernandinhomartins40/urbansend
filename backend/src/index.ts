@@ -32,6 +32,7 @@ import keysRoutes from './routes/keys';
 import emailsRoutes from './routes/emails'; // Rota funcional (nova arquitetura em email/emailRoutes.ts quando tipos forem corrigidos)
 // emails-v2 removido - substituído por nova arquitetura simplificada
 import templatesRoutes from './routes/templates';
+import sharedTemplatesRoutes from './routes/shared-templates';
 import domainsRoutes from './routes/domains';
 import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
@@ -365,6 +366,7 @@ app.use('/api/emails', emailsRoutes);
 // Nova rota com integração de domínios (Fase 3.2)
 // emails-v2 route removida - substituída por /api/emails com nova arquitetura
 app.use('/api/templates', templatesRoutes);
+app.use('/api/shared-templates', sharedTemplatesRoutes);
 app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
