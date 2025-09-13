@@ -491,48 +491,55 @@ router.get('/:id/analytics',
 router.get('/track/open/:trackingId',
   asyncHandler(async (req: any, res: Response) => {
     const { trackingId } = req.params;
-    
-    // Find email by tracking_id
-    const email = await db('emails')
-      .where('tracking_id', trackingId)
-      .first();
 
-    if (email) {
-      // Check if this email was already opened by this user
-      const existingOpen = await db('email_analytics')
-        .where('email_id', email.id)
-        .where('event_type', 'open')
-        .where('ip_address', req.ip)
+    try {
+      // Find email by tracking_id
+      const email = await db('emails')
+        .where('tracking_id', trackingId)
         .first();
-      
-      if (!existingOpen) {
-        // Update status to opened if not already a higher status
-        if (!['clicked', 'opened'].includes(email.status)) {
-          await db('emails')
-            .where('id', email.id)
-            .update({ status: 'opened' });
-        }
 
-        // Log analytics event ONLY if not already opened
-        await db('email_analytics').insert({
-          user_id: email.user_id,
-          email_id: email.id,
-          event_type: 'open',
-          recipient_email: email.to_email,
-          tracking_id: trackingId,
-          user_agent: req.headers['user-agent'] || '',
-          ip_address: req.ip,
-          created_at: db.fn.now()
-        });
+      if (email) {
+        const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+
+        // Check if this email was already opened by this user
+        const existingOpen = await db('email_analytics')
+          .where('email_id', email.id)
+          .where('event_type', 'open')
+          .where('ip_address', clientIp)
+          .first();
+
+        if (!existingOpen) {
+          // Update status to opened if not already a higher status
+          if (!['clicked', 'opened'].includes(email.status)) {
+            await db('emails')
+              .where('id', email.id)
+              .update({ status: 'opened' });
+          }
+
+          // Log analytics event ONLY if not already opened
+          await db('email_analytics').insert({
+            user_id: email.user_id,
+            email_id: email.id,
+            event_type: 'open',
+            recipient_email: email.to_email,
+            tracking_id: trackingId,
+            user_agent: req.headers['user-agent'] || 'unknown',
+            ip_address: clientIp,
+            created_at: new Date()
+          });
+        }
       }
+    } catch (error) {
+      // Log error but still return pixel
+      console.error('Tracking error:', error);
     }
 
-    // Return 1x1 transparent pixel
+    // Always return 1x1 transparent pixel regardless of errors
     const pixel = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
       'base64'
     );
-    
+
     res.writeHead(200, {
       'Content-Type': 'image/png',
       'Content-Length': pixel.length,
