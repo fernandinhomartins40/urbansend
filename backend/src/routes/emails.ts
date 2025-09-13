@@ -489,7 +489,7 @@ router.get('/:id/analytics',
 
 // Email tracking - Open pixel
 router.get('/track/open/:trackingId',
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: any, res: Response) => {
     const { trackingId } = req.params;
     
     // Find email by tracking_id
@@ -544,7 +544,7 @@ router.get('/track/open/:trackingId',
 
 // Email tracking - Click tracking
 router.get('/track/click/:trackingId',
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: any, res: Response) => {
     const { trackingId } = req.params;
     const { url } = req.query;
     
