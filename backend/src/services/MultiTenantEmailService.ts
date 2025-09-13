@@ -201,6 +201,12 @@ export class MultiTenantEmailService {
     messageId: string,
     trackingId: string
   ): Promise<void> {
+    // Preparar HTML com tracking pixel (de forma segura) - fora do try/catch
+    let finalHtml = emailData.html;
+    if (emailData.html) {
+      finalHtml = this.addTrackingPixelSafely(emailData.html, trackingId);
+    }
+
     try {
       logger.info('🔄 Processing email asynchronously', {
         userId: user.id,
@@ -208,11 +214,7 @@ export class MultiTenantEmailService {
         domain
       });
 
-      // Preparar HTML com tracking pixel (de forma segura)
-      let finalHtml = emailData.html;
-      if (emailData.html) {
-        finalHtml = this.addTrackingPixelSafely(emailData.html, trackingId);
-
+      if (emailData.html && finalHtml) {
         logger.debug('📧 Tracking pixel added', {
           userId: user.id,
           messageId,
