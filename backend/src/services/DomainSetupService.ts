@@ -149,7 +149,7 @@ export class DomainSetupService {
 
       // 1. Validar formato do domínio
       if (!this.isValidDomainFormat(domain)) {
-        throw new Error('Formato de domínio inválido. Use um domínio válido como exemplo.com');
+        throw new Error('Formato de domínio inválido. Use um domínio válido como exemplo.com ou exemplo.com.br');
       }
 
       // Normalizar domínio

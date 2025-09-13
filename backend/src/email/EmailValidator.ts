@@ -164,8 +164,8 @@ export class SimpleEmailValidator {
       return false
     }
     
-    // Validação básica de domínio
-    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.([a-zA-Z]{2,})+$/
+    // Validação básica de domínio (suporta todos os tipos: .com, .com.br, .gov.br, etc.)
+    const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
     return domainRegex.test(domain.trim().toLowerCase())
   }
 
