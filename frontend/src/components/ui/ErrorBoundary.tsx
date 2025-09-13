@@ -80,31 +80,12 @@ export class ErrorBoundary extends Component<Props, State> {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {this.state.error && (
-                <div className="bg-red-50 border border-red-200 p-4 rounded-md text-sm">
-                  <p className="font-bold text-red-900 mb-2">🚨 ERRO CAPTURADO (DEBUG):</p>
-                  <div className="space-y-2">
-                    <p className="text-red-700 font-mono text-xs break-all">
-                      <strong>Mensagem:</strong> {this.state.error.message}
-                    </p>
-                    <p className="text-red-700 font-mono text-xs break-all">
-                      <strong>Nome:</strong> {this.state.error.name}
-                    </p>
-                    {this.state.error.stack && (
-                      <div>
-                        <p className="font-bold text-red-900 mb-1">Stack Trace:</p>
-                        <pre className="text-red-700 font-mono text-xs whitespace-pre-wrap bg-red-100 p-2 rounded max-h-40 overflow-auto">
-                          {this.state.error.stack}
-                        </pre>
-                      </div>
-                    )}
-                    <p className="text-red-700 font-mono text-xs">
-                      <strong>Componente:</strong> {this.state.errorInfo?.componentStack?.split('\n').slice(0, 3).join(' → ')}
-                    </p>
-                    <p className="text-red-700 font-mono text-xs">
-                      <strong>Timestamp:</strong> {new Date().toISOString()}
-                    </p>
-                  </div>
+              {process.env.NODE_ENV === 'development' && this.state.error && (
+                <div className="bg-gray-100 p-3 rounded-md text-sm">
+                  <p className="font-medium text-gray-900 mb-1">Detalhes do erro:</p>
+                  <p className="text-gray-700 font-mono text-xs">
+                    {this.state.error.message}
+                  </p>
                 </div>
               )}
               
