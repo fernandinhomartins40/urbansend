@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '../config/logger';
 import { monitoringService } from '../services/monitoringService';
+import { DEFAULT_USER_PERMISSIONS, ADMIN_PERMISSIONS, permissionsToJson } from '../constants/permissions';
 
 // Test database path
 const TEST_DB_PATH = path.resolve(__dirname, '../../test.db');
@@ -102,6 +103,7 @@ async function seedTestData(knex: any): Promise<void> {
       email: 'test1@example.com',
       password: await bcrypt.hash('password123', 10),
       is_verified: true,
+      permissions: permissionsToJson(DEFAULT_USER_PERMISSIONS),
       created_at: new Date(),
       updated_at: new Date()
     },
@@ -110,6 +112,7 @@ async function seedTestData(knex: any): Promise<void> {
       email: 'test2@example.com',
       password: await bcrypt.hash('password123', 10),
       is_verified: false,
+      permissions: permissionsToJson(DEFAULT_USER_PERMISSIONS),
       email_verification_token: 'a'.repeat(64), // 64 char hex token
       created_at: new Date(),
       updated_at: new Date()
@@ -119,6 +122,7 @@ async function seedTestData(knex: any): Promise<void> {
       email: 'system@test.local',
       password: await bcrypt.hash('system-password', 12),
       is_verified: true,
+      permissions: permissionsToJson(ADMIN_PERMISSIONS),
       created_at: new Date(),
       updated_at: new Date()
     }
@@ -264,6 +268,7 @@ export async function createTestUser(userData: Partial<any> = {}): Promise<any> 
     email: `test${Date.now()}@example.com`,
     password: await bcrypt.hash('password123', 10),
     is_verified: true,
+    permissions: JSON.stringify(["email:send", "email:read", "domain:manage", "template:manage", "analytics:read"]),
     created_at: new Date(),
     updated_at: new Date(),
     ...userData

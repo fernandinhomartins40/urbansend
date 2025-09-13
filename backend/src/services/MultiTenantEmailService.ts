@@ -35,7 +35,7 @@ export interface EmailResult {
   success: boolean;
   message: string;
   message_id?: string;
-  status: 'processing' | 'sent' | 'failed';
+  status: 'pending' | 'sent' | 'failed';
   domain_verified?: boolean;
   domain?: string;
   error?: string;
@@ -47,7 +47,9 @@ export interface EmailLogData {
   from: string;
   to: string;
   subject: string;
-  status: 'sent' | 'failed' | 'processing';
+  html?: string;
+  text?: string;
+  status: 'sent' | 'failed' | 'pending';
   error_message?: string;
   timestamp: Date;
   message_id?: string;
@@ -135,14 +137,16 @@ export class MultiTenantEmailService {
       const messageId = this.generateMessageId();
       const trackingId = this.generateTrackingId();
 
-      // 4. Salvar imediatamente no banco como 'processing' (rápido para UI)
+      // 4. Salvar imediatamente no banco como 'pending' (rápido para UI)
       const processingLog: EmailLogData = {
         user_id: user.id,
         tenant_id: user.tenant_id || null,
         from: emailData.from,
         to: Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
         subject: emailData.subject,
-        status: 'processing',
+        html: emailData.html,
+        text: emailData.text,
+        status: 'pending',
         timestamp: new Date(),
         message_id: messageId,
         tracking_id: trackingId,
@@ -161,7 +165,7 @@ export class MultiTenantEmailService {
         success: true,
         message: 'Email queued for delivery with verified domain',
         message_id: messageId,
-        status: 'processing',
+        status: 'pending',
         domain_verified: true,
         domain
       };
@@ -432,6 +436,8 @@ export class MultiTenantEmailService {
         from_email: logData.from,
         to_email: logData.to,
         subject: logData.subject,
+        html_content: logData.html,
+        text_content: logData.text,
         status: logData.status,
         message_id: logData.message_id,
         tracking_id: logData.tracking_id,

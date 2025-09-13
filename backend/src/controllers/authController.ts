@@ -8,6 +8,7 @@ import { generateVerificationToken } from '../utils/crypto';
 import { validateEmailAddress } from '../utils/email';
 import { Env } from '../utils/env';
 import { InternalEmailService } from '../services/InternalEmailService';
+import { DEFAULT_USER_PERMISSIONS, permissionsToJson } from '../constants/permissions';
 
 // Secure cookie configuration
 const getCookieOptions = () => ({
@@ -80,6 +81,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       verification_token: verificationToken,
       verification_token_expires: verificationExpires,
       is_verified: false,
+      permissions: permissionsToJson(DEFAULT_USER_PERMISSIONS),
       created_at: new Date(),
       updated_at: new Date()
     });

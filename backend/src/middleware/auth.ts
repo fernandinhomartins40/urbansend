@@ -6,6 +6,7 @@ import { Env } from '../utils/env';
 import { verifyApiKey, legacyHashApiKey } from '../utils/crypto';
 import db from '../config/database';
 import { logger } from '../config/logger';
+import { permissionsFromJson } from '../constants/permissions';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -66,7 +67,7 @@ export const authenticateJWT = async (
     const decoded = jwt.verify(token, Env.jwtSecret) as any;
     
     const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified')
+      .select('id', 'email', 'name', 'is_verified', 'permissions')
       .where('id', decoded.userId)
       .first();
 
@@ -82,6 +83,7 @@ export const authenticateJWT = async (
       id: user.id,
       email: user.email,
       name: user.name,
+      permissions: permissionsFromJson(user.permissions),
     };
 
     next();
@@ -165,7 +167,7 @@ export const authenticateApiKey = async (
       .where('id', apiKey.id)
       .update({ last_used_at: new Date() });
 
-    const permissions = JSON.parse(apiKey.permissions || '[]');
+    const permissions = permissionsFromJson(apiKey.permissions);
 
     req.user = {
       id: apiKey.user_id,
