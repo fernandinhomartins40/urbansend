@@ -512,17 +512,17 @@ router.get('/track/open/:trackingId',
             .where('id', email.id)
             .update({ status: 'opened' });
         }
-      }
 
-      // Log analytics event
-      await db('email_analytics').insert({
-        email_id: email.id,
-        event_type: 'open',
-        tracking_id: trackingId,
-        user_agent: req.headers['user-agent'] || '',
-        ip_address: req.ip,
-        created_at: db.fn.now()
-      });
+        // Log analytics event ONLY if not already opened
+        await db('email_analytics').insert({
+          email_id: email.id,
+          event_type: 'open',
+          tracking_id: trackingId,
+          user_agent: req.headers['user-agent'] || '',
+          ip_address: req.ip,
+          created_at: db.fn.now()
+        });
+      }
     }
 
     // Return 1x1 transparent pixel
