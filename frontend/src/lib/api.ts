@@ -164,14 +164,14 @@ export const emailApi = {
     // 🔍 DEBUG: Log dados sendo enviados (V3)
     console.log('🔍 EMAIL API V3 DEBUG - Dados enviados:', JSON.stringify(data, null, 2))
     console.log('🔍 EMAIL API V3 DEBUG - Campos presentes:', Object.keys(data))
-    console.log('🔍 EMAIL API V3 DEBUG - URL simplificada: /api/emails/send')
-    // URL simplificada - sistema único (conforme Fase 3 do plano)
-    return api.post('/api/emails/send', data)
+    console.log('🔍 EMAIL API V3 DEBUG - URL corrigida: /emails/send')
+    // URL corrigida - remove /api duplicado (baseURL já inclui /api)
+    return api.post('/emails/send', data)
   },
-  
+
   sendBatch: (emails: any[]) =>
-    // URL simplificada - sistema único
-    api.post('/api/emails/send-batch', { emails }),
+    // URL corrigida - remove /api duplicado
+    api.post('/emails/send-batch', { emails }),
   
   getEmails: (params?: any) =>
     api.get('/emails', { params }),
