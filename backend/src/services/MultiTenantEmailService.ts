@@ -11,7 +11,7 @@ import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import db from '../config/database';
-import { generateTrackingPixel } from '../utils/email';
+import { generateTrackingPixel, processLinksForTracking } from '../utils/email';
 
 // Interfaces específicas para multi-tenancy
 export interface EmailRequest {
@@ -375,17 +375,24 @@ export class MultiTenantEmailService {
 
       // Usar domínio fixo para tracking (www.ultrazend.com.br)
       const trackingDomain = 'www.ultrazend.com.br';
+
+      // 1. Processar links para tracking de cliques
+      let processedHtml = processLinksForTracking(html, trackingId, trackingDomain);
+
+      // 2. Adicionar pixel de tracking para abertura
       const trackingPixel = generateTrackingPixel(trackingId, trackingDomain);
 
       // Adicionar pixel antes do </body> ou no final se não houver </body>
-      if (html.toLowerCase().includes('</body>')) {
-        return html.replace(/<\/body>/i, `${trackingPixel}</body>`);
+      if (processedHtml.toLowerCase().includes('</body>')) {
+        processedHtml = processedHtml.replace(/<\/body>/i, `${trackingPixel}</body>`);
       } else {
-        return html + trackingPixel;
+        processedHtml = processedHtml + trackingPixel;
       }
+
+      return processedHtml;
     } catch (error) {
       // Log mas não quebra o envio se tracking falhar
-      logger.debug('🟡 Tracking pixel addition failed (non-critical)', {
+      logger.debug('🟡 Tracking pixel and links processing failed (non-critical)', {
         error: error instanceof Error ? error.message : 'Unknown error',
         trackingId
       });

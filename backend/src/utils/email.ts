@@ -80,7 +80,7 @@ export const generateTrackingPixel = (trackingId: string, domain: string): strin
 };
 
 export const processLinksForTracking = (html: string, trackingId: string, domain: string): string => {
-  const regex = /<a\\s+[^>]*href=["']([^"']+)["'][^>]*>/gi;
+  const regex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi;
   
   return html.replace(regex, (match, url) => {
     if (url.startsWith('mailto:') || url.startsWith('tel:') || url.includes(domain)) {
