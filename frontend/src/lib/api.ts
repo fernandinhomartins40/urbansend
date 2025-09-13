@@ -174,7 +174,7 @@ export const emailApi = {
     api.post('/emails/send-batch', { emails }),
   
   getEmails: (params?: any) =>
-    api.get('/emails', { params }),
+    api.get('/analytics/emails', { params }),
   
   getEmail: (id: string) =>
     api.get(`/emails/${id}`),
