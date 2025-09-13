@@ -342,8 +342,8 @@ export class MultiTenantEmailService {
       await db('emails').insert({
         user_id: logData.user_id,
         tenant_id: logData.tenant_id,
-        sender_email: logData.from,
-        recipient_email: logData.to,
+        from_email: logData.from,
+        to_email: logData.to,
         subject: logData.subject,
         status: logData.status,
         message_id: logData.message_id,
