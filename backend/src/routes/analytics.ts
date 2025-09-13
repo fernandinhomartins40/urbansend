@@ -207,37 +207,123 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
 }));
 
 router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { page = '1', limit = '20', status, search } = req.query;
+  const {
+    page = '1',
+    limit = '20',
+    status,
+    search,
+    date_filter,
+    domain_filter,
+    sort = 'created_at',
+    order = 'desc'
+  } = req.query;
+
   const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
-  
+
   let query = db('emails')
     .where('user_id', req.user!.id);
-    
+
+  // Status filter
   if (status && status !== 'all') {
     query = query.where('status', status as string);
   }
-  
-  if (search) {
+
+  // Search filter (email, subject, content)
+  if (search && typeof search === 'string' && search.trim() !== '') {
+    const searchTerm = search.trim();
     query = query.where(function() {
-      this.where('to_email', 'like', `%${search}%`)
-          .orWhere('subject', 'like', `%${search}%`);
+      this.where('to_email', 'like', `%${searchTerm}%`)
+          .orWhere('subject', 'like', `%${searchTerm}%`)
+          .orWhere('html_content', 'like', `%${searchTerm}%`)
+          .orWhere('text_content', 'like', `%${searchTerm}%`);
     });
   }
-  
+
+  // Date filter
+  if (date_filter && date_filter !== 'all') {
+    const now = new Date();
+    let dateCondition: Date;
+
+    switch (date_filter) {
+      case 'today':
+        dateCondition = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        query = query.where('created_at', '>=', dateCondition.toISOString());
+        break;
+      case 'week':
+        dateCondition = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        query = query.where('created_at', '>=', dateCondition.toISOString());
+        break;
+      case 'month':
+        dateCondition = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        query = query.where('created_at', '>=', dateCondition.toISOString());
+        break;
+      case '3months':
+        dateCondition = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        query = query.where('created_at', '>=', dateCondition.toISOString());
+        break;
+    }
+  }
+
+  // Domain filter
+  if (domain_filter && domain_filter !== 'all') {
+    query = query.where('to_email', 'like', `%@${domain_filter}`);
+  }
+
+  // Sorting (validate sort field to prevent SQL injection)
+  const allowedSortFields = ['created_at', 'sent_at', 'to_email', 'subject', 'status'];
+  const allowedOrders = ['asc', 'desc'];
+
+  const sortField = allowedSortFields.includes(sort as string) ? sort as string : 'created_at';
+  const sortOrder = allowedOrders.includes(order as string) ? order as string : 'desc';
+
+  // Get emails with proper sorting
   const emails = await query
     .select('*')
-    .orderBy('created_at', 'desc')
+    .orderBy(sortField, sortOrder)
     .limit(parseInt(limit as string))
     .offset(offset);
-    
+
+  // Get total count for pagination
   const total = await query.clone().count('* as count').first();
 
-  res.json({ 
-    emails, 
-    pagination: {
-      total: (total as any)?.count || 0,
-      page: parseInt(page as string),
-      limit: parseInt(limit as string)
+  // Calculate stats for the current filtered result
+  const stats = await query.clone()
+    .select([
+      db.raw('COUNT(*) as total'),
+      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
+      db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent'),
+      db.raw('COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END) as opened'),
+      db.raw('COUNT(CASE WHEN clicked_at IS NOT NULL THEN 1 END) as clicked'),
+      db.raw('COUNT(CASE WHEN status = "bounced" OR bounce_reason IS NOT NULL THEN 1 END) as bounced'),
+      db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed')
+    ])
+    .first();
+
+  const totalCount = (total as any)?.count || 0;
+  const currentPage = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+  const totalPages = Math.ceil(totalCount / limitNum);
+
+  res.json({
+    data: {
+      emails,
+      stats: stats || {
+        total: 0,
+        delivered: 0,
+        sent: 0,
+        opened: 0,
+        clicked: 0,
+        bounced: 0,
+        failed: 0
+      },
+      pagination: {
+        page: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        limit: limitNum,
+        has_next: currentPage < totalPages,
+        has_prev: currentPage > 1
+      }
     }
   });
 }));

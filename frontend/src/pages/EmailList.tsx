@@ -11,6 +11,7 @@ import { formatDate, formatRelativeTime, getStatusColor } from '@/lib/utils'
 import { Search, Filter, RefreshCw, Send, Eye, MousePointer, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSmartPolling } from '@/hooks/useSmartPolling'
+import { useDebounce } from '@/hooks/useDebounce'
 
 interface Email {
   id: number
@@ -37,19 +38,35 @@ export function EmailList() {
   const [selectedEmails, setSelectedEmails] = useState<number[]>([])
   const queryClient = useQueryClient()
 
-  // Smart polling for email list
-  const { 
-    data, 
-    isLoading, 
-    error, 
+  // Debounce search to avoid too many API calls
+  const debouncedSearch = useDebounce(search, 300)
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, statusFilter, dateFilter, domainFilter])
+
+  // Smart polling for email list with all filters in query key
+  const {
+    data,
+    isLoading,
+    error,
     refetch,
     currentInterval,
     pausePolling,
     resumePolling
   } = useSmartPolling({
-    queryKey: ['emails', search, statusFilter, page.toString(), limit.toString()],
+    queryKey: [
+      'emails',
+      debouncedSearch,
+      statusFilter,
+      dateFilter,
+      domainFilter,
+      page.toString(),
+      limit.toString()
+    ],
     queryFn: () => emailApi.getEmails({
-      search,
+      search: debouncedSearch || undefined,
       status: statusFilter === 'all' ? undefined : statusFilter,
       date_filter: dateFilter === 'all' ? undefined : dateFilter,
       domain_filter: domainFilter === 'all' ? undefined : domainFilter,
@@ -58,7 +75,7 @@ export function EmailList() {
       sort: 'created_at',
       order: 'desc'
     }),
-    baseInterval: 3000, // 3 seconds
+    baseInterval: 5000, // 5 seconds
     maxInterval: 30000, // 30 seconds
     onError: (error) => {
       console.error('Error fetching emails:', error)
@@ -85,6 +102,18 @@ export function EmailList() {
     queryClient.invalidateQueries({ queryKey: ['emails'] })
     toast.success('Cache limpo e dados atualizados!')
   }
+
+  const handleClearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setDateFilter('all')
+    setDomainFilter('all')
+    setSelectedEmails([])
+    setPage(1)
+    toast.success('Filtros limpos!')
+  }
+
+  const isFiltered = search !== '' || statusFilter !== 'all' || dateFilter !== 'all' || domainFilter !== 'all'
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -236,17 +265,14 @@ export function EmailList() {
               Filtros
             </CardTitle>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => {
-                setSearch('')
-                setStatusFilter('all')
-                setDateFilter('all')
-                setDomainFilter('all')
-                setSelectedEmails([])
-                toast.success('Filtros limpos!')
-              }}>
-                Limpar filtros
-              </Button>
+              {isFiltered && (
+                <Button variant="ghost" size="sm" onClick={handleClearFilters}>
+                  <Filter className="h-4 w-4 mr-1" />
+                  Limpar filtros
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={handleFullRefresh}>
+                <RefreshCw className="h-4 w-4 mr-1" />
                 Limpar cache
               </Button>
             </div>
@@ -264,7 +290,17 @@ export function EmailList() {
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-10"
                   />
+                  {search !== debouncedSearch && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <RefreshCw className="h-3 w-3 animate-spin text-gray-400" />
+                    </div>
+                  )}
                 </div>
+                {isFiltered && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Filtros ativos • Mostrando {stats.total} de {pagination.total} emails
+                  </div>
+                )}
               </div>
               
               <div className="flex gap-2">
@@ -280,16 +316,22 @@ export function EmailList() {
                   <option value="3months">Últimos 3 meses</option>
                 </select>
                 
-                <select 
-                  className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                <select
+                  className="px-3 py-2 border border-gray-200 rounded-md text-sm min-w-[140px]"
                   value={domainFilter}
                   onChange={(e) => setDomainFilter(e.target.value)}
                 >
                   <option value="all">Todos os domínios</option>
                   <option value="gmail.com">Gmail</option>
                   <option value="outlook.com">Outlook</option>
-                  <option value="yahoo.com">Yahoo</option>
                   <option value="hotmail.com">Hotmail</option>
+                  <option value="yahoo.com">Yahoo</option>
+                  <option value="live.com">Live</option>
+                  <option value="icloud.com">iCloud</option>
+                  <option value="uol.com.br">UOL</option>
+                  <option value="bol.com.br">BOL</option>
+                  <option value="terra.com.br">Terra</option>
+                  <option value="ig.com.br">IG</option>
                 </select>
               </div>
             </div>
