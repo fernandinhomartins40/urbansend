@@ -368,40 +368,247 @@ router.get('/',
   emailStatsMiddleware, // 🆕 Adicionar estatísticas da nova arquitetura
   validateRequest({ query: paginationSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { page, limit, sort = 'created_at', order } = req.query as any;
+    const {
+      page,
+      limit,
+      sort = 'created_at',
+      order,
+      status,
+      search,
+      date_filter,
+      domain_filter
+    } = req.query as any;
     const offset = (page - 1) * limit;
 
-    const emails = await db('emails')
+    // Build query with filters
+    let query = db('emails').where('user_id', req.user!.id);
+
+    // Status filter
+    if (status && status !== 'all') {
+      query = query.where('status', status);
+    }
+
+    // Search filter (email, subject, content)
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      const searchTerm = search.trim();
+      query = query.where(function() {
+        this.where('to_email', 'like', `%${searchTerm}%`)
+            .orWhere('subject', 'like', `%${searchTerm}%`)
+            .orWhere('html_content', 'like', `%${searchTerm}%`)
+            .orWhere('text_content', 'like', `%${searchTerm}%`);
+      });
+    }
+
+    // Date filter
+    if (date_filter && date_filter !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (date_filter) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0); // fallback
+      }
+
+      // Use proper SQLite datetime format
+      const isoString = startDate.toISOString();
+      query = query.where('created_at', '>=', isoString);
+    }
+
+    // Domain filter
+    if (domain_filter && domain_filter !== 'all') {
+      // Extract domain from email and compare
+      query = query.whereRaw(`SUBSTR(to_email, INSTR(to_email, '@') + 1) = ?`, [domain_filter]);
+    }
+
+    // Validate sort fields
+    const allowedSortFields = ['created_at', 'sent_at', 'to_email', 'subject', 'status'];
+    const sortField = allowedSortFields.includes(sort) ? sort : 'created_at';
+    const sortOrder = ['asc', 'desc'].includes(order) ? order : 'desc';
+
+    const emails = await query
       .select('*')
-      .where('user_id', req.user!.id)
-      .orderBy(sort, order)
+      .orderBy(sortField, sortOrder)
       .limit(limit)
       .offset(offset);
 
-    const total = await db('emails').where('user_id', req.user!.id).count('* as count').first();
+    // Build count query with same filters
+    let countQuery = db('emails').where('user_id', req.user!.id);
 
-    // Get statistics using email_analytics table
-    const basicStats = await db('emails')
-      .where('user_id', req.user!.id)
+    if (status && status !== 'all') {
+      countQuery = countQuery.where('status', status);
+    }
+
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      const searchTerm = search.trim();
+      countQuery = countQuery.where(function() {
+        this.where('to_email', 'like', `%${searchTerm}%`)
+            .orWhere('subject', 'like', `%${searchTerm}%`)
+            .orWhere('html_content', 'like', `%${searchTerm}%`)
+            .orWhere('text_content', 'like', `%${searchTerm}%`);
+      });
+    }
+
+    if (date_filter && date_filter !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (date_filter) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+
+      const isoString = startDate.toISOString();
+      countQuery = countQuery.where('created_at', '>=', isoString);
+    }
+
+    if (domain_filter && domain_filter !== 'all') {
+      countQuery = countQuery.whereRaw(`SUBSTR(to_email, INSTR(to_email, '@') + 1) = ?`, [domain_filter]);
+    }
+
+    const total = await countQuery.count('* as count').first();
+
+    // Get statistics using email_analytics table with same filters applied
+    let basicStatsQuery = db('emails').where('user_id', req.user!.id);
+
+    // Apply same filters to statistics
+    if (status && status !== 'all') {
+      basicStatsQuery = basicStatsQuery.where('status', status);
+    }
+
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      const searchTerm = search.trim();
+      basicStatsQuery = basicStatsQuery.where(function() {
+        this.where('to_email', 'like', `%${searchTerm}%`)
+            .orWhere('subject', 'like', `%${searchTerm}%`)
+            .orWhere('html_content', 'like', `%${searchTerm}%`)
+            .orWhere('text_content', 'like', `%${searchTerm}%`);
+      });
+    }
+
+    if (date_filter && date_filter !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (date_filter) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+
+      basicStatsQuery = basicStatsQuery.where('created_at', '>=', startDate.toISOString());
+    }
+
+    if (domain_filter && domain_filter !== 'all') {
+      basicStatsQuery = basicStatsQuery.whereRaw(`SUBSTR(to_email, INSTR(to_email, '@') + 1) = ?`, [domain_filter]);
+    }
+
+    const basicStats = await basicStatsQuery
       .select(
         db.raw('COUNT(*) as total'),
         db.raw("SUM(CASE WHEN status IN ('sent', 'delivered') THEN 1 ELSE 0 END) as delivered")
       ).first();
 
-    // Get analytics stats from email_analytics table  
-    const openedCount = await db('email_analytics')
+    // Get analytics stats from email_analytics table with same filters
+    let openedQuery = db('email_analytics')
       .join('emails', 'email_analytics.email_id', 'emails.id')
       .where('emails.user_id', req.user!.id)
-      .where('email_analytics.event_type', 'open')
-      .countDistinct('email_analytics.email_id as count')
-      .first();
+      .where('email_analytics.event_type', 'open');
 
-    const clickedCount = await db('email_analytics')
+    let clickedQuery = db('email_analytics')
       .join('emails', 'email_analytics.email_id', 'emails.id')
       .where('emails.user_id', req.user!.id)
-      .where('email_analytics.event_type', 'click')
-      .countDistinct('email_analytics.email_id as count')
-      .first();
+      .where('email_analytics.event_type', 'click');
+
+    // Apply filters to analytics queries
+    if (status && status !== 'all') {
+      openedQuery = openedQuery.where('emails.status', status);
+      clickedQuery = clickedQuery.where('emails.status', status);
+    }
+
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      const searchTerm = search.trim();
+      openedQuery = openedQuery.where(function() {
+        this.where('emails.to_email', 'like', `%${searchTerm}%`)
+            .orWhere('emails.subject', 'like', `%${searchTerm}%`)
+            .orWhere('emails.html_content', 'like', `%${searchTerm}%`)
+            .orWhere('emails.text_content', 'like', `%${searchTerm}%`);
+      });
+      clickedQuery = clickedQuery.where(function() {
+        this.where('emails.to_email', 'like', `%${searchTerm}%`)
+            .orWhere('emails.subject', 'like', `%${searchTerm}%`)
+            .orWhere('emails.html_content', 'like', `%${searchTerm}%`)
+            .orWhere('emails.text_content', 'like', `%${searchTerm}%`);
+      });
+    }
+
+    if (date_filter && date_filter !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (date_filter) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3months':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+
+      const isoString = startDate.toISOString();
+      openedQuery = openedQuery.where('emails.created_at', '>=', isoString);
+      clickedQuery = clickedQuery.where('emails.created_at', '>=', isoString);
+    }
+
+    if (domain_filter && domain_filter !== 'all') {
+      openedQuery = openedQuery.whereRaw(`SUBSTR(emails.to_email, INSTR(emails.to_email, '@') + 1) = ?`, [domain_filter]);
+      clickedQuery = clickedQuery.whereRaw(`SUBSTR(emails.to_email, INSTR(emails.to_email, '@') + 1) = ?`, [domain_filter]);
+    }
+
+    const openedCount = await openedQuery.countDistinct('email_analytics.email_id as count').first();
+    const clickedCount = await clickedQuery.countDistinct('email_analytics.email_id as count').first();
 
     const stats = {
       total: (basicStats as any)?.total || 0,
