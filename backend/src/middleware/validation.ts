@@ -50,7 +50,12 @@ export const paginationSchema = z.object({
   page: z.string().optional().default('1').transform(val => parseInt(val, 10)),
   limit: z.string().optional().default('20').transform(val => Math.min(parseInt(val, 10), 100)),
   sort: z.string().optional(),
-  order: z.enum(['asc', 'desc']).optional().default('desc')
+  order: z.enum(['asc', 'desc']).optional().default('desc'),
+  // Filtros para emails
+  status: z.string().optional(),
+  search: z.string().optional(),
+  date_filter: z.string().optional(),
+  domain_filter: z.string().optional()
 });
 
 export const idParamSchema = z.object({
