@@ -385,7 +385,7 @@ router.get('/',
       .where('user_id', req.user!.id)
       .select(
         db.raw('COUNT(*) as total'),
-        db.raw('SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as delivered')
+        db.raw('SUM(CASE WHEN status IN ("sent", "delivered") THEN 1 ELSE 0 END) as delivered')
       ).first();
 
     // Get analytics stats from email_analytics table  

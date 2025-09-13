@@ -172,9 +172,9 @@ export const emailApi = {
   sendBatch: (emails: any[]) =>
     // URL corrigida - remove /api duplicado
     api.post('/emails/send-batch', { emails }),
-  
+
   getEmails: (params?: any) =>
-    api.get('/analytics/emails', { params }),
+    api.get('/emails', { params }),
   
   getEmail: (id: string) =>
     api.get(`/emails/${id}`),
