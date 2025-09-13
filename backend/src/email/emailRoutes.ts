@@ -13,7 +13,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
 import { UnifiedEmailService } from './EmailService';
 import { SimpleEmailValidator } from './EmailValidator';
-import { SimpleEmailQueue } from './SimpleEmailQueue';
+// SimpleEmailQueue removido - código legacy não utilizado
 import { EmailData, EmailContext, EmailQuotas } from './types';
 import db from '../config/database';
 
@@ -27,29 +27,7 @@ const router = Router();
 const emailService = new UnifiedEmailService({ enableMetrics: true });
 const emailValidator = new SimpleEmailValidator();
 
-// SimpleEmailQueue (OPCIONAL) - apenas se REDIS_URL estiver disponível
-let emailQueue: SimpleEmailQueue | null = null;
-try {
-  if (process.env.REDIS_URL || process.env.NODE_ENV === 'production') {
-    emailQueue = new SimpleEmailQueue({
-      concurrency: 3, // Conservative concurrency
-      enableRetries: true,
-      maxRetries: 2
-    });
-    
-    // Iniciar processamento se em produção
-    if (process.env.NODE_ENV === 'production') {
-      emailQueue.startProcessing().catch(error => {
-        logger.error('Failed to start email queue processing', { error });
-        emailQueue = null; // Fallback to direct processing
-      });
-    }
-  }
-} catch (error) {
-  logger.warn('Email queue not available - using direct processing', { 
-    error: error instanceof Error ? error.message : 'Unknown error'
-  });
-}
+// Email queue removido - usando processamento direto
 
 /**
  * Middleware para carregar contexto do usuário
@@ -673,21 +651,9 @@ router.get('/health',
     try {
       const healthReport = await emailService.getSystemHealthReport();
 
-      // Incluir saúde da fila se disponível
-      let queueHealth = null;
-      if (emailQueue) {
-        try {
-          queueHealth = await emailQueue.getQueueHealth();
-        } catch (error) {
-          logger.debug('Failed to get queue health', { error });
-        }
-      }
-
       res.status(200).json({
         success: true,
         timestamp: new Date().toISOString(),
-        queue_available: !!emailQueue,
-        queue_health: queueHealth,
         ...healthReport
       });
 
@@ -711,113 +677,7 @@ router.get('/health',
  * POST /send-queued - Enviar email via fila (OPCIONAL)
  * Usar apenas para alto volume ou processamento assíncrono
  */
-router.post('/send-queued',
-  authenticateJWT,
-  requirePermission('email:send'),
-  emailSendRateLimit,
-  validateRequest({ body: sendEmailSchema }),
-  loadUserContext,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const startTime = Date.now();
-
-    // Se a fila não estiver disponível, processar diretamente
-    if (!emailQueue) {
-      logger.debug('Queue not available, processing email directly');
-      
-      // Redirecionar para processamento direto (reutilizar lógica da rota /send)
-      return res.status(503).json({
-        success: false,
-        error: 'Email queue not available - use /send endpoint for direct processing',
-        code: 'QUEUE_UNAVAILABLE',
-        fallback_endpoint: '/send'
-      });
-    }
-
-    try {
-      const emailData: EmailData = {
-        from: req.body.from,
-        to: req.body.to,
-        subject: req.body.subject,
-        html: req.body.html,
-        text: req.body.text,
-        cc: req.body.cc,
-        bcc: req.body.bcc,
-        replyTo: req.body.replyTo || req.body.reply_to,
-        attachments: req.body.attachments,
-        templateId: req.body.template_id,
-        variables: req.body.variables,
-        priority: req.body.priority || 0
-      };
-
-      const context = req.emailContext!;
-      const priority = req.body.priority || 0;
-      const delay = req.body.delay || 0;
-
-      logger.info('Email queue request received', {
-        userId: context.userId,
-        from: emailData.from,
-        to: Array.isArray(emailData.to) ? `${emailData.to.length} recipients` : emailData.to,
-        subject: emailData.subject?.substring(0, 50),
-        priority,
-        delay
-      });
-
-      // Adicionar à fila
-      const result = await emailQueue.queueEmail(emailData, context, {
-        priority,
-        delay
-      });
-
-      const totalLatency = Date.now() - startTime;
-
-      if (result.success) {
-        logger.info('Email queued successfully', {
-          userId: context.userId,
-          jobId: result.jobId,
-          latency: `${totalLatency}ms`,
-          estimatedProcessTime: result.estimatedProcessTime
-        });
-
-        res.status(202).json({
-          success: true,
-          message: 'Email queued for processing',
-          job_id: result.jobId,
-          status: 'queued',
-          queued_at: result.queuedAt,
-          estimated_process_time: result.estimatedProcessTime,
-          latency_ms: totalLatency,
-          quota_remaining: context.quotas.dailyLimit - context.quotas.dailyUsed - 1
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          error: 'Failed to queue email',
-          code: 'QUEUE_ERROR',
-          latency_ms: totalLatency,
-          fallback_endpoint: '/send'
-        });
-      }
-
-    } catch (error) {
-      const totalLatency = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      logger.error('Email queue request failed', {
-        userId: req.emailContext?.userId,
-        error: errorMessage,
-        latency: `${totalLatency}ms`
-      });
-
-      res.status(500).json({
-        success: false,
-        error: errorMessage,
-        code: 'QUEUE_PROCESSING_ERROR',
-        latency_ms: totalLatency,
-        fallback_endpoint: '/send'
-      });
-    }
-  })
-);
+// Rota /send-queued removida - usando apenas processamento direto via /send
 
 // Estender AuthenticatedRequest para incluir emailContext
 declare global {
