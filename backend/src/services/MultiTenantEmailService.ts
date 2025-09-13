@@ -245,7 +245,8 @@ export class MultiTenantEmailService {
       await this.updateEmailStatus(messageId, {
         status: delivered ? 'sent' : 'failed',
         sent_at: delivered ? new Date() : null,
-        error_message: delivered ? null : 'SMTP delivery failed'
+        error_message: delivered ? null : 'SMTP delivery failed',
+        html_content: finalHtml // 🔧 Salvar HTML com pixel de tracking
       });
 
       if (delivered) {
@@ -274,7 +275,8 @@ export class MultiTenantEmailService {
       // Atualizar como falha no banco
       await this.updateEmailStatus(messageId, {
         status: 'failed',
-        error_message: error instanceof Error ? error.message : 'Processing failed'
+        error_message: error instanceof Error ? error.message : 'Processing failed',
+        html_content: finalHtml || emailData.html // 🔧 Salvar HTML mesmo em caso de falha
       });
     }
   }
@@ -407,6 +409,7 @@ export class MultiTenantEmailService {
     status?: string;
     sent_at?: Date | null;
     error_message?: string | null;
+    html_content?: string | null; // 🔧 Adicionar html_content para salvar pixel
   }): Promise<void> {
     try {
       const updateData: any = {
