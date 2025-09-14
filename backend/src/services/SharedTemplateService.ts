@@ -481,69 +481,6 @@ export class SharedTemplateService {
    * === COLEÇÕES ===
    */
 
-  /**
-   * Criar coleção
-   */
-  async createCollection(collection: TemplateCollection) {
-    try {
-      const [collectionId] = await db('template_collections').insert({
-        ...collection,
-        template_count: 0,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-
-      const newCollection = await db('template_collections')
-        .where('id', collectionId)
-        .first()
-
-      return newCollection
-
-    } catch (error) {
-      logger.error('Erro ao criar coleção:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Obter coleções públicas
-   */
-  async getPublicCollections(page: number = 1, limit: number = 12) {
-    try {
-      const offset = (page - 1) * limit
-
-      const [collections, totalCount] = await Promise.all([
-        db('template_collections')
-          .where('is_public', true)
-          .select('*')
-          .orderBy('is_featured', 'desc')
-          .orderBy('created_at', 'desc')
-          .limit(limit)
-          .offset(offset),
-        
-        db('template_collections')
-          .where('is_public', true)
-          .count('* as total')
-          .first()
-      ])
-
-      return {
-        collections,
-        pagination: {
-          current_page: page,
-          per_page: limit,
-          total_count: totalCount.total,
-          total_pages: Math.ceil(Number(totalCount.total) / limit),
-          has_next: page < Math.ceil(Number(totalCount.total) / limit),
-          has_prev: page > 1
-        }
-      }
-
-    } catch (error) {
-      logger.error('Erro ao buscar coleções:', error)
-      throw error
-    }
-  }
 
   /**
    * === ANALYTICS ===
@@ -629,6 +566,559 @@ export class SharedTemplateService {
       search: query,
       sort_by: 'rating'
     }, userId)
+  }
+
+  /**
+   * === REVIEWS E AVALIAÇÕES ===
+   */
+
+  /**
+   * Obter reviews de um template
+   */
+  async getTemplateReviews(templateId: number, page: number = 1, limit: number = 20) {
+    try {
+      const offset = (page - 1) * limit
+
+      const [reviews, total] = await Promise.all([
+        db('template_ratings as tr')
+          .select(
+            'tr.id',
+            'tr.rating',
+            'tr.review',
+            'tr.created_at',
+            'tr.updated_at',
+            'u.email as user_email',
+            'u.name as user_name'
+          )
+          .leftJoin('users as u', 'tr.user_id', 'u.id')
+          .where('tr.template_id', templateId)
+          .whereNotNull('tr.review')
+          .orderBy('tr.created_at', 'desc')
+          .limit(limit)
+          .offset(offset),
+
+        db('template_ratings')
+          .where('template_id', templateId)
+          .whereNotNull('review')
+          .count('* as total')
+          .first()
+      ])
+
+      return {
+        reviews,
+        pagination: {
+          page,
+          limit,
+          total: Number(total?.total || 0),
+          totalPages: Math.ceil(Number(total?.total || 0) / limit)
+        }
+      }
+
+    } catch (error) {
+      logger.error('Erro ao buscar reviews:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * === COLEÇÕES ===
+   */
+
+  /**
+   * Obter coleções de templates
+   */
+  async getCollections(userId?: number, isPublic: boolean = false, page: number = 1, limit: number = 20) {
+    try {
+      const offset = (page - 1) * limit
+
+      let query = db('template_collections as tc')
+        .select(
+          'tc.id',
+          'tc.name',
+          'tc.description',
+          'tc.is_public',
+          'tc.created_at',
+          'tc.updated_at',
+          'u.email as creator_email',
+          'u.name as creator_name'
+        )
+        .leftJoin('users as u', 'tc.user_id', 'u.id')
+
+      if (isPublic) {
+        query = query.where('tc.is_public', true)
+      } else if (userId) {
+        query = query.where(function() {
+          this.where('tc.user_id', userId)
+              .orWhere('tc.is_public', true)
+        })
+      }
+
+      const [collections, total] = await Promise.all([
+        query.clone()
+          .orderBy('tc.created_at', 'desc')
+          .limit(limit)
+          .offset(offset),
+
+        query.clone().count('* as total').first()
+      ])
+
+      return {
+        collections,
+        pagination: {
+          page,
+          limit,
+          total: Number(total?.total || 0),
+          totalPages: Math.ceil(Number(total?.total || 0) / limit)
+        }
+      }
+
+    } catch (error) {
+      logger.error('Erro ao buscar coleções:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * Criar nova coleção
+   */
+  async createCollection(userId: number, data: {
+    name: string;
+    description?: string;
+    is_public: boolean;
+  }) {
+    try {
+      const [collectionId] = await db('template_collections')
+        .insert({
+          user_id: userId,
+          name: data.name,
+          description: data.description || null,
+          is_public: data.is_public,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+
+      // Buscar a coleção criada
+      const collection = await db('template_collections')
+        .where('id', collectionId)
+        .first()
+
+      return collection
+
+    } catch (error) {
+      logger.error('Erro ao criar coleção:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * Obter uma coleção específica
+   */
+  async getCollection(collectionId: number, userId?: number) {
+    try {
+      let query = db('template_collections as tc')
+        .select(
+          'tc.id',
+          'tc.name',
+          'tc.description',
+          'tc.is_public',
+          'tc.created_at',
+          'tc.updated_at',
+          'u.email as creator_email',
+          'u.name as creator_name'
+        )
+        .leftJoin('users as u', 'tc.user_id', 'u.id')
+        .where('tc.id', collectionId)
+
+      // Se não é pública, só pode ver se é o criador
+      if (userId) {
+        query = query.where(function() {
+          this.where('tc.is_public', true)
+              .orWhere('tc.user_id', userId)
+        })
+      } else {
+        query = query.where('tc.is_public', true)
+      }
+
+      const collection = await query.first()
+
+      if (!collection) {
+        return null
+      }
+
+      // Buscar templates da coleção
+      const templates = await db('collection_templates as ct')
+        .select(
+          'et.id',
+          'et.template_name',
+          'et.subject',
+          'et.description',
+          'et.category',
+          'et.template_type',
+          'ct.added_at'
+        )
+        .leftJoin('email_templates as et', 'ct.template_id', 'et.id')
+        .where('ct.collection_id', collectionId)
+        .orderBy('ct.added_at', 'desc')
+
+      return {
+        ...collection,
+        templates
+      }
+
+    } catch (error) {
+      logger.error('Erro ao buscar coleção:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * Adicionar template à coleção
+   */
+  async addTemplateToCollection(collectionId: number, templateId: number, userId: number) {
+    try {
+      return await db.transaction(async (trx) => {
+        // Verificar se é dono da coleção
+        const collection = await trx('template_collections')
+          .where('id', collectionId)
+          .where('user_id', userId)
+          .first()
+
+        if (!collection) {
+          throw new Error('Coleção não encontrada ou sem permissão')
+        }
+
+        // Verificar se template existe
+        const template = await trx('email_templates')
+          .where('id', templateId)
+          .first()
+
+        if (!template) {
+          throw new Error('Template não encontrado')
+        }
+
+        // Verificar se já não está na coleção
+        const exists = await trx('collection_templates')
+          .where('collection_id', collectionId)
+          .where('template_id', templateId)
+          .first()
+
+        if (exists) {
+          throw new Error('Template já está na coleção')
+        }
+
+        // Adicionar à coleção
+        await trx('collection_templates').insert({
+          collection_id: collectionId,
+          template_id: templateId,
+          added_at: new Date()
+        })
+
+        return { success: true }
+      })
+
+    } catch (error) {
+      logger.error('Erro ao adicionar template à coleção:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Remover template da coleção
+   */
+  async removeTemplateFromCollection(collectionId: number, templateId: number, userId: number) {
+    try {
+      return await db.transaction(async (trx) => {
+        // Verificar se é dono da coleção
+        const collection = await trx('template_collections')
+          .where('id', collectionId)
+          .where('user_id', userId)
+          .first()
+
+        if (!collection) {
+          throw new Error('Coleção não encontrada ou sem permissão')
+        }
+
+        // Remover da coleção
+        const deleted = await trx('collection_templates')
+          .where('collection_id', collectionId)
+          .where('template_id', templateId)
+          .del()
+
+        if (deleted === 0) {
+          throw new Error('Template não encontrado na coleção')
+        }
+
+        return { success: true }
+      })
+
+    } catch (error) {
+      logger.error('Erro ao remover template da coleção:', error)
+      throw error
+    }
+  }
+
+  /**
+   * === ANALYTICS AVANÇADAS ===
+   */
+
+  /**
+   * Obter templates em tendência
+   */
+  async getTrendingTemplates(period: 'day' | 'week' | 'month' = 'week', limit: number = 10) {
+    try {
+      const periodMap = {
+        day: 1,
+        week: 7,
+        month: 30
+      }
+
+      const days = periodMap[period]
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - days)
+
+      const trending = await db('email_templates as et')
+        .select(
+          'et.id',
+          'et.template_name',
+          'et.subject',
+          'et.description',
+          'et.category',
+          'et.template_type',
+          'et.usage_count',
+          'et.clone_count',
+          'et.created_at',
+          'et.updated_at'
+        )
+        .select(db.raw('AVG(tr.rating) as avg_rating'))
+        .select(db.raw('COUNT(tr.id) as rating_count'))
+        .leftJoin('template_ratings as tr', 'et.id', 'tr.template_id')
+        .where(function() {
+          this.where('et.template_type', 'system')
+              .orWhere('et.is_public', true)
+        })
+        .where('et.updated_at', '>=', cutoffDate)
+        .groupBy(
+          'et.id', 'et.template_name', 'et.subject', 'et.description',
+          'et.category', 'et.template_type', 'et.usage_count',
+          'et.clone_count', 'et.created_at', 'et.updated_at'
+        )
+        .orderByRaw('(et.usage_count + et.clone_count + COUNT(tr.id) * 2) DESC')
+        .limit(limit)
+
+      return trending.map(template => ({
+        ...template,
+        avg_rating: template.avg_rating ? Math.round(template.avg_rating * 10) / 10 : 0,
+        rating_count: Number(template.rating_count || 0)
+      }))
+
+    } catch (error) {
+      logger.error('Erro ao buscar templates em tendência:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * Obter analytics avançadas
+   */
+  async getAdvancedAnalytics(templateId?: number, userId?: number) {
+    try {
+      if (templateId) {
+        // Analytics específicas de um template
+        const [template, ratings, usage] = await Promise.all([
+          db('email_templates')
+            .select('id', 'template_name', 'usage_count', 'clone_count', 'created_at')
+            .where('id', templateId)
+            .first(),
+
+          db('template_ratings')
+            .select(
+              db.raw('AVG(rating) as avg_rating'),
+              db.raw('COUNT(*) as total_ratings'),
+              db.raw('COUNT(CASE WHEN rating >= 4 THEN 1 END) as positive_ratings')
+            )
+            .where('template_id', templateId)
+            .first() as any,
+
+          db('template_ratings')
+            .select(
+              db.raw('DATE(created_at) as date'),
+              db.raw('COUNT(*) as daily_usage')
+            )
+            .where('template_id', templateId)
+            .where('created_at', '>=', db.raw("date('now', '-30 days')"))
+            .groupBy(db.raw('DATE(created_at)'))
+            .orderBy('date')
+        ])
+
+        return {
+          template,
+          ratings: {
+            average: ratings?.avg_rating ? Math.round(ratings.avg_rating * 10) / 10 : 0,
+            total: Number(ratings?.total_ratings || 0),
+            satisfaction: ratings?.total_ratings ?
+              Math.round((Number(ratings.positive_ratings || 0) / Number(ratings.total_ratings)) * 100) : 0
+          },
+          usage_trend: usage
+        }
+      } else {
+        // Analytics gerais do usuário
+        const [userTemplates, totalStats, categoryStats] = await Promise.all([
+          db('email_templates')
+            .select(
+              db.raw('COUNT(*) as total_templates'),
+              db.raw('SUM(usage_count) as total_usage'),
+              db.raw('SUM(clone_count) as total_clones')
+            )
+            .where('user_id', userId)
+            .first() as any,
+
+          db('email_templates as et')
+            .select(
+              db.raw('COUNT(DISTINCT et.id) as public_templates'),
+              db.raw('AVG(tr.rating) as avg_rating'),
+              db.raw('COUNT(tr.id) as total_ratings')
+            )
+            .leftJoin('template_ratings as tr', 'et.id', 'tr.template_id')
+            .where('et.user_id', userId)
+            .where('et.is_public', true)
+            .first() as any,
+
+          db('email_templates')
+            .select('category', db.raw('COUNT(*) as count'))
+            .where('user_id', userId)
+            .groupBy('category')
+            .orderBy('count', 'desc')
+            .limit(5)
+        ])
+
+        return {
+          user_stats: {
+            total_templates: Number(userTemplates?.total_templates || 0),
+            total_usage: Number(userTemplates?.total_usage || 0),
+            total_clones: Number(userTemplates?.total_clones || 0),
+            public_templates: Number(totalStats?.public_templates || 0),
+            avg_rating: totalStats?.avg_rating ? Math.round(totalStats.avg_rating * 10) / 10 : 0,
+            total_ratings: Number(totalStats?.total_ratings || 0)
+          },
+          top_categories: categoryStats
+        }
+      }
+
+    } catch (error) {
+      logger.error('Erro ao buscar analytics:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * === IMPORT/EXPORT ===
+   */
+
+  /**
+   * Export de templates em bulk
+   */
+  async exportTemplates(templateIds: number[], userId: number) {
+    try {
+      const templates = await db('email_templates')
+        .select(
+          'id', 'template_name', 'subject', 'html_content', 'text_content',
+          'description', 'category', 'tags', 'variables', 'template_type',
+          'is_public', 'created_at', 'updated_at'
+        )
+        .whereIn('id', templateIds)
+        .where(function() {
+          this.where('user_id', userId)
+              .orWhere('template_type', 'system')
+              .orWhere('is_public', true)
+        })
+
+      const exportData = {
+        version: '1.0',
+        exported_at: new Date().toISOString(),
+        total_templates: templates.length,
+        templates: templates.map(template => ({
+          ...template,
+          variables: typeof template.variables === 'string'
+            ? JSON.parse(template.variables || '[]')
+            : template.variables,
+          tags: typeof template.tags === 'string'
+            ? JSON.parse(template.tags || '[]')
+            : template.tags
+        }))
+      }
+
+      return exportData
+
+    } catch (error) {
+      logger.error('Erro ao exportar templates:', error)
+      throw new Error('Erro interno do servidor')
+    }
+  }
+
+  /**
+   * Import de templates em bulk
+   */
+  async importTemplates(templates: any[], userId: number) {
+    try {
+      return await db.transaction(async (trx) => {
+        const results = {
+          imported: 0,
+          skipped: 0,
+          errors: []
+        }
+
+        for (const template of templates) {
+          try {
+            // Validar dados básicos
+            if (!template.template_name || !template.html_content) {
+              results.skipped++
+              results.errors.push(`Template "${template.template_name || 'sem nome'}" - dados incompletos`)
+              continue
+            }
+
+            // Verificar se já existe um template similar
+            const existing = await trx('email_templates')
+              .where('template_name', template.template_name)
+              .where('user_id', userId)
+              .first()
+
+            if (existing) {
+              results.skipped++
+              results.errors.push(`Template "${template.template_name}" já existe`)
+              continue
+            }
+
+            // Importar template
+            await trx('email_templates').insert({
+              user_id: userId,
+              template_name: template.template_name,
+              subject: template.subject || '',
+              html_content: template.html_content,
+              text_content: template.text_content || '',
+              description: template.description || null,
+              category: template.category || 'general',
+              tags: JSON.stringify(template.tags || []),
+              variables: JSON.stringify(template.variables || []),
+              template_type: 'user', // Templates importados sempre são do usuário
+              is_public: false, // Por segurança, não tornar público automaticamente
+              created_at: new Date(),
+              updated_at: new Date()
+            })
+
+            results.imported++
+
+          } catch (error) {
+            results.errors.push(`Template "${template.template_name}" - erro: ${(error as any).message}`)
+          }
+        }
+
+        return results
+      })
+
+    } catch (error) {
+      logger.error('Erro ao importar templates:', error)
+      throw new Error('Erro interno do servidor')
+    }
   }
 }
 

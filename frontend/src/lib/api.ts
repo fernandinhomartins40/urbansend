@@ -187,18 +187,125 @@ export const emailApi = {
 export const templateApi = {
   getTemplates: () =>
     api.get('/templates'),
-  
+
   createTemplate: (data: any) =>
     api.post('/templates', data),
-  
+
   getTemplate: (id: string) =>
     api.get(`/templates/${id}`),
-  
+
   updateTemplate: (id: string, data: any) =>
     api.put(`/templates/${id}`, data),
-  
+
   deleteTemplate: (id: string) =>
     api.delete(`/templates/${id}`),
+}
+
+// Shared Template API
+export const sharedTemplateApi = {
+  // Obter categorias de templates
+  getCategories: () =>
+    api.get('/shared-templates/categories'),
+
+  // Obter templates públicos com filtros
+  getPublicTemplates: (filters?: {
+    category?: string;
+    industry?: string;
+    difficulty?: 'easy' | 'medium' | 'advanced';
+    template_type?: 'user' | 'system' | 'shared';
+    search?: string;
+    min_rating?: number;
+    sort_by?: 'rating' | 'usage' | 'date' | 'name';
+    sort_order?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+  }) =>
+    api.get('/shared-templates/public', { params: filters }),
+
+  // Obter templates do sistema
+  getSystemTemplates: (category?: string) =>
+    api.get('/shared-templates/system', { params: { category } }),
+
+  // Clonar um template
+  cloneTemplate: (id: number, customizations: {
+    name?: string;
+    subject?: string;
+    description?: string;
+    category?: string;
+    industry?: string;
+    tags?: string[];
+  }) =>
+    api.post(`/shared-templates/${id}/clone`, customizations),
+
+  // Favoritar/desfavoritar template
+  toggleFavorite: (id: number) =>
+    api.post(`/shared-templates/${id}/favorite`),
+
+  // Obter templates favoritos do usuário
+  getFavoriteTemplates: (page?: number, limit?: number) =>
+    api.get('/shared-templates/favorites', { params: { page, limit } }),
+
+  // Obter estatísticas de um template
+  getTemplateStats: (id: number) =>
+    api.get(`/shared-templates/${id}/stats`),
+
+  // Registrar uso de template
+  recordUsage: (id: number) =>
+    api.post(`/shared-templates/${id}/record-usage`),
+
+  // === FASE 3: FUNCIONALIDADES AVANÇADAS ===
+
+  // Avaliar um template
+  rateTemplate: (id: number, data: { rating: number; review?: string }) =>
+    api.post(`/shared-templates/${id}/rate`, data),
+
+  // Obter reviews de um template
+  getTemplateReviews: (id: number, page?: number, limit?: number) =>
+    api.get(`/shared-templates/${id}/reviews`, { params: { page, limit } }),
+
+  // === COLEÇÕES ===
+
+  // Obter coleções
+  getCollections: (params?: { public?: boolean; page?: number; limit?: number }) =>
+    api.get('/shared-templates/collections', { params }),
+
+  // Criar nova coleção
+  createCollection: (data: { name: string; description?: string; is_public: boolean }) =>
+    api.post('/shared-templates/collections', data),
+
+  // Obter uma coleção específica
+  getCollection: (id: number) =>
+    api.get(`/shared-templates/collections/${id}`),
+
+  // Adicionar template à coleção
+  addTemplateToCollection: (collectionId: number, templateId: number) =>
+    api.post(`/shared-templates/collections/${collectionId}/add-template`, { template_id: templateId }),
+
+  // Remover template da coleção
+  removeTemplateFromCollection: (collectionId: number, templateId: number) =>
+    api.delete(`/shared-templates/collections/${collectionId}/remove-template/${templateId}`),
+
+  // === ANALYTICS E FUNCIONALIDADES PREMIUM ===
+
+  // Busca inteligente (preparação para IA)
+  smartSearch: (query: string) =>
+    api.get('/shared-templates/public', { params: { search: query, sort_by: 'rating' } }),
+
+  // Export de templates em bulk
+  exportTemplates: (templateIds: number[]) =>
+    api.post('/shared-templates/export', { template_ids: templateIds }, { responseType: 'blob' }),
+
+  // Import de templates em bulk
+  importTemplates: (templates: any[]) =>
+    api.post('/shared-templates/import', { templates }),
+
+  // Analytics avançadas
+  getTemplateAnalytics: (templateId?: number) =>
+    api.get('/shared-templates/analytics', { params: { template_id: templateId } }),
+
+  // Templates populares/trending
+  getTrendingTemplates: (period: 'day' | 'week' | 'month' = 'week') =>
+    api.get('/shared-templates/trending', { params: { period } }),
 }
 
 // API Key API

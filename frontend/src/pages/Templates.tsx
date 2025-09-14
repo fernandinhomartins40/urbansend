@@ -13,11 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SafeHTML } from '@/components/ui/SafeHTML'
 import { templateApi } from '@/lib/api'
 import { formatRelativeTime, generateRandomId } from '@/lib/utils'
-import { 
-  FileText, Plus, Edit3, Eye, Trash2, Save, Code, 
+import { TemplateLibrary } from '@/components/templates/TemplateLibrary'
+import {
+  FileText, Plus, Edit3, Eye, Trash2, Save, Code,
   Download, Upload, Copy, Play, Palette, Type,
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
-  Link, Image, List, Hash, X
+  Link, Image, List, Hash, X, BookOpen
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -122,6 +123,18 @@ export function Templates() {
     setIsCreating(true)
     setSelectedTemplate(null)
     reset()
+  }
+
+  const handleTemplateFromLibrary = (libraryTemplate: any) => {
+    setIsCreating(true)
+    setSelectedTemplate(null)
+    setValue('template_name', `${libraryTemplate.name} (Cópia)`)
+    setValue('subject', libraryTemplate.subject || '')
+    setValue('html_content', libraryTemplate.html_content || '')
+    setValue('text_content', libraryTemplate.text_content || '')
+    setValue('variables', libraryTemplate.variables || [])
+    setActiveTab('html')
+    toast.success('Template carregado da biblioteca!')
   }
 
   const handleCreateFromExample = (templateType: string) => {
@@ -659,6 +672,10 @@ export function Templates() {
                 {/* Editor Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
                   <TabsList>
+                    <TabsTrigger value="library">
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      Biblioteca
+                    </TabsTrigger>
                     <TabsTrigger value="visual">
                       <Edit3 className="h-4 w-4 mr-2" />
                       Visual
@@ -676,6 +693,15 @@ export function Templates() {
                       Preview
                     </TabsTrigger>
                   </TabsList>
+
+                  <TabsContent value="library" className="flex-1 mt-4">
+                    <TemplateLibrary
+                      onTemplateSelect={handleTemplateFromLibrary}
+                      showCloneButton={false}
+                      showFavoriteButton={true}
+                      className="h-full"
+                    />
+                  </TabsContent>
 
                   <TabsContent value="visual" className="flex-1 mt-4">
                     <Card className="h-full">

@@ -117,8 +117,8 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     staleTime: 10 * 60 * 1000 // 10 minutos
   })
 
-  // Buscar templates
-  const { data: templatesData, isLoading: templatesLoading, refetch } = useQuery({
+  // Buscar templates com otimizações de performance
+  const { data: templatesData, isLoading: templatesLoading, refetch, isPreviousData } = useQuery({
     queryKey: [...queryKeys.templates.all, 'public', filters, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -130,7 +130,12 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
       return response.data
     },
     keepPreviousData: true,
-    staleTime: 2 * 60 * 1000 // 2 minutos
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    cacheTime: 10 * 60 * 1000, // 10 minutos
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
   // Mutation para clonar template
