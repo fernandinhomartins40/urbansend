@@ -113,7 +113,6 @@ export const createTemplateSchema = z.object({
     .max(255, 'Assunto deve ter no máximo 255 caracteres'),
   html_content: z.string()
     .max(1024 * 1024, 'Conteúdo HTML deve ter no máximo 1MB')
-    .transform(html => html ? sanitizeHtml(html) : html)
     .optional(),
   text_content: z.string()
     .max(1024 * 1024, 'Conteúdo texto deve ter no máximo 1MB')
