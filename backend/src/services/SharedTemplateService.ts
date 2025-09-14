@@ -746,10 +746,10 @@ export class SharedTemplateService {
       }
 
       // Buscar templates da coleção
-      const templates = await db('collection_templates as ct')
+      const templates = await db('template_collection_items as ct')
         .select(
           'et.id',
-          'et.template_name',
+          'et.name',
           'et.subject',
           'et.description',
           'et.category',
@@ -797,7 +797,7 @@ export class SharedTemplateService {
         }
 
         // Verificar se já não está na coleção
-        const exists = await trx('collection_templates')
+        const exists = await trx('template_collection_items')
           .where('collection_id', collectionId)
           .where('template_id', templateId)
           .first()
@@ -807,7 +807,7 @@ export class SharedTemplateService {
         }
 
         // Adicionar à coleção
-        await trx('collection_templates').insert({
+        await trx('template_collection_items').insert({
           collection_id: collectionId,
           template_id: templateId,
           added_at: new Date()
@@ -839,7 +839,7 @@ export class SharedTemplateService {
         }
 
         // Remover da coleção
-        const deleted = await trx('collection_templates')
+        const deleted = await trx('template_collection_items')
           .where('collection_id', collectionId)
           .where('template_id', templateId)
           .del()
@@ -879,7 +879,7 @@ export class SharedTemplateService {
       const trending = await db('email_templates as et')
         .select(
           'et.id',
-          'et.template_name',
+          'et.name',
           'et.subject',
           'et.description',
           'et.category',
@@ -898,7 +898,7 @@ export class SharedTemplateService {
         })
         .where('et.updated_at', '>=', cutoffDate)
         .groupBy(
-          'et.id', 'et.template_name', 'et.subject', 'et.description',
+          'et.id', 'et.name', 'et.subject', 'et.description',
           'et.category', 'et.template_type', 'et.usage_count',
           'et.clone_count', 'et.created_at', 'et.updated_at'
         )
@@ -926,7 +926,7 @@ export class SharedTemplateService {
         // Analytics específicas de um template
         const [template, ratings, usage] = await Promise.all([
           db('email_templates')
-            .select('id', 'template_name', 'usage_count', 'clone_count', 'created_at')
+            .select('id', 'name', 'usage_count', 'clone_count', 'created_at')
             .where('id', templateId)
             .first(),
 
@@ -1021,7 +1021,7 @@ export class SharedTemplateService {
     try {
       const templates = await db('email_templates')
         .select(
-          'id', 'template_name', 'subject', 'html_content', 'text_content',
+          'id', 'name', 'subject', 'html_content', 'text_content',
           'description', 'category', 'tags', 'variables', 'template_type',
           'is_public', 'created_at', 'updated_at'
         )
@@ -1070,28 +1070,28 @@ export class SharedTemplateService {
         for (const template of templates) {
           try {
             // Validar dados básicos
-            if (!template.template_name || !template.html_content) {
+            if (!template.name || !template.html_content) {
               results.skipped++
-              results.errors.push(`Template "${template.template_name || 'sem nome'}" - dados incompletos`)
+              results.errors.push(`Template "${template.name || 'sem nome'}" - dados incompletos`)
               continue
             }
 
             // Verificar se já existe um template similar
             const existing = await trx('email_templates')
-              .where('template_name', template.template_name)
+              .where('name', template.name)
               .where('user_id', userId)
               .first()
 
             if (existing) {
               results.skipped++
-              results.errors.push(`Template "${template.template_name}" já existe`)
+              results.errors.push(`Template "${template.name}" já existe`)
               continue
             }
 
             // Importar template
             await trx('email_templates').insert({
               user_id: userId,
-              template_name: template.template_name,
+              name: template.name,
               subject: template.subject || '',
               html_content: template.html_content,
               text_content: template.text_content || '',
@@ -1108,7 +1108,7 @@ export class SharedTemplateService {
             results.imported++
 
           } catch (error) {
-            results.errors.push(`Template "${template.template_name}" - erro: ${(error as any).message}`)
+            results.errors.push(`Template "${template.name}" - erro: ${(error as any).message}`)
           }
         }
 
