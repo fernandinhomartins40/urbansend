@@ -294,7 +294,10 @@ app.use('/api', cors({
 // Agora aplicado apenas em endpoints específicos que precisam de proteção
 
 // Body parsing with error handling
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  type: 'application/json'
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // JSON parsing error handler
