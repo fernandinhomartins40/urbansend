@@ -107,7 +107,7 @@ export const createTemplateSchema = z.object({
   name: z.string()
     .min(1, 'Nome do template é obrigatório')
     .max(100, 'Nome deve ter no máximo 100 caracteres')
-    .refine(name => /^[a-zA-Z0-9\s\-_]+$/.test(name), 'Nome contém caracteres inválidos'),
+    .refine(name => /^[\p{L}\p{N}\s\-_.()]+$/u.test(name), 'Nome contém caracteres inválidos'),
   subject: z.string()
     .min(1, 'Assunto é obrigatório')
     .max(255, 'Assunto deve ter no máximo 255 caracteres'),

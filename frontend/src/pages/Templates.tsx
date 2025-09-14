@@ -23,7 +23,10 @@ import {
 import toast from 'react-hot-toast'
 
 const createTemplateSchema = z.object({
-  name: z.string().min(1, 'Nome é obrigatório').max(100),
+  name: z.string()
+    .min(1, 'Nome é obrigatório')
+    .max(100, 'Nome deve ter no máximo 100 caracteres')
+    .refine(name => /^[\p{L}\p{N}\s\-_.()]+$/u.test(name), 'Nome contém caracteres inválidos'),
   subject: z.string().min(1, 'Assunto é obrigatório').max(255),
   html_content: z.string().optional(),
   text_content: z.string().optional(),
