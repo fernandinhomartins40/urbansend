@@ -23,7 +23,7 @@ import {
 import toast from 'react-hot-toast'
 
 const createTemplateSchema = z.object({
-  template_name: z.string().min(1, 'Nome é obrigatório').max(100),
+  name: z.string().min(1, 'Nome é obrigatório').max(100),
   subject: z.string().min(1, 'Assunto é obrigatório').max(255),
   html_content: z.string().optional(),
   text_content: z.string().optional(),
@@ -36,7 +36,7 @@ type CreateTemplateForm = z.infer<typeof createTemplateSchema>
 
 interface Template {
   id: number
-  template_name: string
+  name: string
   subject: string
   html_content?: string
   text_content?: string
@@ -55,7 +55,7 @@ export function Templates() {
   const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm<CreateTemplateForm>({
     resolver: zodResolver(createTemplateSchema),
     defaultValues: {
-      template_name: '',
+      name: '',
       subject: '',
       html_content: '',
       text_content: '',
@@ -112,7 +112,7 @@ export function Templates() {
   const handleTemplateSelect = (template: Template) => {
     setSelectedTemplate(template)
     setIsCreating(false)
-    setValue('template_name', template.template_name)
+    setValue('name', template.name)
     setValue('subject', template.subject)
     setValue('html_content', template.html_content || '')
     setValue('text_content', template.text_content || '')
@@ -128,7 +128,7 @@ export function Templates() {
   const handleTemplateFromLibrary = (libraryTemplate: any) => {
     setIsCreating(true)
     setSelectedTemplate(null)
-    setValue('template_name', `${libraryTemplate.name} (Cópia)`)
+    setValue('name', `${libraryTemplate.name} (Cópia)`)
     setValue('subject', libraryTemplate.subject || '')
     setValue('html_content', libraryTemplate.html_content || '')
     setValue('text_content', libraryTemplate.text_content || '')
@@ -140,7 +140,7 @@ export function Templates() {
   const handleCreateFromExample = (templateType: string) => {
     const templateId = generateRandomId()
     let exampleTemplate = {
-      template_name: '',
+      name: '',
       subject: '',
       html_content: '',
       text_content: '',
@@ -150,7 +150,7 @@ export function Templates() {
     switch (templateType) {
       case 'welcome':
         exampleTemplate = {
-          template_name: `Template de Boas-vindas ${templateId}`,
+          name: `Template de Boas-vindas ${templateId}`,
           subject: 'Bem-vindo(a) {{nome}}!',
           html_content: `<h1>Olá {{nome}}!</h1><p>Bem-vindo(a) à nossa plataforma. Estamos felizes em tê-lo(a) conosco!</p>`,
           text_content: 'Olá {{nome}}! Bem-vindo(a) à nossa plataforma.',
@@ -159,7 +159,7 @@ export function Templates() {
         break
       case 'newsletter':
         exampleTemplate = {
-          template_name: `Newsletter ${templateId}`,
+          name: `Newsletter ${templateId}`,
           subject: '📧 Newsletter {{mes}} - {{titulo}}',
           html_content: `<h1>{{titulo}}</h1><p>Confira as novidades de {{mes}}!</p>`,
           text_content: '{{titulo}} - Novidades de {{mes}}',
@@ -168,7 +168,7 @@ export function Templates() {
         break
       case 'promotion':
         exampleTemplate = {
-          template_name: `Template Promocional ${templateId}`,
+          name: `Template Promocional ${templateId}`,
           subject: '🎉 {{oferta}} - Oferta Especial!',
           html_content: `<h1>{{oferta}}</h1><p>Não perca! Válido até {{validade}}</p>`,
           text_content: '{{oferta}} - Válido até {{validade}}',
@@ -179,7 +179,7 @@ export function Templates() {
 
     setIsCreating(true)
     setSelectedTemplate(null)
-    setValue('template_name', exampleTemplate.template_name)
+    setValue('name', exampleTemplate.name)
     setValue('subject', exampleTemplate.subject)
     setValue('html_content', exampleTemplate.html_content)
     setValue('text_content', exampleTemplate.text_content)
@@ -188,7 +188,7 @@ export function Templates() {
   }
 
   const handleDeleteTemplate = (template: Template) => {
-    if (confirm(`Tem certeza que deseja deletar o template "${template.template_name}"?`)) {
+    if (confirm(`Tem certeza que deseja deletar o template "${template.name}"?`)) {
       deleteMutation.mutate(template.id)
     }
   }
@@ -468,7 +468,7 @@ export function Templates() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-medium">{template.template_name}</div>
+                      <div className="font-medium">{template.name}</div>
                       <div className="text-sm text-muted-foreground truncate">
                         {template.subject}
                       </div>
@@ -507,7 +507,7 @@ export function Templates() {
                           const url = URL.createObjectURL(blob)
                           const link = document.createElement('a')
                           link.href = url
-                          link.download = `template-${template.template_name.toLowerCase().replace(/\s+/g, '-')}.json`
+                          link.download = `template-${template.name.toLowerCase().replace(/\s+/g, '-')}.json`
                           link.click()
                           URL.revokeObjectURL(url)
                           toast.success('Template exportado!')
@@ -544,7 +544,7 @@ export function Templates() {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold">
-                    {isCreating ? 'Novo Template' : selectedTemplate?.template_name}
+                    {isCreating ? 'Novo Template' : selectedTemplate?.name}
                   </h1>
                   <p className="text-muted-foreground">
                     {isCreating ? 'Criar um novo template de email' : 'Editar template existente'}
@@ -564,7 +564,7 @@ export function Templates() {
                         reader.onload = (event) => {
                           try {
                             const template = JSON.parse(event.target?.result as string)
-                            setValue('template_name', template.template_name || '')
+                            setValue('name', template.name || '')
                             setValue('subject', template.subject || '')
                             setValue('html_content', template.html_content || '')
                             setValue('text_content', template.text_content || '')
@@ -645,14 +645,14 @@ export function Templates() {
                 {/* Template Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
-                    <Label htmlFor="template_name">Nome do Template</Label>
+                    <Label htmlFor="name">Nome do Template</Label>
                     <Input
-                      id="template_name"
+                      id="name"
                       placeholder="Ex: Boas-vindas"
-                      {...register('template_name')}
+                      {...register('name')}
                     />
-                    {errors.template_name && (
-                      <p className="text-sm text-destructive mt-1">{errors.template_name.message}</p>
+                    {errors.name && (
+                      <p className="text-sm text-destructive mt-1">{errors.name.message}</p>
                     )}
                   </div>
                   

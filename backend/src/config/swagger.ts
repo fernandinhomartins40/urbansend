@@ -78,7 +78,7 @@ const options = {
           type: 'object',
           properties: {
             id: { type: 'integer' },
-            template_name: { type: 'string' },
+            name: { type: 'string' },
             subject: { type: 'string' },
             html_content: { type: 'string' },
             text_content: { type: 'string' },
