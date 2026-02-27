@@ -174,7 +174,14 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && echo "Nginx configurado com sucesso"
 
 echo "Criando diretorios para Docker..."
-mkdir -p /var/www/ultrazend/data /var/www/ultrazend/logs /var/www/ultrazend/configs
+mkdir -p /var/www/ultrazend/data
+mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
+mkdir -p /var/www/ultrazend/configs
+
+echo "Ajustando permissoes dos diretorios..."
+# UID 1001 = nodejs user no container
+chown -R 1001:1001 /var/www/ultrazend/data /var/www/ultrazend/logs
+chmod -R 755 /var/www/ultrazend/data /var/www/ultrazend/logs
 
 echo "Construindo imagem Docker..."
 cd "$APP_DIR"
