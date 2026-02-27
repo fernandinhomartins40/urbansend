@@ -513,31 +513,61 @@ const initializeServices = async () => {
   try {
     // Test database connection
     await db.raw('SELECT 1');
-    logger.info('✅ Database connection established');
+    logger.info('Database connection established');
 
-    // CRÍTICO: Execute migrations OBRIGATORIAMENTE antes de qualquer serviço
-    logger.info('🔄 Executando migrations obrigatórias (71 tabelas A01→A71)...');
-    
-    const migrationTimeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Migration timeout - 71 migrations A01→A71 took longer than 300s')), 300000) // 5 minutos
-    );
-    
-    const migrationResult = await Promise.race([
-      db.migrate.latest(),
-      migrationTimeout
-    ]);
-    
-    // Validar se migrations foram realmente executadas
-    const completedMigrations = await db.migrate.list();
-    const pendingMigrations = completedMigrations[1]; // [completed, pending]
-    
-    if (pendingMigrations.length > 0) {
-      throw new Error(`${pendingMigrations.length} migrations ainda pendentes: ${pendingMigrations.join(', ')}`);
+    const databaseClient = String(db?.client?.config?.client || '').toLowerCase();
+    const isPostgres =
+      databaseClient === 'pg' ||
+      databaseClient === 'postgres' ||
+      databaseClient === 'postgresql' ||
+      /^postgres(ql)?:\/\//i.test(process.env.DATABASE_URL || '');
+
+    if (isPostgres) {
+      logger.info('PostgreSQL detected - Knex startup migrations are disabled (Prisma-managed schema).');
+
+      const schemaCheckResult = await db.raw(`
+        SELECT
+          to_regclass('public.users') AS users_table,
+          to_regclass('public.domains') AS domains_table,
+          to_regclass('public.emails') AS emails_table
+      `);
+
+      const schemaCheckRows = (schemaCheckResult as any)?.rows || [];
+      const firstSchemaRow = schemaCheckRows[0] || {};
+      const missingTables = ['users_table', 'domains_table', 'emails_table'].filter(
+        (key) => !firstSchemaRow[key]
+      );
+
+      if (missingTables.length > 0) {
+        throw new Error(
+          `PostgreSQL schema incomplete (${missingTables.join(', ')}). Run "npm run migrate:latest" before starting the API.`
+        );
+      }
+
+      logger.info('PostgreSQL schema validated (users, domains, emails).');
+    } else {
+      logger.info('Executing required Knex migrations (A01 to A71)...');
+
+      const migrationTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Migration timeout - A01 to A71 took longer than 300 seconds')), 300000)
+      );
+
+      const migrationResult = await Promise.race([
+        db.migrate.latest(),
+        migrationTimeout
+      ]);
+
+      const completedMigrations = await db.migrate.list();
+      const pendingMigrations = completedMigrations[1]; // [completed, pending]
+
+      if (pendingMigrations.length > 0) {
+        throw new Error(`${pendingMigrations.length} pending migrations: ${pendingMigrations.join(', ')}`);
+      }
+
+      logger.info('All required Knex migrations executed successfully.');
+      logger.info(`Migrations batch: ${migrationResult[0]}`);
     }
-    
-    logger.info('✅ Todas as 71 migrations A01→A71 executadas com sucesso - Schema centralizado ativo');
-    logger.info(`📊 Migrations batch: ${migrationResult[0]}`);
-    
+
   } catch (error) {
     logger.error('❌ CRÍTICO: Falha nas migrations obrigatórias', {
       error: (error as Error).message,

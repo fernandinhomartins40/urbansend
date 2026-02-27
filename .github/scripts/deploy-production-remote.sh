@@ -239,7 +239,8 @@ docker run -d \
   -e QUEUE_ENABLED=true \
   -v /var/www/ultrazend/logs:/app/logs \
   -v /var/www/ultrazend/configs:/app/configs:ro \
-  ultrazend-api:latest
+  ultrazend-api:latest \
+  sh -c "npm run migrate:latest && node dist/index.js"
 
 echo "Aguardando container inicializar..."
 sleep 15
@@ -250,14 +251,7 @@ if ! docker ps | grep -q ultrazend-api; then
   docker logs ultrazend-api --tail 50
   exit 1
 fi
-
-echo "Executando migrations no container..."
-if ! docker exec ultrazend-api npm run migrate:latest; then
-  echo "ERRO: Falha ao executar migrations"
-  docker logs ultrazend-api --tail 50
-  exit 1
-fi
-echo "Migrations executadas com sucesso"
+echo "Migrations executadas no startup do container"
 
 systemctl reload nginx
 echo "Servicos iniciados"
