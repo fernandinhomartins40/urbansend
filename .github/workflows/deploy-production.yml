@@ -94,19 +94,19 @@ jobs:
           echo "⚙️ Configurando environment..."
           cd $APP_DIR/backend
           cat > .env << 'ENV_EOF'
-NODE_ENV=production
-PORT=3001
-DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
-LOG_FILE_PATH=/var/www/ultrazend/logs
-SMTP_HOST=localhost
-SMTP_PORT=25
-ULTRAZEND_DIRECT_DELIVERY=true
-ENABLE_DKIM=true
-DKIM_PRIVATE_KEY_PATH=/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem
-DKIM_SELECTOR=default
-DKIM_DOMAIN=ultrazend.com.br
-QUEUE_ENABLED=true
-ENV_EOF
+          NODE_ENV=production
+          PORT=3001
+          DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
+          LOG_FILE_PATH=/var/www/ultrazend/logs
+          SMTP_HOST=localhost
+          SMTP_PORT=25
+          ULTRAZEND_DIRECT_DELIVERY=true
+          ENABLE_DKIM=true
+          DKIM_PRIVATE_KEY_PATH=/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem
+          DKIM_SELECTOR=default
+          DKIM_DOMAIN=ultrazend.com.br
+          QUEUE_ENABLED=true
+          ENV_EOF
           chmod 600 .env
           echo 'Environment configurado'
           
@@ -140,37 +140,37 @@ ENV_EOF
           # 7. CONFIGURE NGINX
           echo "🌐 Configurando Nginx..."
           cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
-server {
-    listen 80;
-    server_name www.ultrazend.com.br;
-    
-    # Frontend static files
-    location / {
-        root /var/www/ultrazend-static;
-        try_files $uri $uri/ /index.html;
-        
-        # Cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-    }
-    
-    # API Backend
-    location /api/ {
-        proxy_pass http://127.0.0.1:3001/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 86400;
-    }
-}
-NGINX_EOF
+          server {
+              listen 80;
+              server_name www.ultrazend.com.br;
+              
+              # Frontend static files
+              location / {
+                  root /var/www/ultrazend-static;
+                  try_files $uri $uri/ /index.html;
+                  
+                  # Cache static assets
+                  location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+                      expires 1y;
+                      add_header Cache-Control "public, immutable";
+                  }
+              }
+              
+              # API Backend
+              location /api/ {
+                  proxy_pass http://127.0.0.1:3001/api/;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+                  proxy_read_timeout 86400;
+              }
+          }
+          NGINX_EOF
           
           # Enable site
           ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
@@ -181,27 +181,27 @@ NGINX_EOF
           echo "🚀 Configurando PM2..."
           cd $APP_DIR/backend
           cat > ecosystem.config.js << 'PM2_EOF'
-module.exports = {
-  apps: [{
-    name: 'ultrazend-api',
-    script: './dist/index.js',
-    instances: 1,
-    exec_mode: 'cluster',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 3001
-    },
-    log_file: '/var/www/ultrazend/logs/application/combined.log',
-    out_file: '/var/www/ultrazend/logs/application/out.log',
-    error_file: '/var/www/ultrazend/logs/errors/error.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    merge_logs: true,
-    max_restarts: 10,
-    min_uptime: '10s',
-    max_memory_restart: '512M'
-  }]
-};
-PM2_EOF
+          module.exports = {
+            apps: [{
+              name: 'ultrazend-api',
+              script: './dist/index.js',
+              instances: 1,
+              exec_mode: 'cluster',
+              env: {
+                NODE_ENV: 'production',
+                PORT: 3001
+              },
+              log_file: '/var/www/ultrazend/logs/application/combined.log',
+              out_file: '/var/www/ultrazend/logs/application/out.log',
+              error_file: '/var/www/ultrazend/logs/errors/error.log',
+              log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+              merge_logs: true,
+              max_restarts: 10,
+              min_uptime: '10s',
+              max_memory_restart: '512M'
+            }]
+          };
+          PM2_EOF
           echo '✅ PM2 ecosystem configurado'
           
           # 9. START SERVICES
@@ -273,7 +273,7 @@ PM2_EOF
           pm2_status=$(pm2 list | grep ultrazend-api | awk '{print $10}' || echo 'not found')
           echo "PM2 Status: $pm2_status"
           
-DEPLOY_SCRIPT
+          DEPLOY_SCRIPT
 
       - name: ✅ Deploy Complete
         run: |
