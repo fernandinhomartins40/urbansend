@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 env:
-  SERVER_HOST: root@ultrazend.com.br
+  SERVER_HOST: root@72.60.10.108
   APP_DIR: /var/www/ultrazend
   STATIC_DIR: /var/www/ultrazend-static
   DOMAIN: www.ultrazend.com.br
@@ -36,7 +36,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ultrazend.com.br >> ~/.ssh/known_hosts
+          ssh-keyscan -H 72.60.10.108 >> ~/.ssh/known_hosts
 
       - name: 🚀 Deploy via SSH (Replicando local-deploy.sh)
         run: |
