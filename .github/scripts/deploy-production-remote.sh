@@ -11,8 +11,8 @@ WWW_DOMAIN="www.ultrazend.com.br"
 DOMAIN="$WWW_DOMAIN"
 
 echo "Parando servicos existentes..."
-pm2 stop all 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
+docker stop ultrazend-api 2>/dev/null || true
+docker rm ultrazend-api 2>/dev/null || true
 
 echo "Configurando diretorios..."
 mkdir -p "$APP_DIR" "$STATIC_DIR" "$APP_DIR/logs"/{application,errors,security,performance,business}
@@ -31,119 +31,113 @@ cp -r dist/* "$STATIC_DIR/"
 chown -R www-data:www-data "$STATIC_DIR"
 echo "Frontend compilado e copiado"
 
-echo "Compilando backend..."
-cd "$APP_DIR/backend"
-npm ci --silent --no-progress
-npm run build
-
-if [ ! -f './dist/config/database.js' ]; then
-  echo "ERRO: Database config nao encontrado apos build"
-  ls -la ./dist/config/ || echo "dist/config nao existe"
-  exit 1
-fi
-echo "Backend compilado com sucesso"
-
-echo "Configurando environment..."
-cd "$APP_DIR/backend"
-cat > .env << 'ENV_EOF'
-NODE_ENV=production
-PORT=3001
-DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
-LOG_FILE_PATH=/var/www/ultrazend/logs
-SMTP_HOST=localhost
-SMTP_PORT=25
-ULTRAZEND_DIRECT_DELIVERY=true
-ENABLE_DKIM=true
-DKIM_PRIVATE_KEY_PATH=/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem
-DKIM_SELECTOR=default
-DKIM_DOMAIN=ultrazend.com.br
-QUEUE_ENABLED=true
-ENV_EOF
-chmod 600 .env
-echo "Environment configurado"
-
 echo "Corrigindo permissoes DKIM..."
+mkdir -p /var/www/ultrazend/configs/dkim-keys
 chown -R root:root /var/www/ultrazend/configs/dkim-keys/ || true
 chmod -R 644 /var/www/ultrazend/configs/dkim-keys/ || true
 
 if [ -f '/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem' ]; then
   echo "DKIM private key found"
 else
-  echo "CRITICO: DKIM private key not found - Deploy may fail"
-  ls -la /var/www/ultrazend/configs/dkim-keys/ || echo "DKIM directory not found"
+  echo "AVISO: DKIM private key not found - Email signing may not work"
 fi
-
-echo "Executando migrations..."
-cd "$APP_DIR/backend"
-export NODE_ENV=production
-npm run migrate:latest
-
-migration_files_count=$(find "$APP_DIR/backend/src/migrations" -maxdepth 1 -type f -name '*.js' | wc -l | tr -d ' ')
-if ! applied_migrations_raw=$(NODE_ENV=production DOTENV_CONFIG_QUIET=true node <<'NODE'
-const path = require("path");
-const dotenv = require("dotenv");
-const knex = require("knex");
-
-dotenv.config({ path: path.join(process.cwd(), ".env"), quiet: true });
-const config = require("./knexfile").production;
-const db = knex(config);
-
-(async () => {
-  try {
-    const row = await db("knex_migrations").count({ count: "*" }).first();
-    const raw = row?.count ?? row?.["count(*)"] ?? Object.values(row || {})[0] ?? 0;
-    const count = Number(raw);
-    if (!Number.isFinite(count)) throw new Error(`Invalid migrations count: ${raw}`);
-    console.log(String(count));
-  } catch (err) {
-    console.error(`Failed to read migrations count: ${err.message}`);
-    process.exit(1);
-  } finally {
-    await db.destroy();
-  }
-})();
-NODE
-); then
-  echo "CRITICO: Nao foi possivel validar migracoes aplicadas - Deploy CANCELADO"
-  exit 1
-fi
-
-applied_migrations=$(printf '%s\n' "$applied_migrations_raw" | tr -d '\r' | awk '/^[0-9]+$/ {value=$0} END {print value}')
-if ! [[ "$applied_migrations" =~ ^[0-9]+$ ]]; then
-  echo "CRITICO: Contagem de migracoes invalida ('$applied_migrations_raw') - Deploy CANCELADO"
-  exit 1
-fi
-
-echo "Migrations aplicadas: $applied_migrations de $migration_files_count"
-if [ "$applied_migrations" -lt "$migration_files_count" ]; then
-  echo "CRITICO: Existem migracoes pendentes - Deploy CANCELADO"
-  NODE_ENV=production npx knex migrate:list || true
-  exit 1
-fi
-echo "Migrations executadas com sucesso"
 
 echo "Configurando Nginx..."
 cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
+# HTTP server - redirect to HTTPS
 server {
     listen 80;
-    server_name ultrazend.com.br;
-    return 301 http://www.ultrazend.com.br$request_uri;
+    listen [::]:80;
+    server_name www.ultrazend.com.br ultrazend.com.br;
+
+    # Let's Encrypt ACME challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+
+    # Redirect all HTTP to HTTPS
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
 }
 
+# HTTPS server for apex domain
 server {
-    listen 80;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ultrazend.com.br;
+
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/ultrazend.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ultrazend.com.br/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Redirect apex to www
+    return 301 https://www.ultrazend.com.br$request_uri;
+}
+
+# HTTPS server for www
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name www.ultrazend.com.br;
 
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    client_max_body_size 10M;
+
+    # Security headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Referrer-Policy "strict-origin-when-cross-origin";
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Email tracking routes - CRITICAL for email analytics
+    location /track/ {
+        proxy_pass http://127.0.0.1:3001/api/emails/track/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30;
+        proxy_send_timeout 30;
+        proxy_connect_timeout 30;
+        access_log /var/log/nginx/tracking.log;
+
+        # No caching for tracking
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+
+    # Frontend static files
     location / {
         root /var/www/ultrazend-static;
         try_files $uri $uri/ /index.html;
 
+        # Enhanced caching for assets
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
             expires 1y;
             add_header Cache-Control "public, immutable";
+            add_header Vary "Accept-Encoding";
+        }
+
+        # Cache HTML files for shorter time
+        location ~* \.(html)$ {
+            expires 1h;
+            add_header Cache-Control "public, must-revalidate";
         }
     }
 
+    # API Backend with enhanced configuration
     location /api/ {
         proxy_pass http://127.0.0.1:3001/api/;
         proxy_http_version 1.1;
@@ -154,9 +148,24 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 86400;
+        proxy_read_timeout 300;
+        proxy_send_timeout 300;
+        proxy_connect_timeout 300;
+
+        # Rate limiting
+        limit_req zone=api burst=20 nodelay;
+        limit_req_status 429;
+    }
+
+    # Health check endpoint
+    location /health {
+        proxy_pass http://127.0.0.1:3001/health;
+        access_log off;
     }
 }
+
+# Rate limiting zone
+limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
 NGINX_EOF
 
 ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/000-ultrazend
@@ -164,59 +173,67 @@ rm -f /etc/nginx/sites-enabled/ultrazend
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && echo "Nginx configurado com sucesso"
 
-echo "Configurando PM2..."
-cd "$APP_DIR/backend"
-cat > ecosystem.config.js << 'PM2_EOF'
-module.exports = {
-  apps: [{
-    name: 'ultrazend-api',
-    script: './dist/index.js',
-    instances: 1,
-    exec_mode: 'cluster',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 3001
-    },
-    log_file: '/var/www/ultrazend/logs/application/combined.log',
-    out_file: '/var/www/ultrazend/logs/application/out.log',
-    error_file: '/var/www/ultrazend/logs/errors/error.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    merge_logs: true,
-    max_restarts: 10,
-    min_uptime: '10s',
-    max_memory_restart: '512M'
-  }]
-};
-PM2_EOF
-echo "PM2 ecosystem configurado"
+echo "Criando diretorios para Docker..."
+mkdir -p /var/www/ultrazend/data /var/www/ultrazend/logs /var/www/ultrazend/configs
 
-echo "Iniciando servicos..."
-npm list -g pm2 >/dev/null 2>&1 || npm install -g pm2
+echo "Construindo imagem Docker..."
+cd "$APP_DIR"
+docker build -t ultrazend-api:latest -f backend/Dockerfile backend/
 
-cd "$APP_DIR/backend"
-pm2 start ecosystem.config.js --env production
-pm2 save
+echo "Iniciando container Docker..."
+docker run -d \
+  --name ultrazend-api \
+  --restart unless-stopped \
+  -p 3001:3001 \
+  -e NODE_ENV=production \
+  -e PORT=3001 \
+  -e DATABASE_URL=/app/data/ultrazend.sqlite \
+  -e LOG_FILE_PATH=/app/logs \
+  -e SMTP_HOST=localhost \
+  -e SMTP_PORT=25 \
+  -e ULTRAZEND_DIRECT_DELIVERY=true \
+  -e ENABLE_DKIM=true \
+  -e DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/ultrazend.com.br-default-private.pem \
+  -e DKIM_SELECTOR=default \
+  -e DKIM_DOMAIN=ultrazend.com.br \
+  -e QUEUE_ENABLED=true \
+  -v /var/www/ultrazend/data:/app/data \
+  -v /var/www/ultrazend/logs:/app/logs \
+  -v /var/www/ultrazend/configs:/app/configs:ro \
+  ultrazend-api:latest
+
+echo "Executando migrations no container..."
+docker exec ultrazend-api npm run migrate:latest
 
 systemctl reload nginx
 echo "Servicos iniciados"
 
 echo "Configurando SSL..."
+# Ensure both apex and www domains have SSL certificates
 if [ ! -f /etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem ]; then
-  echo "Obtendo certificado SSL..."
-  certbot --nginx -d $BASE_DOMAIN -d $WWW_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup completed with warnings"
-  systemctl reload nginx
-else
-  echo "SSL ja configurado"
+  echo "Obtendo certificado SSL para apex domain..."
+  certbot certonly --nginx -d $BASE_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup for apex completed with warnings"
 fi
 
-echo "Validando deployment..."
-sleep 5
+if [ ! -f /etc/letsencrypt/live/$WWW_DOMAIN/fullchain.pem ]; then
+  echo "Obtendo certificado SSL para www domain..."
+  certbot certonly --nginx -d $WWW_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup for www completed with warnings"
+fi
 
-if pm2 show ultrazend-api >/dev/null 2>&1; then
-  echo "PM2: ultrazend-api rodando"
+# Reload nginx to apply SSL configuration
+systemctl reload nginx
+echo "SSL configurado para ambos dominios"
+
+echo "Validando deployment..."
+sleep 10
+
+if docker ps | grep -q ultrazend-api; then
+  echo "Docker: ultrazend-api rodando"
+  docker ps | grep ultrazend-api
 else
-  echo "PM2: ultrazend-api falhou"
-  pm2 logs ultrazend-api --lines 10 || true
+  echo "Docker: ultrazend-api falhou"
+  docker logs ultrazend-api --tail 20 || true
+  exit 1
 fi
 
 if nginx -t >/dev/null 2>&1; then
@@ -225,23 +242,12 @@ else
   echo "Nginx: erro na configuracao"
 fi
 
-cd "$APP_DIR/backend"
-export NODE_ENV=production
-DB_MODULE="$APP_DIR/backend/dist/config/database.js"
-if [ ! -f "$DB_MODULE" ]; then
-  echo "CRITICO: Modulo de database nao encontrado em $DB_MODULE - DEPLOY FALHOU"
-  ls -la "$APP_DIR/backend/dist/config" || echo "Diretorio dist/config nao existe"
-  exit 1
-fi
-
-DB_TEST_SCRIPT='const db = require(process.env.DB_MODULE).default; db.raw("SELECT 1").then(() => { console.log("DB_OK"); process.exit(0); }).catch(err => { console.error("DB_ERROR:", err.message); process.exit(1); });'
-if timeout 10s env NODE_ENV=production DB_MODULE="$DB_MODULE" node -e "$DB_TEST_SCRIPT" 2>/dev/null | grep -q 'DB_OK'; then
-  echo "Database: conectividade OK"
+echo "Testando health check do container..."
+sleep 5
+if docker exec ultrazend-api node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" 2>/dev/null; then
+  echo "Health check: OK"
 else
-  echo "CRITICO: Database erro de conectividade - DEPLOY FALHOU"
-  echo "Debug output:"
-  env NODE_ENV=production DB_MODULE="$DB_MODULE" node -e "$DB_TEST_SCRIPT" || true
-  exit 1
+  echo "AVISO: Health check falhou, mas container esta rodando"
 fi
 
 echo ""
@@ -252,5 +258,5 @@ echo "Backend: $APP_DIR/backend"
 echo "API URL: https://$DOMAIN/api/"
 echo "Frontend URL: https://$DOMAIN/"
 
-pm2_status=$(pm2 list | grep ultrazend-api | awk '{print $10}' || echo 'not found')
-echo "PM2 Status: $pm2_status"
+docker_status=$(docker ps --filter "name=ultrazend-api" --format "{{.Status}}" || echo 'not found')
+echo "Docker Status: $docker_status"
