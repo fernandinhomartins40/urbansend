@@ -31,18 +31,38 @@ jobs:
       - name: Setup SSH
         shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.ssh"
-          chmod 700 "$HOME/.ssh"
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > "$HOME/.ssh/id_rsa"
+          set -eo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          KEY_CONTENT="${{ secrets.VPS_SSH_KEY }}"
+          if [ -z "$KEY_CONTENT" ]; then
+            echo "ERROR: secret VPS_SSH_KEY is empty or not configured."
+            exit 1
+          fi
+          printf '%s\n' "$KEY_CONTENT" | tr -d '\r' > "$HOME/.ssh/id_rsa"
           chmod 600 "$HOME/.ssh/id_rsa"
-          ssh-keyscan -H 72.60.10.108 >> "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_rsa" > /dev/null
+
+      - name: Test SSH connection
+        shell: bash
+        run: |
+          set -eo pipefail
+          ssh -i "$HOME/.ssh/id_rsa" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=accept-new \
+            "${{ env.SERVER_HOST }}" \
+            "echo SSH_OK"
 
       - name: Deploy via SSH
         shell: bash
         run: |
-          set -euo pipefail
-          ssh -i "$HOME/.ssh/id_rsa" -o StrictHostKeyChecking=yes "${{ env.SERVER_HOST }}" 'bash -s' < .github/scripts/deploy-production-remote.sh
+          set -eo pipefail
+          ssh -i "$HOME/.ssh/id_rsa" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=accept-new \
+            "${{ env.SERVER_HOST }}" \
+            'bash -s' < .github/scripts/deploy-production-remote.sh
 
       - name: Deploy Complete
         run: |
