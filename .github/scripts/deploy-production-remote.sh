@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -e
+
+echo "ULTRAZEND DEPLOY VIA GITHUB ACTIONS - INICIANDO..."
+echo "=================================================="
+
+APP_DIR="/var/www/ultrazend"
+STATIC_DIR="/var/www/ultrazend-static"
+DOMAIN="www.ultrazend.com.br"
+
+echo "Parando servicos existentes..."
+pm2 stop all 2>/dev/null || true
+pm2 delete all 2>/dev/null || true
+
+echo "Configurando diretorios..."
+mkdir -p "$APP_DIR" "$STATIC_DIR" "$APP_DIR/logs"/{application,errors,security,performance,business}
+rm -rf "$APP_DIR"
+git clone https://github.com/fernandinhomartins40/urbansend.git "$APP_DIR"
+cd "$APP_DIR"
+echo "Repositorio clonado"
+
+echo "Compilando frontend..."
+cd "$APP_DIR/frontend"
+npm ci --silent --no-progress
+npm run build
+
+rm -rf "$STATIC_DIR"/*
+cp -r dist/* "$STATIC_DIR/"
+chown -R www-data:www-data "$STATIC_DIR"
+echo "Frontend compilado e copiado"
+
+echo "Compilando backend..."
+cd "$APP_DIR/backend"
+npm ci --silent --no-progress
+npm run build
+
+if [ ! -f './dist/config/database.js' ]; then
+  echo "ERRO: Database config nao encontrado apos build"
+  ls -la ./dist/config/ || echo "dist/config nao existe"
+  exit 1
+fi
+echo "Backend compilado com sucesso"
+
+echo "Configurando environment..."
+cd "$APP_DIR/backend"
+cat > .env << 'ENV_EOF'
+NODE_ENV=production
+PORT=3001
+DATABASE_URL=/var/www/ultrazend/backend/ultrazend.sqlite
+LOG_FILE_PATH=/var/www/ultrazend/logs
+SMTP_HOST=localhost
+SMTP_PORT=25
+ULTRAZEND_DIRECT_DELIVERY=true
+ENABLE_DKIM=true
+DKIM_PRIVATE_KEY_PATH=/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem
+DKIM_SELECTOR=default
+DKIM_DOMAIN=ultrazend.com.br
+QUEUE_ENABLED=true
+ENV_EOF
+chmod 600 .env
+echo "Environment configurado"
+
+echo "Corrigindo permissoes DKIM..."
+chown -R root:root /var/www/ultrazend/configs/dkim-keys/ || true
+chmod -R 644 /var/www/ultrazend/configs/dkim-keys/ || true
+
+if [ -f '/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem' ]; then
+  echo "DKIM private key found"
+else
+  echo "CRITICO: DKIM private key not found - Deploy may fail"
+  ls -la /var/www/ultrazend/configs/dkim-keys/ || echo "DKIM directory not found"
+fi
+
+echo "Executando migrations..."
+cd "$APP_DIR/backend"
+export NODE_ENV=production
+npm run migrate:latest
+
+migration_count=$(NODE_ENV=production npx knex migrate:list 2>/dev/null | grep -Eci "batch|completed" || echo "0")
+echo "Migrations aplicadas: $migration_count"
+if [ "$migration_count" -lt 5 ]; then
+  echo "CRITICO: Poucas migrations aplicadas - Deploy CANCELADO"
+  exit 1
+fi
+echo "Migrations executadas com sucesso"
+
+echo "Configurando Nginx..."
+cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
+server {
+    listen 80;
+    server_name www.ultrazend.com.br;
+
+    location / {
+        root /var/www/ultrazend-static;
+        try_files $uri $uri/ /index.html;
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+    }
+}
+NGINX_EOF
+
+ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && echo "Nginx configurado com sucesso"
+
+echo "Configurando PM2..."
+cd "$APP_DIR/backend"
+cat > ecosystem.config.js << 'PM2_EOF'
+module.exports = {
+  apps: [{
+    name: 'ultrazend-api',
+    script: './dist/index.js',
+    instances: 1,
+    exec_mode: 'cluster',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3001
+    },
+    log_file: '/var/www/ultrazend/logs/application/combined.log',
+    out_file: '/var/www/ultrazend/logs/application/out.log',
+    error_file: '/var/www/ultrazend/logs/errors/error.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true,
+    max_restarts: 10,
+    min_uptime: '10s',
+    max_memory_restart: '512M'
+  }]
+};
+PM2_EOF
+echo "PM2 ecosystem configurado"
+
+echo "Iniciando servicos..."
+npm list -g pm2 >/dev/null 2>&1 || npm install -g pm2
+
+cd "$APP_DIR/backend"
+pm2 start ecosystem.config.js --env production
+pm2 save
+
+systemctl reload nginx
+echo "Servicos iniciados"
+
+echo "Configurando SSL..."
+if [ ! -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
+  echo "Obtendo certificado SSL..."
+  certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup completed with warnings"
+  systemctl reload nginx
+else
+  echo "SSL ja configurado"
+fi
+
+echo "Validando deployment..."
+sleep 5
+
+if pm2 show ultrazend-api >/dev/null 2>&1; then
+  echo "PM2: ultrazend-api rodando"
+else
+  echo "PM2: ultrazend-api falhou"
+  pm2 logs ultrazend-api --lines 10 || true
+fi
+
+if nginx -t >/dev/null 2>&1; then
+  echo "Nginx: configuracao OK"
+else
+  echo "Nginx: erro na configuracao"
+fi
+
+cd "$APP_DIR/backend"
+export NODE_ENV=production
+echo 'const db = require("./dist/config/database.js").default; db.raw("SELECT 1").then(() => { console.log("DB_OK"); process.exit(0); }).catch(err => { console.error("DB_ERROR:", err.message); process.exit(1); });' > /tmp/db_test.js
+if timeout 10s NODE_ENV=production node /tmp/db_test.js 2>/dev/null | grep -q 'DB_OK'; then
+  echo "Database: conectividade OK"
+else
+  echo "CRITICO: Database erro de conectividade - DEPLOY FALHOU"
+  echo "Debug output:"
+  NODE_ENV=production node /tmp/db_test.js || true
+  rm -f /tmp/db_test.js
+  exit 1
+fi
+rm -f /tmp/db_test.js
+
+echo ""
+echo "DEPLOY CONCLUIDO!"
+echo "================="
+echo "Frontend: $STATIC_DIR"
+echo "Backend: $APP_DIR/backend"
+echo "API URL: http://$DOMAIN/api/"
+echo "Frontend URL: http://$DOMAIN/"
+
+pm2_status=$(pm2 list | grep ultrazend-api | awk '{print $10}' || echo 'not found')
+echo "PM2 Status: $pm2_status"
