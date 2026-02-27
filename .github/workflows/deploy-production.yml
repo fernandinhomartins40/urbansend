@@ -28,39 +28,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: Install SSH tools
         shell: bash
         run: |
           set -eo pipefail
           install -m 700 -d "$HOME/.ssh"
-          KEY_CONTENT="${{ secrets.VPS_SSH_KEY }}"
-          if [ -z "$KEY_CONTENT" ]; then
-            echo "ERROR: secret VPS_SSH_KEY is empty or not configured."
-            exit 1
-          fi
-          printf '%s\n' "$KEY_CONTENT" | tr -d '\r' > "$HOME/.ssh/id_rsa"
-          chmod 600 "$HOME/.ssh/id_rsa"
-          ssh-keygen -y -f "$HOME/.ssh/id_rsa" > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          ssh-keyscan -H 72.60.10.108 >> "$HOME/.ssh/known_hosts"
 
       - name: Test SSH connection
         shell: bash
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
         run: |
           set -eo pipefail
-          ssh -i "$HOME/.ssh/id_rsa" \
-            -o BatchMode=yes \
+          if [ -z "$SSHPASS" ]; then
+            echo "ERROR: secret VPS_PASSWORD is empty or not configured."
+            exit 1
+          fi
+          sshpass -e ssh \
             -o ConnectTimeout=20 \
-            -o StrictHostKeyChecking=accept-new \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
+            -o StrictHostKeyChecking=yes \
             "${{ env.SERVER_HOST }}" \
             "echo SSH_OK"
 
       - name: Deploy via SSH
         shell: bash
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
         run: |
           set -eo pipefail
-          ssh -i "$HOME/.ssh/id_rsa" \
-            -o BatchMode=yes \
+          sshpass -e ssh \
             -o ConnectTimeout=20 \
-            -o StrictHostKeyChecking=accept-new \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
+            -o StrictHostKeyChecking=yes \
             "${{ env.SERVER_HOST }}" \
             'bash -s' < .github/scripts/deploy-production-remote.sh
 
