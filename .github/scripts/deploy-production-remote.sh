@@ -76,10 +76,45 @@ cd "$APP_DIR/backend"
 export NODE_ENV=production
 npm run migrate:latest
 
-migration_count=$(NODE_ENV=production npx knex migrate:list 2>/dev/null | grep -Eci "batch|completed" || echo "0")
-echo "Migrations aplicadas: $migration_count"
-if [ "$migration_count" -lt 5 ]; then
-  echo "CRITICO: Poucas migrations aplicadas - Deploy CANCELADO"
+migration_files_count=$(find "$APP_DIR/backend/src/migrations" -maxdepth 1 -type f -name '*.js' | wc -l | tr -d ' ')
+if ! applied_migrations=$(NODE_ENV=production node <<'NODE'
+const path = require("path");
+const dotenv = require("dotenv");
+const knex = require("knex");
+
+dotenv.config({ path: path.join(process.cwd(), ".env") });
+const config = require("./knexfile").production;
+const db = knex(config);
+
+(async () => {
+  try {
+    const row = await db("knex_migrations").count({ count: "*" }).first();
+    const raw = row?.count ?? row?.["count(*)"] ?? Object.values(row || {})[0] ?? 0;
+    const count = Number(raw);
+    if (!Number.isFinite(count)) throw new Error(`Invalid migrations count: ${raw}`);
+    console.log(String(count));
+  } catch (err) {
+    console.error(`Failed to read migrations count: ${err.message}`);
+    process.exit(1);
+  } finally {
+    await db.destroy();
+  }
+})();
+NODE
+); then
+  echo "CRITICO: Nao foi possivel validar migracoes aplicadas - Deploy CANCELADO"
+  exit 1
+fi
+
+if ! [[ "$applied_migrations" =~ ^[0-9]+$ ]]; then
+  echo "CRITICO: Contagem de migracoes invalida ('$applied_migrations') - Deploy CANCELADO"
+  exit 1
+fi
+
+echo "Migrations aplicadas: $applied_migrations de $migration_files_count"
+if [ "$applied_migrations" -lt "$migration_files_count" ]; then
+  echo "CRITICO: Existem migracoes pendentes - Deploy CANCELADO"
+  NODE_ENV=production npx knex migrate:list || true
   exit 1
 fi
 echo "Migrations executadas com sucesso"
