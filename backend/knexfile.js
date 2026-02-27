@@ -1,88 +1,97 @@
 const path = require('path');
 
-module.exports = {
-  development: {
-    client: 'sqlite3',
-    connection: {
-      filename: path.join(__dirname, 'ultrazend.sqlite')
-    },
-    useNullAsDefault: true,
-    migrations: {
-      directory: path.join(__dirname, 'src/migrations')
-    },
-    pool: {
-      min: 1,    // ← CORRIGIDO: SQLite single connection
-      max: 1,    // ← CORRIGIDO: SQLite single connection
-      acquireTimeoutMillis: 60000,
-      createTimeoutMillis: 30000,
-      destroyTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
-      afterCreate: (conn, cb) => {
-        conn.run('PRAGMA foreign_keys = ON', cb);
-        conn.run('PRAGMA journal_mode = WAL', cb);
-        conn.run('PRAGMA synchronous = NORMAL', cb);
-        conn.run('PRAGMA cache_size = 2000', cb);
-        conn.run('PRAGMA temp_store = memory', cb);
-      }
+const migrationsDir = path.join(__dirname, 'src/migrations');
+
+const isPostgresUrl = (value = '') => /^postgres(ql)?:\/\//i.test(value);
+
+const shouldUsePostgres = () => {
+  if ((process.env.DB_CLIENT || '').toLowerCase() === 'pg') {
+    return true;
+  }
+
+  return isPostgresUrl(process.env.DATABASE_URL || '');
+};
+
+const buildSqliteConfig = (filename) => ({
+  client: 'sqlite3',
+  connection: { filename },
+  useNullAsDefault: true,
+  migrations: {
+    directory: migrationsDir,
+    tableName: 'knex_migrations'
+  },
+  pool: {
+    min: 1,
+    max: 1,
+    acquireTimeoutMillis: 120000,
+    createTimeoutMillis: 60000,
+    destroyTimeoutMillis: 10000,
+    idleTimeoutMillis: 300000,
+    reapIntervalMillis: 1000,
+    createRetryIntervalMillis: 200,
+    propagateCreateError: false,
+    afterCreate: (conn, cb) => {
+      const queries = [
+        'PRAGMA foreign_keys = ON',
+        'PRAGMA journal_mode = WAL',
+        'PRAGMA synchronous = NORMAL',
+        'PRAGMA cache_size = -32000'
+      ];
+
+      let completed = 0;
+      queries.forEach((query) => {
+        conn.run(query, (err) => {
+          if (err) {
+            // Keep startup resilient on environments with partial PRAGMA support.
+            // eslint-disable-next-line no-console
+            console.warn(`PRAGMA warning: ${query} - ${err.message}`);
+          }
+          if (++completed === queries.length) cb();
+        });
+      });
     }
   },
+  asyncStackTraces: false,
+  debug: false
+});
 
-  test: {
-    client: 'sqlite3',
-    connection: ':memory:',
-    useNullAsDefault: true,
-    migrations: {
-      directory: path.join(__dirname, 'src/migrations')
-    },
-    pool: {
-      min: 1,
-      max: 1,
-      afterCreate: (conn, cb) => {
-        conn.run('PRAGMA foreign_keys = ON', cb);
-      }
-    }
-  },
+const buildPostgresConfig = (fallbackDatabaseName) => {
+  const urlFromEnv = process.env.DATABASE_URL;
+  const defaultUrl = `postgresql://postgres:postgres@127.0.0.1:5432/${fallbackDatabaseName}?schema=public`;
 
-  production: {
-    client: 'sqlite3',
-    connection: {
-      filename: process.env.DATABASE_URL || path.join(__dirname, 'ultrazend.sqlite')
-    },
-    useNullAsDefault: true,
+  return {
+    client: 'pg',
+    connection: urlFromEnv || defaultUrl,
     migrations: {
-      directory: path.join(__dirname, 'src/migrations'),
+      directory: migrationsDir,
       tableName: 'knex_migrations'
     },
     pool: {
-      min: 1,
-      max: 1, // SQLite single connection for data integrity
-      acquireTimeoutMillis: 120000, // 2 minutes for 66 migrations
-      createTimeoutMillis: 60000, // Extended for migrations
+      min: 2,
+      max: 12,
+      acquireTimeoutMillis: 120000,
+      createTimeoutMillis: 60000,
       destroyTimeoutMillis: 10000,
-      idleTimeoutMillis: 300000, // 5 minutes
-      reapIntervalMillis: 1000,
-      createRetryIntervalMillis: 200,
-      propagateCreateError: false,
-      afterCreate: (conn, cb) => {
-        // Essential PRAGMA settings only (optimized for migrations)
-        const queries = [
-          'PRAGMA foreign_keys = ON',
-          'PRAGMA journal_mode = WAL',
-          'PRAGMA synchronous = NORMAL',
-          'PRAGMA cache_size = -32000' // 32MB cache
-        ];
-        
-        let completed = 0;
-        queries.forEach(query => {
-          conn.run(query, (err) => {
-            if (err) console.warn(`PRAGMA warning: ${query} - ${err.message}`);
-            if (++completed === queries.length) cb();
-          });
-        });
-      }
+      idleTimeoutMillis: 300000
     },
-    // Performance settings
     asyncStackTraces: false,
     debug: false
-  }
+  };
+};
+
+const productionDatabaseFile = process.env.DATABASE_URL || path.join(__dirname, 'ultrazend.sqlite');
+const usePostgres = shouldUsePostgres();
+
+module.exports = {
+  development: usePostgres
+    ? buildPostgresConfig('ultrazend_dev')
+    : buildSqliteConfig(path.join(__dirname, 'ultrazend.sqlite')),
+
+  test: process.env.TEST_DB_CLIENT === 'pg'
+    ? buildPostgresConfig('ultrazend_test')
+    : buildSqliteConfig(':memory:'),
+
+  production: usePostgres
+    ? buildPostgresConfig('ultrazend')
+    : buildSqliteConfig(productionDatabaseFile)
 };

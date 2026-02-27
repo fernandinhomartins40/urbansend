@@ -1,0 +1,1844 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("PRISMA_INTROSPECT_DATABASE_URL")
+}
+
+model ab_test_results {
+  id                           Int                  @id @default(autoincrement())
+  ab_test_id                   Int
+  winning_variant_id           Int?
+  confidence_level             Float?               @default(0)
+  is_statistically_significant Boolean?             @default(false)
+  statistical_analysis         Unsupported("json")?
+  performance_summary          Unsupported("json")?
+  recommendations              String?
+  analysis_completed_at        DateTime?
+  created_at                   DateTime?            @default(now())
+  updated_at                   DateTime?            @default(now())
+  ab_test_variants             ab_test_variants?    @relation(fields: [winning_variant_id], references: [id], onUpdate: NoAction)
+  ab_tests                     ab_tests             @relation(fields: [ab_test_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([ab_test_id], map: "ab_test_results_ab_test_id_index")
+}
+
+model ab_test_variants {
+  id                 Int                  @id @default(autoincrement())
+  ab_test_id         Int
+  variant_name       String
+  is_control         Boolean?             @default(false)
+  traffic_percentage Int
+  subject_line       String?
+  email_content      String?
+  from_name          String?
+  from_email         String?
+  template_id        Int?
+  send_time_config   Unsupported("json")?
+  variant_config     Unsupported("json")?
+  emails_sent        Int?                 @default(0)
+  emails_delivered   Int?                 @default(0)
+  emails_opened      Int?                 @default(0)
+  emails_clicked     Int?                 @default(0)
+  emails_bounced     Int?                 @default(0)
+  unsubscribes       Int?                 @default(0)
+  spam_reports       Int?                 @default(0)
+  delivery_rate      Float?               @default(0)
+  open_rate          Float?               @default(0)
+  click_rate         Float?               @default(0)
+  bounce_rate        Float?               @default(0)
+  unsubscribe_rate   Float?               @default(0)
+  created_at         DateTime?            @default(now())
+  updated_at         DateTime?            @default(now())
+  ab_test_results    ab_test_results[]
+  email_templates    email_templates?     @relation(fields: [template_id], references: [id], onUpdate: NoAction)
+  ab_tests           ab_tests             @relation(fields: [ab_test_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([ab_test_id, variant_name], map: "ab_test_variants_ab_test_id_variant_name_unique")
+  @@index([ab_test_id], map: "ab_test_variants_ab_test_id_index")
+}
+
+model ab_tests {
+  id                          Int                  @id @default(autoincrement())
+  user_id                     Int
+  campaign_id                 Int?
+  test_name                   String
+  description                 String?
+  test_type                   String
+  status                      String?              @default("draft")
+  sample_size_percentage      Int?                 @default(50)
+  winner_threshold_percentage Int?                 @default(95)
+  test_start_time             DateTime?
+  test_end_time               DateTime?
+  test_duration_hours         Int?                 @default(24)
+  winning_variant_id          String?
+  test_criteria               Unsupported("json")?
+  created_at                  DateTime?            @default(now())
+  updated_at                  DateTime?            @default(now())
+  ab_test_results             ab_test_results[]
+  ab_test_variants            ab_test_variants[]
+  campaigns                   campaigns?           @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                       users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([campaign_id], map: "ab_tests_campaign_id_index")
+  @@index([user_id, status], map: "ab_tests_user_id_status_index")
+}
+
+model alert_history {
+  id              Int       @id @default(autoincrement())
+  alert_id        String
+  queue_name      String?
+  condition_type  String
+  trigger_value   Float?
+  threshold_value Float?
+  message         String?
+  resolved        Boolean?  @default(false)
+  triggered_at    DateTime? @default(now())
+  resolved_at     DateTime?
+
+  @@index([alert_id, triggered_at], map: "alert_history_alert_id_triggered_at_index")
+}
+
+model alert_notifications {
+  id                Int                  @id @default(autoincrement())
+  alert_id          Int
+  user_id           Int
+  notification_type String
+  status            String?              @default("pending")
+  recipient         String
+  subject           String?
+  content           String?
+  notification_data Unsupported("json")?
+  sent_at           DateTime?
+  delivered_at      DateTime?
+  opened_at         DateTime?
+  failed_at         DateTime?
+  failure_reason    String?
+  external_id       String?
+  retry_count       Int?                 @default(0)
+  next_retry_at     DateTime?
+  metadata          Unsupported("json")?
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @default(now())
+  users             users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  system_alerts     system_alerts        @relation(fields: [alert_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sent_at], map: "alert_notifications_sent_at_index")
+  @@index([status, next_retry_at], map: "alert_notifications_status_next_retry_at_index")
+  @@index([user_id, status], map: "alert_notifications_user_id_status_index")
+  @@index([alert_id, notification_type], map: "alert_notifications_alert_id_notification_type_index")
+}
+
+model api_keys {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  name        String
+  key_hash    String
+  key_preview String
+  permissions String?
+  is_active   Boolean?  @default(true)
+  last_used   DateTime?
+  expires_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @default(now())
+  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "api_keys_expires_at_index")
+  @@index([key_hash], map: "api_keys_key_hash_index")
+  @@index([user_id, is_active], map: "api_keys_user_id_is_active_index")
+}
+
+model audit_logs {
+  id            Int                  @id @default(autoincrement())
+  user_id       Int?
+  action        String
+  resource_type String
+  resource_id   Int?
+  ip_address    String?
+  user_agent    String?
+  old_values    Unsupported("json")?
+  new_values    Unsupported("json")?
+  details       String?
+  created_at    DateTime             @default(now())
+  updated_at    DateTime             @default(now())
+  users         users?               @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([resource_type], map: "audit_logs_resource_type_index")
+  @@index([action], map: "audit_logs_action_index")
+  @@index([user_id, created_at], map: "audit_logs_user_id_created_at_index")
+}
+
+model auth_attempts {
+  id             Int      @id @default(autoincrement())
+  username       String
+  remote_address String
+  success        Boolean
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now())
+
+  @@index([created_at], map: "auth_attempts_created_at_index")
+  @@index([remote_address, success], map: "auth_attempts_remote_address_success_index")
+  @@index([username, success], map: "auth_attempts_username_success_index")
+}
+
+model automation_executions {
+  id                Int                  @id @default(autoincrement())
+  automation_id     Int
+  contact_id        Int
+  current_step_id   Int?
+  status            String?              @default("active")
+  started_at        DateTime?            @default(now())
+  next_execution_at DateTime?
+  completed_at      DateTime?
+  execution_context Unsupported("json")?
+  failure_reason    String?
+  steps_completed   Int?                 @default(0)
+  emails_sent       Int?                 @default(0)
+  last_activity_at  DateTime?            @default(now())
+  created_at        DateTime?            @default(now())
+  updated_at        DateTime?            @default(now())
+  automation_steps  automation_steps?    @relation(fields: [current_step_id], references: [id], onUpdate: NoAction)
+  contacts          contacts             @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  email_automations email_automations    @relation(fields: [automation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  automation_logs   automation_logs[]
+
+  @@unique([automation_id, contact_id], map: "automation_executions_automation_id_contact_id_unique")
+  @@index([status, next_execution_at], map: "automation_executions_status_next_execution_at_index")
+  @@index([next_execution_at], map: "automation_executions_next_execution_at_index")
+  @@index([contact_id], map: "automation_executions_contact_id_index")
+  @@index([automation_id, status], map: "automation_executions_automation_id_status_index")
+}
+
+model automation_logs {
+  id                      Int                   @id @default(autoincrement())
+  automation_execution_id Int
+  step_id                 Int?
+  action_type             String
+  status                  String
+  message                 String?
+  metadata                Unsupported("json")?
+  email_id                String?
+  executed_at             DateTime?             @default(now())
+  created_at              DateTime?             @default(now())
+  automation_steps        automation_steps?     @relation(fields: [step_id], references: [id], onUpdate: NoAction)
+  automation_executions   automation_executions @relation(fields: [automation_execution_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([executed_at], map: "automation_logs_executed_at_index")
+  @@index([action_type], map: "automation_logs_action_type_index")
+  @@index([step_id], map: "automation_logs_step_id_index")
+  @@index([automation_execution_id], map: "automation_logs_automation_execution_id_index")
+}
+
+model automation_steps {
+  id                    Int                     @id @default(autoincrement())
+  automation_id         Int
+  step_order            Int
+  step_name             String
+  step_type             String
+  template_id           Int?
+  subject_line          String?
+  custom_content        String?
+  wait_duration_hours   Int?
+  wait_unit             String?                 @default("hours")
+  condition_criteria    Unsupported("json")?
+  action_config         Unsupported("json")?
+  webhook_url           String?
+  webhook_payload       Unsupported("json")?
+  is_active             Boolean?                @default(true)
+  emails_sent           Int?                    @default(0)
+  open_rate             Float?                  @default(0)
+  click_rate            Float?                  @default(0)
+  created_at            DateTime?               @default(now())
+  updated_at            DateTime?               @default(now())
+  automation_executions automation_executions[]
+  automation_logs       automation_logs[]
+  email_templates       email_templates?        @relation(fields: [template_id], references: [id], onUpdate: NoAction)
+  email_automations     email_automations       @relation(fields: [automation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([automation_id, step_order], map: "automation_steps_automation_id_step_order_unique")
+  @@index([step_type], map: "automation_steps_step_type_index")
+  @@index([automation_id, step_order], map: "automation_steps_automation_id_step_order_index")
+}
+
+model batch_email_stats {
+  id              Int       @id @default(autoincrement())
+  batch_id        String    @unique(map: "batch_email_stats_batch_id_unique")
+  user_id         Int
+  total_emails    Int?      @default(0)
+  sent_emails     Int?      @default(0)
+  failed_emails   Int?      @default(0)
+  pending_emails  Int?      @default(0)
+  batch_started   DateTime? @default(now())
+  batch_completed DateTime?
+  status          String?   @default("processing")
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now())
+  users           users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, status], map: "batch_email_stats_user_id_status_index")
+  @@index([batch_id], map: "batch_email_stats_batch_id_index")
+}
+
+model campaign_executions {
+  id                  Int                   @id @default(autoincrement())
+  campaign_id         Int
+  user_id             Int
+  started_at          DateTime
+  completed_at        DateTime?
+  status              String?               @default("running")
+  total_recipients    Int?                  @default(0)
+  emails_sent         Int?                  @default(0)
+  emails_failed       Int?                  @default(0)
+  execution_stats     Unsupported("json")?
+  error_message       String?
+  execution_log       Unsupported("json")?
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @default(now())
+  users               users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campaigns           campaigns             @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campaign_recipients campaign_recipients[]
+
+  @@index([user_id, status], map: "campaign_executions_user_id_status_index")
+  @@index([campaign_id, started_at], map: "campaign_executions_campaign_id_started_at_index")
+}
+
+model campaign_metrics {
+  id                  Int       @id @default(autoincrement())
+  campaign_id         String    @unique(map: "campaign_metrics_campaign_id_unique")
+  campaign_name       String?
+  emails_sent         Int?      @default(0)
+  emails_delivered    Int?      @default(0)
+  emails_opened       Int?      @default(0)
+  emails_clicked      Int?      @default(0)
+  emails_bounced      Int?      @default(0)
+  emails_complained   Int?      @default(0)
+  emails_unsubscribed Int?      @default(0)
+  last_updated        DateTime? @default(now())
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now())
+
+  @@index([campaign_id], map: "campaign_metrics_campaign_id_index")
+}
+
+model campaign_recipients {
+  id                  Int                  @id @default(autoincrement())
+  campaign_id         Int
+  execution_id        Int?
+  email               String
+  first_name          String?
+  last_name           String?
+  custom_fields       Unsupported("json")?
+  status              String?              @default("pending")
+  message_id          String?
+  sent_at             DateTime?
+  delivered_at        DateTime?
+  opened_at           DateTime?
+  clicked_at          DateTime?
+  bounced_at          DateTime?
+  bounce_reason       String?
+  failure_reason      String?
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @default(now())
+  campaign_executions campaign_executions? @relation(fields: [execution_id], references: [id], onUpdate: NoAction)
+  campaigns           campaigns            @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([email, campaign_id], map: "campaign_recipients_email_campaign_id_index")
+  @@index([email], map: "campaign_recipients_email_index")
+  @@index([execution_id, status], map: "campaign_recipients_execution_id_status_index")
+  @@index([campaign_id, status], map: "campaign_recipients_campaign_id_status_index")
+}
+
+model campaigns {
+  id                                                               Int                   @id @default(autoincrement())
+  user_id                                                          Int
+  name                                                             String
+  description                                                      String?
+  status                                                           String?               @default("draft")
+  type                                                             String?               @default("one_time")
+  scheduled_at                                                     DateTime?
+  started_at                                                       DateTime?
+  completed_at                                                     DateTime?
+  template_id                                                      Int?
+  subject_line                                                     String?
+  from_email                                                       String?
+  from_name                                                        String?
+  reply_to                                                         String?
+  segment_criteria                                                 Unsupported("json")?
+  recipient_list                                                   Unsupported("json")?
+  use_segmentation                                                 Boolean?              @default(false)
+  ab_test_type                                                     String?
+  ab_test_split                                                    Float?
+  ab_winner_template_id                                            Int?
+  ab_decision_time                                                 DateTime?
+  recurrence_pattern                                               String?
+  recurrence_config                                                Unsupported("json")?
+  next_run_at                                                      DateTime?
+  total_recipients                                                 Int?                  @default(0)
+  emails_sent                                                      Int?                  @default(0)
+  emails_delivered                                                 Int?                  @default(0)
+  emails_bounced                                                   Int?                  @default(0)
+  emails_opened                                                    Int?                  @default(0)
+  emails_clicked                                                   Int?                  @default(0)
+  unsubscribes                                                     Int?                  @default(0)
+  spam_reports                                                     Int?                  @default(0)
+  delivery_rate                                                    Float?                @default(0)
+  open_rate                                                        Float?                @default(0)
+  click_rate                                                       Float?                @default(0)
+  unsubscribe_rate                                                 Float?                @default(0)
+  send_settings                                                    Unsupported("json")?
+  tracking_settings                                                Unsupported("json")?
+  metadata                                                         Unsupported("json")?
+  notes                                                            String?
+  created_by                                                       Int?
+  last_modified_by                                                 Int?
+  created_at                                                       DateTime              @default(now())
+  updated_at                                                       DateTime              @default(now())
+  ab_tests                                                         ab_tests[]
+  campaign_executions                                              campaign_executions[]
+  campaign_recipients                                              campaign_recipients[]
+  users_campaigns_last_modified_byTousers                          users?                @relation("campaigns_last_modified_byTousers", fields: [last_modified_by], references: [id], onUpdate: NoAction)
+  users_campaigns_created_byTousers                                users?                @relation("campaigns_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  email_templates_campaigns_ab_winner_template_idToemail_templates email_templates?      @relation("campaigns_ab_winner_template_idToemail_templates", fields: [ab_winner_template_id], references: [id], onUpdate: NoAction)
+  email_templates_campaigns_template_idToemail_templates           email_templates?      @relation("campaigns_template_idToemail_templates", fields: [template_id], references: [id], onUpdate: NoAction)
+  users_campaigns_user_idTousers                                   users                 @relation("campaigns_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([next_run_at], map: "campaigns_next_run_at_index")
+  @@index([scheduled_at], map: "campaigns_scheduled_at_index")
+  @@index([created_at], map: "campaigns_created_at_index")
+  @@index([type, status], map: "campaigns_type_status_index")
+  @@index([status, scheduled_at], map: "campaigns_status_scheduled_at_index")
+  @@index([user_id, status], map: "campaigns_user_id_status_index")
+}
+
+model contact_activities {
+  id            Int                  @id @default(autoincrement())
+  contact_id    Int
+  user_id       Int
+  activity_type String
+  email_id      String?
+  campaign_id   Int?
+  description   String?
+  activity_data Unsupported("json")?
+  ip_address    String?
+  user_agent    String?
+  activity_at   DateTime
+  created_at    DateTime             @default(now())
+  updated_at    DateTime             @default(now())
+  users         users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contacts      contacts             @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([campaign_id], map: "contact_activities_campaign_id_index")
+  @@index([email_id], map: "contact_activities_email_id_index")
+  @@index([activity_type], map: "contact_activities_activity_type_index")
+  @@index([user_id, activity_type, activity_at], map: "contact_activities_user_id_activity_type_activity_at_index")
+  @@index([contact_id, activity_at], map: "contact_activities_contact_id_activity_at_index")
+}
+
+model contact_list_members {
+  id            Int           @id @default(autoincrement())
+  contact_id    Int
+  list_id       Int
+  added_at      DateTime?     @default(now())
+  added_by      String?
+  contact_lists contact_lists @relation(fields: [list_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contacts      contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([contact_id, list_id], map: "contact_list_members_contact_id_list_id_unique")
+  @@index([list_id, added_at], map: "contact_list_members_list_id_added_at_index")
+}
+
+model contact_lists {
+  id                   Int                    @id @default(autoincrement())
+  user_id              Int
+  name                 String
+  description          String?
+  type                 String?                @default("manual")
+  contact_count        Int?                   @default(0)
+  is_active            Boolean?               @default(true)
+  import_source        String?
+  import_metadata      Unsupported("json")?
+  last_imported_at     DateTime?
+  created_at           DateTime               @default(now())
+  updated_at           DateTime               @default(now())
+  contact_list_members contact_list_members[]
+  users                users                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([type], map: "contact_lists_type_index")
+  @@index([user_id, is_active], map: "contact_lists_user_id_is_active_index")
+}
+
+model contact_preferences {
+  id               Int       @id @default(autoincrement())
+  contact_id       Int
+  preference_key   String
+  preference_value String
+  updated_at       DateTime? @default(now())
+  contacts         contacts  @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([contact_id, preference_key], map: "contact_preferences_contact_id_preference_key_unique")
+  @@index([preference_key], map: "contact_preferences_preference_key_index")
+}
+
+model contact_segment_members {
+  id               Int                  @id @default(autoincrement())
+  contact_id       Int
+  segment_id       Int
+  added_at         DateTime?            @default(now())
+  added_by         String?
+  metadata         Unsupported("json")?
+  contact_segments contact_segments     @relation(fields: [segment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contacts         contacts             @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([contact_id, segment_id], map: "contact_segment_members_contact_id_segment_id_unique")
+  @@index([contact_id], map: "contact_segment_members_contact_id_index")
+  @@index([segment_id, added_at], map: "contact_segment_members_segment_id_added_at_index")
+}
+
+model contact_segments {
+  id                       Int                       @id @default(autoincrement())
+  user_id                  Int
+  name                     String
+  description              String?
+  type                     String?                   @default("dynamic")
+  is_active                Boolean?                  @default(true)
+  criteria                 Unsupported("json")?
+  criteria_description     String?
+  contact_count            Int?                      @default(0)
+  last_calculated_at       DateTime?
+  auto_update              Boolean?                  @default(true)
+  update_frequency_minutes Int?                      @default(60)
+  settings                 Unsupported("json")?
+  color                    String?                   @default("#3B82F6")
+  sort_order               Int?                      @default(0)
+  created_at               DateTime                  @default(now())
+  updated_at               DateTime                  @default(now())
+  contact_segment_members  contact_segment_members[]
+  users                    users                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([auto_update], map: "contact_segments_auto_update_index")
+  @@index([last_calculated_at], map: "contact_segments_last_calculated_at_index")
+  @@index([user_id, type], map: "contact_segments_user_id_type_index")
+  @@index([user_id, is_active], map: "contact_segments_user_id_is_active_index")
+}
+
+model contacts {
+  id                      Int                       @id @default(autoincrement())
+  user_id                 Int
+  email                   String
+  first_name              String?
+  last_name               String?
+  full_name               String?
+  phone                   String?
+  company                 String?
+  job_title               String?
+  website                 String?
+  notes                   String?
+  status                  String?                   @default("active")
+  subscription_status     String?                   @default("subscribed")
+  subscribed_at           DateTime?
+  unsubscribed_at         DateTime?
+  unsubscribe_reason      String?
+  last_activity_at        DateTime?
+  country                 String?
+  state                   String?
+  city                    String?
+  postal_code             String?
+  timezone                String?
+  language                String?                   @default("pt-BR")
+  total_emails_sent       Int?                      @default(0)
+  total_emails_opened     Int?                      @default(0)
+  total_emails_clicked    Int?                      @default(0)
+  total_emails_bounced    Int?                      @default(0)
+  engagement_score        Float?                    @default(0)
+  last_opened_at          DateTime?
+  last_clicked_at         DateTime?
+  custom_fields           Unsupported("json")?
+  tags                    Unsupported("json")?
+  preferences             Unsupported("json")?
+  source                  String?
+  source_details          String?
+  imported_from_list_id   Int?
+  first_seen_at           DateTime?
+  gdpr_consent            Boolean?                  @default(false)
+  gdpr_consent_date       DateTime?
+  gdpr_consent_method     String?
+  opt_in_ip               String?
+  opt_in_country          String?
+  created_at              DateTime                  @default(now())
+  updated_at              DateTime                  @default(now())
+  automation_executions   automation_executions[]
+  contact_activities      contact_activities[]
+  contact_list_members    contact_list_members[]
+  contact_preferences     contact_preferences[]
+  contact_segment_members contact_segment_members[]
+  users                   users                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, email], map: "contacts_user_id_email_unique")
+  @@index([created_at], map: "contacts_created_at_index")
+  @@index([last_activity_at], map: "contacts_last_activity_at_index")
+  @@index([engagement_score], map: "contacts_engagement_score_index")
+  @@index([user_id, subscription_status], map: "contacts_user_id_subscription_status_index")
+  @@index([user_id, status], map: "contacts_user_id_status_index")
+  @@index([subscription_status], map: "contacts_subscription_status_index")
+  @@index([status], map: "contacts_status_index")
+  @@index([email], map: "contacts_email_index")
+}
+
+model delivery_history {
+  id              Int       @id @default(autoincrement())
+  domain          String
+  mx_server       String?
+  status          String
+  failure_reason  String?
+  response_time   Int?
+  recipient_email String?
+  message_id      String?
+  attempted_at    DateTime? @default(now())
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now())
+
+  @@index([attempted_at], map: "delivery_history_attempted_at_index")
+  @@index([mx_server, status], map: "delivery_history_mx_server_status_index")
+  @@index([domain, status], map: "delivery_history_domain_status_index")
+}
+
+model delivery_stats {
+  id                   Int                   @id @default(autoincrement())
+  delivery_id          Int?
+  status               String
+  delivery_time        Int?
+  error_message        String?
+  created_at           DateTime              @default(now())
+  updated_at           DateTime              @default(now())
+  email_delivery_queue email_delivery_queue? @relation(fields: [delivery_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([delivery_id], map: "delivery_stats_delivery_id_index")
+  @@index([status, created_at], map: "delivery_stats_status_created_at_index")
+}
+
+model dkim_keys {
+  id               Int       @id @default(autoincrement())
+  domain_id        Int
+  selector         String    @default("default")
+  private_key      String
+  public_key       String?
+  algorithm        String?   @default("rsa-sha256")
+  canonicalization String?   @default("relaxed/relaxed")
+  key_size         Int?      @default(2048)
+  is_active        Boolean?  @default(true)
+  expires_at       DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @default(now())
+  domains          domains   @relation(fields: [domain_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([domain_id, selector], map: "dkim_keys_domain_id_selector_unique")
+  @@index([is_active], map: "dkim_keys_is_active_index")
+  @@index([domain_id], map: "dkim_keys_domain_id_index")
+}
+
+model dkim_signature_logs {
+  id               Int      @id @default(autoincrement())
+  domain_id        Int
+  selector         String
+  message_id       String?
+  recipient_domain String?
+  signature_valid  Boolean? @default(true)
+  algorithm        String?
+  signature_hash   String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @default(now())
+  domains          domains  @relation(fields: [domain_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([signature_valid], map: "dkim_signature_logs_signature_valid_index")
+  @@index([domain_id, created_at], map: "dkim_signature_logs_domain_id_created_at_index")
+}
+
+model domain_metrics {
+  id                    Int       @id @default(autoincrement())
+  domain                String    @unique(map: "domain_metrics_domain_unique")
+  reputation_score      Float?    @default(1)
+  total_emails          Int?      @default(0)
+  successful_deliveries Int?      @default(0)
+  bounces               Int?      @default(0)
+  complaints            Int?      @default(0)
+  last_delivery         DateTime?
+  last_updated          DateTime? @default(now())
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @default(now())
+
+  @@index([domain], map: "domain_metrics_domain_index")
+}
+
+model domain_reputation {
+  id                    Int       @id @default(autoincrement())
+  domain                String    @unique(map: "domain_reputation_domain_unique")
+  score                 Float?    @default(100)
+  successful_deliveries Int?      @default(0)
+  failed_deliveries     Int?      @default(0)
+  bounce_rate           Float?    @default(0)
+  last_success          DateTime?
+  last_failure          DateTime?
+  status                String?   @default("good")
+  notes                 String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @default(now())
+
+  @@index([status], map: "domain_reputation_status_index")
+  @@index([score], map: "domain_reputation_score_index")
+  @@index([domain], map: "domain_reputation_domain_index")
+}
+
+model domain_verification_logs {
+  id                 Int                 @id @default(autoincrement())
+  domain_id          Int
+  domain_name        String
+  user_id            Int?
+  verification_token String?
+  attempts           Unsupported("json")
+  overall_status     String
+  start_time         DateTime
+  end_time           DateTime?
+  total_duration     Int?
+  retry_count        Int?                @default(0)
+  is_automated       Boolean?            @default(false)
+  job_id             String?
+  error_summary      String?
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @default(now())
+
+  @@index([domain_name], map: "domain_verification_logs_domain_name_index")
+  @@index([is_automated, start_time], map: "domain_verification_logs_is_automated_start_time_index")
+  @@index([job_id], map: "domain_verification_logs_job_id_index")
+  @@index([overall_status, start_time], map: "domain_verification_logs_overall_status_start_time_index")
+  @@index([domain_id, start_time], map: "domain_verification_logs_domain_id_start_time_index")
+}
+
+model domain_verification_metrics {
+  id                        Int                  @id @default(autoincrement())
+  metric_date               DateTime             @unique(map: "domain_verification_metrics_metric_date_unique")
+  total_attempts            Int?                 @default(0)
+  successful_verifications  Int?                 @default(0)
+  failed_verifications      Int?                 @default(0)
+  partial_verifications     Int?                 @default(0)
+  average_verification_time Float?
+  common_errors             Unsupported("json")?
+  hourly_distribution       Unsupported("json")?
+  retry_statistics          Unsupported("json")?
+  created_at                DateTime             @default(now())
+  updated_at                DateTime             @default(now())
+
+  @@index([metric_date], map: "domain_verification_metrics_metric_date_index")
+}
+
+model domains {
+  id                        Int                   @id @default(autoincrement())
+  user_id                   Int
+  domain_name               String                @unique(map: "domains_domain_name_unique")
+  verification_token        String
+  is_verified               Boolean?              @default(false)
+  verified_at               DateTime?
+  verification_method       String?               @default("dns")
+  dns_records               String?
+  dkim_enabled              Boolean?              @default(true)
+  dkim_selector             String?               @default("default")
+  spf_enabled               Boolean?              @default(true)
+  dmarc_enabled             Boolean?              @default(false)
+  dmarc_policy              String?               @default("none")
+  created_at                DateTime              @default(now())
+  updated_at                DateTime              @default(now())
+  last_verification_attempt DateTime?
+  verification_errors       String?
+  dkim_keys                 dkim_keys[]
+  dkim_signature_logs       dkim_signature_logs[]
+  users                     users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([last_verification_attempt], map: "domains_last_verification_attempt_index")
+  @@index([is_verified], map: "domains_is_verified_index")
+  @@index([domain_name], map: "domains_domain_name_index")
+  @@index([user_id], map: "domains_user_id_index")
+}
+
+model email_ab_tests {
+  id                    Int       @id @default(autoincrement())
+  user_id               Int
+  name                  String
+  description           String?
+  test_type             String
+  status                String?   @default("draft")
+  traffic_split         Int?      @default(50)
+  winner_criteria       String?   @default("open_rate")
+  confidence_level      Int?      @default(95)
+  min_sample_size       Int?      @default(100)
+  test_duration_hours   Int?      @default(24)
+  started_at            DateTime?
+  completed_at          DateTime?
+  winner_variant        String?
+  significance_achieved Boolean?  @default(false)
+  p_value               Decimal?
+  created_at            DateTime? @default(now())
+  updated_at            DateTime? @default(now())
+  users                 users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model email_analytics {
+  id                      Int                  @id @default(autoincrement())
+  user_id                 Int
+  email_id                String
+  event_type              String
+  recipient_email         String
+  campaign_id             String?
+  ip_address              String?
+  user_agent              String?
+  metadata                Unsupported("json")?
+  created_at              DateTime             @default(now())
+  updated_at              DateTime             @default(now())
+  hour_sent               Int?
+  day_of_week             Int?
+  timezone                String?
+  engagement_metadata     Unsupported("json")?
+  week_of_year            Int?
+  month_of_year           Int?
+  ip_reputation_score     Float?
+  domain_reputation_score Float?
+  deliverability_score    Float?
+  forward_count           Int?                 @default(0)
+  reply_count             Int?                 @default(0)
+  print_count             Int?                 @default(0)
+  geographic_data         Unsupported("json")?
+  device_data             Unsupported("json")?
+  client_data             Unsupported("json")?
+  is_spam_filtered        Boolean?             @default(false)
+  is_promotional          Boolean?             @default(false)
+  campaign_tags           String?
+  engagement_score        Float?
+  tracking_id             String?
+  link_url                String?
+  users                   users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([event_type, tracking_id], map: "idx_email_analytics_event_tracking")
+  @@index([tracking_id], map: "idx_email_analytics_tracking_id")
+  @@index([created_at, hour_sent, day_of_week], map: "idx_email_analytics_created_at_temporal")
+  @@index([engagement_score], map: "idx_email_analytics_engagement")
+  @@index([deliverability_score], map: "idx_email_analytics_deliverability")
+  @@index([ip_reputation_score, domain_reputation_score], map: "idx_email_analytics_reputation")
+  @@index([week_of_year, month_of_year], map: "idx_email_analytics_week_year")
+  @@index([user_id, hour_sent, day_of_week], map: "idx_email_analytics_temporal")
+  @@index([day_of_week], map: "idx_email_analytics_dow")
+  @@index([hour_sent], map: "idx_email_analytics_hour")
+  @@index([campaign_id], map: "email_analytics_campaign_id_index")
+  @@index([recipient_email], map: "email_analytics_recipient_email_index")
+  @@index([email_id], map: "email_analytics_email_id_index")
+  @@index([user_id, event_type], map: "email_analytics_user_id_event_type_index")
+}
+
+model email_audit_logs {
+  id                  Int                  @id @default(autoincrement())
+  user_id             Int
+  email_id            String?
+  original_from       String
+  final_from          String
+  was_modified        Boolean?             @default(false)
+  modification_reason String?
+  dkim_domain         String
+  delivery_status     String
+  timestamp           DateTime?            @default(now())
+  metadata            Unsupported("json")?
+  users               users                @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([was_modified], map: "idx_email_audit_was_modified")
+  @@index([timestamp], map: "idx_email_audit_timestamp")
+  @@index([delivery_status], map: "idx_email_audit_delivery_status")
+  @@index([user_id, timestamp], map: "idx_email_audit_user_timestamp")
+}
+
+model email_automations {
+  id                    Int                     @id @default(autoincrement())
+  user_id               Int
+  automation_name       String
+  description           String?
+  status                String?                 @default("draft")
+  trigger_type          String
+  trigger_config        Unsupported("json")?
+  audience_criteria     Unsupported("json")?
+  total_subscribers     Int?                    @default(0)
+  active_subscribers    Int?                    @default(0)
+  last_triggered_at     DateTime?
+  emails_sent           Int?                    @default(0)
+  is_recurring          Boolean?                @default(true)
+  max_executions        Int?
+  current_executions    Int?                    @default(0)
+  created_at            DateTime?               @default(now())
+  updated_at            DateTime?               @default(now())
+  automation_executions automation_executions[]
+  automation_steps      automation_steps[]
+  users                 users                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status, is_recurring], map: "email_automations_status_is_recurring_index")
+  @@index([trigger_type], map: "email_automations_trigger_type_index")
+  @@index([user_id, status], map: "email_automations_user_id_status_index")
+}
+
+model email_delivery_queue {
+  id              Int                  @id @default(autoincrement())
+  message_id      String               @unique(map: "email_delivery_queue_message_id_unique")
+  from_address    String
+  to_address      String
+  subject         String?
+  body            String?
+  headers         Unsupported("json")?
+  status          String?              @default("pending")
+  attempts        Int?                 @default(0)
+  last_attempt    DateTime?
+  next_attempt    DateTime?
+  delivered_at    DateTime?
+  delivery_time   Int?
+  error_message   String?
+  priority        Int?                 @default(50)
+  user_id         Int?
+  campaign_id     Int?
+  bounce_type     String?
+  delivery_report Unsupported("json")?
+  created_at      DateTime             @default(now())
+  updated_at      DateTime             @default(now())
+  delivery_stats  delivery_stats[]
+  users           users?               @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([user_id], map: "email_delivery_queue_user_id_index")
+  @@index([to_address], map: "email_delivery_queue_to_address_index")
+  @@index([priority, created_at], map: "email_delivery_queue_priority_created_at_index")
+  @@index([status, next_attempt], map: "email_delivery_queue_status_next_attempt_index")
+}
+
+model email_events {
+  id              Int      @id @default(autoincrement())
+  email_id        String
+  campaign_id     String?
+  user_id         String?
+  event_type      String
+  timestamp       DateTime
+  recipient_email String?
+  domain          String?
+  ip_address      String?
+  user_agent      String?
+  metadata        String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now())
+
+  @@index([timestamp], map: "email_events_timestamp_index")
+  @@index([email_id, event_type], map: "email_events_email_id_event_type_index")
+}
+
+model email_metrics {
+  id          Int       @id @default(autoincrement())
+  metric_type String
+  user_id     Int?
+  domain      String?
+  mx_server   String?
+  status      String?
+  count       Int?      @default(1)
+  timestamp   DateTime? @default(now())
+
+  @@index([metric_type, timestamp], map: "email_metrics_metric_type_timestamp_index")
+}
+
+model email_quarantine {
+  id               Int                  @id @default(autoincrement())
+  message_id       String?              @unique(map: "email_quarantine_message_id_unique")
+  from_address     String
+  to_address       String
+  subject          String?
+  reason           String
+  severity         String?              @default("medium")
+  email_content    String?
+  headers          Unsupported("json")?
+  security_details Unsupported("json")?
+  reviewed         Boolean?             @default(false)
+  action_taken     String?
+  quarantined_at   DateTime?            @default(now())
+  reviewed_at      DateTime?
+  created_at       DateTime             @default(now())
+  updated_at       DateTime             @default(now())
+
+  @@index([severity], map: "email_quarantine_severity_index")
+  @@index([reviewed], map: "email_quarantine_reviewed_index")
+  @@index([quarantined_at], map: "email_quarantine_quarantined_at_index")
+}
+
+model email_segments {
+  id                 Int                 @id @default(autoincrement())
+  user_id            Int
+  name               String
+  description        String?
+  filters            Unsupported("json")
+  is_active          Boolean?            @default(true)
+  is_smart           Boolean?            @default(false)
+  total_emails       Int?                @default(0)
+  last_calculated_at DateTime?
+  created_at         DateTime?           @default(now())
+  updated_at         DateTime?           @default(now())
+  users              users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model email_system_config {
+  id           Int      @id @default(autoincrement())
+  config_key   String   @unique(map: "email_system_config_config_key_unique")
+  config_value String
+  data_type    String?  @default("string")
+  description  String?
+  is_active    Boolean? @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+
+  @@index([is_active], map: "idx_config_active")
+  @@index([config_key], map: "idx_config_key")
+}
+
+model email_templates {
+  id                                                         Int                  @id @default(autoincrement())
+  user_id                                                    Int
+  name                                                       String
+  subject                                                    String
+  html_content                                               String?
+  text_content                                               String?
+  category                                                   String?              @default("general")
+  is_active                                                  Boolean?             @default(true)
+  variables                                                  Unsupported("json")?
+  created_at                                                 DateTime             @default(now())
+  updated_at                                                 DateTime             @default(now())
+  template_type                                              String?              @default("user")
+  ab_test_variants                                           ab_test_variants[]
+  automation_steps                                           automation_steps[]
+  campaigns_campaigns_ab_winner_template_idToemail_templates campaigns[]          @relation("campaigns_ab_winner_template_idToemail_templates")
+  campaigns_campaigns_template_idToemail_templates           campaigns[]          @relation("campaigns_template_idToemail_templates")
+  users                                                      users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_active], map: "email_templates_is_active_index")
+  @@index([category], map: "email_templates_category_index")
+  @@index([user_id], map: "email_templates_user_id_index")
+}
+
+model emails {
+  id                  Int                  @id @default(autoincrement())
+  user_id             Int
+  message_id          String               @unique(map: "emails_message_id_unique")
+  from_email          String
+  from_name           String?
+  to_email            String
+  to_name             String?
+  cc                  String?
+  bcc                 String?
+  reply_to            String?
+  subject             String
+  html_content        String?
+  text_content        String?
+  status              String?              @default("pending")
+  sent_at             DateTime?
+  delivered_at        DateTime?
+  bounced_at          DateTime?
+  bounce_reason       String?
+  campaign_id         Int?
+  template_id         Int?
+  tags                Unsupported("json")?
+  metadata            Unsupported("json")?
+  attempts            Int?                 @default(0)
+  error_message       String?
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @default(now())
+  tenant_id           Int?
+  domain_validated    Boolean?             @default(false)
+  fallback_applied    Boolean?             @default(false)
+  delivery_latency_ms Int?
+  smtp_response       String?
+  tracking_id         String?
+  users               users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tracking_id], map: "emails_tracking_id_index")
+  @@index([tenant_id], map: "idx_tenant_id")
+  @@index([domain_validated], map: "idx_domain_validated")
+  @@index([user_id, sent_at], map: "idx_user_sent_at")
+  @@index([user_id, status, created_at(sort: Desc)], map: "idx_emails_user_status_created")
+  @@index([sent_at], map: "emails_sent_at_index")
+  @@index([status], map: "emails_status_index")
+  @@index([to_email], map: "emails_to_email_index")
+  @@index([message_id], map: "emails_message_id_index")
+  @@index([user_id, status], map: "emails_user_id_status_index")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model emails_backup {
+  id                  Int?
+  user_id             Int?
+  message_id          String?
+  from_email          String?
+  from_name           String?
+  to_email            String?
+  to_name             String?
+  cc                  String?
+  bcc                 String?
+  reply_to            String?
+  subject             String?
+  html_content        String?
+  text_content        String?
+  status              String?
+  sent_at             Unsupported("num")?
+  delivered_at        Unsupported("num")?
+  bounced_at          Unsupported("num")?
+  bounce_reason       String?
+  campaign_id         Int?
+  template_id         Int?
+  tags                Unsupported("num")?
+  metadata            Unsupported("num")?
+  attempts            Int?
+  error_message       String?
+  created_at          Unsupported("num")?
+  updated_at          Unsupported("num")?
+  tenant_id           Int?
+  domain_validated    Unsupported("num")?
+  fallback_applied    Unsupported("num")?
+  delivery_latency_ms Int?
+  smtp_response       String?
+  tracking_id         String?
+
+  @@ignore
+}
+
+model health_checks {
+  id               Int       @id @default(autoincrement())
+  service_name     String
+  is_healthy       Boolean
+  details          String?
+  error_message    String?
+  response_time_ms Int?
+  timestamp        DateTime? @default(now())
+
+  @@index([service_name, timestamp], map: "health_checks_service_name_timestamp_index")
+}
+
+model integration_logs {
+  id                 Int                  @id @default(autoincrement())
+  integration_id     Int
+  direction          String
+  status             String
+  event_type         String?
+  external_id        String?
+  http_status_code   Int?
+  request_url        String?
+  request_method     String?
+  request_headers    Unsupported("json")?
+  request_payload    String?
+  response_headers   Unsupported("json")?
+  response_payload   String?
+  error_message      String?
+  retry_count        Int?                 @default(0)
+  next_retry_at      DateTime?
+  processing_time_ms Int?
+  processed_at       DateTime?
+  created_at         DateTime?            @default(now())
+  integrations       integrations         @relation(fields: [integration_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([next_retry_at], map: "integration_logs_next_retry_at_index")
+  @@index([created_at], map: "integration_logs_created_at_index")
+  @@index([event_type], map: "integration_logs_event_type_index")
+  @@index([status], map: "integration_logs_status_index")
+  @@index([direction], map: "integration_logs_direction_index")
+  @@index([integration_id, status], map: "integration_logs_integration_id_status_index")
+}
+
+model integrations {
+  id                  Int                  @id @default(autoincrement())
+  user_id             Int
+  integration_name    String
+  integration_type    String
+  status              String?              @default("inactive")
+  description         String?
+  endpoint_url        String?
+  api_key             String?
+  secret_token        String?
+  configuration       Unsupported("json")?
+  field_mapping       Unsupported("json")?
+  trigger_events      Unsupported("json")?
+  is_bidirectional    Boolean?             @default(false)
+  requests_made       Int?                 @default(0)
+  successful_requests Int?                 @default(0)
+  failed_requests     Int?                 @default(0)
+  last_sync_at        DateTime?
+  last_error_at       DateTime?
+  last_error_message  String?
+  created_at          DateTime?            @default(now())
+  updated_at          DateTime?            @default(now())
+  integration_logs    integration_logs[]
+  users               users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status], map: "integrations_status_index")
+  @@index([integration_type], map: "integrations_integration_type_index")
+  @@index([user_id, status], map: "integrations_user_id_status_index")
+}
+
+model ip_domain_reputation {
+  id                 Int                  @id @default(autoincrement())
+  user_id            Int
+  ip_address         String?
+  domain_name        String?
+  reputation_type    String
+  reputation_score   Float?               @default(100)
+  total_sent         Int?                 @default(0)
+  total_delivered    Int?                 @default(0)
+  total_bounced      Int?                 @default(0)
+  total_complained   Int?                 @default(0)
+  delivery_rate      Float?               @default(0)
+  bounce_rate        Float?               @default(0)
+  complaint_rate     Float?               @default(0)
+  reputation_factors Unsupported("json")?
+  last_updated       DateTime?            @default(now())
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @default(now())
+  users              users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([reputation_score], map: "ip_domain_reputation_reputation_score_index")
+  @@index([domain_name], map: "ip_domain_reputation_domain_name_index")
+  @@index([ip_address], map: "ip_domain_reputation_ip_address_index")
+  @@index([user_id, reputation_type], map: "ip_domain_reputation_user_id_reputation_type_index")
+}
+
+model ip_reputation {
+  id                     Int       @id @default(autoincrement())
+  ip_address             String    @unique(map: "ip_reputation_ip_address_unique")
+  reputation_score       Float?    @default(1)
+  total_connections      Int?      @default(0)
+  successful_connections Int?      @default(0)
+  blocked_connections    Int?      @default(0)
+  spam_reports           Int?      @default(0)
+  last_activity          DateTime? @default(now())
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @default(now())
+
+  @@index([reputation_score], map: "ip_reputation_reputation_score_index")
+  @@index([ip_address], map: "ip_reputation_ip_address_index")
+}
+
+model knex_migrations {
+  id             Int       @id @default(autoincrement())
+  name           String?
+  batch          Int?
+  migration_time DateTime?
+}
+
+model knex_migrations_lock {
+  index     Int  @id @default(autoincrement())
+  is_locked Int?
+}
+
+model local_domains {
+  id          Int      @id @default(autoincrement())
+  domain      String   @unique(map: "local_domains_domain_unique")
+  is_active   Boolean? @default(true)
+  accept_all  Boolean? @default(false)
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+
+  @@index([is_active], map: "local_domains_is_active_index")
+  @@index([domain], map: "local_domains_domain_index")
+}
+
+model mx_server_reputation {
+  id                    Int                  @id @default(autoincrement())
+  mx_server             String
+  domain                String
+  score                 Float?               @default(100)
+  successful_deliveries Int?                 @default(0)
+  failed_deliveries     Int?                 @default(0)
+  avg_response_time     Float?               @default(0)
+  last_success          DateTime?
+  last_failure          DateTime?
+  failure_reasons       Unsupported("json")?
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @default(now())
+
+  @@unique([mx_server, domain], map: "mx_server_reputation_mx_server_domain_unique")
+  @@index([score], map: "mx_server_reputation_score_index")
+  @@index([mx_server], map: "mx_server_reputation_mx_server_index")
+}
+
+model phishing_detection {
+  id               Int       @id @default(autoincrement())
+  email_id         String?
+  confidence_score Float
+  is_phishing      Boolean
+  indicators       String?
+  suspicious_urls  String?
+  sender_domain    String?
+  detected_at      DateTime? @default(now())
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @default(now())
+
+  @@index([sender_domain], map: "phishing_detection_sender_domain_index")
+  @@index([is_phishing], map: "phishing_detection_is_phishing_index")
+  @@index([detected_at], map: "phishing_detection_detected_at_index")
+}
+
+model processed_emails {
+  id                Int                  @id @default(autoincrement())
+  message_id        String?              @unique(map: "processed_emails_message_id_unique")
+  from_address      String
+  to_address        String
+  subject           String?
+  direction         String
+  status            String
+  processing_result String?
+  rejection_reason  String?
+  security_checks   Unsupported("json")?
+  size_bytes        Int?
+  has_attachments   Boolean?             @default(false)
+  attachment_count  Int?                 @default(0)
+  dkim_valid        Boolean?
+  spf_result        String?
+  processed_at      DateTime?            @default(now())
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @default(now())
+
+  @@index([from_address], map: "processed_emails_from_address_index")
+  @@index([processed_at], map: "processed_emails_processed_at_index")
+  @@index([direction, status], map: "processed_emails_direction_status_index")
+}
+
+model queue_alerts {
+  id               Int      @id @default(autoincrement())
+  alert_id         String   @unique(map: "queue_alerts_alert_id_unique")
+  name             String
+  queue_name       String?
+  condition_type   String
+  threshold_value  Float
+  is_enabled       Boolean? @default(true)
+  cooldown_minutes Int?     @default(15)
+  webhook_url      String?
+  email_recipients String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @default(now())
+
+  @@index([alert_id], map: "queue_alerts_alert_id_index")
+}
+
+model queue_health_checks {
+  id              Int       @id @default(autoincrement())
+  overall_status  String
+  redis_connected Boolean?  @default(true)
+  total_jobs      Int?      @default(0)
+  total_failures  Int?      @default(0)
+  issues_count    Int?      @default(0)
+  issues_details  String?
+  timestamp       DateTime? @default(now())
+
+  @@index([timestamp], map: "queue_health_checks_timestamp_index")
+}
+
+model queue_job_failures {
+  id            Int       @id @default(autoincrement())
+  job_id        String
+  queue_name    String
+  job_name      String
+  job_data      String?
+  error_message String?
+  stack_trace   String?
+  attempts      Int?      @default(1)
+  failed_at     DateTime? @default(now())
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now())
+
+  @@index([job_id], map: "queue_job_failures_job_id_index")
+  @@index([queue_name, failed_at], map: "queue_job_failures_queue_name_failed_at_index")
+}
+
+model queue_metrics {
+  id              Int       @id @default(autoincrement())
+  queue_name      String
+  waiting_jobs    Int?      @default(0)
+  active_jobs     Int?      @default(0)
+  completed_jobs  Int?      @default(0)
+  failed_jobs     Int?      @default(0)
+  delayed_jobs    Int?      @default(0)
+  is_paused       Boolean?  @default(false)
+  processing_rate Float?    @default(0)
+  completion_rate Float?    @default(0)
+  failure_rate    Float?    @default(0)
+  timestamp       DateTime? @default(now())
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now())
+
+  @@index([queue_name, timestamp], map: "queue_metrics_queue_name_timestamp_index")
+}
+
+model rate_limit_configs {
+  id                  Int      @id @default(autoincrement())
+  identifier          String
+  type                String
+  max_connections     Int?     @default(100)
+  max_auth_attempts   Int?     @default(10)
+  max_emails_per_hour Int?     @default(5000)
+  max_emails_per_day  Int?     @default(50000)
+  is_active           Boolean? @default(true)
+  notes               String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now())
+
+  @@unique([identifier, type], map: "rate_limit_configs_identifier_type_unique")
+  @@index([is_active], map: "rate_limit_configs_is_active_index")
+}
+
+model rate_limit_logs {
+  id           Int       @id @default(autoincrement())
+  key          String
+  type         String
+  ip_address   String?
+  count        Int?      @default(1)
+  window_start DateTime
+  last_request DateTime? @default(now())
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @default(now())
+
+  @@index([window_start], map: "rate_limit_logs_window_start_index")
+  @@index([key, type], map: "rate_limit_logs_key_type_index")
+}
+
+model rate_limit_violations {
+  id              Int       @id @default(autoincrement())
+  identifier      String
+  limit_type      String
+  violation_count Int?      @default(1)
+  first_violation DateTime? @default(now())
+  last_violation  DateTime? @default(now())
+  is_blocked      Boolean?  @default(false)
+  expires_at      DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now())
+
+  @@index([identifier, limit_type], map: "rate_limit_violations_identifier_limit_type_index")
+}
+
+model request_metrics {
+  id                Int       @id @default(autoincrement())
+  method            String
+  route             String
+  status_code       Int
+  response_time_ms  Float
+  memory_usage_mb   Float?
+  cpu_usage_percent Float?
+  timestamp         DateTime? @default(now())
+
+  @@index([route, timestamp], map: "request_metrics_route_timestamp_index")
+}
+
+model security_blacklists {
+  id         Int       @id @default(autoincrement())
+  ip_address String    @unique(map: "security_blacklists_ip_address_unique")
+  reason     String
+  is_active  Boolean?  @default(true)
+  added_by   String?   @default("system")
+  expires_at DateTime?
+  last_seen  DateTime?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+
+  @@index([ip_address, is_active], map: "security_blacklists_ip_address_is_active_index")
+}
+
+model security_logs {
+  id           Int       @id @default(autoincrement())
+  event_type   String
+  severity     String
+  source_ip    String?
+  user_id      Int?
+  session_id   String?
+  details      String?
+  action_taken String?
+  timestamp    DateTime? @default(now())
+
+  @@index([source_ip], map: "security_logs_source_ip_index")
+  @@index([severity], map: "security_logs_severity_index")
+  @@index([event_type], map: "security_logs_event_type_index")
+  @@index([timestamp], map: "security_logs_timestamp_index")
+}
+
+model smtp_connections {
+  id             Int      @id @default(autoincrement())
+  remote_address String
+  hostname       String?
+  server_type    String
+  status         String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now())
+
+  @@index([created_at], map: "smtp_connections_created_at_index")
+  @@index([remote_address, server_type], map: "smtp_connections_remote_address_server_type_index")
+}
+
+model spam_analysis {
+  id           Int       @id @default(autoincrement())
+  email_id     String?
+  spam_score   Float
+  is_spam      Boolean
+  reason       String?
+  details      String?
+  sender_ip    String?
+  sender_email String?
+  subject_hash String?
+  analyzed_at  DateTime? @default(now())
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @default(now())
+
+  @@index([sender_ip], map: "spam_analysis_sender_ip_index")
+  @@index([is_spam], map: "spam_analysis_is_spam_index")
+  @@index([analyzed_at], map: "spam_analysis_analyzed_at_index")
+}
+
+model suppression_lists {
+  id            Int      @id @default(autoincrement())
+  user_id       Int
+  email_address String
+  reason        String
+  details       String?
+  is_global     Boolean? @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  users         users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, email_address], map: "suppression_lists_user_id_email_address_unique")
+  @@index([is_global], map: "suppression_lists_is_global_index")
+  @@index([reason], map: "suppression_lists_reason_index")
+  @@index([email_address], map: "suppression_lists_email_address_index")
+}
+
+model system_alerts {
+  id                  Int                   @id @default(autoincrement())
+  user_id             Int
+  alert_type          String
+  title               String
+  message             String
+  severity            String
+  severity_order      Int
+  status              String?               @default("active")
+  acknowledged_at     DateTime?
+  resolved_at         DateTime?
+  resolved_by         String?
+  metadata            Unsupported("json")?
+  action_url          String?
+  email_sent          Boolean?              @default(false)
+  email_sent_at       DateTime?
+  push_sent           Boolean?              @default(false)
+  push_sent_at        DateTime?
+  is_recurring        Boolean?              @default(false)
+  last_occurrence     DateTime?
+  occurrence_count    Int?                  @default(1)
+  suppression_minutes Int?
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @default(now())
+  alert_notifications alert_notifications[]
+  users               users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, status, severity_order, created_at], map: "idx_user_active_alerts")
+  @@index([resolved_at], map: "system_alerts_resolved_at_index")
+  @@index([created_at], map: "system_alerts_created_at_index")
+  @@index([severity_order, created_at], map: "system_alerts_severity_order_created_at_index")
+  @@index([alert_type, status], map: "system_alerts_alert_type_status_index")
+  @@index([user_id, severity, status], map: "system_alerts_user_id_severity_status_index")
+  @@index([user_id, status], map: "system_alerts_user_id_status_index")
+}
+
+model system_config {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique(map: "system_config_key_unique")
+  value       String?
+  type        String?  @default("string")
+  description String?
+  is_public   Boolean? @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+
+  @@index([is_public], map: "system_config_is_public_index")
+  @@index([key], map: "system_config_key_index")
+}
+
+model system_metrics {
+  id           Int       @id @default(autoincrement())
+  metric_name  String
+  metric_value Float
+  labels       String?
+  timestamp    DateTime? @default(now())
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @default(now())
+
+  @@index([metric_name, timestamp], map: "system_metrics_metric_name_timestamp_index")
+}
+
+model tenant_settings {
+  id                       Int                  @id @default(autoincrement())
+  user_id                  Int                  @unique(map: "tenant_settings_user_id_unique")
+  timezone                 String?              @default("America/Sao_Paulo")
+  default_from_email       String?
+  default_from_name        String?
+  bounce_handling          Boolean?             @default(true)
+  open_tracking            Boolean?             @default(true)
+  click_tracking           Boolean?             @default(true)
+  unsubscribe_tracking     Boolean?             @default(true)
+  suppression_list_enabled Boolean?             @default(true)
+  webhook_url              String?
+  webhook_secret           String?
+  webhook_enabled          Boolean?             @default(false)
+  custom_headers           Unsupported("json")?
+  notification_preferences Unsupported("json")?
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @default(now())
+  users                    users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([timezone], map: "tenant_settings_timezone_index")
+  @@index([user_id], map: "tenant_settings_user_id_index")
+}
+
+model time_series_metrics {
+  id           Int      @id @default(autoincrement())
+  timestamp    DateTime
+  metric_name  String
+  metric_value Float
+  tags         String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+
+  @@index([metric_name, timestamp], map: "time_series_metrics_metric_name_timestamp_index")
+}
+
+model user_alert_settings {
+  id                     Int                  @id @default(autoincrement())
+  user_id                Int                  @unique(map: "user_alert_settings_user_id_unique")
+  alerts_enabled         Boolean?             @default(true)
+  email_notifications    Boolean?             @default(true)
+  push_notifications     Boolean?             @default(true)
+  sms_notifications      Boolean?             @default(false)
+  severity_settings      Unsupported("json")?
+  alert_type_settings    Unsupported("json")?
+  timezone               String?              @default("America/Sao_Paulo")
+  quiet_hours_start      Unsupported("time")?
+  quiet_hours_end        Unsupported("time")?
+  quiet_days             Unsupported("json")?
+  max_alerts_per_hour    Int?                 @default(10)
+  max_alerts_per_day     Int?                 @default(50)
+  digest_frequency_hours Int?                 @default(24)
+  notification_email     String?
+  notification_phone     String?
+  webhook_url            String?
+  slack_webhook          String?
+  created_at             DateTime             @default(now())
+  updated_at             DateTime             @default(now())
+  users                  users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([alerts_enabled], map: "user_alert_settings_alerts_enabled_index")
+}
+
+model user_domain_permissions {
+  id                                              Int       @id @default(autoincrement())
+  user_id                                         Int
+  domain                                          String
+  permission_type                                 String?   @default("send")
+  is_active                                       Boolean?  @default(true)
+  granted_at                                      DateTime? @default(now())
+  granted_by                                      Int?
+  users_user_domain_permissions_granted_byTousers users?    @relation("user_domain_permissions_granted_byTousers", fields: [granted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_user_domain_permissions_user_idTousers    users     @relation("user_domain_permissions_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, domain], map: "unique_user_domain")
+  @@index([granted_at], map: "idx_user_domain_permissions_granted_at")
+  @@index([domain], map: "idx_user_domain_permissions_domain")
+  @@index([user_id, is_active], map: "idx_user_domain_permissions_active")
+}
+
+model user_domains {
+  id                  Int       @id @default(autoincrement())
+  user_id             Int
+  domain              String
+  verified            Boolean?  @default(false)
+  verified_at         DateTime?
+  verification_method String?
+  verification_token  String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now())
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model user_engagement {
+  id                    Int       @id @default(autoincrement())
+  user_id               String
+  email_address         String
+  total_emails_received Int?      @default(0)
+  total_opens           Int?      @default(0)
+  total_clicks          Int?      @default(0)
+  last_open             DateTime?
+  last_click            DateTime?
+  engagement_score      Float?    @default(0)
+  is_active             Boolean?  @default(true)
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @default(now())
+
+  @@index([engagement_score], map: "user_engagement_engagement_score_index")
+  @@index([user_id], map: "user_engagement_user_id_index")
+}
+
+model user_plans {
+  id                     Int       @id @default(autoincrement())
+  user_id                Int
+  plan_name              String    @default("free")
+  is_active              Boolean?  @default(true)
+  monthly_price          Float?    @default(0)
+  started_at             DateTime? @default(now())
+  expires_at             DateTime?
+  stripe_subscription_id String?
+  payment_method         String?
+  features               String?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @default(now())
+  users                  users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, is_active], map: "user_plans_user_id_is_active_index")
+  @@index([is_active], map: "user_plans_is_active_index")
+  @@index([plan_name], map: "user_plans_plan_name_index")
+  @@index([user_id], map: "user_plans_user_id_index")
+}
+
+model user_settings {
+  id                       Int                  @id @default(autoincrement())
+  user_id                  Int                  @unique(map: "user_settings_user_id_unique")
+  smtp_host                String?
+  smtp_port                Int?
+  smtp_username            String?
+  smtp_password_encrypted  String?
+  smtp_use_tls             Boolean?             @default(true)
+  smtp_use_custom          Boolean?             @default(false)
+  notification_preferences Unsupported("json")? @default(dbgenerated("'{\"email_delivery_reports\":true,\"bounce_notifications\":true,\"daily_summary\":true,\"weekly_reports\":false,\"security_alerts\":true,\"webhook_failures\":true}'"))
+  system_preferences       Unsupported("json")? @default(dbgenerated("'{\"theme\":\"light\",\"language\":\"pt-BR\",\"timezone\":\"America/Sao_Paulo\",\"date_format\":\"DD/MM/YYYY\",\"time_format\":\"24h\",\"items_per_page\":20,\"auto_refresh\":true,\"auto_refresh_interval\":30000}'"))
+  security_settings        Unsupported("json")? @default(dbgenerated("'{\"two_factor_enabled\":false,\"session_timeout\":3600,\"ip_whitelist\":[],\"api_rate_limit\":1000,\"require_password_confirmation\":false}'"))
+  branding_settings        Unsupported("json")? @default(dbgenerated("'{\"company_name\":\"\",\"company_logo_url\":\"\",\"custom_domain\":\"\",\"footer_text\":\"\",\"primary_color\":\"#3b82f6\",\"secondary_color\":\"#1e40af\"}'"))
+  analytics_settings       Unsupported("json")? @default(dbgenerated("'{\"default_time_range\":\"30d\",\"track_opens\":true,\"track_clicks\":true,\"track_downloads\":true,\"pixel_tracking\":true,\"utm_tracking\":true}'"))
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @default(now())
+  users                    users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "user_settings_user_id_index")
+}
+
+model users {
+  id                                                                Int                       @id @default(autoincrement())
+  email                                                             String                    @unique(map: "users_email_unique")
+  password_hash                                                     String
+  name                                                              String
+  organization                                                      String?
+  phone                                                             String?
+  is_verified                                                       Boolean?                  @default(false)
+  is_active                                                         Boolean?                  @default(true)
+  is_admin                                                          Boolean?                  @default(false)
+  verification_token                                                String?
+  verification_token_expires                                        DateTime?
+  reset_password_token                                              String?
+  reset_password_expires                                            DateTime?
+  last_login                                                        DateTime?
+  timezone                                                          String?                   @default("America/Sao_Paulo")
+  language                                                          String?                   @default("pt-BR")
+  email_verified_at                                                 DateTime?
+  created_at                                                        DateTime                  @default(now())
+  updated_at                                                        DateTime                  @default(now())
+  permissions                                                       Unsupported("json")?      @default(dbgenerated("'[\"email:send\", \"email:read\"]'"))
+  ab_tests                                                          ab_tests[]
+  alert_notifications                                               alert_notifications[]
+  api_keys                                                          api_keys[]
+  audit_logs                                                        audit_logs[]
+  batch_email_stats                                                 batch_email_stats[]
+  campaign_executions                                               campaign_executions[]
+  campaigns_campaigns_last_modified_byTousers                       campaigns[]               @relation("campaigns_last_modified_byTousers")
+  campaigns_campaigns_created_byTousers                             campaigns[]               @relation("campaigns_created_byTousers")
+  campaigns_campaigns_user_idTousers                                campaigns[]               @relation("campaigns_user_idTousers")
+  contact_activities                                                contact_activities[]
+  contact_lists                                                     contact_lists[]
+  contact_segments                                                  contact_segments[]
+  contacts                                                          contacts[]
+  domains                                                           domains[]
+  email_ab_tests                                                    email_ab_tests[]
+  email_analytics                                                   email_analytics[]
+  email_audit_logs                                                  email_audit_logs[]
+  email_automations                                                 email_automations[]
+  email_delivery_queue                                              email_delivery_queue[]
+  email_segments                                                    email_segments[]
+  email_templates                                                   email_templates[]
+  emails                                                            emails[]
+  integrations                                                      integrations[]
+  ip_domain_reputation                                              ip_domain_reputation[]
+  suppression_lists                                                 suppression_lists[]
+  system_alerts                                                     system_alerts[]
+  tenant_settings                                                   tenant_settings?
+  user_alert_settings                                               user_alert_settings?
+  user_domain_permissions_user_domain_permissions_granted_byTousers user_domain_permissions[] @relation("user_domain_permissions_granted_byTousers")
+  user_domain_permissions_user_domain_permissions_user_idTousers    user_domain_permissions[] @relation("user_domain_permissions_user_idTousers")
+  user_domains                                                      user_domains[]
+  user_plans                                                        user_plans[]
+  user_settings                                                     user_settings?
+  webhooks                                                          webhooks[]
+
+  @@index([reset_password_token], map: "users_reset_password_token_index")
+  @@index([verification_token], map: "users_verification_token_index")
+  @@index([is_active], map: "users_is_active_index")
+  @@index([email], map: "users_email_index")
+}
+
+model webhook_job_logs {
+  id            Int       @id @default(autoincrement())
+  webhook_id    Int
+  job_id        String
+  event_type    String
+  payload       String?
+  attempt       Int?      @default(1)
+  status        String?   @default("pending")
+  error_message String?
+  scheduled_at  DateTime? @default(now())
+  processed_at  DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now())
+  webhooks      webhooks  @relation(fields: [webhook_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([job_id], map: "webhook_job_logs_job_id_index")
+  @@index([webhook_id, status], map: "webhook_job_logs_webhook_id_status_index")
+}
+
+model webhook_logs {
+  id            Int       @id @default(autoincrement())
+  webhook_id    Int
+  event         String
+  payload       String?
+  success       Boolean
+  status_code   Int?
+  response_body String?
+  attempt       Int
+  error_message String?
+  created_at    DateTime? @default(now())
+  webhooks      webhooks  @relation(fields: [webhook_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([event], map: "webhook_logs_event_index")
+  @@index([webhook_id, created_at], map: "webhook_logs_webhook_id_created_at_index")
+}
+
+model webhooks {
+  id               Int                 @id @default(autoincrement())
+  user_id          Int
+  url              String
+  name             String
+  events           Unsupported("json")
+  is_active        Boolean?            @default(true)
+  secret           String?
+  max_retries      Int?                @default(3)
+  timeout_ms       Int?                @default(30000)
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @default(now())
+  webhook_job_logs webhook_job_logs[]
+  webhook_logs     webhook_logs[]
+  users            users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_active], map: "webhooks_is_active_index")
+  @@index([user_id], map: "webhooks_user_id_index")
+}

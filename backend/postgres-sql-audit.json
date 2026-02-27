@@ -1,0 +1,1135 @@
+{
+  "generatedAt": "2026-02-27T13:13:29.229Z",
+  "root": "C:\\Users\\fusea\\Desktop\\urbansend\\backend\\src",
+  "fileCount": 215,
+  "summary": {
+    "sqlite_strftime": 11,
+    "sqlite_datetime_now": 14,
+    "sqlite_insert_or_ignore": 3,
+    "sqlite_autoincrement": 27,
+    "double_quote_string_comparison": 94,
+    "mysql_interval_syntax": 11
+  },
+  "matches": [
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/controllers/keysController.ts",
+      "line": 247,
+      "col": 31,
+      "snippet": "status = \"sent\" THEN 1 END) as sent_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/controllers/keysController.ts",
+      "line": 248,
+      "col": 31,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/controllers/keysController.ts",
+      "line": 249,
+      "col": 31,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/controllers/keysController.ts",
+      "line": 250,
+      "col": 31,
+      "snippet": "status = \"failed\" THEN 1 END) as failed_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailMetricsCollector.ts",
+      "line": 251,
+      "col": 35,
+      "snippet": "event_type = \"sent\" THEN 1 END) as total_sent'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailMetricsCollector.ts",
+      "line": 252,
+      "col": 35,
+      "snippet": "event_type = \"failed\" THEN 1 END) as total_failed'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailMetricsCollector.ts",
+      "line": 312,
+      "col": 35,
+      "snippet": "event_type = \"sent\" THEN 1 END) as emails_sent_total'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailMetricsCollector.ts",
+      "line": 313,
+      "col": 35,
+      "snippet": "event_type = \"failed\" THEN 1 END) as total_failed'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailService.ts",
+      "line": 393,
+      "col": 35,
+      "snippet": "status = \"sent\" THEN 1 END) as sent_count'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailService.ts",
+      "line": 394,
+      "col": 35,
+      "snippet": "status = \"failed\" THEN 1 END) as failed_count'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/email/EmailService.ts",
+      "line": 395,
+      "col": 33,
+      "snippet": "status = \"sent\" THEN delivery_latency_ms END) as avg_latency'),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/migrations/A48_add_analytics_enhancements.js",
+      "line": 51,
+      "col": 24,
+      "snippet": "strftime('%H', created_at) AS INTEGER),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/migrations/A48_add_analytics_enhancements.js",
+      "line": 52,
+      "col": 26,
+      "snippet": "strftime('%w', created_at) AS INTEGER),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A49_create_user_settings_table.js",
+      "line": 81,
+      "col": 16,
+      "snippet": "datetime('now'), datetime('now')\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A49_create_user_settings_table.js",
+      "line": 81,
+      "col": 33,
+      "snippet": "datetime('now')\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 323,
+      "col": 78,
+      "snippet": "datetime('now')),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 347,
+      "col": 66,
+      "snippet": "datetime('now')),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 374,
+      "col": 84,
+      "snippet": "datetime('now')),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 400,
+      "col": 83,
+      "snippet": "datetime('now'));\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 75,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 104,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 122,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 138,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 152,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A68_create_shared_templates_system.js",
+      "line": 166,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 401,
+      "col": 30,
+      "snippet": "datetime('now')\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 426,
+      "col": 9,
+      "snippet": "datetime('now')\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 432,
+      "col": 26,
+      "snippet": "datetime('now', '-1 day')\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 31,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 50,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 119,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 131,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 150,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 186,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 228,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A69_create_advanced_analytics_segmentation.js",
+      "line": 244,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A70_create_ab_testing_system.js",
+      "line": 18,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A70_create_ab_testing_system.js",
+      "line": 40,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A70_create_ab_testing_system.js",
+      "line": 62,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A77_add_tracking_statuses_to_emails_enum.js",
+      "line": 16,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A77_add_tracking_statuses_to_emails_enum.js",
+      "line": 70,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 356,
+      "col": 78,
+      "snippet": "datetime('now')),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 380,
+      "col": 66,
+      "snippet": "datetime('now')),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 407,
+      "col": 84,
+      "snippet": "datetime('now')),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 433,
+      "col": 83,
+      "snippet": "datetime('now'));\r"
+    },
+    {
+      "pattern": "sqlite_insert_or_ignore",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 109,
+      "col": 5,
+      "snippet": "INSERT OR IGNORE INTO template_categories (name, description, icon, color, display_order) VALUES\r"
+    },
+    {
+      "pattern": "sqlite_insert_or_ignore",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 329,
+      "col": 5,
+      "snippet": "INSERT OR IGNORE INTO users (id, email, password_hash, name, is_admin, is_verified, is_active)\r"
+    },
+    {
+      "pattern": "sqlite_insert_or_ignore",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 333,
+      "col": 5,
+      "snippet": "INSERT OR IGNORE INTO email_templates (\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 27,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 58,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 97,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 126,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 144,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 160,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 174,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "sqlite_autoincrement",
+      "file": "src/migrations/A80_create_complete_templates_system.js",
+      "line": 188,
+      "col": 30,
+      "snippet": "AUTOINCREMENT,\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 164,
+      "col": 31,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 336,
+      "col": 31,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 337,
+      "col": 31,
+      "snippet": "status = \"sent\" THEN 1 END) as sent'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 338,
+      "col": 31,
+      "snippet": "status = \"opened\" THEN 1 END) as opened'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 339,
+      "col": 31,
+      "snippet": "status = \"clicked\" THEN 1 END) as clicked'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 340,
+      "col": 31,
+      "snippet": "status = \"bounced\" OR bounce_reason IS NOT NULL THEN 1 END) as bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 341,
+      "col": 31,
+      "snippet": "status = \"failed\" THEN 1 END) as failed')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/routes/analytics.ts",
+      "line": 379,
+      "col": 31,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AdvancedAnalyticsService.ts",
+      "line": 734,
+      "col": 35,
+      "snippet": "event_type = \"sent\" THEN 1 END) as sent_count'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AdvancedAnalyticsService.ts",
+      "line": 735,
+      "col": 35,
+      "snippet": "event_type = \"delivered\" THEN 1 END) as delivered_count'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AdvancedAnalyticsService.ts",
+      "line": 736,
+      "col": 35,
+      "snippet": "event_type = \"opened\" THEN 1 END) as opened_count'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AdvancedAnalyticsService.ts",
+      "line": 737,
+      "col": 35,
+      "snippet": "event_type = \"clicked\" THEN 1 END) as clicked_count'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AdvancedAnalyticsService.ts",
+      "line": 738,
+      "col": 35,
+      "snippet": "event_type = \"bounced\" THEN 1 END) as bounced_count')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 184,
+      "col": 35,
+      "snippet": "status = \"sent\" THEN 1 END) as sent_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 185,
+      "col": 35,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 186,
+      "col": 35,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 187,
+      "col": 35,
+      "snippet": "status = \"complained\" THEN 1 END) as complained_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 557,
+      "col": 35,
+      "snippet": "status = \"active\" THEN 1 END) as active_alerts'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 558,
+      "col": 35,
+      "snippet": "severity = \"critical\" AND status = \"active\" THEN 1 END) as critical_alerts'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 558,
+      "col": 61,
+      "snippet": "status = \"active\" THEN 1 END) as critical_alerts'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 559,
+      "col": 35,
+      "snippet": "severity = \"warning\" AND status = \"active\" THEN 1 END) as warning_alerts'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 559,
+      "col": 60,
+      "snippet": "status = \"active\" THEN 1 END) as warning_alerts'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 560,
+      "col": 35,
+      "snippet": "severity = \"info\" AND status = \"active\" THEN 1 END) as info_alerts')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/AlertsService.js",
+      "line": 560,
+      "col": 57,
+      "snippet": "status = \"active\" THEN 1 END) as info_alerts')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/CampaignService.js",
+      "line": 440,
+      "col": 33,
+      "snippet": "status = \"sent\" THEN 1 END) as sent'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/CampaignService.js",
+      "line": 441,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/CampaignService.js",
+      "line": 442,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/CampaignService.js",
+      "line": 443,
+      "col": 33,
+      "snippet": "status = \"failed\" THEN 1 END) as failed'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 325,
+      "col": 33,
+      "snippet": "event_type = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 326,
+      "col": 33,
+      "snippet": "event_type = \"opened\" THEN 1 END) as opened'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 327,
+      "col": 33,
+      "snippet": "event_type = \"clicked\" THEN 1 END) as clicked'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 328,
+      "col": 33,
+      "snippet": "event_type = \"bounced\" THEN 1 END) as bounced')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 424,
+      "col": 33,
+      "snippet": "status = \"sent\" THEN 1 END) as sent'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 425,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 426,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 427,
+      "col": 33,
+      "snippet": "status = \"failed\" THEN 1 END) as failed')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 462,
+      "col": 35,
+      "snippet": "event_type = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 463,
+      "col": 35,
+      "snippet": "event_type = \"opened\" THEN 1 END) as opened'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 464,
+      "col": 35,
+      "snippet": "event_type = \"clicked\" THEN 1 END) as clicked'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 465,
+      "col": 35,
+      "snippet": "event_type = \"bounced\" THEN 1 END) as bounced')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 536,
+      "col": 35,
+      "snippet": "event_type = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 537,
+      "col": 35,
+      "snippet": "event_type = \"opened\" THEN 1 END) as opened'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 538,
+      "col": 35,
+      "snippet": "event_type = \"clicked\" THEN 1 END) as clicked'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EmailAnalyticsService.ts",
+      "line": 539,
+      "col": 35,
+      "snippet": "event_type = \"bounced\" THEN 1 END) as bounced')\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 18,
+      "col": 44,
+      "snippet": "strftime(\"%H\", created_at) AS INTEGER)) as hour'),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 41,
+      "col": 47,
+      "snippet": "strftime(\"%H\", created_at) AS INTEGER))')\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 82,
+      "col": 46,
+      "snippet": "strftime(\"%w\", created_at) AS INTEGER)) as day_of_week'),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 103,
+      "col": 49,
+      "snippet": "strftime(\"%w\", created_at) AS INTEGER))')\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 467,
+      "col": 38,
+      "snippet": "strftime(\"%W\", created_at) AS INTEGER) + 1'),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 468,
+      "col": 39,
+      "snippet": "strftime(\"%m\", created_at) AS INTEGER)')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 177,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 178,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 179,
+      "col": 33,
+      "snippet": "status = \"complained\" THEN 1 END) as complained'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 180,
+      "col": 33,
+      "snippet": "status = \"failed\" THEN 1 END) as failed')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 239,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 240,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 241,
+      "col": 33,
+      "snippet": "status = \"complained\" THEN 1 END) as complained')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/EnhancedAnalyticsService.js",
+      "line": 505,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 ELSE 0 END) as delivered'),\r"
+    },
+    {
+      "pattern": "sqlite_datetime_now",
+      "file": "src/services/ExternalEmailService.ts",
+      "line": 529,
+      "col": 43,
+      "snippet": "datetime('now', '-${days} days')`))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 118,
+      "col": 39,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 148,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 154,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 185,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 194,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 225,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 233,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 24 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 242,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 1 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 252,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 1 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 260,
+      "col": 42,
+      "snippet": "NOW() - INTERVAL 2 HOUR'))\r"
+    },
+    {
+      "pattern": "mysql_interval_syntax",
+      "file": "src/services/MigrationMonitoringService.ts",
+      "line": 261,
+      "col": 41,
+      "snippet": "NOW() - INTERVAL 1 HOUR'))\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 49,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 ELSE 0 END) as bounces')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 76,
+      "col": 33,
+      "snippet": "status = \"complained\" THEN 1 ELSE 0 END) as complaints')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 104,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 ELSE 0 END) as total_delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 105,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 ELSE 0 END) as total_bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 106,
+      "col": 33,
+      "snippet": "status = \"complained\" THEN 1 ELSE 0 END) as total_complained')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 116,
+      "col": 36,
+      "snippet": "event_type = \"opened\" THEN 1 ELSE 0 END) as total_opened'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 117,
+      "col": 36,
+      "snippet": "event_type = \"clicked\" THEN 1 ELSE 0 END) as total_clicked')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 273,
+      "col": 35,
+      "snippet": "status = \"delivered\" THEN 1 ELSE 0 END) as delivered'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 274,
+      "col": 35,
+      "snippet": "status = \"bounced\" THEN 1 ELSE 0 END) as bounced'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 275,
+      "col": 35,
+      "snippet": "status = \"complained\" THEN 1 ELSE 0 END) as complained')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 359,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 100 ELSE 0 END) as avg_bounce_rate'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 360,
+      "col": 33,
+      "snippet": "status = \"complained\" THEN 100 ELSE 0 END) as avg_complaint_rate'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 361,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 100 ELSE 0 END) as avg_delivery_rate')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/reputationService.ts",
+      "line": 373,
+      "col": 40,
+      "snippet": "status = \"bounced\" THEN 1 ELSE 0 END) as bounces')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/SmtpConnectionService.ts",
+      "line": 84,
+      "col": 35,
+      "snippet": "status = \"connected\" THEN 1 END) as successful'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/SmtpConnectionService.ts",
+      "line": 164,
+      "col": 35,
+      "snippet": "status = \"connected\" THEN 1 END) as successful'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/SmtpConnectionService.ts",
+      "line": 199,
+      "col": 32,
+      "snippet": "status = \"connected\" THEN 1 ELSE 0 END as successful_count'))\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 52,
+      "col": 19,
+      "snippet": "strftime('${dateFormat}', emails.created_at) as period`),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 155,
+      "col": 19,
+      "snippet": "strftime('%H', created_at) as hour\"),\r"
+    },
+    {
+      "pattern": "sqlite_strftime",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 197,
+      "col": 19,
+      "snippet": "strftime('%w', created_at) as day_of_week\"),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 54,
+      "col": 42,
+      "snippet": "status = \"sent\" THEN 1 END) as sent_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 55,
+      "col": 42,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 56,
+      "col": 42,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 57,
+      "col": 42,
+      "snippet": "status = \"failed\" THEN 1 END) as failed_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 114,
+      "col": 42,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 115,
+      "col": 42,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 116,
+      "col": 42,
+      "snippet": "status = \"failed\" THEN 1 END) as failed_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 157,
+      "col": 35,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 199,
+      "col": 35,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 304,
+      "col": 33,
+      "snippet": "status = \"sent\" THEN 1 END) as sent_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 305,
+      "col": 33,
+      "snippet": "status = \"delivered\" THEN 1 END) as delivered_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 306,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 END) as bounced_emails'),\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/services/TrendAnalyticsService.ts",
+      "line": 307,
+      "col": 33,
+      "snippet": "status = \"failed\" THEN 1 END) as failed_emails')\r"
+    },
+    {
+      "pattern": "double_quote_string_comparison",
+      "file": "src/__tests__/bounce-handling.test.ts",
+      "line": 226,
+      "col": 33,
+      "snippet": "status = \"bounced\" THEN 1 ELSE 0 END) as bounces')\r"
+    }
+  ]
+}

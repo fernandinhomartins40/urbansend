@@ -13,6 +13,8 @@ DOMAIN="$WWW_DOMAIN"
 echo "Parando servicos existentes..."
 docker stop ultrazend-api 2>/dev/null || true
 docker rm ultrazend-api 2>/dev/null || true
+docker stop ultrazend-postgres 2>/dev/null || true
+docker rm ultrazend-postgres 2>/dev/null || true
 
 echo "Configurando diretorios..."
 mkdir -p "$APP_DIR" "$STATIC_DIR" "$APP_DIR/logs"/{application,errors,security,performance,business}
@@ -174,14 +176,41 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && echo "Nginx configurado com sucesso"
 
 echo "Criando diretorios para Docker..."
-mkdir -p /var/www/ultrazend/data
 mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
 mkdir -p /var/www/ultrazend/configs
 
 echo "Ajustando permissoes dos diretorios..."
 # UID 1001 = nodejs user no container
-chown -R 1001:1001 /var/www/ultrazend/data /var/www/ultrazend/logs
-chmod -R 755 /var/www/ultrazend/data /var/www/ultrazend/logs
+chown -R 1001:1001 /var/www/ultrazend/logs
+chmod -R 755 /var/www/ultrazend/logs
+
+docker network create ultrazend-network >/dev/null 2>&1 || true
+
+echo "Iniciando container PostgreSQL..."
+docker volume create ultrazend-postgres-data >/dev/null
+docker run -d \
+  --name ultrazend-postgres \
+  --restart unless-stopped \
+  --network ultrazend-network \
+  -e POSTGRES_DB=ultrazend \
+  -e POSTGRES_USER=ultrazend \
+  -e POSTGRES_PASSWORD=ultrazend \
+  -v ultrazend-postgres-data:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+echo "Aguardando PostgreSQL ficar pronto..."
+for i in $(seq 1 30); do
+  if docker exec ultrazend-postgres pg_isready -U ultrazend -d ultrazend >/dev/null 2>&1; then
+    echo "PostgreSQL pronto."
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "ERRO: PostgreSQL nao ficou pronto a tempo."
+    docker logs ultrazend-postgres --tail 50 || true
+    exit 1
+  fi
+  sleep 2
+done
 
 echo "Construindo imagem Docker..."
 cd "$APP_DIR"
@@ -191,12 +220,14 @@ echo "Iniciando container Docker..."
 docker run -d \
   --name ultrazend-api \
   --restart unless-stopped \
+  --network ultrazend-network \
   -p 3001:3001 \
   -m 512m \
   --memory-swap 512m \
   -e NODE_ENV=production \
+  -e DB_CLIENT=pg \
   -e PORT=3001 \
-  -e DATABASE_URL=/app/data/ultrazend.sqlite \
+  -e DATABASE_URL=postgresql://ultrazend:ultrazend@ultrazend-postgres:5432/ultrazend?schema=public \
   -e LOG_FILE_PATH=/app/logs \
   -e SMTP_HOST=localhost \
   -e SMTP_PORT=25 \
@@ -206,7 +237,6 @@ docker run -d \
   -e DKIM_SELECTOR=default \
   -e DKIM_DOMAIN=ultrazend.com.br \
   -e QUEUE_ENABLED=true \
-  -v /var/www/ultrazend/data:/app/data \
   -v /var/www/ultrazend/logs:/app/logs \
   -v /var/www/ultrazend/configs:/app/configs:ro \
   ultrazend-api:latest

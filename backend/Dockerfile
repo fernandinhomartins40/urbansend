@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY prisma ./prisma
 
 # Install dependencies
 RUN npm ci --omit=dev && \
@@ -26,6 +27,7 @@ RUN apk add --no-cache dumb-init
 
 # Copy package files
 COPY package*.json ./
+COPY prisma ./prisma
 
 # Install only production dependencies
 RUN npm ci --omit=dev
@@ -33,6 +35,8 @@ RUN npm ci --omit=dev
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/migrations ./src/migrations
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/knexfile.js ./knexfile.js
 
 # Create non-root user

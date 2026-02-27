@@ -1,18 +1,40 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ultrazend-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=ultrazend
+      - POSTGRES_USER=ultrazend
+      - POSTGRES_PASSWORD=ultrazend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - ultrazend-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ultrazend -d ultrazend"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
   ultrazend-api:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ultrazend-api
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
+      - DB_CLIENT=pg
       - PORT=3001
-      - DATABASE_URL=/app/data/ultrazend.sqlite
+      - DATABASE_URL=postgresql://ultrazend:ultrazend@postgres:5432/ultrazend?schema=public
       - LOG_FILE_PATH=/app/logs
       - SMTP_HOST=localhost
       - SMTP_PORT=25
@@ -22,8 +44,8 @@ services:
       - DKIM_SELECTOR=default
       - DKIM_DOMAIN=ultrazend.com.br
       - QUEUE_ENABLED=true
+    command: sh -c "npm run migrate:latest && node dist/index.js"
     volumes:
-      - ultrazend-data:/app/data
       - ultrazend-logs:/app/logs
       - /var/www/ultrazend/configs:/app/configs:ro
     networks:
@@ -36,12 +58,8 @@ services:
       retries: 3
 
 volumes:
-  ultrazend-data:
+  postgres-data:
     driver: local
-    driver_opts:
-      type: none
-      device: /var/www/ultrazend/data
-      o: bind
   ultrazend-logs:
     driver: local
     driver_opts:
