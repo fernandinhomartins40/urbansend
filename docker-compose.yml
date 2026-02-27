@@ -24,6 +24,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ultrazend-api
+    labels:
+      - com.ultrazend.component=application
+      - com.ultrazend.service=backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -47,7 +50,8 @@ services:
     command: sh -c "npm run migrate:latest && node dist/index.js"
     volumes:
       - ultrazend-logs:/app/logs
-      - /var/www/ultrazend/configs:/app/configs:ro
+      - ultrazend-storage:/app/storage
+      - /var/lib/ultrazend/configs:/app/configs
     networks:
       - ultrazend-network
     healthcheck:
@@ -64,8 +68,10 @@ volumes:
     driver: local
     driver_opts:
       type: none
-      device: /var/www/ultrazend/logs
+      device: /var/lib/ultrazend/logs
       o: bind
+  ultrazend-storage:
+    driver: local
 
 networks:
   ultrazend-network:

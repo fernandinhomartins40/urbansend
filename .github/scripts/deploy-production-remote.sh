@@ -1,27 +1,67 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 echo "ULTRAZEND DEPLOY VIA GITHUB ACTIONS - INICIANDO..."
 echo "=================================================="
 
+REPO_URL="https://github.com/fernandinhomartins40/urbansend.git"
 APP_DIR="/var/www/ultrazend"
 STATIC_DIR="/var/www/ultrazend-static"
+PERSIST_ROOT="/var/lib/ultrazend"
+CONFIG_DIR="$PERSIST_ROOT/configs"
+LOGS_DIR="$PERSIST_ROOT/logs"
+STORAGE_VOLUME="ultrazend-storage-data"
+POSTGRES_VOLUME="ultrazend-postgres-data"
+
 BASE_DOMAIN="ultrazend.com.br"
 WWW_DOMAIN="www.ultrazend.com.br"
 DOMAIN="$WWW_DOMAIN"
 
-echo "Parando servicos existentes..."
-docker stop ultrazend-api 2>/dev/null || true
-docker rm ultrazend-api 2>/dev/null || true
-docker stop ultrazend-postgres 2>/dev/null || true
-docker rm ultrazend-postgres 2>/dev/null || true
+remove_container_if_exists() {
+  local container_name="$1"
+  if docker ps -aq --filter "name=^/${container_name}$" | grep -q .; then
+    echo "Removendo container antigo: ${container_name}"
+    docker rm -f "${container_name}" >/dev/null 2>&1 || true
+  fi
+}
 
-echo "Configurando diretorios..."
-mkdir -p "$APP_DIR" "$STATIC_DIR" "$APP_DIR/logs"/{application,errors,security,performance,business}
+echo "Limpando containers antigos da aplicacao (preservando banco/volumes)..."
+labelled_app_containers="$(docker ps -aq --filter "label=com.ultrazend.component=application" || true)"
+if [ -n "${labelled_app_containers}" ]; then
+  echo "${labelled_app_containers}" | xargs -r docker rm -f >/dev/null 2>&1 || true
+fi
+remove_container_if_exists "ultrazend-api"
+remove_container_if_exists "ultrazend-frontend"
+remove_container_if_exists "ultrazend-backend"
+
+echo "Configurando diretorios persistentes..."
+mkdir -p "$STATIC_DIR"
+mkdir -p "$CONFIG_DIR/dkim-keys"
+mkdir -p "$LOGS_DIR"/{application,errors,security,performance,business}
+chown -R root:root "$CONFIG_DIR/dkim-keys" || true
+chmod -R 644 "$CONFIG_DIR/dkim-keys" || true
+chown -R 1001:1001 "$LOGS_DIR" || true
+chmod -R 755 "$LOGS_DIR" || true
+
+if [ -f "$CONFIG_DIR/dkim-keys/ultrazend.com.br-default-private.pem" ]; then
+  echo "DKIM private key found in persistent storage"
+else
+  echo "AVISO: DKIM private key not found in $CONFIG_DIR/dkim-keys"
+fi
+
+echo "Atualizando codigo da aplicacao..."
 rm -rf "$APP_DIR"
-git clone https://github.com/fernandinhomartins40/urbansend.git "$APP_DIR"
+git clone --depth 1 "$REPO_URL" "$APP_DIR"
 cd "$APP_DIR"
 echo "Repositorio clonado"
+
+echo "Sincronizando configuracoes versionadas para area persistente..."
+if [ -d "$APP_DIR/configs" ]; then
+  cp -a "$APP_DIR/configs/." "$CONFIG_DIR/"
+fi
+mkdir -p "$CONFIG_DIR/dkim-keys"
+chown -R root:root "$CONFIG_DIR/dkim-keys" || true
+chmod -R 644 "$CONFIG_DIR/dkim-keys" || true
 
 echo "Compilando frontend..."
 cd "$APP_DIR/frontend"
@@ -32,17 +72,6 @@ rm -rf "$STATIC_DIR"/*
 cp -r dist/* "$STATIC_DIR/"
 chown -R www-data:www-data "$STATIC_DIR"
 echo "Frontend compilado e copiado"
-
-echo "Corrigindo permissoes DKIM..."
-mkdir -p /var/www/ultrazend/configs/dkim-keys
-chown -R root:root /var/www/ultrazend/configs/dkim-keys/ || true
-chmod -R 644 /var/www/ultrazend/configs/dkim-keys/ || true
-
-if [ -f '/var/www/ultrazend/configs/dkim-keys/ultrazend.com.br-default-private.pem' ]; then
-  echo "DKIM private key found"
-else
-  echo "AVISO: DKIM private key not found - Email signing may not work"
-fi
 
 echo "Configurando Nginx..."
 cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
@@ -175,28 +204,31 @@ rm -f /etc/nginx/sites-enabled/ultrazend
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && echo "Nginx configurado com sucesso"
 
-echo "Criando diretorios para Docker..."
-mkdir -p /var/www/ultrazend/logs/{application,errors,security,performance,business}
-mkdir -p /var/www/ultrazend/configs
-
-echo "Ajustando permissoes dos diretorios..."
-# UID 1001 = nodejs user no container
-chown -R 1001:1001 /var/www/ultrazend/logs
-chmod -R 755 /var/www/ultrazend/logs
-
+echo "Preparando rede e volumes..."
 docker network create ultrazend-network >/dev/null 2>&1 || true
+docker volume create "$POSTGRES_VOLUME" >/dev/null
+docker volume create "$STORAGE_VOLUME" >/dev/null
 
-echo "Iniciando container PostgreSQL..."
-docker volume create ultrazend-postgres-data >/dev/null
-docker run -d \
-  --name ultrazend-postgres \
-  --restart unless-stopped \
-  --network ultrazend-network \
-  -e POSTGRES_DB=ultrazend \
-  -e POSTGRES_USER=ultrazend \
-  -e POSTGRES_PASSWORD=ultrazend \
-  -v ultrazend-postgres-data:/var/lib/postgresql/data \
-  postgres:16-alpine
+echo "Garantindo PostgreSQL sem apagar dados..."
+if docker ps -aq --filter "name=^/ultrazend-postgres$" | grep -q .; then
+  if docker ps --filter "name=^/ultrazend-postgres$" --format '{{.Names}}' | grep -q '^ultrazend-postgres$'; then
+    echo "Container ultrazend-postgres ja esta em execucao (preservado)."
+  else
+    echo "Iniciando container ultrazend-postgres existente..."
+    docker start ultrazend-postgres >/dev/null
+  fi
+else
+  echo "Criando container ultrazend-postgres..."
+  docker run -d \
+    --name ultrazend-postgres \
+    --restart unless-stopped \
+    --network ultrazend-network \
+    -e POSTGRES_DB=ultrazend \
+    -e POSTGRES_USER=ultrazend \
+    -e POSTGRES_PASSWORD=ultrazend \
+    -v ${POSTGRES_VOLUME}:/var/lib/postgresql/data \
+    postgres:16-alpine >/dev/null
+fi
 
 echo "Aguardando PostgreSQL ficar pronto..."
 for i in $(seq 1 30); do
@@ -212,13 +244,15 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-echo "Construindo imagem Docker..."
+echo "Construindo imagem Docker do backend..."
 cd "$APP_DIR"
 docker build -t ultrazend-api:latest -f backend/Dockerfile backend/
 
-echo "Iniciando container Docker..."
+echo "Subindo novo container backend..."
 docker run -d \
   --name ultrazend-api \
+  --label com.ultrazend.component=application \
+  --label com.ultrazend.service=backend \
   --restart unless-stopped \
   --network ultrazend-network \
   -p 3001:3001 \
@@ -237,27 +271,25 @@ docker run -d \
   -e DKIM_SELECTOR=default \
   -e DKIM_DOMAIN=ultrazend.com.br \
   -e QUEUE_ENABLED=true \
-  -v /var/www/ultrazend/logs:/app/logs \
-  -v /var/www/ultrazend/configs:/app/configs:ro \
+  -v "$LOGS_DIR":/app/logs \
+  -v "$CONFIG_DIR":/app/configs \
+  -v ${STORAGE_VOLUME}:/app/storage \
   ultrazend-api:latest \
   sh -c "npm run migrate:latest && node dist/index.js"
 
 echo "Aguardando container inicializar..."
 sleep 15
 
-echo "Verificando se container esta rodando..."
-if ! docker ps | grep -q ultrazend-api; then
-  echo "ERRO: Container nao esta rodando"
-  docker logs ultrazend-api --tail 50
+if ! docker ps --filter "name=^/ultrazend-api$" --format '{{.Names}}' | grep -q '^ultrazend-api$'; then
+  echo "ERRO: Container ultrazend-api nao esta rodando"
+  docker logs ultrazend-api --tail 80 || true
   exit 1
 fi
-echo "Migrations executadas no startup do container"
 
 systemctl reload nginx
 echo "Servicos iniciados"
 
 echo "Configurando SSL..."
-# Ensure both apex and www domains have SSL certificates
 if [ ! -f /etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem ]; then
   echo "Obtendo certificado SSL para apex domain..."
   certbot certonly --nginx -d $BASE_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup for apex completed with warnings"
@@ -268,19 +300,18 @@ if [ ! -f /etc/letsencrypt/live/$WWW_DOMAIN/fullchain.pem ]; then
   certbot certonly --nginx -d $WWW_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup for www completed with warnings"
 fi
 
-# Reload nginx to apply SSL configuration
 systemctl reload nginx
 echo "SSL configurado para ambos dominios"
 
 echo "Validando deployment..."
 sleep 10
 
-if docker ps | grep -q ultrazend-api; then
+if docker ps --filter "name=^/ultrazend-api$" --format '{{.Names}}' | grep -q '^ultrazend-api$'; then
   echo "Docker: ultrazend-api rodando"
-  docker ps | grep ultrazend-api
+  docker ps --filter "name=^/ultrazend-api$"
 else
   echo "Docker: ultrazend-api falhou"
-  docker logs ultrazend-api --tail 20 || true
+  docker logs ultrazend-api --tail 50 || true
   exit 1
 fi
 
@@ -288,6 +319,7 @@ if nginx -t >/dev/null 2>&1; then
   echo "Nginx: configuracao OK"
 else
   echo "Nginx: erro na configuracao"
+  exit 1
 fi
 
 echo "Testando health check do container..."
@@ -295,7 +327,9 @@ sleep 5
 if docker exec ultrazend-api node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" 2>/dev/null; then
   echo "Health check: OK"
 else
-  echo "AVISO: Health check falhou, mas container esta rodando"
+  echo "ERRO: Health check falhou"
+  docker logs ultrazend-api --tail 80 || true
+  exit 1
 fi
 
 echo ""
@@ -303,8 +337,12 @@ echo "DEPLOY CONCLUIDO!"
 echo "================="
 echo "Frontend: $STATIC_DIR"
 echo "Backend: $APP_DIR/backend"
+echo "Persistent Configs: $CONFIG_DIR"
+echo "Persistent Logs: $LOGS_DIR"
+echo "Storage Volume: $STORAGE_VOLUME"
+echo "Postgres Volume: $POSTGRES_VOLUME"
 echo "API URL: https://$DOMAIN/api/"
 echo "Frontend URL: https://$DOMAIN/"
 
-docker_status=$(docker ps --filter "name=ultrazend-api" --format "{{.Status}}" || echo 'not found')
+docker_status="$(docker ps --filter "name=^/ultrazend-api$" --format "{{.Status}}" || echo 'not found')"
 echo "Docker Status: $docker_status"
