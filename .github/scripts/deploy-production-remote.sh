@@ -77,12 +77,12 @@ export NODE_ENV=production
 npm run migrate:latest
 
 migration_files_count=$(find "$APP_DIR/backend/src/migrations" -maxdepth 1 -type f -name '*.js' | wc -l | tr -d ' ')
-if ! applied_migrations=$(NODE_ENV=production node <<'NODE'
+if ! applied_migrations_raw=$(NODE_ENV=production DOTENV_CONFIG_QUIET=true node <<'NODE'
 const path = require("path");
 const dotenv = require("dotenv");
 const knex = require("knex");
 
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+dotenv.config({ path: path.join(process.cwd(), ".env"), quiet: true });
 const config = require("./knexfile").production;
 const db = knex(config);
 
@@ -106,8 +106,9 @@ NODE
   exit 1
 fi
 
+applied_migrations=$(printf '%s\n' "$applied_migrations_raw" | tr -d '\r' | awk '/^[0-9]+$/ {value=$0} END {print value}')
 if ! [[ "$applied_migrations" =~ ^[0-9]+$ ]]; then
-  echo "CRITICO: Contagem de migracoes invalida ('$applied_migrations') - Deploy CANCELADO"
+  echo "CRITICO: Contagem de migracoes invalida ('$applied_migrations_raw') - Deploy CANCELADO"
   exit 1
 fi
 
