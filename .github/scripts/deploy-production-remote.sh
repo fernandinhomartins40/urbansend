@@ -218,17 +218,22 @@ fi
 
 cd "$APP_DIR/backend"
 export NODE_ENV=production
-echo 'const db = require("./dist/config/database.js").default; db.raw("SELECT 1").then(() => { console.log("DB_OK"); process.exit(0); }).catch(err => { console.error("DB_ERROR:", err.message); process.exit(1); });' > /tmp/db_test.js
-if timeout 10s NODE_ENV=production node /tmp/db_test.js 2>/dev/null | grep -q 'DB_OK'; then
+DB_MODULE="$APP_DIR/backend/dist/config/database.js"
+if [ ! -f "$DB_MODULE" ]; then
+  echo "CRITICO: Modulo de database nao encontrado em $DB_MODULE - DEPLOY FALHOU"
+  ls -la "$APP_DIR/backend/dist/config" || echo "Diretorio dist/config nao existe"
+  exit 1
+fi
+
+DB_TEST_SCRIPT='const db = require(process.env.DB_MODULE).default; db.raw("SELECT 1").then(() => { console.log("DB_OK"); process.exit(0); }).catch(err => { console.error("DB_ERROR:", err.message); process.exit(1); });'
+if timeout 10s env NODE_ENV=production DB_MODULE="$DB_MODULE" node -e "$DB_TEST_SCRIPT" 2>/dev/null | grep -q 'DB_OK'; then
   echo "Database: conectividade OK"
 else
   echo "CRITICO: Database erro de conectividade - DEPLOY FALHOU"
   echo "Debug output:"
-  NODE_ENV=production node /tmp/db_test.js || true
-  rm -f /tmp/db_test.js
+  env NODE_ENV=production DB_MODULE="$DB_MODULE" node -e "$DB_TEST_SCRIPT" || true
   exit 1
 fi
-rm -f /tmp/db_test.js
 
 echo ""
 echo "DEPLOY CONCLUIDO!"
