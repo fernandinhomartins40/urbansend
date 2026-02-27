@@ -185,6 +185,8 @@ docker run -d \
   --name ultrazend-api \
   --restart unless-stopped \
   -p 3001:3001 \
+  -m 512m \
+  --memory-swap 512m \
   -e NODE_ENV=production \
   -e PORT=3001 \
   -e DATABASE_URL=/app/data/ultrazend.sqlite \
@@ -202,8 +204,23 @@ docker run -d \
   -v /var/www/ultrazend/configs:/app/configs:ro \
   ultrazend-api:latest
 
+echo "Aguardando container inicializar..."
+sleep 15
+
+echo "Verificando se container esta rodando..."
+if ! docker ps | grep -q ultrazend-api; then
+  echo "ERRO: Container nao esta rodando"
+  docker logs ultrazend-api --tail 50
+  exit 1
+fi
+
 echo "Executando migrations no container..."
-docker exec ultrazend-api npm run migrate:latest
+if ! docker exec ultrazend-api npm run migrate:latest; then
+  echo "ERRO: Falha ao executar migrations"
+  docker logs ultrazend-api --tail 50
+  exit 1
+fi
+echo "Migrations executadas com sucesso"
 
 systemctl reload nginx
 echo "Servicos iniciados"
