@@ -6,7 +6,9 @@ echo "=================================================="
 
 APP_DIR="/var/www/ultrazend"
 STATIC_DIR="/var/www/ultrazend-static"
-DOMAIN="www.ultrazend.com.br"
+BASE_DOMAIN="ultrazend.com.br"
+WWW_DOMAIN="www.ultrazend.com.br"
+DOMAIN="$WWW_DOMAIN"
 
 echo "Parando servicos existentes..."
 pm2 stop all 2>/dev/null || true
@@ -124,6 +126,12 @@ echo "Configurando Nginx..."
 cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
 server {
     listen 80;
+    server_name ultrazend.com.br;
+    return 301 http://www.ultrazend.com.br$request_uri;
+}
+
+server {
+    listen 80;
     server_name www.ultrazend.com.br;
 
     location / {
@@ -151,7 +159,8 @@ server {
 }
 NGINX_EOF
 
-ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/000-ultrazend
+rm -f /etc/nginx/sites-enabled/ultrazend
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && echo "Nginx configurado com sucesso"
 
@@ -192,9 +201,9 @@ systemctl reload nginx
 echo "Servicos iniciados"
 
 echo "Configurando SSL..."
-if [ ! -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
+if [ ! -f /etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem ]; then
   echo "Obtendo certificado SSL..."
-  certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup completed with warnings"
+  certbot --nginx -d $BASE_DOMAIN -d $WWW_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup completed with warnings"
   systemctl reload nginx
 else
   echo "SSL ja configurado"
@@ -240,8 +249,8 @@ echo "DEPLOY CONCLUIDO!"
 echo "================="
 echo "Frontend: $STATIC_DIR"
 echo "Backend: $APP_DIR/backend"
-echo "API URL: http://$DOMAIN/api/"
-echo "Frontend URL: http://$DOMAIN/"
+echo "API URL: https://$DOMAIN/api/"
+echo "Frontend URL: https://$DOMAIN/"
 
 pm2_status=$(pm2 list | grep ultrazend-api | awk '{print $10}' || echo 'not found')
 echo "PM2 Status: $pm2_status"
