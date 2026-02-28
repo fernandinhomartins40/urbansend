@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const { spawnSync } = require('child_process');
 const path = require('path');
@@ -8,11 +8,17 @@ const path = require('path');
 const isPostgresUrl = (value = '') => /^postgres(ql)?:\/\//i.test(value);
 const usePostgres = isPostgresUrl(process.env.DATABASE_URL || '') || (process.env.DB_CLIENT || '').toLowerCase() === 'pg';
 
+const baseEnv = {
+  ...process.env,
+  DOTENV_CONFIG_QUIET: 'true',
+  PRISMA_HIDE_UPDATE_MESSAGE: 'true'
+};
+
 const run = (command, args) => {
   const executable = command;
   const result = spawnSync(executable, args, {
     stdio: 'inherit',
-    env: process.env,
+    env: baseEnv,
     shell: process.platform === 'win32'
   });
 
@@ -28,7 +34,16 @@ const run = (command, args) => {
 try {
   if (usePostgres) {
     console.log('Using PostgreSQL migration strategy via Prisma (db push).');
-    run('npx', ['prisma', 'db', 'push', '--schema', path.join('prisma', 'schema.prisma')]);
+    run('node', [path.join('scripts', 'prepare-postgres-for-prisma.js')]);
+    run('npx', [
+      'prisma',
+      'db',
+      'push',
+      '--accept-data-loss',
+      '--skip-generate',
+      '--schema',
+      path.join('prisma', 'schema.prisma')
+    ]);
     run('npx', ['prisma', 'generate', '--schema', path.join('prisma', 'schema.prisma')]);
   } else {
     console.log('Using SQLite migration strategy via Knex.');
