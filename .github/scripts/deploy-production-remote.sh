@@ -190,7 +190,7 @@ server {
 
     # Health check endpoint
     location /health {
-        proxy_pass http://127.0.0.1:3001/health;
+        proxy_pass http://127.0.0.1:3001/api/health/simple;
         access_log off;
     }
 }
@@ -323,14 +323,21 @@ else
 fi
 
 echo "Testando health check do container..."
-sleep 5
-if docker exec ultrazend-api node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" 2>/dev/null; then
-  echo "Health check: OK"
-else
-  echo "ERRO: Health check falhou"
-  docker logs ultrazend-api --tail 80 || true
-  exit 1
-fi
+for i in $(seq 1 12); do
+  if docker exec ultrazend-api node -e "require('http').get('http://localhost:3001/api/health/simple', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" 2>/dev/null; then
+    echo "Health check: OK"
+    break
+  fi
+
+  if [ "$i" -eq 12 ]; then
+    echo "ERRO: Health check falhou"
+    docker logs ultrazend-api --tail 120 || true
+    exit 1
+  fi
+
+  echo "Health check ainda nao respondeu, tentando novamente..."
+  sleep 5
+done
 
 echo ""
 echo "DEPLOY CONCLUIDO!"
