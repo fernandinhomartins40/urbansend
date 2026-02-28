@@ -29,6 +29,8 @@ const getRefreshCookieOptions = () => ({
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password } = req.body;
+  const dbClient = String((db as any)?.client?.config?.client || '').toLowerCase();
+  const isPostgres = dbClient === 'pg' || dbClient === 'postgres' || dbClient === 'postgresql';
 
   logger.info('Registration attempt started', { 
     email, 
@@ -74,7 +76,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   let userId;
   
   try {
-    insertResult = await db('users').insert({
+    const insertQuery = db('users').insert({
       name,
       email,
       password_hash: passwordHash,
@@ -85,9 +87,20 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       created_at: new Date(),
       updated_at: new Date()
     });
-    
-    // SQLite returns the last inserted row ID
-    userId = insertResult[0];
+
+    insertResult = isPostgres
+      ? await insertQuery.returning('id')
+      : await insertQuery;
+
+    const firstInsertResult = Array.isArray(insertResult) ? insertResult[0] : insertResult;
+    userId = typeof firstInsertResult === 'object' && firstInsertResult !== null
+      ? firstInsertResult.id
+      : firstInsertResult;
+
+    if (!userId) {
+      throw new Error(`Unable to determine inserted user id from database response: ${JSON.stringify(insertResult)}`);
+    }
+
     logger.info('User created successfully in database', { userId, email });
   } catch (dbError) {
     logger.error('Database error during user creation', { 
