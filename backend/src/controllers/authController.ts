@@ -169,6 +169,14 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     throw createError('Invalid credentials', 401);
   }
 
+  if (!user.is_verified && user.email_verified_at) {
+    await db('users').where('id', user.id).update({
+      is_verified: true,
+      updated_at: new Date()
+    });
+    user.is_verified = true;
+  }
+
   // Check if email is verified
   if (!user.is_verified) {
     throw createError('Please verify your email before logging in', 403);
@@ -269,33 +277,35 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Tabela audit_logs criada via migration 010_create_audit_logs.js
+  const verifiedAt = new Date();
 
-  // Transação para verificação com auditoria
-  await db.transaction(async (trx) => {
-    await trx('users').where('id', user.id).update({
-      is_verified: true,
-      verification_token: null,
-      verification_token_expires: null,
-      email_verified_at: new Date(),
-      updated_at: new Date()
-    });
-
-    // Log de auditoria
-    try {
-      await trx('audit_logs').insert({
-        user_id: user.id,
-        action: 'email_verified',
-        details: JSON.stringify({ email: user.email }),
-        ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        timestamp: new Date()
-      });
-    } catch (auditError) {
-      // Log de auditoria falhou - não impedir a verificação
-      logger.warn('Could not insert audit log', { auditError: auditError instanceof Error ? auditError.message : auditError });
-    }
+  // Keep verification independent so audit logging cannot roll it back.
+  await db('users').where('id', user.id).update({
+    is_verified: true,
+    verification_token: null,
+    verification_token_expires: null,
+    email_verified_at: verifiedAt,
+    updated_at: verifiedAt
   });
+
+  try {
+    await db('audit_logs').insert({
+      user_id: user.id,
+      action: 'email_verified',
+      resource_type: 'user',
+      resource_id: user.id,
+      details: JSON.stringify({ email: user.email }),
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+      created_at: verifiedAt,
+      updated_at: verifiedAt
+    });
+  } catch (auditError) {
+    logger.warn('Could not insert audit log after email verification', {
+      userId: user.id,
+      auditError: auditError instanceof Error ? auditError.message : auditError
+    });
+  }
 
   logger.info('Email verified successfully', { 
     userId: user.id, 
