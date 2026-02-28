@@ -27,8 +27,11 @@ const getRefreshCookieOptions = () => ({
   path: '/'
 });
 
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { name, email, password } = req.body;
+  const { name, password } = req.body;
+  const email = normalizeEmail(req.body.email);
   const dbClient = String((db as any)?.client?.config?.client || '').toLowerCase();
   const isPostgres = dbClient === 'pg' || dbClient === 'postgres' || dbClient === 'postgresql';
 
@@ -41,7 +44,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   });
 
   // Check if user already exists
-  const existingUser = await db('users').where('email', email).first();
+  const existingUser = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
   if (existingUser) {
     logger.warn('Registration attempt with existing email', { email, requestIP: req.ip });
     throw createError('User with this email already exists', 409);
@@ -151,10 +154,11 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   // Find user
-  const user = await db('users').where('email', email).first();
+  const user = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
   if (!user) {
     throw createError('Invalid credentials', 401);
   }
@@ -310,9 +314,9 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
 
-  const user = await db('users').where('email', email).first();
+  const user = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
   if (!user) {
     // Don't reveal if user exists or not
     return res.json({
@@ -325,8 +329,8 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
 
   // Store reset token in database with expiration
   await db('users').where('id', user.id).update({
-    password_reset_token: resetToken,
-    password_reset_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    reset_password_token: resetToken,
+    reset_password_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     updated_at: new Date()
   });
 
@@ -354,8 +358,8 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
   // Verify token and find user
   const user = await db('users')
-    .where('password_reset_token', token)
-    .where('password_reset_expires', '>', new Date())
+    .where('reset_password_token', token)
+    .where('reset_password_expires', '>', new Date())
     .first();
 
   if (!user) {
@@ -368,8 +372,8 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   // Update user password and clear reset token
   await db('users').where('id', user.id).update({
     password_hash: passwordHash,
-    password_reset_token: null,
-    password_reset_expires: null,
+    reset_password_token: null,
+    reset_password_expires: null,
     updated_at: new Date()
   });
 
@@ -551,12 +555,12 @@ export const debugVerificationTokens = asyncHandler(async (req: Request, res: Re
 });
 
 export const resendVerificationEmail = asyncHandler(async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   logger.info('Verification email resend requested', { email });
 
   // Find user by email
-  const user = await db('users').where('email', email).first();
+  const user = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
   if (!user) {
     logger.info('Verification email resend attempted for non-existent user', { email });
     return res.status(404).json({
