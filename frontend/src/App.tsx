@@ -20,6 +20,8 @@ const LoadingSpinner = () => (
 // Lazy load components for better performance
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail').then(m => ({ default: m.VerifyEmail })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
 const EmailList = lazy(() => import('./pages/EmailList').then(m => ({ default: m.EmailList })));
@@ -97,6 +99,26 @@ function AppRoutes() {
                     <VerifyEmail />
                   </Suspense>
                 } 
+              />
+              <Route
+                path="/forgot-password"
+                element={
+                  <PublicRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ForgotPassword />
+                    </Suspense>
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/reset-password"
+                element={
+                  <PublicRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ResetPassword />
+                    </Suspense>
+                  </PublicRoute>
+                }
               />
               
               {/* Protected app routes */}

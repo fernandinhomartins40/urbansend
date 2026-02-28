@@ -88,7 +88,7 @@ api.interceptors.response.use(
       }
       
       // Only try refresh if we're on a protected route and potentially had a session
-      const isPublicPage = ['/', '/login', '/admin/login', '/verify-email', '/forgot-password'].includes(window.location.pathname)
+      const isPublicPage = ['/', '/login', '/admin/login', '/verify-email', '/forgot-password', '/reset-password'].includes(window.location.pathname)
       if (isPublicPage) {
         // On public pages, don't try to refresh - just let the error through
         return Promise.reject(error);
