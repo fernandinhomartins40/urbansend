@@ -1066,44 +1066,6 @@ model emails {
   @@index([user_id, status], map: "emails_user_id_status_index")
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model emails_backup {
-  id                  Int?
-  user_id             Int?
-  message_id          String?
-  from_email          String?
-  from_name           String?
-  to_email            String?
-  to_name             String?
-  cc                  String?
-  bcc                 String?
-  reply_to            String?
-  subject             String?
-  html_content        String?
-  text_content        String?
-  status              String?
-  sent_at             Unsupported("num")?
-  delivered_at        Unsupported("num")?
-  bounced_at          Unsupported("num")?
-  bounce_reason       String?
-  campaign_id         Int?
-  template_id         Int?
-  tags                Unsupported("num")?
-  metadata            Unsupported("num")?
-  attempts            Int?
-  error_message       String?
-  created_at          Unsupported("num")?
-  updated_at          Unsupported("num")?
-  tenant_id           Int?
-  domain_validated    Unsupported("num")?
-  fallback_applied    Unsupported("num")?
-  delivery_latency_ms Int?
-  smtp_response       String?
-  tracking_id         String?
-
-  @@ignore
-}
-
 model health_checks {
   id               Int       @id @default(autoincrement())
   service_name     String
