@@ -39,6 +39,7 @@ try {
       'prisma',
       'db',
       'push',
+      '--accept-data-loss',
       '--skip-generate',
       '--schema',
       path.join('prisma', 'schema.prisma')
