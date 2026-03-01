@@ -87,7 +87,7 @@ export const DomainStatusCard = ({
 
   // Handler para configurar domínio
   const handleConfigure = () => {
-    navigate(`/app/domains/${domain.id}/setup`)
+    navigate(`/app/domains?mode=setup&domainId=${domain.id}`)
   }
 
   // Handler para verificar DNS
@@ -302,7 +302,7 @@ export const DomainStatusCard = ({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => navigate(`/app/domains/${domain.id}/analytics`)}
+              onClick={() => navigate(`/app/analytics?domain=${domain.id}`)}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
               Analytics
@@ -355,7 +355,7 @@ export const DomainStatusGrid = ({
           <p className="text-muted-foreground mb-4">
             Configure seu primeiro domínio para começar a enviar emails
           </p>
-          <Button onClick={() => window.location.href = '/app/domains/setup'}>
+          <Button onClick={() => window.location.href = '/app/domains?mode=setup'}>
             <Settings className="h-4 w-4 mr-2" />
             Configurar Primeiro Domínio
           </Button>

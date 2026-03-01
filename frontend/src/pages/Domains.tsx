@@ -1,219 +1,56 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  BarChart3,
+  CheckCircle,
+  Globe,
+  Plus,
+  RefreshCw,
+  Shield,
+} from 'lucide-react'
+import { DomainList } from '@/components/domain/DomainList'
+import { DomainSetupWizard } from '@/components/domain/DomainSetupWizard'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DomainSetupWizard } from '@/components/domain/DomainSetupWizard'
-import { DomainList } from '@/components/domain/DomainList'
 import { useDomainSetup } from '@/hooks/useDomainSetup'
-import { 
-  Globe, Plus, Settings, Users, BarChart3, ArrowLeft, Activity, Shield, CheckCircle, AlertTriangle, XCircle, Zap
-} from 'lucide-react'
+import { analyticsApi } from '@/lib/api'
 
 interface DomainStatsProps {
-  domains: any[]
+  domains: Array<{
+    id: number
+    status: 'pending' | 'partial' | 'verified' | 'failed'
+    is_verified: boolean
+  }>
 }
 
-// 🔧 FASE 4.2: Dashboard de Monitoramento - Componente de Monitoramento DKIM
-const DomainMonitoring: React.FC<{ domains: any[] }> = ({ domains }) => {
-  const [testingDomain, setTestingDomain] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<{[key: string]: any}>({})
-
-  const handleDKIMTest = async (domain: string) => {
-    setTestingDomain(domain)
-    try {
-      // Simulação de teste DKIM - em produção, seria uma chamada real à API
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      const success = Math.random() > 0.3 // 70% de sucesso para simulação
-      setTestResults(prev => ({
-        ...prev,
-        [domain]: {
-          success,
-          timestamp: new Date(),
-          details: success 
-            ? 'DKIM signature validated successfully'
-            : 'DKIM validation failed - please check DNS records'
-        }
-      }))
-    } catch (error) {
-      setTestResults(prev => ({
-        ...prev,
-        [domain]: {
-          success: false,
-          timestamp: new Date(),
-          details: 'Test failed due to network error'
-        }
-      }))
-    } finally {
-      setTestingDomain(null)
-    }
-  }
-
-  const getDomainHealthStatus = (domain: any) => {
-    const testResult = testResults[domain.domain_name]
-    if (!domain.is_verified) return { icon: XCircle, color: 'text-red-600', text: 'Não Verificado' }
-    if (testResult?.success === false) return { icon: AlertTriangle, color: 'text-yellow-600', text: 'DKIM com Problemas' }
-    if (testResult?.success === true) return { icon: CheckCircle, color: 'text-green-600', text: 'DKIM OK' }
-    return { icon: Shield, color: 'text-blue-600', text: 'Verificado' }
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-green-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {domains.filter(d => d.is_verified).length}
-                </div>
-                <div className="text-sm text-gray-600">DKIM Ativos</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Activity className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {Object.values(testResults).filter((r: any) => r.success).length}
-                </div>
-                <div className="text-sm text-gray-600">Testes OK</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {Object.values(testResults).filter((r: any) => r.success === false).length}
-                </div>
-                <div className="text-sm text-gray-600">Com Alertas</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Domain Monitoring Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Activity className="h-5 w-5" />
-            <span>Status DKIM por Domínio</span>
-          </CardTitle>
-          <CardDescription>
-            Monitoramento em tempo real do status de DKIM dos seus domínios
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {domains.map((domain) => {
-              const healthStatus = getDomainHealthStatus(domain)
-              const testResult = testResults[domain.domain_name]
-              const IconComponent = healthStatus.icon
-
-              return (
-                <div key={domain.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <IconComponent className={`h-6 w-6 ${healthStatus.color}`} />
-                    <div>
-                      <div className="font-medium">{domain.domain_name}</div>
-                      <div className="text-sm text-gray-600">
-                        {healthStatus.text}
-                      </div>
-                      {testResult && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Último teste: {testResult.timestamp.toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    {domain.is_verified && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDKIMTest(domain.domain_name)}
-                        disabled={testingDomain === domain.domain_name}
-                        className="flex items-center space-x-1"
-                      >
-                        <Zap className="h-4 w-4" />
-                        <span>
-                          {testingDomain === domain.domain_name ? 'Testando...' : 'Testar DKIM'}
-                        </span>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {domains.length === 0 && (
-            <div className="text-center py-8">
-              <Shield className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-medium mb-2">Nenhum domínio configurado</h3>
-              <p className="text-muted-foreground">
-                Adicione um domínio para começar o monitoramento DKIM
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Alertas de Configuração */}
-      {Object.keys(testResults).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5" />
-              <span>Alertas Recentes</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Object.entries(testResults)
-                .filter(([_, result]: any) => !result.success)
-                .map(([domain, result]: any) => (
-                  <div key={domain} className="flex items-start space-x-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                    <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-yellow-800">{domain}</div>
-                      <div className="text-sm text-yellow-700">{result.details}</div>
-                      <div className="text-xs text-yellow-600">
-                        {result.timestamp.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              }
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
+interface DomainAnalyticsRow {
+  domain_id: number
+  domain: string
+  sent_count: number
+  delivered_count: number
+  opened_count: number
+  clicked_count: number
+  bounced_count: number
+  delivery_rate: number
+  open_rate: number
+  click_rate: number
+  bounce_rate: number
 }
 
 const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
   const totalDomains = domains.length
-  const verifiedDomains = domains.filter(d => d.status === 'verified').length
-  const pendingDomains = domains.filter(d => d.status === 'pending').length
-  const failedDomains = domains.filter(d => d.status === 'failed').length
+  const verifiedDomains = domains.filter((domain) => domain.status === 'verified').length
+  const pendingDomains = domains.filter((domain) => domain.status === 'pending' || domain.status === 'partial').length
+  const failedDomains = domains.filter((domain) => domain.status === 'failed').length
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
@@ -229,7 +66,7 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <Users className="h-5 w-5 text-green-600" />
+            <CheckCircle className="h-5 w-5 text-green-600" />
             <div>
               <div className="text-2xl font-bold">{verifiedDomains}</div>
               <div className="text-sm text-gray-600">Verificados</div>
@@ -241,10 +78,10 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5 text-yellow-600" />
+            <RefreshCw className="h-5 w-5 text-amber-600" />
             <div>
               <div className="text-2xl font-bold">{pendingDomains}</div>
-              <div className="text-sm text-gray-600">Pendentes</div>
+              <div className="text-sm text-gray-600">Em ajuste</div>
             </div>
           </div>
         </CardContent>
@@ -253,15 +90,76 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <Settings className="h-5 w-5 text-red-600" />
+            <AlertTriangle className="h-5 w-5 text-red-600" />
             <div>
               <div className="text-2xl font-bold">{failedDomains}</div>
-              <div className="text-sm text-gray-600">Com Falhas</div>
+              <div className="text-sm text-gray-600">Com falha</div>
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+const DomainMonitoring: React.FC<{ domains: ReturnType<typeof useDomainSetup>['domains'] }> = ({ domains }) => {
+  if (domains.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <Shield className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+          <h3 className="mb-2 text-lg font-medium">Nenhum dominio configurado</h3>
+          <p className="text-muted-foreground">Adicione um dominio para acompanhar o status dos registros.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-5 w-5" />
+          Status de autenticacao
+        </CardTitle>
+        <CardDescription>Leitura direta do estado atual de SPF, DKIM e DMARC.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {domains.map((domain) => (
+          <div key={domain.id} className="rounded-lg border p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="font-medium">{domain.name}</div>
+                <div className="text-sm text-muted-foreground">{domain.completion_percentage}% concluido</div>
+              </div>
+              <Badge variant={domain.is_verified ? 'default' : 'outline'}>
+                {domain.is_verified ? 'Pronto para envio' : 'Aguardando verificacao'}
+              </Badge>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-3">
+              {[
+                { label: 'SPF', state: domain.dns_status.spf },
+                { label: 'DKIM', state: domain.dns_status.dkim },
+                { label: 'DMARC', state: domain.dns_status.dmarc },
+              ].map((item) => (
+                <div key={item.label} className="rounded-md bg-gray-50 p-3">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-medium">{item.label}</span>
+                    <Badge variant={item.state.valid ? 'default' : 'destructive'}>
+                      {item.state.valid ? 'Valido' : 'Ajustar'}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {item.state.configured ? 'Registro publicado' : 'Registro ausente'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -272,53 +170,80 @@ interface DomainsPageProps {
 }
 
 export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>(initialMode)
-  const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null)
-  const [editingDomainId, setEditingDomainId] = useState<number | null>(null)
-  const { loading, domains } = useDomainSetup()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [viewMode, setViewMode] = useState<ViewMode>(searchParams.get('mode') === 'setup' ? 'setup' : initialMode)
+  const [editingDomainId, setEditingDomainId] = useState<number | null>(
+    searchParams.get('domainId') ? Number(searchParams.get('domainId')) : null
+  )
+  const [analyticsRange, setAnalyticsRange] = useState('30d')
+  const { domains, loadDomains } = useDomainSetup()
 
-  const handleSetupComplete = (domainId: number) => {
+  useEffect(() => {
+    loadDomains()
+  }, [loadDomains])
+
+  useEffect(() => {
+    const mode = searchParams.get('mode')
+    const domainId = searchParams.get('domainId')
+
+    setViewMode(mode === 'setup' ? 'setup' : 'list')
+    setEditingDomainId(domainId ? Number(domainId) : null)
+  }, [searchParams])
+
+  const { data: analyticsResponse, isLoading: analyticsLoading, refetch: refetchAnalytics } = useQuery({
+    queryKey: ['analytics', 'domains', analyticsRange],
+    queryFn: () => analyticsApi.getDomains({ timeRange: analyticsRange }),
+  })
+
+  const domainAnalytics: DomainAnalyticsRow[] = analyticsResponse?.data?.domains || []
+
+  const summary = useMemo(
+    () => ({
+      sent: domainAnalytics.reduce((total, domain) => total + Number(domain.sent_count || 0), 0),
+      delivered: domainAnalytics.reduce((total, domain) => total + Number(domain.delivered_count || 0), 0),
+      opened: domainAnalytics.reduce((total, domain) => total + Number(domain.opened_count || 0), 0),
+      clicked: domainAnalytics.reduce((total, domain) => total + Number(domain.clicked_count || 0), 0),
+    }),
+    [domainAnalytics]
+  )
+
+  const handleSetupComplete = () => {
     setViewMode('list')
-    setSelectedDomainId(domainId)
     setEditingDomainId(null)
+    setSearchParams({})
+    loadDomains()
+    refetchAnalytics()
   }
 
   const handleSetupCancel = () => {
     setViewMode('list')
     setEditingDomainId(null)
+    setSearchParams({})
   }
 
   const handleAddDomain = () => {
     setViewMode('setup')
-  }
-
-  const handleViewDomain = (domainId: number) => {
-    setSelectedDomainId(domainId)
-    // Função handleViewDomain não é mais necessária aqui
-    // O botão view agora abre o modal diretamente no DomainList
+    setEditingDomainId(null)
+    setSearchParams({ mode: 'setup' })
   }
 
   const handleEditDomain = (domainId: number) => {
-    setEditingDomainId(domainId)
-    setSelectedDomainId(domainId)
     setViewMode('setup')
+    setEditingDomainId(domainId)
+    setSearchParams({ mode: 'setup', domainId: String(domainId) })
   }
 
   if (viewMode === 'setup') {
     return (
       <div className="min-h-screen bg-gray-50 py-6">
-        <div className="max-w-4xl mx-auto px-4">
+        <div className="mx-auto max-w-4xl px-4">
           <div className="mb-6">
-            <Button
-              variant="ghost"
-              onClick={handleSetupCancel}
-              className="mb-4"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar para Lista
+            <Button variant="ghost" onClick={handleSetupCancel} className="mb-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar para lista
             </Button>
           </div>
-          
+
           <DomainSetupWizard
             onComplete={handleSetupComplete}
             onCancel={handleSetupCancel}
@@ -333,65 +258,140 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Domínios</h1>
-          <p className="text-muted-foreground">
-            Gerencie e configure seus domínios para envio de emails autenticados
-          </p>
+          <h1 className="text-3xl font-bold">Dominios</h1>
+          <p className="text-muted-foreground">Feche a autenticacao do dominio antes de abrir o envio em producao.</p>
         </div>
+        <Button onClick={handleAddDomain}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo dominio
+        </Button>
       </div>
 
       <DomainStats domains={domains} />
 
-      <div className="space-y-6">
-        <Tabs defaultValue="domains" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="domains" className="flex items-center space-x-2">
-              <Globe className="w-4 h-4" />
-              <span>Meus Domínios</span>
-            </TabsTrigger>
-            <TabsTrigger value="monitoring" className="flex items-center space-x-2">
-              <Activity className="w-4 h-4" />
-              <span>Monitoramento</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4" />
-              <span>Análises</span>
-            </TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="domains" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="domains" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            <span>Meus dominios</span>
+          </TabsTrigger>
+          <TabsTrigger value="monitoring" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span>Monitoramento</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span>Analises</span>
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="domains" className="mt-6">
-            <DomainList
-              onAddDomain={handleAddDomain}
-              onViewDomain={handleViewDomain}
-              onEditDomain={handleEditDomain}
-            />
-          </TabsContent>
+        <TabsContent value="domains" className="mt-6">
+          <DomainList onAddDomain={handleAddDomain} onEditDomain={handleEditDomain} />
+        </TabsContent>
 
-          <TabsContent value="monitoring" className="mt-6">
-            <DomainMonitoring domains={domains} />
-          </TabsContent>
+        <TabsContent value="monitoring" className="mt-6">
+          <DomainMonitoring domains={domains} />
+        </TabsContent>
 
-          <TabsContent value="analytics" className="mt-6">
+        <TabsContent value="analytics" className="mt-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Performance por dominio</h2>
+              <p className="text-sm text-muted-foreground">Metricas reais consolidadas a partir do historico de envio.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {['7d', '30d', '90d'].map((range) => (
+                <Button
+                  key={range}
+                  size="sm"
+                  variant={analyticsRange === range ? 'default' : 'outline'}
+                  onClick={() => setAnalyticsRange(range)}
+                >
+                  {range}
+                </Button>
+              ))}
+              <Button size="sm" variant="outline" onClick={() => refetchAnalytics()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Análises de Domínio</CardTitle>
-                <CardDescription>
-                  Métricas de desempenho e deliverability dos seus domínios
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <BarChart3 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-xl font-medium mb-2">Análises em Desenvolvimento</h3>
-                  <p className="text-muted-foreground">
-                    Métricas detalhadas de deliverability e performance estarão disponíveis em breve.
-                  </p>
-                </div>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Enviados</div>
+                <div className="text-2xl font-bold">{summary.sent}</div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Entregues</div>
+                <div className="text-2xl font-bold">{summary.delivered}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Abertos</div>
+                <div className="text-2xl font-bold">{summary.opened}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Cliques</div>
+                <div className="text-2xl font-bold">{summary.clicked}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Detalhamento</CardTitle>
+              <CardDescription>Entregabilidade e engajamento consolidados por dominio.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {analyticsLoading ? (
+                <div className="py-8 text-center text-muted-foreground">Carregando metricas...</div>
+              ) : domainAnalytics.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">Ainda nao ha dados suficientes para este periodo.</div>
+              ) : (
+                <div className="space-y-3">
+                  {domainAnalytics.map((domain) => (
+                    <div key={domain.domain_id} className="rounded-lg border p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{domain.domain}</div>
+                          <div className="text-sm text-muted-foreground">{domain.sent_count} emails enviados</div>
+                        </div>
+                        <Badge variant="outline">{domain.delivery_rate.toFixed(1)}% entrega</Badge>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <div className="rounded-md bg-gray-50 p-3">
+                          <div className="text-sm text-muted-foreground">Entregues</div>
+                          <div className="text-lg font-semibold">{domain.delivered_count}</div>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-3">
+                          <div className="text-sm text-muted-foreground">Abertura</div>
+                          <div className="text-lg font-semibold">{domain.open_rate.toFixed(1)}%</div>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-3">
+                          <div className="text-sm text-muted-foreground">Clique</div>
+                          <div className="text-lg font-semibold">{domain.click_rate.toFixed(1)}%</div>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-3">
+                          <div className="text-sm text-muted-foreground">Bounce</div>
+                          <div className="text-lg font-semibold">{domain.bounce_rate.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

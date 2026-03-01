@@ -40,6 +40,7 @@ export interface InfiniteEmailsResult {
   getEmailsByStatus: (status: string) => Email[]
   getEmailsCount: () => number
   prefetchNext: () => void
+  handleAutoPrefetch: (currentIndex: number) => void
 }
 
 /**
@@ -118,9 +119,14 @@ export const useInfiniteEmails = (filters: EmailFilters = {}): InfiniteEmailsRes
       if (nextPageParam) {
         const pagination = nextPageParam.data.pagination
         if (pagination.has_next) {
-          queryClient.prefetchInfiniteQuery({
-            queryKey: queryKeys.emails.infinite(normalizedFilters),
-            pages: 1,
+          queryClient.prefetchQuery({
+            queryKey: [...queryKeys.emails.infinite(normalizedFilters), pagination.current_page + 1],
+            queryFn: () =>
+              emailApi.getEmails({
+                ...normalizedFilters,
+                page: pagination.current_page + 1,
+              }),
+            staleTime: INFINITE_CONFIG.STALE_TIME,
           })
         }
       }

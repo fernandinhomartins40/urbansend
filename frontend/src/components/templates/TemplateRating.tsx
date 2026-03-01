@@ -30,33 +30,6 @@ export const TemplateRating: React.FC<TemplateRatingProps> = ({
 
   const queryClient = useQueryClient()
 
-  const ratingMutation = useMutation({
-    mutationFn: async (data: { rating: number; review?: string }) => {
-      return await sharedTemplateApi.rateTemplate(templateId, data)
-    },
-    onSuccess: () => {
-      toast.success('Avaliação enviada com sucesso!')
-      setIsOpen(false)
-      setReview('')
-      queryClient.invalidateQueries({ queryKey: queryKeys.templates.all })
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Erro ao avaliar template')
-    }
-  })
-
-  const handleSubmit = () => {
-    if (rating === 0) {
-      toast.error('Por favor, selecione uma classificação')
-      return
-    }
-
-    ratingMutation.mutate({
-      rating,
-      review: review.trim() || undefined
-    })
-  }
-
   const StarRating = ({
     value,
     onChange,
@@ -102,6 +75,33 @@ export const TemplateRating: React.FC<TemplateRatingProps> = ({
         ))}
       </div>
     )
+  }
+
+  const ratingMutation = useMutation({
+    mutationFn: async (data: { rating: number; review?: string }) => {
+      return await sharedTemplateApi.rateTemplate(templateId, data)
+    },
+    onSuccess: () => {
+      toast.success('Avaliação enviada com sucesso!')
+      setIsOpen(false)
+      setReview('')
+      queryClient.invalidateQueries({ queryKey: queryKeys.templates.all })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao avaliar template')
+    }
+  })
+
+  const handleSubmit = () => {
+    if (rating === 0) {
+      toast.error('Por favor, selecione uma classificação')
+      return
+    }
+
+    ratingMutation.mutate({
+      rating,
+      review: review.trim() || undefined
+    })
   }
 
   return (
@@ -225,5 +225,3 @@ export const TemplateRatingDisplay: React.FC<{
     </div>
   )
 }
-
-export { StarRating } from './TemplateRating'

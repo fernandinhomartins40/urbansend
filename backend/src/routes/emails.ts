@@ -694,6 +694,32 @@ router.get('/:id/analytics',
   })
 );
 
+router.delete('/:id',
+  authenticateJWT,
+  validateRequest({ params: idParamSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const email = await db('emails')
+      .where('id', req.params['id'])
+      .where('user_id', req.user!.id)
+      .first();
+
+    if (!email) {
+      return res.status(404).json({ error: 'Email not found' });
+    }
+
+    await db('email_analytics')
+      .where('email_id', req.params['id'])
+      .del();
+
+    await db('emails')
+      .where('id', req.params['id'])
+      .where('user_id', req.user!.id)
+      .del();
+
+    return res.json({ success: true, message: 'Email deleted successfully' });
+  })
+);
+
 // Email tracking - Open pixel
 router.get('/track/open/:trackingId',
   asyncHandler(async (req: any, res: Response) => {

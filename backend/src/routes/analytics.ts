@@ -1,209 +1,396 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth';
-import { authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
-import { EmailAnalyticsService } from '../services/EmailAnalyticsService';
 import { AnalyticsController } from '../controllers/analyticsController';
-import { TrendAnalyticsService } from '../services/TrendAnalyticsService';
 
 const router = Router();
+
 router.use(authenticateJWT);
 
+const getTimeRangeConfig = (timeRange?: string) => {
+  switch (timeRange) {
+    case '24h':
+      return { days: 1 };
+    case '7d':
+      return { days: 7 };
+    case '90d':
+      return { days: 90 };
+    case '30d':
+    default:
+      return { days: 30 };
+  }
+};
+
+const getDateRange = (timeRange?: string) => {
+  const { days } = getTimeRangeConfig(timeRange);
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const previousEnd = new Date(startDate);
+  const previousStart = new Date(startDate);
+  previousStart.setDate(previousStart.getDate() - days);
+
+  return { days, startDate, endDate, previousStart, previousEnd };
+};
+
+const applyDateRange = (query: any, column: string, startDate: Date, endDate?: Date) => {
+  query.where(column, '>=', startDate);
+
+  if (endDate) {
+    query.where(column, '<=', endDate);
+  }
+
+  return query;
+};
+
+const buildFilteredEmailQuery = (
+  userId: number,
+  startDate: Date,
+  endDate?: Date
+) => applyDateRange(db('emails').where('user_id', userId), 'created_at', startDate, endDate);
+
+const buildFilteredAnalyticsQuery = (
+  userId: number,
+  startDate: Date,
+  endDate?: Date
+) => {
+  const query = db('email_analytics')
+    .join('emails', 'email_analytics.email_id', 'emails.id')
+    .where('emails.user_id', userId);
+
+  return applyDateRange(query, 'emails.created_at', startDate, endDate);
+};
+
+const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date) => {
+  const emailQuery = buildFilteredEmailQuery(userId, startDate, endDate);
+
+  const baseCounts = await emailQuery
+    .clone()
+    .select(
+      db.raw('COUNT(*) as total_sent'),
+      db.raw(`
+        COUNT(
+          CASE
+            WHEN delivered_at IS NOT NULL
+              OR status IN ('sent', 'delivered', 'opened', 'clicked')
+            THEN 1
+          END
+        ) as delivered_count
+      `),
+      db.raw(`
+        COUNT(
+          CASE
+            WHEN status IN ('bounced', 'failed') OR bounce_reason IS NOT NULL
+            THEN 1
+          END
+        ) as bounced_count
+      `),
+      db.raw('COUNT(DISTINCT to_email) as unique_recipients')
+    )
+    .first() as any;
+
+  const openCount = await emailQuery
+    .clone()
+    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .countDistinct(
+      db.raw(`
+        CASE
+          WHEN emails.opened_at IS NOT NULL
+            OR emails.status IN ('opened', 'clicked')
+            OR email_analytics.event_type IN ('open', 'opened')
+          THEN emails.id
+        END
+      `)
+    )
+    .first() as any;
+
+  const clickCount = await emailQuery
+    .clone()
+    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .countDistinct(
+      db.raw(`
+        CASE
+          WHEN emails.clicked_at IS NOT NULL
+            OR emails.status = 'clicked'
+            OR email_analytics.event_type IN ('click', 'clicked')
+          THEN emails.id
+        END
+      `)
+    )
+    .first() as any;
+
+  const totalSent = Number(baseCounts?.total_sent || 0);
+  const deliveredCount = Number(baseCounts?.delivered_count || 0);
+  const openedCount = Number(Object.values(openCount || {})[0] || 0);
+  const clickedCount = Number(Object.values(clickCount || {})[0] || 0);
+  const bouncedCount = Number(baseCounts?.bounced_count || 0);
+  const uniqueRecipients = Number(baseCounts?.unique_recipients || 0);
+
+  return {
+    total_sent: totalSent,
+    delivered_count: deliveredCount,
+    opened_count: openedCount,
+    clicked_count: clickedCount,
+    bounced_count: bouncedCount,
+    unique_recipients: uniqueRecipients,
+    delivery_rate: totalSent > 0 ? (deliveredCount / totalSent) * 100 : 0,
+    open_rate: deliveredCount > 0 ? (openedCount / deliveredCount) * 100 : 0,
+    click_rate: deliveredCount > 0 ? (clickedCount / deliveredCount) * 100 : 0,
+    bounce_rate: totalSent > 0 ? (bouncedCount / totalSent) * 100 : 0
+  };
+};
+
+const roundMetrics = (stats: ReturnType<typeof getOverviewStats> extends Promise<infer T> ? T : never) => ({
+  ...stats,
+  delivery_rate: Math.round(stats.delivery_rate * 100) / 100,
+  open_rate: Math.round(stats.open_rate * 100) / 100,
+  click_rate: Math.round(stats.click_rate * 100) / 100,
+  bounce_rate: Math.round(stats.bounce_rate * 100) / 100
+});
+
+const calculateChange = (current: number, previous: number) => {
+  if (previous === 0) {
+    return current === 0 ? 0 : 100;
+  }
+
+  return ((current - previous) / previous) * 100;
+};
+
 router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  const previousMonth = new Date();
-  previousMonth.setDate(previousMonth.getDate() - 60);
-  previousMonth.setDate(previousMonth.getDate() + 30); // Start of previous 30-day period
-  
-  const analyticsService = new EmailAnalyticsService();
-  
-  // Current period stats using EmailAnalyticsService
-  const currentStats = await analyticsService.getEmailStats(req.user!.id, thirtyDaysAgo);
-  
-  // Previous period stats for comparison
-  const previousStats = await analyticsService.getEmailStats(req.user!.id, previousMonth, thirtyDaysAgo);
+  const { startDate, endDate, previousStart, previousEnd } = getDateRange(String(req.query.period || '30d'));
 
-  // Calculate percentages and changes
-  const totalEmails = currentStats.total_emails || 0;
-  const delivered = currentStats.delivered || 0;
-  const opened = currentStats.opened || 0;
-  const bounced = currentStats.bounced || 0;
-  const clicked = currentStats.clicked || 0;
-
-  const deliveryRate = currentStats.delivery_rate || 0;
-  const openRate = currentStats.open_rate || 0;
-  const bounceRate = currentStats.bounce_rate || 0;
-  const clickRate = currentStats.click_rate || 0;
-
-  // Calculate percentage changes
-  const prevTotalEmails = previousStats.total_emails || 0;
-  const prevDelivered = previousStats.delivered || 0;
-  const prevOpened = previousStats.opened || 0;
-  const prevBounced = previousStats.bounced || 0;
-
-  const prevDeliveryRate = previousStats.delivery_rate || 0;
-  const prevOpenRate = previousStats.open_rate || 0;
-  const prevBounceRate = previousStats.bounce_rate || 0;
-
-  const emailsChange = prevTotalEmails > 0 ? (((totalEmails - prevTotalEmails) / prevTotalEmails) * 100) : 0;
-  const deliveryChange = prevDeliveryRate > 0 ? (deliveryRate - prevDeliveryRate) : 0;
-  const openChange = prevOpenRate > 0 ? (openRate - prevOpenRate) : 0;
-  const bounceChange = prevBounceRate > 0 ? (bounceRate - prevBounceRate) : 0;
+  const [currentStats, previousStats] = await Promise.all([
+    getOverviewStats(req.user!.id, startDate, endDate),
+    getOverviewStats(req.user!.id, previousStart, previousEnd)
+  ]);
 
   res.json({
     stats: {
-      totalEmails,
-      delivered,
-      opened,
-      clicked,
-      bounced,
-      deliveryRate: Math.round(deliveryRate * 100) / 100,
-      openRate: Math.round(openRate * 100) / 100,
-      clickRate: Math.round(clickRate * 100) / 100,
-      bounceRate: Math.round(bounceRate * 100) / 100,
-      emailsChange: Math.round(emailsChange * 100) / 100,
-      deliveryChange: Math.round(deliveryChange * 100) / 100,
-      openChange: Math.round(openChange * 100) / 100,
-      bounceChange: Math.round(bounceChange * 100) / 100
+      totalEmails: currentStats.total_sent,
+      delivered: currentStats.delivered_count,
+      opened: currentStats.opened_count,
+      clicked: currentStats.clicked_count,
+      bounced: currentStats.bounced_count,
+      deliveryRate: Math.round(currentStats.delivery_rate * 100) / 100,
+      openRate: Math.round(currentStats.open_rate * 100) / 100,
+      clickRate: Math.round(currentStats.click_rate * 100) / 100,
+      bounceRate: Math.round(currentStats.bounce_rate * 100) / 100,
+      emailsChange: Math.round(calculateChange(currentStats.total_sent, previousStats.total_sent) * 100) / 100,
+      deliveryChange: Math.round((currentStats.delivery_rate - previousStats.delivery_rate) * 100) / 100,
+      openChange: Math.round((currentStats.open_rate - previousStats.open_rate) * 100) / 100,
+      clickChange: Math.round((currentStats.click_rate - previousStats.click_rate) * 100) / 100,
+      bounceChange: Math.round((currentStats.bounce_rate - previousStats.bounce_rate) * 100) / 100
     }
   });
 }));
 
 router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const analyticsService = new EmailAnalyticsService();
-  
-  // Get recent activities from email_analytics table
-  const activities = await analyticsService.getRecentActivities(req.user!.id, 50);
-  
-  // Also get recent emails for context
-  const recentEmails = await db('emails')
-    .select('message_id', 'to_email', 'subject', 'status', 'sent_at', 'delivered_at', 'created_at')
-    .where('user_id', req.user!.id)
-    .orderBy('created_at', 'desc')
-    .limit(50);
-    
-  // Combine analytics events with email data
-  const combinedActivities = activities.map(activity => {
-    const email = recentEmails.find(e => e.message_id === activity.email_id);
-    
-    let statusText = 'Enviado';
-    switch(activity.event_type) {
-      case 'delivered':
-        statusText = 'Entregue';
-        break;
-      case 'opened':
-        statusText = 'Aberto';
-        break;
-      case 'clicked':
-        statusText = 'Clicado';
-        break;
-      case 'bounced':
-        statusText = 'Rejeitado';
-        break;
-      default:
-        statusText = 'Enviado';
+  const activities = await db('email_analytics')
+    .join('emails', 'email_analytics.email_id', 'emails.id')
+    .select(
+      'emails.id as email_id',
+      'emails.to_email',
+      'emails.subject',
+      'email_analytics.event_type',
+      'email_analytics.created_at',
+      'email_analytics.ip_address',
+      'email_analytics.user_agent',
+      'email_analytics.metadata'
+    )
+    .where('emails.user_id', req.user!.id)
+    .orderBy('email_analytics.created_at', 'desc')
+    .limit(20);
+
+  const normalizedActivities = activities.map((activity: any) => {
+    let status = 'Enviado';
+
+    if (['open', 'opened'].includes(activity.event_type)) {
+      status = 'Aberto';
+    } else if (['click', 'clicked'].includes(activity.event_type)) {
+      status = 'Clicado';
+    } else if (['bounce', 'bounced'].includes(activity.event_type)) {
+      status = 'Rejeitado';
+    } else if (activity.event_type === 'delivered') {
+      status = 'Entregue';
     }
-    
+
     return {
-      email: activity.recipient_email,
-      subject: email?.subject || 'Sem assunto',
-      status: statusText,
+      email: activity.to_email,
+      subject: activity.subject || 'Sem assunto',
+      status,
       event_type: activity.event_type,
       timestamp: activity.created_at,
       ip_address: activity.ip_address,
       user_agent: activity.user_agent,
       metadata: activity.metadata
     };
-  }).slice(0, 10); // Limit to 10 most recent
+  });
 
-  res.json({ activities });
+  res.json({ activities: normalizedActivities });
 }));
 
 router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  // Redireciona para overview por compatibilidade usando EmailAnalyticsService
-  const { timeRange = '30d' } = req.query;
-  
-  let daysAgo = 30;
-  if (timeRange === '7d') daysAgo = 7;
-  if (timeRange === '90d') daysAgo = 90;
-  
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysAgo);
-  
-  const analyticsService = new EmailAnalyticsService();
-  const stats = await analyticsService.getEmailStats(req.user!.id, startDate);
+  const { startDate, endDate, previousStart, previousEnd } = getDateRange(String(req.query.timeRange || '30d'));
 
-  res.json({ stats });
+  const [currentStats, previousStats] = await Promise.all([
+    getOverviewStats(req.user!.id, startDate, endDate),
+    getOverviewStats(req.user!.id, previousStart, previousEnd)
+  ]);
+
+  const rounded = roundMetrics(currentStats);
+
+  res.json({
+    total_sent: rounded.total_sent,
+    delivered_count: rounded.delivered_count,
+    opened_count: rounded.opened_count,
+    clicked_count: rounded.clicked_count,
+    bounced_count: rounded.bounced_count,
+    unique_recipients: rounded.unique_recipients,
+    delivery_rate: rounded.delivery_rate,
+    open_rate: rounded.open_rate,
+    click_rate: rounded.click_rate,
+    bounce_rate: rounded.bounce_rate,
+    sent_change: Math.round(calculateChange(currentStats.total_sent, previousStats.total_sent) * 100) / 100,
+    delivery_change: Math.round((currentStats.delivery_rate - previousStats.delivery_rate) * 100) / 100,
+    open_change: Math.round((currentStats.open_rate - previousStats.open_rate) * 100) / 100,
+    click_change: Math.round((currentStats.click_rate - previousStats.click_rate) * 100) / 100,
+    bounce_change: Math.round((currentStats.bounce_rate - previousStats.bounce_rate) * 100) / 100
+  });
 }));
 
 router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { timeRange = '30d' } = req.query;
-  
-  let daysAgo = 30;
-  let groupBy = 'DATE(created_at)';
-  
-  if (timeRange === '7d') {
-    daysAgo = 7;
-    groupBy = 'DATE(created_at)';
-  } else if (timeRange === '90d') {
-    daysAgo = 90;
-    groupBy = 'DATE(created_at)';
-  }
-  
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysAgo);
-  
-  // For chart data, we'll use a simplified query until email_analytics has date aggregation
-  const chartData = await db('emails')
-    .select(
-      db.raw(`${groupBy} as date`),
-      db.raw('COUNT(*) as emails'),
-      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
-      db.raw('0 as opened') // Placeholder until email_analytics integration
-    )
-    .where('user_id', req.user!.id)
-    .where('created_at', '>=', startDate)
-    .groupBy('date')
-    .orderBy('date');
+  const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
-  res.json({ chartData });
+  const chart = await db('emails')
+    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .select(
+      db.raw('DATE(emails.created_at) as date'),
+      db.raw('COUNT(DISTINCT emails.id) as sent'),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.delivered_at IS NOT NULL
+              OR emails.status IN ('sent', 'delivered', 'opened', 'clicked')
+            THEN emails.id
+          END
+        ) as delivered
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.opened_at IS NOT NULL
+              OR emails.status IN ('opened', 'clicked')
+              OR email_analytics.event_type IN ('open', 'opened')
+            THEN emails.id
+          END
+        ) as opened
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.clicked_at IS NOT NULL
+              OR emails.status = 'clicked'
+              OR email_analytics.event_type IN ('click', 'clicked')
+            THEN emails.id
+          END
+        ) as clicked
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.status IN ('bounced', 'failed')
+              OR emails.bounce_reason IS NOT NULL
+              OR email_analytics.event_type IN ('bounce', 'bounced')
+            THEN emails.id
+          END
+        ) as bounced
+      `)
+    )
+    .where('emails.user_id', req.user!.id)
+    .where('emails.created_at', '>=', startDate)
+    .where('emails.created_at', '<=', endDate)
+    .groupBy(db.raw('DATE(emails.created_at)'))
+    .orderBy('date', 'asc');
+
+  res.json({
+    chart: chart.map((row: any) => ({
+      date: row.date,
+      sent: Number(row.sent || 0),
+      delivered: Number(row.delivered || 0),
+      opened: Number(row.opened || 0),
+      clicked: Number(row.clicked || 0),
+      bounced: Number(row.bounced || 0)
+    }))
+  });
 }));
 
 router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { timeRange = '30d' } = req.query;
-  
-  let daysAgo = 30;
-  if (timeRange === '7d') daysAgo = 7;
-  if (timeRange === '90d') daysAgo = 90;
-  
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysAgo);
-  
-  const topEmails = await db('emails')
+  const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
+
+  const emails = await db('emails')
+    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
     .select(
-      'subject',
-      db.raw('COUNT(*) as total_sent'),
-      db.raw('0 as opened'), // Placeholder until email_analytics integration
-      db.raw('0 as clicked') // Placeholder until email_analytics integration
+      'emails.subject',
+      db.raw('COUNT(DISTINCT emails.id) as sent_count'),
+      db.raw('MAX(emails.created_at) as sent_at'),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.opened_at IS NOT NULL
+              OR emails.status IN ('opened', 'clicked')
+              OR email_analytics.event_type IN ('open', 'opened')
+            THEN emails.id
+          END
+        ) as opened_count
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.clicked_at IS NOT NULL
+              OR emails.status = 'clicked'
+              OR email_analytics.event_type IN ('click', 'clicked')
+            THEN emails.id
+          END
+        ) as clicked_count
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.status IN ('bounced', 'failed')
+              OR emails.bounce_reason IS NOT NULL
+              OR email_analytics.event_type IN ('bounce', 'bounced')
+            THEN emails.id
+          END
+        ) as bounced_count
+      `)
     )
-    .where('user_id', req.user!.id)
-    .where('created_at', '>=', startDate)
-    .groupBy('subject')
-    .orderBy('total_sent', 'desc')
+    .where('emails.user_id', req.user!.id)
+    .where('emails.created_at', '>=', startDate)
+    .where('emails.created_at', '<=', endDate)
+    .groupBy('emails.subject')
+    .orderBy('sent_count', 'desc')
     .limit(10);
 
-  const topEmailsWithRates = topEmails.map(email => ({
-    ...email,
-    open_rate: (email as any).total_sent > 0 ? 
-      Math.round(((email as any).opened / (email as any).total_sent) * 100 * 100) / 100 : 0,
-    click_rate: (email as any).total_sent > 0 ? 
-      Math.round(((email as any).clicked / (email as any).total_sent) * 100 * 100) / 100 : 0
-  }));
+  res.json({
+    emails: emails.map((email: any, index: number) => {
+      const sentCount = Number(email.sent_count || 0);
+      const openedCount = Number(email.opened_count || 0);
+      const clickedCount = Number(email.clicked_count || 0);
+      const bouncedCount = Number(email.bounced_count || 0);
 
-  res.json({ topEmails: topEmailsWithRates });
+      return {
+        id: index + 1,
+        subject: email.subject || 'Sem assunto',
+        sent_count: sentCount,
+        sent_at: email.sent_at,
+        open_rate: sentCount > 0 ? (openedCount / sentCount) * 100 : 0,
+        click_rate: sentCount > 0 ? (clickedCount / sentCount) * 100 : 0,
+        bounce_rate: sentCount > 0 ? (bouncedCount / sentCount) * 100 : 0
+      };
+    })
+  });
 }));
 
 router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -223,197 +410,143 @@ router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Respon
   let query = db('emails')
     .where('user_id', req.user!.id);
 
-  // Status filter
   if (status && status !== 'all') {
     query = query.where('status', status as string);
   }
 
-  // Search filter (email, subject, content)
   if (search && typeof search === 'string' && search.trim() !== '') {
     const searchTerm = search.trim();
     query = query.where(function() {
       this.where('to_email', 'like', `%${searchTerm}%`)
-          .orWhere('subject', 'like', `%${searchTerm}%`)
-          .orWhere('html_content', 'like', `%${searchTerm}%`)
-          .orWhere('text_content', 'like', `%${searchTerm}%`);
+        .orWhere('subject', 'like', `%${searchTerm}%`)
+        .orWhere('html_content', 'like', `%${searchTerm}%`)
+        .orWhere('text_content', 'like', `%${searchTerm}%`);
     });
   }
 
-  // Date filter
   if (date_filter && date_filter !== 'all') {
     const now = new Date();
-    let dateCondition: Date;
+    let dateCondition = new Date(0);
 
     switch (date_filter) {
       case 'today':
         dateCondition = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        query = query.where('created_at', '>=', dateCondition.toISOString());
         break;
       case 'week':
         dateCondition = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        query = query.where('created_at', '>=', dateCondition.toISOString());
         break;
       case 'month':
         dateCondition = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        query = query.where('created_at', '>=', dateCondition.toISOString());
         break;
       case '3months':
         dateCondition = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        query = query.where('created_at', '>=', dateCondition.toISOString());
         break;
     }
+
+    query = query.where('created_at', '>=', dateCondition.toISOString());
   }
 
-  // Domain filter
   if (domain_filter && domain_filter !== 'all') {
     query = query.where('to_email', 'like', `%@${domain_filter}`);
   }
 
-  // Sorting (validate sort field to prevent SQL injection)
   const allowedSortFields = ['created_at', 'sent_at', 'to_email', 'subject', 'status'];
   const allowedOrders = ['asc', 'desc'];
-
   const sortField = allowedSortFields.includes(sort as string) ? sort as string : 'created_at';
   const sortOrder = allowedOrders.includes(order as string) ? order as string : 'desc';
 
-  // Get emails with proper sorting
   const emails = await query
     .select('*')
     .orderBy(sortField, sortOrder)
     .limit(parseInt(limit as string))
     .offset(offset);
 
-  // Get total count and stats in a single query to avoid conflicts
-  const statsQuery = db('emails').where('user_id', req.user!.id);
-
-  // Apply the same filters to stats query
-  if (status && status !== 'all') {
-    statsQuery.where('status', status as string);
-  }
-
-  if (search && typeof search === 'string' && search.trim() !== '') {
-    const searchTerm = search.trim();
-    statsQuery.where(function() {
-      this.where('to_email', 'like', `%${searchTerm}%`)
-          .orWhere('subject', 'like', `%${searchTerm}%`)
-          .orWhere('html_content', 'like', `%${searchTerm}%`)
-          .orWhere('text_content', 'like', `%${searchTerm}%`);
-    });
-  }
-
-  if (date_filter && date_filter !== 'all') {
-    const now = new Date();
-    let dateCondition: Date;
-
-    switch (date_filter) {
-      case 'today':
-        dateCondition = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        statsQuery.where('created_at', '>=', dateCondition.toISOString());
-        break;
-      case 'week':
-        dateCondition = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        statsQuery.where('created_at', '>=', dateCondition.toISOString());
-        break;
-      case 'month':
-        dateCondition = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        statsQuery.where('created_at', '>=', dateCondition.toISOString());
-        break;
-      case '3months':
-        dateCondition = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        statsQuery.where('created_at', '>=', dateCondition.toISOString());
-        break;
-    }
-  }
-
-  if (domain_filter && domain_filter !== 'all') {
-    statsQuery.where('to_email', 'like', `%@${domain_filter}`);
-  }
-
-  // Get stats using only fields that exist
-  const stats = await statsQuery
-    .select([
-      db.raw('COUNT(*) as total'),
-      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
-      db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent'),
-      db.raw('COUNT(CASE WHEN status = "opened" THEN 1 END) as opened'),
-      db.raw('COUNT(CASE WHEN status = "clicked" THEN 1 END) as clicked'),
-      db.raw('COUNT(CASE WHEN status = "bounced" OR bounce_reason IS NOT NULL THEN 1 END) as bounced'),
-      db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed')
-    ])
-    .first();
-
-  const totalCount = (stats as any)?.total || 0;
-  const currentPage = parseInt(page as string);
-  const limitNum = parseInt(limit as string);
-  const totalPages = Math.ceil(totalCount / limitNum);
+  const total = await query.clone().clearSelect().count('* as count').first();
 
   res.json({
     data: {
       emails,
-      stats: stats || {
-        total: 0,
-        delivered: 0,
-        sent: 0,
-        opened: 0,
-        clicked: 0,
-        bounced: 0,
-        failed: 0
-      },
       pagination: {
-        page: currentPage,
-        pages: totalPages,
-        total: totalCount,
-        limit: limitNum,
-        has_next: currentPage < totalPages,
-        has_prev: currentPage > 1
+        page: parseInt(page as string),
+        pages: Math.ceil((Number((total as any)?.count || 0)) / parseInt(limit as string)),
+        total: Number((total as any)?.count || 0),
+        limit: parseInt(limit as string)
       }
     }
   });
 }));
 
 router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const domainsStats = await db('emails')
+  const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
+
+  const domains = await db('emails')
+    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
     .select(
-      db.raw('SUBSTR(from_email, INSTR(from_email, "@") + 1) as domain'),
-      db.raw('COUNT(*) as total_emails'),
-      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
-      db.raw('0 as opened') // Placeholder until email_analytics integration
+      db.raw('SUBSTR(emails.from_email, INSTR(emails.from_email, "@") + 1) as domain'),
+      db.raw('COUNT(DISTINCT emails.id) as total_emails'),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.delivered_at IS NOT NULL
+              OR emails.status IN ('sent', 'delivered', 'opened', 'clicked')
+            THEN emails.id
+          END
+        ) as delivered
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.opened_at IS NOT NULL
+              OR emails.status IN ('opened', 'clicked')
+              OR email_analytics.event_type IN ('open', 'opened')
+            THEN emails.id
+          END
+        ) as opened
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.clicked_at IS NOT NULL
+              OR emails.status = 'clicked'
+              OR email_analytics.event_type IN ('click', 'clicked')
+            THEN emails.id
+          END
+        ) as clicked
+      `)
     )
-    .where('user_id', req.user!.id)
-    .groupBy('domain')
+    .where('emails.user_id', req.user!.id)
+    .where('emails.created_at', '>=', startDate)
+    .where('emails.created_at', '<=', endDate)
+    .groupBy(db.raw('SUBSTR(emails.from_email, INSTR(emails.from_email, "@") + 1)'))
     .orderBy('total_emails', 'desc');
 
-  const domainsWithRates = domainsStats.map(domain => ({
-    ...domain,
-    delivery_rate: (domain as any).total_emails > 0 ? 
-      Math.round(((domain as any).delivered / (domain as any).total_emails) * 100 * 100) / 100 : 0,
-    open_rate: (domain as any).total_emails > 0 ? 
-      Math.round(((domain as any).opened / (domain as any).total_emails) * 100 * 100) / 100 : 0
-  }));
+  res.json({
+    domains: domains.map((domain: any) => {
+      const totalEmails = Number(domain.total_emails || 0);
+      const delivered = Number(domain.delivered || 0);
+      const opened = Number(domain.opened || 0);
+      const clicked = Number(domain.clicked || 0);
 
-  res.json({ domains: domainsWithRates });
+      return {
+        domain: domain.domain,
+        total_emails: totalEmails,
+        delivered,
+        opened,
+        clicked,
+        delivery_rate: totalEmails > 0 ? (delivered / totalEmails) * 100 : 0,
+        open_rate: delivered > 0 ? (opened / delivered) * 100 : 0,
+        click_rate: delivered > 0 ? (clicked / delivered) * 100 : 0
+      };
+    })
+  });
 }));
 
-// ========================================
-// FASE 2.1.2 - ENHANCED ANALYTICS ROUTES
-// ========================================
-
-// Enhanced overview with trends and comprehensive stats
+// Enhanced routes mantidas por compatibilidade.
 router.get('/v2/overview', AnalyticsController.getOverview);
-
-// Campaign-specific metrics
 router.get('/v2/campaigns/:campaignId/metrics', AnalyticsController.getCampaignMetrics);
-
-// Engagement data with geographic breakdown
 router.get('/v2/engagement', AnalyticsController.getEngagementData);
-
-// Detailed delivery statistics
 router.get('/v2/delivery-stats', AnalyticsController.getDeliveryStats);
-
-// Analytics by specific event type (opened, clicked, bounced, etc.)
 router.get('/v2/events/:eventType', AnalyticsController.getEventAnalytics);
-
-// Enhanced recent activity with better filtering
 router.get('/v2/recent-activity', AnalyticsController.getRecentActivity);
 
 export default router;

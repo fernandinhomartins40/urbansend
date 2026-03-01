@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { useDomainValidation } from '@/hooks/useUserDomains'
 import { cn } from '@/lib/utils'
-import { debounce } from 'lodash-es'
 
 interface DomainInputProps {
   value: string
@@ -33,9 +32,32 @@ interface ValidationResult {
   domain: string
   available: boolean
   message: string
-  reason: string
+  reason?: string
   existing_status?: string
   next_steps?: string[]
+}
+
+const debounce = <T extends (...args: any[]) => void>(callback: T, wait: number) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const debounced = (...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+
+    timeoutId = setTimeout(() => {
+      callback(...args)
+    }, wait)
+  }
+
+  debounced.cancel = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+    }
+  }
+
+  return debounced
 }
 
 /**

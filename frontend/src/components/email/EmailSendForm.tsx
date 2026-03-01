@@ -145,7 +145,7 @@ export function EmailSendForm({
     // 1. Verificação prévia de domínios verificados
     if (!hasVerifiedDomains) {
       toast.error('Configure pelo menos um domínio verificado para enviar emails')
-      setTimeout(() => navigate('/domains'), 1500)
+      setTimeout(() => navigate('/app/domains'), 1500)
       return
     }
 
@@ -166,13 +166,17 @@ export function EmailSendForm({
 
     if (!verifiedDomain) {
       toast.error(`Domínio '${domain}' não verificado. Redirecionando para configuração...`)
-      setTimeout(() => navigate('/domains'), 1500)
+      setTimeout(() => navigate('/app/domains'), 1500)
       return
     }
 
     // 4. Preparar dados do email
     const emailData: EmailData = {
-      ...data,
+      from: data.from,
+      to: data.to,
+      subject: data.subject,
+      html: data.html,
+      text: data.text,
       variables: customVariables
     }
 
@@ -222,8 +226,8 @@ export function EmailSendForm({
   }
 
   const redirectToDomainSetup = () => {
-    toast.info('Redirecionando para configuração de domínios...')
-    navigate('/domains')
+    toast('Redirecionando para configuracao de dominios...')
+    navigate('/app/domains')
   }
 
   return (

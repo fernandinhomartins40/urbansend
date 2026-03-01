@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SafeHTML } from '@/components/ui/SafeHTML'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
 import { emailApi } from '@/lib/api'
@@ -331,7 +332,7 @@ export function EmailDetails() {
           {showHtmlContent ? (
             <div className="border rounded-lg p-4">
               {email.html_content ? (
-                <div dangerouslySetInnerHTML={{ __html: email.html_content }} />
+                <SafeHTML html={email.html_content} strict className="prose max-w-none" />
               ) : (
                 <p className="text-muted-foreground">Conteúdo HTML não disponível</p>
               )}

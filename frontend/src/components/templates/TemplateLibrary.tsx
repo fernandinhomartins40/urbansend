@@ -108,7 +108,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   const queryClient = useQueryClient()
 
   // Buscar categorias
-  const { data: categories, isLoading: categoriesLoading } = useQuery({
+  const { data: categories, isLoading: categoriesLoading } = useQuery<Category[]>({
     queryKey: queryKeys.templates.categories(),
     queryFn: async () => {
       const response = await api.get('/shared-templates/categories')
@@ -118,20 +118,21 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   })
 
   // Buscar templates com otimizações de performance
-  const { data: templatesData, isLoading: templatesLoading, refetch, isPreviousData } = useQuery({
+  const { data: templatesData, isLoading: templatesLoading, refetch } = useQuery<any>({
     queryKey: [...queryKeys.templates.all, 'public', filters, currentPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '12',
-        ...filters
+      const response = await api.get('/shared-templates/public', {
+        params: {
+          ...filters,
+          page: currentPage,
+          limit: 12,
+        }
       })
-      const response = await api.get(`/shared-templates/public?${params}`)
       return response.data
     },
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutos
-    cacheTime: 10 * 60 * 1000, // 10 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     retry: 3,

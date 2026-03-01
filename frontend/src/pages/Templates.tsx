@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SafeHTML } from '@/components/ui/SafeHTML'
 import { templateApi } from '@/lib/api'
@@ -53,6 +55,9 @@ export function Templates() {
   const [isCreating, setIsCreating] = useState(false)
   const [activeTab, setActiveTab] = useState('visual')
   const [previewData, setPreviewData] = useState<Record<string, string>>({})
+  const [deleteTarget, setDeleteTarget] = useState<Template | null>(null)
+  const [isVariableDialogOpen, setIsVariableDialogOpen] = useState(false)
+  const [variableName, setVariableName] = useState('')
   const queryClient = useQueryClient()
 
   const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm<CreateTemplateForm>({
@@ -191,9 +196,7 @@ export function Templates() {
   }
 
   const handleDeleteTemplate = (template: Template) => {
-    if (confirm(`Tem certeza que deseja deletar o template "${template.name}"?`)) {
-      deleteMutation.mutate(template.id)
-    }
+    setDeleteTarget(template)
   }
 
   const extractVariables = (content: string) => {
@@ -361,13 +364,7 @@ export function Templates() {
         type="button"
         variant="ghost"
         size="sm"
-        onClick={() => {
-          const variable = prompt('Nome da variável:')
-          if (variable) {
-            const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-            insertAtCursor(textarea, `{{${variable}}}`)
-          }
-        }}
+        onClick={() => setIsVariableDialogOpen(true)}
       >
         <Hash className="h-4 w-4" />
       </Button>
@@ -840,6 +837,66 @@ Confirme sua conta em: {{confirmation_url}}"
           </div>
         )}
       </div>
+
+      <Dialog open={isVariableDialogOpen} onOpenChange={setIsVariableDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Inserir variavel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="template-variable-name">Nome da variavel</Label>
+              <Input
+                id="template-variable-name"
+                value={variableName}
+                onChange={(event) => setVariableName(event.target.value)}
+                placeholder="nome_cliente"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsVariableDialogOpen(false)
+                  setVariableName('')
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!variableName.trim()) {
+                    return
+                  }
+
+                  const textarea = document.getElementById('html-editor') as HTMLTextAreaElement | null
+                  if (textarea) {
+                    insertAtCursor(textarea, `{{${variableName.trim()}}}`)
+                  }
+
+                  setIsVariableDialogOpen(false)
+                  setVariableName('')
+                }}
+              >
+                Inserir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.id)
+          }
+        }}
+        title="Remover template"
+        description={deleteTarget ? `Deseja remover o template "${deleteTarget.name}"?` : ''}
+        variant="danger"
+      />
     </div>
   )
 }

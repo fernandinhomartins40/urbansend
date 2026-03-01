@@ -98,7 +98,7 @@ export const useEmailSend = () => {
       })
 
       // URL simplificada - sistema único (conforme Fase 3 do plano)
-      const response = await api.post('/api/emails/send', emailData)
+      const response = await api.post('/emails/send', emailData)
       return response.data
     },
     onMutate: async (emailData) => {
@@ -176,7 +176,7 @@ export const useEmailSend = () => {
         
         // Aguardar um pouco para o usuário ler o toast, depois redirecionar
         setTimeout(() => {
-          window.location.href = '/domains'
+          window.location.href = '/app/domains'
         }, 2000)
         
         return
@@ -242,7 +242,7 @@ export const useBatchEmailSend = () => {
       })
 
       // URL simplificada - sistema único
-      const response = await api.post('/api/emails/send-batch', { emails })
+      const response = await api.post('/emails/send-batch', { emails })
       return response.data
     },
     onError: (error: any) => {
@@ -282,7 +282,7 @@ export const useBatchEmailSend = () => {
 export const useTestEmailService = () => {
   return useMutation({
     mutationFn: async () => {
-      const response = await api.get('/api/emails/test')
+      const response = await api.get('/emails/test')
       return response.data
     },
     onError: (error: any) => {
@@ -302,7 +302,7 @@ export const useTestEmailService = () => {
 export const useEmailServiceStatus = () => {
   return useMutation({
     mutationFn: async () => {
-      const response = await api.get('/api/emails/status')
+      const response = await api.get('/emails/status')
       return response.data
     },
     onSuccess: (data) => {

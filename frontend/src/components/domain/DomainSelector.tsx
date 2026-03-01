@@ -41,7 +41,7 @@ export const DomainSelector = ({
 
   // Handler para navegar para configuração de domínios
   const handleAddDomain = () => {
-    navigate('/app/domains/setup')
+    navigate('/app/domains?mode=setup')
   }
 
   // Handler para navegar para gerenciamento de domínios

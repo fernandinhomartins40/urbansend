@@ -32,10 +32,7 @@ const Templates = lazy(() => import('./pages/Templates').then(m => ({ default: m
 const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Domains })));
 const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.Webhooks })));
-
-
-// Placeholder component for Settings route still to be implemented
-const SettingsPage = () => <div className="p-8"><h1>Settings</h1></div>
+const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -177,6 +174,10 @@ function AppRoutes() {
                       <Domains />
                     </Suspense>
                   } 
+                />
+                <Route
+                  path="domains/setup"
+                  element={<Navigate to="/app/domains?mode=setup" replace />}
                 />
                 <Route 
                   path="analytics" 
