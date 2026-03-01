@@ -199,7 +199,7 @@ export class EmailMetricsCollector {
         alert_type: alert.type,
         title: alert.type,
         severity: alert.severity,
-        severity_order: alert.severity === 'CRITICAL' ? 1 : alert.severity === 'HIGH' ? 2 : 3,
+        severity_order: alert.severity === 'critical' ? 1 : alert.severity === 'warning' ? 2 : 3,
         user_id: alert.userId,
         message: alert.message,
         status: 'active',
