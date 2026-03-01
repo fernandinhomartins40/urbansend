@@ -348,7 +348,7 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
   setImmediate(async () => {
     try {
       const internalEmailService = new InternalEmailService();
-      const resetUrl = `${process.env['FRONTEND_URL'] || 'https://ultrazend.com.br'}/reset-password?token=${resetToken}`;
+      const resetUrl = `${process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br'}/reset-password?token=${resetToken}`;
       await internalEmailService.sendPasswordResetEmail(email, user.name, resetUrl);
       logger.info('Reset password email sent successfully', { email });
     } catch (error) {

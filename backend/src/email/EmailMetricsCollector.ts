@@ -197,13 +197,14 @@ export class EmailMetricsCollector {
       // Armazenar alerta no banco para histórico
       await db('system_alerts').insert({
         alert_type: alert.type,
+        title: alert.type,
         severity: alert.severity,
+        severity_order: alert.severity === 'CRITICAL' ? 1 : alert.severity === 'HIGH' ? 2 : 3,
         user_id: alert.userId,
         message: alert.message,
-        threshold_value: alert.threshold,
-        current_value: alert.current,
-        triggered_at: alert.timestamp,
-        resolved: false
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date()
       }).catch(error => {
         // Table might not exist yet - non-critical
         logger.debug('Could not store alert in database', {
@@ -437,8 +438,8 @@ export class EmailMetricsCollector {
 
       // Count recent alerts
       const alertCount = await db('system_alerts')
-        .where('triggered_at', '>=', window.start)
-        .where('resolved', false)
+        .where('created_at', '>=', window.start)
+        .where('status', 'active')
         .count('* as count')
         .first();
 

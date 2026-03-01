@@ -391,7 +391,7 @@ export class AlertingService {
         db('email_audit_logs').where('timestamp', '>=', oneDayAgo).where('delivery_status', 'sent').count('* as count').first(),
         db('email_audit_logs').where('timestamp', '>=', oneDayAgo).countDistinct('user_id as count').first(),
         db('domains').where('is_verified', true).count('* as count').first(),
-        db('system_alerts').where('resolved', false).count('* as count').first()
+        db('system_alerts').where('status', 'active').count('* as count').first()
       ]);
 
       const emailsHour = parseInt(emailsLastHour?.count as string) || 0;
@@ -436,8 +436,8 @@ export class AlertingService {
     try {
       // Verificar se já existe alerta similar recente
       const recentAlert = await db('system_alerts')
-        .where('type', alert.type)
-        .where('resolved', false)
+        .where('alert_type', alert.type)
+        .where('status', 'active')
         .where('created_at', '>', new Date(Date.now() - 60 * 60 * 1000)) // 1 hora
         .first();
 
@@ -448,13 +448,16 @@ export class AlertingService {
 
       // Salvar alerta no banco
       await db('system_alerts').insert({
-        type: alert.type,
+        alert_type: alert.type,
+        title: alert.type,
         severity: alert.severity,
+        severity_order: alert.severity === 'CRITICAL' ? 1 : alert.severity === 'HIGH' ? 2 : alert.severity === 'MEDIUM' ? 3 : 4,
         message: alert.message,
-        data: JSON.stringify(alert.data),
-        actions: JSON.stringify(alert.actions),
-        resolved: false,
-        created_at: new Date()
+        metadata: JSON.stringify(alert.data),
+        status: 'active',
+        user_id: alert.userId || 1,
+        created_at: new Date(),
+        updated_at: new Date()
       });
 
       // Log estruturado
@@ -509,9 +512,10 @@ export class AlertingService {
       await db('system_alerts')
         .where('id', alertId)
         .update({
-          resolved: true,
+          status: 'resolved',
           resolved_at: new Date(),
-          resolved_by: userId
+          resolved_by: String(userId),
+          updated_at: new Date()
         });
 
       logger.info('Alert resolved', { alertId, resolvedBy: userId });
@@ -530,7 +534,7 @@ export class AlertingService {
   async getActiveAlerts(limit: number = 50): Promise<any[]> {
     try {
       return await db('system_alerts')
-        .where('resolved', false)
+        .where('status', 'active')
         .orderBy('created_at', 'desc')
         .limit(limit);
     } catch (error) {

@@ -207,7 +207,7 @@ export class InternalEmailService implements IEmailService {
    * @returns URL completa de verificação
    */
   private buildVerificationUrl(token: string): string {
-    const baseUrl = Env.get('APP_URL', 'https://ultrazend.com.br');
+    const baseUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
     return `${baseUrl}/verify-email?token=${token}`;
   }
 
