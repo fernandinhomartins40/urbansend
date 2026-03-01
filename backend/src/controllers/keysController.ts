@@ -244,10 +244,10 @@ export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res
   const emailStats = await db('emails')
     .select(
       db.raw('COUNT(*) as total_emails'),
-      db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent_emails'),
-      db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered_emails'),
-      db.raw('COUNT(CASE WHEN status = "bounced" THEN 1 END) as bounced_emails'),
-      db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed_emails')
+      db.raw("COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_emails"),
+      db.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_emails"),
+      db.raw("COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced_emails"),
+      db.raw("COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_emails")
     )
     .where('api_key_id', id)
     .where('created_at', '>=', thirtyDaysAgo)

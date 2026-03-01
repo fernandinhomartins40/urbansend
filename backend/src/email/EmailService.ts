@@ -390,9 +390,9 @@ export class UnifiedEmailService {
       const stats = await db('emails')
         .select(
           db.raw('COUNT(*) as total_emails'),
-          db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent_count'),
-          db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed_count'),
-          db.raw('AVG(CASE WHEN status = "sent" THEN delivery_latency_ms END) as avg_latency'),
+          db.raw("COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_count"),
+          db.raw("COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count"),
+          db.raw("AVG(CASE WHEN status = 'sent' THEN delivery_latency_ms END) as avg_latency"),
           db.raw('COUNT(DISTINCT user_id) as unique_users')
         )
         .where('sent_at', '>=', today)

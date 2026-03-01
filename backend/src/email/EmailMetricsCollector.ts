@@ -7,6 +7,7 @@
 import { logger } from '../config/logger';
 import db from '../config/database';
 import { EmailEvent, EmailMetrics, Alert } from './types';
+import { sqlJsonExtract } from '../utils/sqlDialect';
 
 export interface MetricsWindow {
   period: 'hourly' | 'daily' | 'weekly' | 'monthly';
@@ -249,12 +250,12 @@ export class EmailMetricsCollector {
         .where('event_at', '>=', startDate)
         .select([
           db.raw('COUNT(*) as total_events'),
-          db.raw('COUNT(CASE WHEN event_type = "sent" THEN 1 END) as total_sent'),
-          db.raw('COUNT(CASE WHEN event_type = "failed" THEN 1 END) as total_failed'),
+          db.raw("COUNT(CASE WHEN event_type = 'sent' THEN 1 END) as total_sent"),
+          db.raw("COUNT(CASE WHEN event_type = 'failed' THEN 1 END) as total_failed"),
           db.raw('AVG(latency_ms) as avg_latency'),
           db.raw('MAX(latency_ms) as max_latency'),
-          db.raw('COUNT(CASE WHEN JSON_EXTRACT(event_data, "$.domainValidated") = true THEN 1 END) as domain_validated_count'),
-          db.raw('COUNT(CASE WHEN JSON_EXTRACT(event_data, "$.fallbackApplied") = true THEN 1 END) as fallback_count')
+          db.raw(`COUNT(CASE WHEN ${sqlJsonExtract('event_data', 'domainValidated')} = 'true' THEN 1 END) as domain_validated_count`),
+          db.raw(`COUNT(CASE WHEN ${sqlJsonExtract('event_data', 'fallbackApplied')} = 'true' THEN 1 END) as fallback_count`)
         ])
         .first();
 
@@ -310,8 +311,8 @@ export class EmailMetricsCollector {
         .whereBetween('event_at', [window.start, window.end])
         .select([
           db.raw('COUNT(*) as total_events'),
-          db.raw('COUNT(CASE WHEN event_type = "sent" THEN 1 END) as emails_sent_total'),
-          db.raw('COUNT(CASE WHEN event_type = "failed" THEN 1 END) as total_failed'),
+          db.raw("COUNT(CASE WHEN event_type = 'sent' THEN 1 END) as emails_sent_total"),
+          db.raw("COUNT(CASE WHEN event_type = 'failed' THEN 1 END) as total_failed"),
           db.raw('COUNT(DISTINCT user_id) as active_users'),
           
           // Performance metrics

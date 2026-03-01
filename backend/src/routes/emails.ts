@@ -21,6 +21,7 @@ import { MultiTenantEmailService, EmailRequest, AuthUser } from '../services/Mul
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { logger } from '../config/logger';
+import { sqlExtractDomain } from '../utils/sqlDialect';
 
 const router = Router();
 
@@ -429,7 +430,7 @@ router.get('/',
     // Domain filter
     if (domain_filter && domain_filter !== 'all') {
       // Extract domain from email and compare
-      query = query.whereRaw(`SUBSTR(to_email, INSTR(to_email, '@') + 1) = ?`, [domain_filter]);
+      query = query.whereRaw(`${sqlExtractDomain('to_email')} = ?`, [domain_filter]);
     }
 
     // Validate sort fields
@@ -486,7 +487,7 @@ router.get('/',
     }
 
     if (domain_filter && domain_filter !== 'all') {
-      countQuery = countQuery.whereRaw(`SUBSTR(to_email, INSTR(to_email, '@') + 1) = ?`, [domain_filter]);
+      countQuery = countQuery.whereRaw(`${sqlExtractDomain('to_email')} = ?`, [domain_filter]);
     }
 
     const total = await countQuery.count('* as count').first();
@@ -534,7 +535,7 @@ router.get('/',
     }
 
     if (domain_filter && domain_filter !== 'all') {
-      basicStatsQuery = basicStatsQuery.whereRaw(`SUBSTR(to_email, INSTR(to_email, '@') + 1) = ?`, [domain_filter]);
+      basicStatsQuery = basicStatsQuery.whereRaw(`${sqlExtractDomain('to_email')} = ?`, [domain_filter]);
     }
 
     const basicStats = await basicStatsQuery
@@ -603,8 +604,8 @@ router.get('/',
     }
 
     if (domain_filter && domain_filter !== 'all') {
-      openedQuery = openedQuery.whereRaw(`SUBSTR(emails.to_email, INSTR(emails.to_email, '@') + 1) = ?`, [domain_filter]);
-      clickedQuery = clickedQuery.whereRaw(`SUBSTR(emails.to_email, INSTR(emails.to_email, '@') + 1) = ?`, [domain_filter]);
+      openedQuery = openedQuery.whereRaw(`${sqlExtractDomain('emails.to_email')} = ?`, [domain_filter]);
+      clickedQuery = clickedQuery.whereRaw(`${sqlExtractDomain('emails.to_email')} = ?`, [domain_filter]);
     }
 
     const openedCount = await openedQuery.countDistinct('email_analytics.email_id as count').first();

@@ -1,6 +1,7 @@
 import { Knex } from 'knex';
 import db from '../config/database';
 import { logger } from '../config/logger';
+import { sqlDateFormat, sqlExtractHour, sqlExtractDow } from '../utils/sqlDialect';
 
 /**
  * SPRINT 3 - Trend Analytics Service
@@ -44,19 +45,18 @@ export class TrendAnalyticsService {
           .where('domains.id', domainId);
       }
 
-      // Para SQLite, usar strftime ao invés de DATE_FORMAT
-      const dateFormat = this.getSQLiteDateFormat(granularity);
-      
+      const periodExpr = this.getDateFormatExpr('emails.created_at', granularity);
+
       const results = await query
         .select(
-          db.raw(`strftime('${dateFormat}', emails.created_at) as period`),
+          db.raw(`${periodExpr} as period`),
           db.raw('COUNT(*) as total_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "sent" THEN 1 END) as sent_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "delivered" THEN 1 END) as delivered_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "bounced" THEN 1 END) as bounced_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "failed" THEN 1 END) as failed_emails')
+          db.raw("COUNT(CASE WHEN emails.status = 'sent' THEN 1 END) as sent_emails"),
+          db.raw("COUNT(CASE WHEN emails.status = 'delivered' THEN 1 END) as delivered_emails"),
+          db.raw("COUNT(CASE WHEN emails.status = 'bounced' THEN 1 END) as bounced_emails"),
+          db.raw("COUNT(CASE WHEN emails.status = 'failed' THEN 1 END) as failed_emails")
         )
-        .groupBy('period')
+        .groupBy(db.raw(periodExpr))
         .orderBy('period');
 
       // Calcular taxas
@@ -111,9 +111,9 @@ export class TrendAnalyticsService {
         .select(
           'domains.domain',
           db.raw('COUNT(*) as total_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "delivered" THEN 1 END) as delivered_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "bounced" THEN 1 END) as bounced_emails'),
-          db.raw('COUNT(CASE WHEN emails.status = "failed" THEN 1 END) as failed_emails')
+          db.raw("COUNT(CASE WHEN emails.status = 'delivered' THEN 1 END) as delivered_emails"),
+          db.raw("COUNT(CASE WHEN emails.status = 'bounced' THEN 1 END) as bounced_emails"),
+          db.raw("COUNT(CASE WHEN emails.status = 'failed' THEN 1 END) as failed_emails")
         )
         .groupBy('domains.domain')
         .orderBy('total_emails', 'desc');
@@ -152,11 +152,11 @@ export class TrendAnalyticsService {
         .where('user_id', userId)
         .whereBetween('created_at', [start, end])
         .select(
-          db.raw("strftime('%H', created_at) as hour"),
+          db.raw(`${sqlExtractHour('created_at')} as hour`),
           db.raw('COUNT(*) as total_emails'),
-          db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered_emails')
+          db.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_emails")
         )
-        .groupBy('hour')
+        .groupBy(db.raw(sqlExtractHour('created_at')))
         .orderBy('hour');
 
       const hourlyData = Array.from({ length: 24 }, (_, i) => {
@@ -194,11 +194,11 @@ export class TrendAnalyticsService {
         .where('user_id', userId)
         .whereBetween('created_at', [start, end])
         .select(
-          db.raw("strftime('%w', created_at) as day_of_week"),
+          db.raw(`${sqlExtractDow('created_at')} as day_of_week`),
           db.raw('COUNT(*) as total_emails'),
-          db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered_emails')
+          db.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_emails")
         )
-        .groupBy('day_of_week')
+        .groupBy(db.raw(sqlExtractDow('created_at')))
         .orderBy('day_of_week');
 
       const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -275,18 +275,18 @@ export class TrendAnalyticsService {
     return { start, end };
   }
 
-  private getSQLiteDateFormat(granularity: string): string {
+  private getDateFormatExpr(col: string, granularity: string): string {
     switch (granularity) {
       case 'hourly':
-        return '%Y-%m-%d %H';
+        return sqlDateFormat(col, '%Y-%m-%d %H', 'YYYY-MM-DD HH24');
       case 'daily':
-        return '%Y-%m-%d';
+        return sqlDateFormat(col, '%Y-%m-%d', 'YYYY-MM-DD');
       case 'weekly':
-        return '%Y-W%W';
+        return sqlDateFormat(col, '%Y-W%W', 'IYYY-"W"IW');
       case 'monthly':
-        return '%Y-%m';
+        return sqlDateFormat(col, '%Y-%m', 'YYYY-MM');
       default:
-        return '%Y-%m-%d';
+        return sqlDateFormat(col, '%Y-%m-%d', 'YYYY-MM-DD');
     }
   }
 
@@ -301,10 +301,10 @@ export class TrendAnalyticsService {
       .whereBetween('created_at', [start, end])
       .select(
         db.raw('COUNT(*) as total_emails'),
-        db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent_emails'),
-        db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered_emails'),
-        db.raw('COUNT(CASE WHEN status = "bounced" THEN 1 END) as bounced_emails'),
-        db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed_emails')
+        db.raw("COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_emails"),
+        db.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_emails"),
+        db.raw("COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced_emails"),
+        db.raw("COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_emails")
       )
       .first() as any;
 

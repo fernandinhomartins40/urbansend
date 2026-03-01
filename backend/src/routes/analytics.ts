@@ -3,6 +3,7 @@ import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { AnalyticsController } from '../controllers/analyticsController';
+import { sqlExtractDomain } from '../utils/sqlDialect';
 
 const router = Router();
 
@@ -482,7 +483,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
   const domains = await db('emails')
     .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
     .select(
-      db.raw('SUBSTR(emails.from_email, INSTR(emails.from_email, "@") + 1) as domain'),
+      db.raw(`${sqlExtractDomain('emails.from_email')} as domain`),
       db.raw('COUNT(DISTINCT emails.id) as total_emails'),
       db.raw(`
         COUNT(
@@ -517,7 +518,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
     .where('emails.user_id', req.user!.id)
     .where('emails.created_at', '>=', startDate)
     .where('emails.created_at', '<=', endDate)
-    .groupBy(db.raw('SUBSTR(emails.from_email, INSTR(emails.from_email, "@") + 1)'))
+    .groupBy(db.raw(sqlExtractDomain('emails.from_email')))
     .orderBy('total_emails', 'desc');
 
   res.json({

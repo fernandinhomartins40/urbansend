@@ -16,6 +16,7 @@ import { SimpleEmailValidator } from './EmailValidator';
 // SimpleEmailQueue removido - código legacy não utilizado
 import { EmailData, EmailContext, EmailQuotas } from './types';
 import db from '../config/database';
+import { sqlExtractHour } from '../utils/sqlDialect';
 
 // Interface para resultados de queries de uso de email
 interface EmailUsageResult {
@@ -56,7 +57,7 @@ const loadUserContext = asyncHandler(async (req: AuthenticatedRequest, res: Resp
       .where('status', 'sent')
       .select(
         db.raw('COUNT(*) as daily_count'),
-        db.raw(`COUNT(CASE WHEN HOUR(sent_at) = ${currentHour} THEN 1 END) as hourly_count`)
+        db.raw(`COUNT(CASE WHEN ${sqlExtractHour('sent_at')} = ${currentHour} THEN 1 END) as hourly_count`)
       )
       .first();
 

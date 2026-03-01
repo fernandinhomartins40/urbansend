@@ -8,6 +8,7 @@ import { ReputationManager } from './reputationManager';
 import { DKIMManager } from './dkimManager';
 import { DeliveryManager } from './deliveryManager';
 import { TenantContextService } from './TenantContextService';
+import { sqlJsonExtract } from '../utils/sqlDialect';
 
 export interface ProcessingResult {
   success: boolean;
@@ -1026,30 +1027,30 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
       ] = await Promise.all([
         db('processed_emails')
           .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
-          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .whereRaw(`${sqlJsonExtract('security_checks', 'tenantId')} = ?`, [tenantId]) // Tenant-specific filter
           .count('* as count')
           .first(),
         db('processed_emails')
           .where('direction', 'incoming')
           .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
-          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .whereRaw(`${sqlJsonExtract('security_checks', 'tenantId')} = ?`, [tenantId]) // Tenant-specific filter
           .count('* as count')
           .first(),
         db('processed_emails')
           .where('direction', 'outgoing')
           .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
-          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .whereRaw(`${sqlJsonExtract('security_checks', 'tenantId')} = ?`, [tenantId]) // Tenant-specific filter
           .count('* as count')
           .first(),
         db('processed_emails')
           .where('status', 'rejected')
           .where('processed_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
-          .whereRaw("JSON_EXTRACT(security_checks, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .whereRaw(`${sqlJsonExtract('security_checks', 'tenantId')} = ?`, [tenantId]) // Tenant-specific filter
           .count('* as count')
           .first(),
         db('email_quarantine')
           .where('quarantined_at', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
-          .whereRaw("JSON_EXTRACT(security_details, '$.tenantId') = ?", [tenantId]) // Tenant-specific filter
+          .whereRaw(`${sqlJsonExtract('security_details', 'tenantId')} = ?`, [tenantId]) // Tenant-specific filter
           .count('* as count')
           .first()
       ]);

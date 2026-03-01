@@ -81,8 +81,8 @@ export class SmtpConnectionService {
         .where('created_at', '<=', timeframeDates.endDate)
         .select(
           db.raw('COUNT(*) as total'),
-          db.raw('COUNT(CASE WHEN status = "connected" THEN 1 END) as successful'),
-          db.raw('COUNT(CASE WHEN status IN ("failed", "timeout") THEN 1 END) as failed'),
+          db.raw("COUNT(CASE WHEN status = 'connected' THEN 1 END) as successful"),
+          db.raw("COUNT(CASE WHEN status IN ('failed', 'timeout') THEN 1 END) as failed"),
           db.raw('COUNT(DISTINCT remote_address) as unique_hosts')
         )
         .first() as any;
@@ -161,8 +161,8 @@ export class SmtpConnectionService {
         .select(
           db.raw('DATE(created_at) as date'),
           db.raw('COUNT(*) as total_connections'),
-          db.raw('COUNT(CASE WHEN status = "connected" THEN 1 END) as successful'),
-          db.raw('COUNT(CASE WHEN status IN ("failed", "timeout") THEN 1 END) as failed'),
+          db.raw("COUNT(CASE WHEN status = 'connected' THEN 1 END) as successful"),
+          db.raw("COUNT(CASE WHEN status IN ('failed', 'timeout') THEN 1 END) as failed"),
           db.raw('COUNT(DISTINCT remote_address) as unique_hosts')
         )
         .groupBy(db.raw('DATE(created_at)'))
@@ -196,7 +196,7 @@ export class SmtpConnectionService {
         .where('created_at', '<=', timeframeDates.endDate)
         .select('remote_address', 'hostname')
         .count('* as connection_count')
-        .sum(db.raw('CASE WHEN status = "connected" THEN 1 ELSE 0 END as successful_count'))
+        .sum(db.raw("CASE WHEN status = 'connected' THEN 1 ELSE 0 END as successful_count"))
         .groupBy('remote_address', 'hostname')
         .orderBy('connection_count', 'desc')
         .limit(limit) as any[];

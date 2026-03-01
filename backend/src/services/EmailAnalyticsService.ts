@@ -1,5 +1,6 @@
 import db from '../config/database'
 import { logger } from '../config/logger'
+import { sqlJsonExtract } from '../utils/sqlDialect'
 
 /**
  * SERVIÇO OTIMIZADO DE ANALYTICS DE EMAIL
@@ -322,10 +323,10 @@ export class EmailAnalyticsService {
 
       const stats = await query.select(
         db.raw('COUNT(*) as total_emails'),
-        db.raw('COUNT(CASE WHEN event_type = "delivered" THEN 1 END) as delivered'),
-        db.raw('COUNT(CASE WHEN event_type = "opened" THEN 1 END) as opened'),
-        db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked'),
-        db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced')
+        db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered"),
+        db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened"),
+        db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked"),
+        db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced")
       ).first();
 
       const totalEmails = parseInt((stats as any).total_emails) || 0;
@@ -421,10 +422,10 @@ export class EmailAnalyticsService {
 
       const deliveryStats = await query.select(
         db.raw('COUNT(*) as total'),
-        db.raw('COUNT(CASE WHEN status = "sent" THEN 1 END) as sent'),
-        db.raw('COUNT(CASE WHEN status = "delivered" THEN 1 END) as delivered'),
-        db.raw('COUNT(CASE WHEN status = "bounced" THEN 1 END) as bounced'),
-        db.raw('COUNT(CASE WHEN status = "failed" THEN 1 END) as failed')
+        db.raw("COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent"),
+        db.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered"),
+        db.raw("COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced"),
+        db.raw("COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed")
       ).first() as any;
 
       const total = deliveryStats.total || 0;
@@ -459,10 +460,10 @@ export class EmailAnalyticsService {
         .where('campaign_id', campaignId)
         .select(
           db.raw('COUNT(DISTINCT email_id) as emails_sent'),
-          db.raw('COUNT(CASE WHEN event_type = "delivered" THEN 1 END) as delivered'),
-          db.raw('COUNT(CASE WHEN event_type = "opened" THEN 1 END) as opened'),
-          db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked'),
-          db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced')
+          db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered"),
+          db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened"),
+          db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked"),
+          db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced")
         ).first() as any;
 
       const emailsSent = campaignStats.emails_sent || 0;
@@ -533,10 +534,10 @@ export class EmailAnalyticsService {
         .where('created_at', '>=', startDate)
         .select(
           db.raw('DATE(created_at) as date'),
-          db.raw('COUNT(CASE WHEN event_type = "delivered" THEN 1 END) as delivered'),
-          db.raw('COUNT(CASE WHEN event_type = "opened" THEN 1 END) as opened'),
-          db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked'),
-          db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced')
+          db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered"),
+          db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened"),
+          db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked"),
+          db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced")
         )
         .groupBy(db.raw('DATE(created_at)'))
         .orderBy('date', 'asc') as any[];
@@ -569,23 +570,23 @@ export class EmailAnalyticsService {
     startDate.setDate(startDate.getDate() - days)
 
     const result = await db.raw(`
-      SELECT 
-        JSON_EXTRACT(geographic_data, '$.country') as country,
-        JSON_EXTRACT(geographic_data, '$.region') as region,
-        JSON_EXTRACT(geographic_data, '$.city') as city,
+      SELECT
+        ${sqlJsonExtract('geographic_data', 'country')} as country,
+        ${sqlJsonExtract('geographic_data', 'region')} as region,
+        ${sqlJsonExtract('geographic_data', 'city')} as city,
         COUNT(CASE WHEN event_type = 'open' THEN 1 END) as opens,
         COUNT(CASE WHEN event_type = 'click' THEN 1 END) as clicks,
         COUNT(DISTINCT email_id) as unique_recipients
-      FROM email_analytics 
+      FROM email_analytics
       WHERE user_id = ?
         AND created_at >= ?
         AND geographic_data IS NOT NULL
         AND geographic_data != ''
-        AND JSON_EXTRACT(geographic_data, '$.country') IS NOT NULL
-      GROUP BY 
-        JSON_EXTRACT(geographic_data, '$.country'),
-        JSON_EXTRACT(geographic_data, '$.region'),
-        JSON_EXTRACT(geographic_data, '$.city')
+        AND ${sqlJsonExtract('geographic_data', 'country')} IS NOT NULL
+      GROUP BY
+        ${sqlJsonExtract('geographic_data', 'country')},
+        ${sqlJsonExtract('geographic_data', 'region')},
+        ${sqlJsonExtract('geographic_data', 'city')}
       ORDER BY opens DESC, clicks DESC
       LIMIT 50
     `, [userId, startDate])
@@ -617,12 +618,12 @@ export class EmailAnalyticsService {
 
     const result = await db.raw(`
       WITH device_stats AS (
-        SELECT 
-          COALESCE(JSON_EXTRACT(device_data, '$.device_type'), 'Desktop') as device_type,
-          COALESCE(JSON_EXTRACT(device_data, '$.user_agent_family'), 'Unknown') as user_agent_family,
+        SELECT
+          COALESCE(${sqlJsonExtract('device_data', 'device_type')}, 'Desktop') as device_type,
+          COALESCE(${sqlJsonExtract('device_data', 'user_agent_family')}, 'Unknown') as user_agent_family,
           COUNT(CASE WHEN event_type = 'open' THEN 1 END) as opens,
           COUNT(CASE WHEN event_type = 'click' THEN 1 END) as clicks
-        FROM email_analytics 
+        FROM email_analytics
         WHERE user_id = ?
           AND created_at >= ?
           AND event_type IN ('open', 'click')
@@ -631,7 +632,7 @@ export class EmailAnalyticsService {
       total_events AS (
         SELECT SUM(opens + clicks) as total FROM device_stats
       )
-      SELECT 
+      SELECT
         ds.*,
         ROUND((ds.opens + ds.clicks) * 100.0 / te.total, 2) as percentage
       FROM device_stats ds

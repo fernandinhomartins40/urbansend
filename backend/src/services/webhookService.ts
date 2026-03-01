@@ -16,6 +16,7 @@ interface WebhookJobData {
   retryCount?: number;
 }
 import { TenantContextService } from './TenantContextService';
+import { sqlJsonContainsLike } from '../utils/sqlDialect';
 
 interface WebhookPayload {
   event: string;
@@ -91,7 +92,7 @@ export class WebhookService {
         webhooks = await db('webhooks')
           .where('user_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
           .where('is_active', true)
-          .whereRaw("JSON_EXTRACT(events, '$') LIKE ?", [`%"${event}"%`]);
+          .whereRaw(sqlJsonContainsLike('events'), [`%"${event}"%`]);
       }
 
       if (!webhooks.length) {

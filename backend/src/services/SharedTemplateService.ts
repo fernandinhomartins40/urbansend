@@ -13,6 +13,7 @@
 
 import db from '../config/database'
 import { logger } from '../config/logger'
+import { sqlDaysAgo } from '../utils/sqlDialect'
 
 interface TemplateFilters {
   category?: string
@@ -945,7 +946,7 @@ export class SharedTemplateService {
               db.raw('COUNT(*) as daily_usage')
             )
             .where('template_id', templateId)
-            .where('created_at', '>=', db.raw("date('now', '-30 days')"))
+            .where('created_at', '>=', db.raw(sqlDaysAgo(30)))
             .groupBy(db.raw('DATE(created_at)'))
             .orderBy('date')
         ])

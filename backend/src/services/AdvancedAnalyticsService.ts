@@ -731,11 +731,11 @@ export class AdvancedAnalyticsService {
 
       const metrics = await query
         .select(
-          db.raw('COUNT(CASE WHEN event_type = "sent" THEN 1 END) as sent_count'),
-          db.raw('COUNT(CASE WHEN event_type = "delivered" THEN 1 END) as delivered_count'),
-          db.raw('COUNT(CASE WHEN event_type = "opened" THEN 1 END) as opened_count'),
-          db.raw('COUNT(CASE WHEN event_type = "clicked" THEN 1 END) as clicked_count'),
-          db.raw('COUNT(CASE WHEN event_type = "bounced" THEN 1 END) as bounced_count')
+          db.raw("COUNT(CASE WHEN event_type = 'sent' THEN 1 END) as sent_count"),
+          db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered_count"),
+          db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened_count"),
+          db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked_count"),
+          db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced_count")
         )
         .first() as any
 
