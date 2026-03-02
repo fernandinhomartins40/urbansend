@@ -9,7 +9,7 @@ export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Re
   const userId = req.user!.id;
 
   const apiKeys = await db('api_keys')
-    .select('id', 'key_name', 'permissions', 'created_at', 'last_used_at', 'is_active')
+    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active')
     .where('user_id', userId)
     .orderBy('created_at', 'desc');
 
@@ -27,13 +27,13 @@ export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Re
 });
 
 export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { key_name, permissions } = req.body;
+  const { name, permissions } = req.body;
   const userId = req.user!.id;
 
   // Check if key name already exists for this user
   const existingKey = await db('api_keys')
     .where('user_id', userId)
-    .where('key_name', key_name)
+    .where('name', name)
     .first();
 
   if (existingKey) {
@@ -47,8 +47,8 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   // Create API key record
   const insertResult = await db('api_keys').insert({
     user_id: userId,
-    key_name,
-    api_key_hash: hashedApiKey,
+    name,
+    key_hash: hashedApiKey,
     permissions: JSON.stringify(permissions),
     created_at: new Date(),
     is_active: true
@@ -59,7 +59,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   logger.info('API key created successfully', { 
     userId, 
     keyId, 
-    keyName: key_name,
+    keyName: name,
     permissions: permissions.length 
   });
 
@@ -67,7 +67,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     message: 'API key created successfully',
     api_key: {
       id: keyId,
-      key_name,
+      name,
       permissions,
       created_at: new Date().toISOString(),
       is_active: true
@@ -85,7 +85,7 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     throw createError('API key ID is required', 400);
   }
   
-  const { key_name, permissions } = req.body;
+  const { name, permissions } = req.body;
   const userId = req.user!.id;
 
   const apiKey = await db('api_keys')
@@ -98,10 +98,10 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   }
 
   // Check if new key name conflicts with existing keys (excluding current key)
-  if (key_name !== apiKey.key_name) {
+  if (name !== apiKey.name) {
     const existingKey = await db('api_keys')
       .where('user_id', userId)
-      .where('key_name', key_name)
+      .where('name', name)
       .where('id', '!=', parseInt(id, 10))
       .first();
 
@@ -114,12 +114,12 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     .where('id', id)
     .where('user_id', userId)
     .update({
-      key_name,
+      name,
       permissions: JSON.stringify(permissions)
     });
 
   const updatedKey = await db('api_keys')
-    .select('id', 'key_name', 'permissions', 'created_at', 'last_used_at', 'is_active')
+    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active')
     .where('id', id)
     .first();
 
@@ -181,8 +181,8 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
     .where('id', id)
     .where('user_id', userId)
     .update({
-      api_key_hash: hashedApiKey,
-      last_used_at: null // Reset last used timestamp
+      key_hash: hashedApiKey,
+      last_used: null // Reset last used timestamp
     });
 
   logger.info('API key regenerated successfully', { userId, keyId: id });
@@ -267,8 +267,8 @@ export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res
   res.json({
     api_key: {
       id: apiKey.id,
-      key_name: apiKey.key_name,
-      last_used_at: apiKey.last_used_at,
+      name: apiKey.name,
+      last_used: apiKey.last_used,
       is_active: apiKey.is_active
     },
     usage_stats: {

@@ -98,8 +98,7 @@ const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date)
     .countDistinct(
       db.raw(`
         CASE
-          WHEN emails.opened_at IS NOT NULL
-            OR emails.status IN ('opened', 'clicked')
+          WHEN emails.status IN ('opened', 'clicked')
             OR email_analytics.event_type IN ('open', 'opened')
           THEN emails.id
         END
@@ -113,8 +112,7 @@ const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date)
     .countDistinct(
       db.raw(`
         CASE
-          WHEN emails.clicked_at IS NOT NULL
-            OR emails.status = 'clicked'
+          WHEN emails.status = 'clicked'
             OR email_analytics.event_type IN ('click', 'clicked')
           THEN emails.id
         END
@@ -281,8 +279,7 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
       db.raw(`
         COUNT(
           DISTINCT CASE
-            WHEN emails.opened_at IS NOT NULL
-              OR emails.status IN ('opened', 'clicked')
+            WHEN emails.status IN ('opened', 'clicked')
               OR email_analytics.event_type IN ('open', 'opened')
             THEN emails.id
           END
@@ -291,8 +288,7 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
       db.raw(`
         COUNT(
           DISTINCT CASE
-            WHEN emails.clicked_at IS NOT NULL
-              OR emails.status = 'clicked'
+            WHEN emails.status = 'clicked'
               OR email_analytics.event_type IN ('click', 'clicked')
             THEN emails.id
           END
@@ -339,8 +335,7 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
       db.raw(`
         COUNT(
           DISTINCT CASE
-            WHEN emails.opened_at IS NOT NULL
-              OR emails.status IN ('opened', 'clicked')
+            WHEN emails.status IN ('opened', 'clicked')
               OR email_analytics.event_type IN ('open', 'opened')
             THEN emails.id
           END
@@ -349,8 +344,7 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
       db.raw(`
         COUNT(
           DISTINCT CASE
-            WHEN emails.clicked_at IS NOT NULL
-              OR emails.status = 'clicked'
+            WHEN emails.status = 'clicked'
               OR email_analytics.event_type IN ('click', 'clicked')
             THEN emails.id
           END
@@ -497,8 +491,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
       db.raw(`
         COUNT(
           DISTINCT CASE
-            WHEN emails.opened_at IS NOT NULL
-              OR emails.status IN ('opened', 'clicked')
+            WHEN emails.status IN ('opened', 'clicked')
               OR email_analytics.event_type IN ('open', 'opened')
             THEN emails.id
           END
@@ -507,8 +500,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
       db.raw(`
         COUNT(
           DISTINCT CASE
-            WHEN emails.clicked_at IS NOT NULL
-              OR emails.status = 'clicked'
+            WHEN emails.status = 'clicked'
               OR email_analytics.event_type IN ('click', 'clicked')
             THEN emails.id
           END
