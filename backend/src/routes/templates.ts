@@ -1,11 +1,33 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { validateRequest, createTemplateSchema, idParamSchema, sanitizeEmailHtml } from '../middleware/validation';
+import { validateRequest, createTemplateSchema, idParamSchema, sanitizeEmailHtml, updateTemplateSchema } from '../middleware/validation';
 import { authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 
 const router = Router();
+
+const parseTemplateVariables = (variables: unknown): string[] => {
+  if (Array.isArray(variables)) {
+    return variables.filter((value): value is string => typeof value === 'string');
+  }
+
+  if (typeof variables === 'string') {
+    try {
+      const parsed = JSON.parse(variables);
+      return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const normalizeTemplate = (template: any) => ({
+  ...template,
+  variables: parseTemplateVariables(template?.variables)
+});
 
 // Get templates
 router.get('/', 
@@ -15,7 +37,7 @@ router.get('/',
       .where('user_id', req.user!.id)
       .orderBy('created_at', 'desc');
     
-    res.json({ templates });
+    res.json({ templates: templates.map(normalizeTemplate) });
   })
 );
 
@@ -41,7 +63,7 @@ router.post('/',
     const templateId = insertResult[0];
 
     const template = await db('email_templates').where('id', templateId).first();
-    res.status(201).json({ template });
+    res.status(201).json({ template: normalizeTemplate(template) });
   })
 );
 
@@ -59,15 +81,24 @@ router.get('/:id',
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    return res.json({ template });
+    return res.json({ template: normalizeTemplate(template) });
   })
 );
 
 // Update template
 router.put('/:id',
   authenticateJWT,
-  validateRequest({ params: idParamSchema }),
+  validateRequest({ params: idParamSchema, body: updateTemplateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const existingTemplate = await db('email_templates')
+      .where('id', req.params['id'])
+      .where('user_id', req.user!.id)
+      .first();
+
+    if (!existingTemplate) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
     const updateData = {
       ...req.body,
       variables: JSON.stringify(req.body.variables || []),
@@ -86,9 +117,10 @@ router.put('/:id',
 
     const template = await db('email_templates')
       .where('id', req.params['id'])
+      .where('user_id', req.user!.id)
       .first();
 
-    res.json({ template });
+    res.json({ template: normalizeTemplate(template) });
   })
 );
 
@@ -97,10 +129,14 @@ router.delete('/:id',
   authenticateJWT,
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    await db('email_templates')
+    const deleted = await db('email_templates')
       .where('id', req.params['id'])
       .where('user_id', req.user!.id)
       .del();
+
+    if (deleted === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
 
     res.json({ message: 'Template deleted successfully' });
   })

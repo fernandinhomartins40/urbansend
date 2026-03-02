@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Mail, CheckCircle, AlertTriangle, TrendingUp, FileText, Globe, Loader2 } from 'lucide-react'
@@ -25,6 +26,7 @@ interface RecentActivity {
 }
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
 
   // Smart polling for dashboard stats
@@ -95,7 +97,7 @@ export function Dashboard() {
             Visão geral dos seus emails e métricas
           </p>
         </div>
-        <Button>Enviar Email</Button>
+        <Button onClick={() => navigate('/app/emails/send')}>Enviar Email</Button>
       </div>
 
       {/* Metrics Cards */}
@@ -193,15 +195,15 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <Button className="w-full justify-start">
+              <Button className="w-full justify-start" onClick={() => navigate('/app/emails/send')}>
                 <Mail className="mr-2 h-4 w-4" />
                 Enviar Email
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/app/templates')}>
                 <FileText className="mr-2 h-4 w-4" />
                 Criar Template
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/app/domains?mode=setup')}>
                 <Globe className="mr-2 h-4 w-4" />
                 Adicionar Domínio
               </Button>

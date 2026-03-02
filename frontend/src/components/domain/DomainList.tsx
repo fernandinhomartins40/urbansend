@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { DomainDetails } from './DomainDetails';
-import { useDomainSetup, DomainStatus } from '../../hooks/useDomainSetup';
+import { DomainStatus } from '../../hooks/useDomainSetup';
 import { 
   Plus, 
   Settings, 
@@ -23,12 +23,24 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
 interface DomainListProps {
+  domains: DomainStatus[];
+  loading: boolean;
+  error: string | null;
+  onReload: () => Promise<void> | void;
+  onRemoveDomain: (domainId: number) => Promise<boolean>;
+  onRefreshDomain: (domainId: number) => Promise<void>;
   onAddDomain?: () => void;
   onViewDomain?: (domainId: number) => void;
   onEditDomain?: (domainId: number) => void;
 }
 
 export const DomainList: React.FC<DomainListProps> = ({
+  domains,
+  loading,
+  error,
+  onReload,
+  onRemoveDomain,
+  onRefreshDomain,
   onAddDomain,
   onViewDomain,
   onEditDomain
@@ -38,19 +50,6 @@ export const DomainList: React.FC<DomainListProps> = ({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
   const [refreshingDomains, setRefreshingDomains] = useState<Set<number>>(new Set());
-
-  const {
-    loading,
-    error,
-    domains,
-    loadDomains,
-    removeDomain,
-    refreshDomain
-  } = useDomainSetup();
-
-  useEffect(() => {
-    loadDomains();
-  }, [loadDomains]);
 
   const getStatusColor = (status: DomainStatus['status']) => {
     switch (status) {
@@ -101,7 +100,7 @@ export const DomainList: React.FC<DomainListProps> = ({
     if (!domainToDelete) return;
 
     try {
-      await removeDomain(domainToDelete.id);
+      await onRemoveDomain(domainToDelete.id);
       setDeleteDialogOpen(false);
       setDomainToDelete(null);
     } catch (error) {
@@ -112,7 +111,7 @@ export const DomainList: React.FC<DomainListProps> = ({
   const handleRefreshDomain = async (domainId: number) => {
     setRefreshingDomains(prev => new Set([...prev, domainId]));
     try {
-      await refreshDomain(domainId);
+      await onRefreshDomain(domainId);
       toast.success('Status do domínio atualizado');
     } catch (error) {
       console.error('Failed to refresh domain:', error);
@@ -348,7 +347,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           {isAuthError ? 'Faça login para visualizar e gerenciar seus domínios.' : error}
         </p>
         <div className="flex justify-center space-x-3">
-          <Button onClick={loadDomains} variant="outline">
+          <Button onClick={onReload} variant="outline">
             <RefreshCw className="w-4 h-4 mr-2" />
             Tentar Novamente
           </Button>

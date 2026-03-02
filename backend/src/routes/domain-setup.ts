@@ -34,6 +34,13 @@ const domainValidationSchema = z.object({
     .transform(domain => domain.toLowerCase().trim())
 });
 
+const domainUpdateSchema = z.object({
+  dkim_enabled: z.boolean().optional(),
+  spf_enabled: z.boolean().optional(),
+  dmarc_enabled: z.boolean().optional(),
+  dmarc_policy: z.enum(['none', 'quarantine', 'reject']).optional()
+});
+
 /**
  * POST /api/domain-setup/setup
  * Inicia configuração de um novo domínio
@@ -564,7 +571,7 @@ router.get('/dns-instructions/:domainId',
  * Atualiza configurações de um domínio existente
  */
 router.put('/domains/:domainId',
-  validateRequest({ params: domainIdSchema }),
+  validateRequest({ params: domainIdSchema, body: domainUpdateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
     const userId = req.user!.id;

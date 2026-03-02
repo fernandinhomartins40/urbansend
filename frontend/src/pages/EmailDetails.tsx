@@ -134,6 +134,7 @@ export function EmailDetails() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case 'pending': return <Activity className="h-4 w-4 text-amber-500" />
       case 'sent': return <Send className="h-4 w-4 text-blue-500" />
       case 'delivered': return <Eye className="h-4 w-4 text-green-500" />
       case 'opened': return <Eye className="h-4 w-4 text-blue-600" />
@@ -161,7 +162,8 @@ export function EmailDetails() {
         variant="secondary" 
         className={color}
       >
-        {email.status === 'sent' ? 'Enviado' :
+        {email.status === 'pending' ? 'Processando' :
+         email.status === 'sent' ? 'Enviado' :
          email.status === 'delivered' ? 'Entregue' :
          email.status === 'queued' ? 'Na fila' :
          email.status === 'failed' ? 'Falhou' :
@@ -180,6 +182,7 @@ export function EmailDetails() {
       case 'open': return 'Abertura'
       case 'click': return 'Clique'
       case 'bounce': return 'Bounce'
+      case 'delivered': return 'Entrega'
       case 'delivery': return 'Entrega'
       case 'unsubscribe': return 'Descadastro'
       default: return eventType
@@ -191,6 +194,7 @@ export function EmailDetails() {
       case 'open': return <Eye className="h-4 w-4 text-blue-500" />
       case 'click': return <MousePointer className="h-4 w-4 text-purple-500" />
       case 'bounce': return <AlertTriangle className="h-4 w-4 text-red-500" />
+      case 'delivered': return <Send className="h-4 w-4 text-green-500" />
       case 'delivery': return <Send className="h-4 w-4 text-green-500" />
       case 'unsubscribe': return <User className="h-4 w-4 text-orange-500" />
       default: return <Activity className="h-4 w-4 text-gray-500" />

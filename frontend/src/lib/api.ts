@@ -289,29 +289,29 @@ export const apiKeyApi = {
 
 export const domainApi = {
   getDomains: () =>
-    api.get('/domains'),
+    api.get('/domain-setup/domains'),
 
-  addDomain: (data: { domain_name: string; region: string }) =>
-    api.post('/domains', data),
+  addDomain: (data: { domain_name: string }) =>
+    api.post('/domain-setup/setup', { domain: data.domain_name }),
 
   getDomainDetails: (id: string) =>
-    api.get(`/domains/${id}`),
+    api.get(`/domain-setup/domains/${id}`),
 
   verifyDomain: (id: string) =>
-    api.post(`/domains/${id}/verify`),
+    api.post(`/domain-setup/${id}/verify`),
 
   deleteDomain: (id: string) =>
-    api.delete(`/domains/${id}`),
+    api.delete(`/domain-setup/domains/${id}`),
 }
 
 export const analyticsApi = {
-  getAnalytics: (params?: { timeRange?: string }) =>
+  getAnalytics: (params?: { timeRange?: string; domainId?: string }) =>
     api.get('/analytics', { params }),
 
-  getAnalyticsChart: (params?: { timeRange?: string }) =>
+  getAnalyticsChart: (params?: { timeRange?: string; domainId?: string }) =>
     api.get('/analytics/chart', { params }),
 
-  getTopEmails: (params?: { timeRange?: string }) =>
+  getTopEmails: (params?: { timeRange?: string; domainId?: string }) =>
     api.get('/analytics/top-emails', { params }),
 
   getOverview: (period?: string) =>
@@ -320,11 +320,11 @@ export const analyticsApi = {
   getEmails: (params?: any) =>
     api.get('/analytics/emails', { params }),
 
-  getDomains: (params?: { timeRange?: string }) =>
+  getDomains: (params?: { timeRange?: string; domainId?: string }) =>
     api.get('/analytics/domains', { params }),
 
-  getRecentActivity: () =>
-    api.get('/analytics/recent-activity'),
+  getRecentActivity: (params?: { timeRange?: string; domainId?: string }) =>
+    api.get('/analytics/recent-activity', { params }),
 }
 
 export const webhookApi = {

@@ -1,21 +1,23 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { AlertTriangle, BarChart3, Copy, Key, MoreVertical, Pencil, Plus, RotateCcw, Settings, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { apiKeyApi } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { apiKeyApi } from '@/lib/api'
-import { formatRelativeTime, copyToClipboard } from '@/lib/utils'
-import { Key, Plus, Copy, Eye, EyeOff, Trash2, RotateCcw, Settings, AlertTriangle, MoreVertical } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { copyToClipboard, formatRelativeTime } from '@/lib/utils'
 
 const createApiKeySchema = z.object({
-  key_name: z.string().min(1, 'Nome é obrigatório').max(100),
-  permissions: z.array(z.string()).min(1, 'Selecione pelo menos uma permissão'),
+  key_name: z.string().min(1, 'Nome e obrigatorio').max(100),
+  permissions: z.array(z.string()).min(1, 'Selecione pelo menos uma permissao'),
 })
 
 type CreateApiKeyForm = z.infer<typeof createApiKeySchema>
@@ -30,24 +32,63 @@ interface ApiKey {
   api_key_preview: string
 }
 
+interface ApiKeyUsage {
+  api_key: {
+    id: number
+    key_name: string
+    last_used_at: string | null
+    is_active: boolean
+    api_key_preview: string
+  }
+  usage_stats: {
+    period: string
+    total_emails: number
+    sent_emails: number
+    delivered_emails: number
+    opened_emails?: number
+    clicked_emails?: number
+    bounced_emails: number
+    failed_emails: number
+    daily_usage: Array<{ date: string; count: number }>
+  }
+}
+
 const availablePermissions = [
   { id: 'email:send', label: 'Enviar emails', description: 'Permite enviar emails individuais e em lote' },
-  { id: 'email:read', label: 'Ler emails', description: 'Permite visualizar histórico e detalhes dos emails' },
+  { id: 'email:read', label: 'Ler emails', description: 'Permite visualizar historico e detalhes dos emails' },
   { id: 'template:read', label: 'Ler templates', description: 'Permite visualizar templates de email' },
   { id: 'template:write', label: 'Gerenciar templates', description: 'Permite criar, editar e deletar templates' },
-  { id: 'domain:read', label: 'Ler domínios', description: 'Permite visualizar domínios configurados' },
-  { id: 'analytics:read', label: 'Ler analytics', description: 'Permite acessar métricas e relatórios' },
+  { id: 'domain:read', label: 'Ler dominios', description: 'Permite visualizar dominios configurados' },
+  { id: 'analytics:read', label: 'Ler analytics', description: 'Permite acessar metricas e relatorios' },
   { id: 'webhook:read', label: 'Ler webhooks', description: 'Permite visualizar webhooks configurados' },
   { id: 'webhook:write', label: 'Gerenciar webhooks', description: 'Permite criar, editar e deletar webhooks' },
 ]
 
 export function ApiKeys() {
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [visibleKeys, setVisibleKeys] = useState<Set<number>>(new Set())
-  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const [showCreateCard, setShowCreateCard] = useState(false)
+  const [latestKey, setLatestKey] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ApiKey | null>(null)
+  const [regenerateTarget, setRegenerateTarget] = useState<ApiKey | null>(null)
+  const [editingKey, setEditingKey] = useState<ApiKey | null>(null)
+  const [usageTarget, setUsageTarget] = useState<ApiKey | null>(null)
 
-  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm<CreateApiKeyForm>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+    reset,
+  } = useForm<CreateApiKeyForm>({
+    resolver: zodResolver(createApiKeySchema),
+    defaultValues: {
+      key_name: '',
+      permissions: [],
+    },
+  })
+
+  const editForm = useForm<CreateApiKeyForm>({
     resolver: zodResolver(createApiKeySchema),
     defaultValues: {
       key_name: '',
@@ -57,65 +98,97 @@ export function ApiKeys() {
 
   const selectedPermissions = watch('permissions') || []
 
-  const { data: apiKeys, isLoading } = useQuery({
+  const { data: apiKeysResponse, isLoading } = useQuery({
     queryKey: ['apiKeys'],
-    queryFn: () => apiKeyApi.getApiKeys(),
+    queryFn: apiKeyApi.getApiKeys,
+  })
+
+  const keys: ApiKey[] = apiKeysResponse?.data?.api_keys || []
+
+  useEffect(() => {
+    if (!editingKey) {
+      return
+    }
+
+    editForm.reset({
+      key_name: editingKey.key_name,
+      permissions: editingKey.permissions,
+    })
+  }, [editForm, editingKey])
+
+  const { data: usageResponse, isLoading: usageLoading } = useQuery({
+    queryKey: ['apiKeyUsage', usageTarget?.id],
+    queryFn: async () => {
+      const response = await apiKeyApi.getApiKeyUsage(String(usageTarget?.id))
+      return response.data as ApiKeyUsage
+    },
+    enabled: Boolean(usageTarget),
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateApiKeyForm) => {
-      // Ensure required fields are present
-      if (!data.key_name || !data.permissions || data.permissions.length === 0) {
-        throw new Error('Nome e permissões são obrigatórios')
-      }
-      return apiKeyApi.createApiKey({
+    mutationFn: (data: CreateApiKeyForm) =>
+      apiKeyApi.createApiKey({
         key_name: data.key_name,
-        permissions: data.permissions
-      })
-    },
+        permissions: data.permissions,
+      }),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
-      setNewlyCreatedKey(response.data.key)
-      setShowCreateDialog(false)
+      setLatestKey(response.data.key)
+      setShowCreateCard(false)
       reset()
-      toast.success('API Key criada com sucesso!')
+      toast.success('API Key criada com sucesso')
     },
-    onError: () => {
-      toast.error('Erro ao criar API Key')
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Erro ao criar API Key')
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiKeyApi.deleteApiKey(id.toString()),
+    mutationFn: (id: number) => apiKeyApi.deleteApiKey(String(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
-      toast.success('API Key deletada com sucesso!')
+      setDeleteTarget(null)
+      toast.success('API Key removida')
     },
-    onError: () => {
-      toast.error('Erro ao deletar API Key')
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Erro ao remover API Key')
     },
   })
 
   const regenerateMutation = useMutation({
-    mutationFn: (id: number) => apiKeyApi.regenerateApiKey(id.toString()),
+    mutationFn: (id: number) => apiKeyApi.regenerateApiKey(String(id)),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
-      setNewlyCreatedKey(response.data.key)
-      toast.success('API Key regenerada com sucesso!')
+      setLatestKey(response.data.key)
+      setRegenerateTarget(null)
+      toast.success('API Key regenerada')
     },
-    onError: () => {
-      toast.error('Erro ao regenerar API Key')
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Erro ao regenerar API Key')
     },
   })
 
   const toggleMutation = useMutation({
-    mutationFn: (id: number) => apiKeyApi.toggleApiKey(id.toString()),
+    mutationFn: (id: number) => apiKeyApi.toggleApiKey(String(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
-      toast.success('Status da API Key atualizado!')
+      toast.success('Status atualizado')
     },
-    onError: () => {
-      toast.error('Erro ao atualizar status da API Key')
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Erro ao atualizar status')
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreateApiKeyForm }) =>
+      apiKeyApi.updateApiKey(String(id), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
+      setEditingKey(null)
+      toast.success('API Key atualizada')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Erro ao atualizar API Key')
     },
   })
 
@@ -124,177 +197,127 @@ export function ApiKeys() {
   }
 
   const handlePermissionToggle = (permission: string) => {
-    const current = selectedPermissions || []
-    const updated = current.includes(permission)
-      ? current.filter(p => p !== permission)
-      : [...current, permission]
+    const updated = selectedPermissions.includes(permission)
+      ? selectedPermissions.filter((item) => item !== permission)
+      : [...selectedPermissions, permission]
+
     setValue('permissions', updated)
   }
 
-  const toggleKeyVisibility = (keyId: number) => {
-    const newVisibleKeys = new Set(visibleKeys)
-    if (newVisibleKeys.has(keyId)) {
-      newVisibleKeys.delete(keyId)
-    } else {
-      newVisibleKeys.add(keyId)
+  const handleCopyLatestKey = async () => {
+    if (!latestKey) {
+      return
     }
-    setVisibleKeys(newVisibleKeys)
-  }
 
-  const handleCopyKey = async (key: string) => {
     try {
-      await copyToClipboard(key)
-      toast.success('API Key copiada para a área de transferência!')
+      await copyToClipboard(latestKey)
+      toast.success('API Key copiada')
     } catch {
       toast.error('Erro ao copiar API Key')
     }
   }
 
-  const handleDeleteKey = (id: number, name: string) => {
-    if (confirm(`Tem certeza que deseja deletar a API Key "${name}"? Esta ação não pode ser desfeita.`)) {
-      deleteMutation.mutate(id)
-    }
-  }
+  const editSelectedPermissions = editForm.watch('permissions') || []
 
-  const handleRegenerateKey = (id: number, name: string) => {
-    if (confirm(`Tem certeza que deseja regenerar a API Key "${name}"? A chave atual será invalidada.`)) {
-      regenerateMutation.mutate(id)
-    }
-  }
+  const handleEditPermissionToggle = (permission: string) => {
+    const updated = editSelectedPermissions.includes(permission)
+      ? editSelectedPermissions.filter((item) => item !== permission)
+      : [...editSelectedPermissions, permission]
 
-  const handleToggleKey = (id: number) => {
-    toggleMutation.mutate(id)
+    editForm.setValue('permissions', updated)
   }
-
-  const keys = apiKeys?.data?.api_keys || []
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">API Keys</h1>
-          <p className="text-muted-foreground">
-            Gerencie suas chaves de API para integração com aplicações externas
-          </p>
+          <p className="text-muted-foreground">Gerencie as chaves usadas pelas integracoes externas.</p>
         </div>
-        
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
+
+        <Button onClick={() => setShowCreateCard(true)}>
+          <Plus className="mr-2 h-4 w-4" />
           Nova API Key
         </Button>
       </div>
 
-      {/* Warning Card */}
       <Card className="border-yellow-200 bg-yellow-50">
-        <CardContent className="flex items-start space-x-3 pt-6">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+        <CardContent className="flex items-start gap-3 pt-6">
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-yellow-600" />
           <div>
-            <h3 className="font-medium text-yellow-800">Importante sobre API Keys</h3>
-            <p className="text-sm text-yellow-700 mt-1">
-              Por motivos de segurança, as API Keys são mostradas apenas uma vez durante a criação. 
-              Certifique-se de copiar e armazenar suas chaves em um local seguro.
+            <h3 className="font-medium text-yellow-800">Leitura unica da chave</h3>
+            <p className="mt-1 text-sm text-yellow-700">
+              A chave completa so aparece na criacao ou regeneracao. Depois disso, a lista mostra apenas um preview seguro.
             </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Newly Created Key Alert */}
-      {newlyCreatedKey && (
+      {latestKey && (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-green-800 mb-2">Nova API Key criada com sucesso!</h3>
-                <p className="text-sm text-green-700 mb-3">
-                  Copie esta chave agora. Ela não será mostrada novamente por motivos de segurança.
-                </p>
-                <div className="flex items-center space-x-2 bg-white p-3 rounded border">
-                  <code className="flex-1 text-sm font-mono">{newlyCreatedKey}</code>
-                  <Button
-                    size="sm"
-                    onClick={() => handleCopyKey(newlyCreatedKey)}
-                  >
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <h3 className="mb-2 font-medium text-green-800">Chave pronta para copia</h3>
+                <p className="mb-3 text-sm text-green-700">Guarde esta chave agora. Ela nao sera exibida novamente.</p>
+                <div className="flex items-center gap-2 rounded border bg-white p-3">
+                  <code className="min-w-0 flex-1 overflow-x-auto text-sm font-mono">{latestKey}</code>
+                  <Button size="sm" onClick={handleCopyLatestKey}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setNewlyCreatedKey(null)}
-              >
-                ✕
+
+              <Button variant="ghost" size="sm" onClick={() => setLatestKey(null)}>
+                Fechar
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Create API Key Dialog */}
-      {showCreateDialog && (
+      {showCreateCard && (
         <Card className="border-primary">
           <CardHeader>
-            <CardTitle>Criar nova API Key</CardTitle>
-            <CardDescription>
-              Configure as permissões e o nome para sua nova API Key
-            </CardDescription>
+            <CardTitle>Criar API Key</CardTitle>
+            <CardDescription>Defina nome e escopo antes de liberar a chave.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="key_name">Nome da API Key</Label>
-                <Input
-                  id="key_name"
-                  placeholder="Ex: Aplicação de produção"
-                  {...register('key_name')}
-                />
-                {errors.key_name && (
-                  <p className="text-sm text-destructive">{errors.key_name.message}</p>
-                )}
+                <Label htmlFor="key_name">Nome</Label>
+                <Input id="key_name" placeholder="Ex: Aplicacao de producao" {...register('key_name')} />
+                {errors.key_name && <p className="text-sm text-destructive">{errors.key_name.message}</p>}
               </div>
 
               <div className="space-y-3">
-                <Label>Permissões</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Label>Permissoes</Label>
+                <div className="grid gap-3 md:grid-cols-2">
                   {availablePermissions.map((permission) => (
-                    <div
+                    <button
                       key={permission.id}
-                      className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                      type="button"
+                      className={`rounded-lg border p-3 text-left transition-colors ${
                         selectedPermissions.includes(permission.id)
                           ? 'border-primary bg-primary/5'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => handlePermissionToggle(permission.id)}
                     >
-                      <div className="flex items-start space-x-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedPermissions.includes(permission.id)}
-                          onChange={() => handlePermissionToggle(permission.id)}
-                          className="mt-1"
-                        />
-                        <div>
-                          <div className="font-medium text-sm">{permission.label}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {permission.description}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                      <div className="font-medium text-sm">{permission.label}</div>
+                      <div className="text-xs text-muted-foreground">{permission.description}</div>
+                    </button>
                   ))}
                 </div>
-                {errors.permissions && (
-                  <p className="text-sm text-destructive">{errors.permissions.message}</p>
-                )}
+                {errors.permissions && <p className="text-sm text-destructive">{errors.permissions.message}</p>}
               </div>
 
-              <div className="flex justify-end space-x-2">
+              <div className="flex justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setShowCreateDialog(false)
+                    setShowCreateCard(false)
                     reset()
                   }}
                 >
@@ -309,17 +332,15 @@ export function ApiKeys() {
         </Card>
       )}
 
-      {/* API Keys List */}
       <div className="space-y-4">
         {isLoading ? (
-          // Loading skeleton
-          Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
+          Array.from({ length: 3 }).map((_, index) => (
+            <Card key={index}>
               <CardContent className="pt-6">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2 mb-4"></div>
-                  <div className="h-8 bg-gray-200 rounded w-full"></div>
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 w-40 rounded bg-gray-200" />
+                  <div className="h-3 w-56 rounded bg-gray-200" />
+                  <div className="h-16 rounded bg-gray-200" />
                 </div>
               </CardContent>
             </Card>
@@ -328,94 +349,88 @@ export function ApiKeys() {
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
-                <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Nenhuma API Key encontrada</h3>
-                <p className="text-muted-foreground mb-4">
-                  Crie sua primeira API Key para começar a integrar com aplicações externas.
-                </p>
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Key className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">Nenhuma API Key encontrada</h3>
+                <p className="mb-4 text-muted-foreground">Crie a primeira chave para integrar a plataforma com seus sistemas.</p>
+                <Button onClick={() => setShowCreateCard(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
                   Criar primeira API Key
                 </Button>
               </div>
             </CardContent>
           </Card>
         ) : (
-          keys.map((apiKey: ApiKey) => (
-            <Card key={apiKey.id} className={!apiKey.is_active ? 'opacity-60' : ''}>
+          keys.map((apiKey) => (
+            <Card key={apiKey.id} className={!apiKey.is_active ? 'opacity-70' : ''}>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
                     <Key className="h-5 w-5 text-primary" />
                     <div>
                       <CardTitle className="text-lg">{apiKey.key_name}</CardTitle>
                       <CardDescription>
                         Criada {formatRelativeTime(apiKey.created_at)}
-                        {apiKey.last_used_at && (
-                          <> • Último uso {formatRelativeTime(apiKey.last_used_at)}</>
-                        )}
+                        {apiKey.last_used_at ? ` • Ultimo uso ${formatRelativeTime(apiKey.last_used_at)}` : ' • Nunca usada'}
                       </CardDescription>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Badge variant={apiKey.is_active ? 'success' : 'secondary'}>
+
+                  <div className="flex items-center gap-2">
+                    <Badge variant={apiKey.is_active ? 'default' : 'secondary'}>
                       {apiKey.is_active ? 'Ativa' : 'Inativa'}
                     </Badge>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleMutation.mutate(apiKey.id)}
-                      disabled={toggleMutation.isPending}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setUsageTarget(apiKey)}>
+                      <BarChart3 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditingKey(apiKey)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleToggleKey(apiKey.id)} disabled={toggleMutation.isPending}>
                       <Settings className="h-4 w-4" />
                     </Button>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRegenerateKey(apiKey.id, apiKey.key_name)}
-                      disabled={regenerateMutation.isPending}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setRegenerateTarget(apiKey)} disabled={regenerateMutation.isPending}>
                       <RotateCcw className="h-4 w-4" />
                     </Button>
-                    
                     <div className="relative group">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                      >
+                      <Button variant="ghost" size="sm">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
-                      
-                      <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                        <div className="p-2 space-y-1">
+                      <div className="invisible absolute right-0 z-10 mt-2 w-48 rounded-lg border bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100">
+                        <div className="space-y-1 p-2">
+                          <button
+                            onClick={() => setUsageTarget(apiKey)}
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+                          >
+                            <BarChart3 className="h-4 w-4" />
+                            Ver uso
+                          </button>
+                          <button
+                            onClick={() => setEditingKey(apiKey)}
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Editar
+                          </button>
                           <button
                             onClick={() => handleToggleKey(apiKey.id)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                            disabled={toggleMutation.isPending}
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
                           >
                             <Settings className="h-4 w-4" />
                             {apiKey.is_active ? 'Desativar' : 'Ativar'}
                           </button>
-                          
                           <button
-                            onClick={() => handleRegenerateKey(apiKey.id, apiKey.key_name)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                            disabled={regenerateMutation.isPending}
+                            onClick={() => setRegenerateTarget(apiKey)}
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
                           >
                             <RotateCcw className="h-4 w-4" />
                             Regenerar
                           </button>
-                          
                           <button
-                            onClick={() => handleDeleteKey(apiKey.id, apiKey.key_name)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2 text-red-600"
-                            disabled={deleteMutation.isPending}
+                            onClick={() => setDeleteTarget(apiKey)}
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
                           >
                             <Trash2 className="h-4 w-4" />
-                            Deletar
+                            Remover
                           </button>
                         </div>
                       </div>
@@ -423,45 +438,23 @@ export function ApiKeys() {
                   </div>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="space-y-4">
-                {/* API Key Display */}
                 <div className="space-y-2">
-                  <Label>API Key</Label>
-                  <div className="flex items-center space-x-2 bg-gray-50 p-3 rounded border">
-                    <code className="flex-1 text-sm font-mono">
-                      {visibleKeys.has(apiKey.id) 
-                        ? apiKey.api_key_preview.replace(/\*/g, 'x') // Show actual key if available
-                        : apiKey.api_key_preview
-                      }
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleKeyVisibility(apiKey.id)}
-                    >
-                      {visibleKeys.has(apiKey.id) ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopyKey(apiKey.api_key_preview)}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
+                  <Label>Preview da chave</Label>
+                  <div className="space-y-2 rounded border bg-gray-50 p-3">
+                    <code className="block text-sm font-mono">{apiKey.api_key_preview}</code>
+                    <p className="text-xs text-muted-foreground">
+                      O preview serve apenas para identificar a chave. A chave completa so aparece na criacao ou regeneracao.
+                    </p>
                   </div>
                 </div>
 
-                {/* Permissions */}
                 <div className="space-y-2">
-                  <Label>Permissões</Label>
+                  <Label>Permissoes</Label>
                   <div className="flex flex-wrap gap-2">
                     {apiKey.permissions.map((permission) => {
-                      const permissionInfo = availablePermissions.find(p => p.id === permission)
+                      const permissionInfo = availablePermissions.find((item) => item.id === permission)
                       return (
                         <Badge key={permission} variant="outline">
                           {permissionInfo?.label || permission}
@@ -471,28 +464,21 @@ export function ApiKeys() {
                   </div>
                 </div>
 
-                {/* Usage Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3 bg-gray-50 rounded">
+                <div className="grid gap-4 rounded bg-gray-50 p-3 md:grid-cols-4">
                   <div>
                     <div className="text-sm text-muted-foreground">Status</div>
-                    <div className="font-medium">
-                      {apiKey.is_active ? 'Ativa' : 'Inativa'}
-                    </div>
+                    <div className="font-medium">{apiKey.is_active ? 'Ativa' : 'Inativa'}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Criada</div>
-                    <div className="font-medium">
-                      {formatRelativeTime(apiKey.created_at)}
-                    </div>
+                    <div className="font-medium">{formatRelativeTime(apiKey.created_at)}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Último uso</div>
-                    <div className="font-medium">
-                      {apiKey.last_used_at ? formatRelativeTime(apiKey.last_used_at) : 'Nunca'}
-                    </div>
+                    <div className="text-sm text-muted-foreground">Ultimo uso</div>
+                    <div className="font-medium">{apiKey.last_used_at ? formatRelativeTime(apiKey.last_used_at) : 'Nunca'}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Permissões</div>
+                    <div className="text-sm text-muted-foreground">Permissoes</div>
                     <div className="font-medium">{apiKey.permissions.length}</div>
                   </div>
                 </div>
@@ -501,6 +487,174 @@ export function ApiKeys() {
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.id)
+          }
+        }}
+        title="Remover API Key"
+        description={deleteTarget ? `Deseja remover a chave "${deleteTarget.key_name}"? Esta acao nao pode ser desfeita.` : ''}
+        variant="danger"
+      />
+
+      <Dialog open={Boolean(editingKey)} onOpenChange={(open) => !open && setEditingKey(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar API Key</DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={editForm.handleSubmit((data) => {
+              if (!editingKey) {
+                return
+              }
+
+              updateMutation.mutate({ id: editingKey.id, data })
+            })}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="edit-key-name">Nome</Label>
+              <Input id="edit-key-name" placeholder="Ex: Aplicacao de producao" {...editForm.register('key_name')} />
+              {editForm.formState.errors.key_name && <p className="text-sm text-destructive">{editForm.formState.errors.key_name.message}</p>}
+            </div>
+
+            <div className="space-y-3">
+              <Label>Permissoes</Label>
+              <div className="grid gap-3 md:grid-cols-2">
+                {availablePermissions.map((permission) => (
+                  <button
+                    key={permission.id}
+                    type="button"
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      editSelectedPermissions.includes(permission.id)
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => handleEditPermissionToggle(permission.id)}
+                  >
+                    <div className="font-medium text-sm">{permission.label}</div>
+                    <div className="text-xs text-muted-foreground">{permission.description}</div>
+                  </button>
+                ))}
+              </div>
+              {editForm.formState.errors.permissions && <p className="text-sm text-destructive">{editForm.formState.errors.permissions.message}</p>}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditingKey(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? 'Salvando...' : 'Salvar alteracoes'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(usageTarget)} onOpenChange={(open) => !open && setUsageTarget(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Uso da API Key</DialogTitle>
+          </DialogHeader>
+
+          {usageLoading || !usageResponse ? (
+            <div className="py-8 text-center text-muted-foreground">Carregando metricas...</div>
+          ) : (
+            <div className="space-y-6">
+              <div className="rounded-lg border bg-gray-50 p-4">
+                <div className="font-medium">{usageResponse.api_key.key_name}</div>
+                <div className="text-sm text-muted-foreground">{usageResponse.api_key.api_key_preview}</div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Periodo: {usageResponse.usage_stats.period} • Ultimo uso:{' '}
+                  {usageResponse.api_key.last_used_at ? formatRelativeTime(usageResponse.api_key.last_used_at) : 'Nunca'}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-sm text-muted-foreground">Total</div>
+                    <div className="text-2xl font-bold">{usageResponse.usage_stats.total_emails}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-sm text-muted-foreground">Entregues</div>
+                    <div className="text-2xl font-bold">{usageResponse.usage_stats.delivered_emails}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="text-sm text-muted-foreground">Abertos / cliques</div>
+                    <div className="text-2xl font-bold">
+                      {usageResponse.usage_stats.opened_emails || 0} / {usageResponse.usage_stats.clicked_emails || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Falhas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span>Bounces</span>
+                      <span className="font-medium">{usageResponse.usage_stats.bounced_emails}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Falhas</span>
+                      <span className="font-medium">{usageResponse.usage_stats.failed_emails}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Volume diario</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {usageResponse.usage_stats.daily_usage.length === 0 ? (
+                      <div className="text-muted-foreground">Nenhum envio no periodo.</div>
+                    ) : (
+                      usageResponse.usage_stats.daily_usage.slice(-7).map((entry) => (
+                        <div key={entry.date} className="flex items-center justify-between">
+                          <span>{entry.date}</span>
+                          <span className="font-medium">{entry.count}</span>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        isOpen={Boolean(regenerateTarget)}
+        onClose={() => setRegenerateTarget(null)}
+        onConfirm={() => {
+          if (regenerateTarget) {
+            regenerateMutation.mutate(regenerateTarget.id)
+          }
+        }}
+        title="Regenerar API Key"
+        description={regenerateTarget ? `Regenerar a chave "${regenerateTarget.key_name}"? A chave atual sera invalidada.` : ''}
+        variant="info"
+      />
     </div>
   )
+
+  function handleToggleKey(id: number) {
+    toggleMutation.mutate(id)
+  }
 }

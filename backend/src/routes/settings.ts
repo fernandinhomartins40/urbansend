@@ -12,8 +12,11 @@ router.use(authenticateJWT);
 const settingsSchema = z.object({
   notification_preferences: z.record(z.boolean()).optional(),
   system_preferences: z.object({
+    theme: z.enum(['light', 'dark', 'system']).optional(),
     language: z.string().optional(),
     timezone: z.string().optional(),
+    date_format: z.enum(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).optional(),
+    time_format: z.enum(['12h', '24h']).optional(),
     items_per_page: z.number().int().min(5).max(100).optional(),
     auto_refresh: z.boolean().optional(),
     auto_refresh_interval: z.number().int().min(5000).max(300000).optional()

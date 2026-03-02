@@ -439,10 +439,22 @@ export const useDomainSetup = (): UseDomainSetupReturn => {
 
   const refreshDomain = useCallback(
     async (domainId: number) => {
-      await Promise.all([
-        loadDomains(),
-        currentDomain?.domain.id === domainId ? loadDomainDetails(domainId) : Promise.resolve(),
-      ])
+      setLoading(true)
+      setError(null)
+
+      try {
+        await api.post(`/domain-setup/${domainId}/verify`)
+        await Promise.all([
+          loadDomains(),
+          currentDomain?.domain.id === domainId ? loadDomainDetails(domainId) : Promise.resolve(),
+        ])
+      } catch (err: any) {
+        const message = getErrorMessage(err, 'Falha ao atualizar status do dominio')
+        setError(message)
+        throw new Error(message)
+      } finally {
+        setLoading(false)
+      }
     },
     [currentDomain?.domain.id, loadDomainDetails, loadDomains]
   )

@@ -14,7 +14,7 @@
 
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { validateRequest, paginationSchema, idParamSchema } from '../middleware/validation';
+import { validateRequest, paginationSchema, idParamSchema, singleSendEmailSchema, sendBatchEmailSchema } from '../middleware/validation';
 import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { emailStatsMiddleware } from '../middleware/emailArchitectureMiddleware';
 import { MultiTenantEmailService, EmailRequest, AuthUser } from '../services/MultiTenantEmailService';
@@ -116,6 +116,9 @@ router.post('/send',
   // Middleware 2: Permissão de envio (essencial multi-tenancy)
   requirePermission('email:send'),
 
+  // Validar payload da rota ativa de envio simples
+  validateRequest({ body: singleSendEmailSchema }),
+
   // Middleware 3: Rate limiting (essencial para SaaS)
   emailRateLimit,
 
@@ -135,7 +138,9 @@ router.post('/send',
       html: req.body.html,
       text: req.body.text,
       template_id: req.body.template_id,
-      template_data: req.body.template_data
+      template_data: req.body.template_data ?? req.body.variables,
+      variables: req.body.variables,
+      tracking_enabled: req.body.tracking_enabled
     };
 
     logger.info('📧 Email send request - Simplified Route', {
@@ -211,6 +216,7 @@ router.post('/send',
 router.post('/send-batch',
   authenticateJWT,
   requirePermission('email:send'), 
+  validateRequest({ body: sendBatchEmailSchema }),
   emailRateLimit,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { emails } = req.body;
@@ -541,81 +547,44 @@ router.get('/',
     const basicStats = await basicStatsQuery
       .select(
         db.raw('COUNT(*) as total'),
-        db.raw("SUM(CASE WHEN status IN ('sent', 'delivered') THEN 1 ELSE 0 END) as delivered")
-      ).first();
-
-    // Get analytics stats from email_analytics table with same filters
-    let openedQuery = db('email_analytics')
-      .join('emails', 'email_analytics.email_id', 'emails.id')
-      .where('emails.user_id', req.user!.id)
-      .where('email_analytics.event_type', 'open');
-
-    let clickedQuery = db('email_analytics')
-      .join('emails', 'email_analytics.email_id', 'emails.id')
-      .where('emails.user_id', req.user!.id)
-      .where('email_analytics.event_type', 'click');
-
-    // Apply filters to analytics queries
-    if (status && status !== 'all') {
-      openedQuery = openedQuery.where('emails.status', status);
-      clickedQuery = clickedQuery.where('emails.status', status);
-    }
-
-    if (search && typeof search === 'string' && search.trim() !== '') {
-      const searchTerm = search.trim();
-      openedQuery = openedQuery.where(function() {
-        this.where('emails.to_email', 'like', `%${searchTerm}%`)
-            .orWhere('emails.subject', 'like', `%${searchTerm}%`)
-            .orWhere('emails.html_content', 'like', `%${searchTerm}%`)
-            .orWhere('emails.text_content', 'like', `%${searchTerm}%`);
-      });
-      clickedQuery = clickedQuery.where(function() {
-        this.where('emails.to_email', 'like', `%${searchTerm}%`)
-            .orWhere('emails.subject', 'like', `%${searchTerm}%`)
-            .orWhere('emails.html_content', 'like', `%${searchTerm}%`)
-            .orWhere('emails.text_content', 'like', `%${searchTerm}%`);
-      });
-    }
-
-    if (date_filter && date_filter !== 'all') {
-      const now = new Date();
-      let startDate: Date;
-
-      switch (date_filter) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case 'week':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case 'month':
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        case '3months':
-          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          startDate = new Date(0);
-      }
-
-      const isoString = startDate.toISOString();
-      openedQuery = openedQuery.where('emails.created_at', '>=', isoString);
-      clickedQuery = clickedQuery.where('emails.created_at', '>=', isoString);
-    }
-
-    if (domain_filter && domain_filter !== 'all') {
-      openedQuery = openedQuery.whereRaw(`${sqlExtractDomain('emails.to_email')} = ?`, [domain_filter]);
-      clickedQuery = clickedQuery.whereRaw(`${sqlExtractDomain('emails.to_email')} = ?`, [domain_filter]);
-    }
-
-    const openedCount = await openedQuery.countDistinct('email_analytics.email_id as count').first();
-    const clickedCount = await clickedQuery.countDistinct('email_analytics.email_id as count').first();
+        db.raw(`
+          SUM(
+            CASE
+              WHEN delivered_at IS NOT NULL
+                OR status IN ('sent', 'delivered', 'opened', 'clicked')
+              THEN 1
+              ELSE 0
+            END
+          ) as delivered
+        `),
+        db.raw(`
+          SUM(
+            CASE
+              WHEN opened_at IS NOT NULL
+                OR status IN ('opened', 'clicked')
+              THEN 1
+              ELSE 0
+            END
+          ) as opened
+        `),
+        db.raw(`
+          SUM(
+            CASE
+              WHEN clicked_at IS NOT NULL
+                OR status = 'clicked'
+              THEN 1
+              ELSE 0
+            END
+          ) as clicked
+        `)
+      )
+      .first();
 
     const stats = {
-      total: (basicStats as any)?.total || 0,
-      delivered: (basicStats as any)?.delivered || 0,
-      opened: (openedCount as any)?.count || 0,
-      clicked: (clickedCount as any)?.count || 0
+      total: Number((basicStats as any)?.total || 0),
+      delivered: Number((basicStats as any)?.delivered || 0),
+      opened: Number((basicStats as any)?.opened || 0),
+      clicked: Number((basicStats as any)?.clicked || 0)
     };
 
     // 🆕 Incluir estatísticas da nova arquitetura se disponíveis
@@ -743,12 +712,24 @@ router.get('/track/open/:trackingId',
           .first();
 
         if (!existingOpen) {
+          const openedAt = new Date();
+
           // Update status to opened if not already a higher status
-          if (!['clicked', 'opened'].includes(email.status)) {
-            await db('emails')
-              .where('id', email.id)
-              .update({ status: 'opened' });
+          const openUpdate: Record<string, any> = {
+            updated_at: openedAt
+          };
+
+          if (!email.opened_at) {
+            openUpdate['opened_at'] = openedAt;
           }
+
+          if (!['clicked', 'opened'].includes(email.status)) {
+            openUpdate['status'] = 'opened';
+          }
+
+          await db('emails')
+            .where('id', email.id)
+            .update(openUpdate);
 
           // Log analytics event ONLY if not already opened
           await db('email_analytics').insert({
@@ -805,10 +786,17 @@ router.get('/track/click/:trackingId',
         .first();
       
       if (!existingClick) {
+        const clickedAt = new Date();
+
         // Update status to clicked (highest engagement level)
         await db('emails')
           .where('id', email.id)
-          .update({ status: 'clicked' });
+          .update({
+            status: 'clicked',
+            clicked_at: email.clicked_at || clickedAt,
+            opened_at: email.opened_at || clickedAt,
+            updated_at: clickedAt
+          });
       }
 
       // Log analytics event ONLY if not already clicked by this IP

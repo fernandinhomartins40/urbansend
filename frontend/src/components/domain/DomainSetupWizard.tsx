@@ -8,7 +8,9 @@ import { Card } from '../ui/card'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Progress } from '../ui/progress'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Separator } from '../ui/separator'
+import { Switch } from '../ui/switch'
 import { type DomainSetupResult, type VerificationResult, useDomainSetup } from '../../hooks/useDomainSetup'
 
 interface DomainSetupWizardProps {
@@ -25,6 +27,13 @@ const steps = [
   { label: 'Concluido', description: 'Dominio pronto para enviar' },
 ]
 
+interface DomainConfigurationForm {
+  dkim_enabled: boolean
+  spf_enabled: boolean
+  dmarc_enabled: boolean
+  dmarc_policy: 'none' | 'quarantine' | 'reject'
+}
+
 export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   onComplete,
   onCancel,
@@ -36,6 +45,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   const [setupResult, setSetupResult] = useState<DomainSetupResult | null>(null)
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [domainConfiguration, setDomainConfiguration] = useState<DomainConfigurationForm | null>(null)
 
   const {
     loading,
@@ -44,6 +54,8 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     verifyDomainSetup,
     loadDomainDetails,
     getDNSInstructions,
+    updateDomain,
+    regenerateDKIMKeys,
     clearError,
   } = useDomainSetup()
 
@@ -78,6 +90,12 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           },
           dns_instructions: dnsInstructions.instructions,
           setup_guide: dnsInstructions.setup_guide,
+        })
+        setDomainConfiguration({
+          dkim_enabled: Boolean(domainDetails.configuration.dkim.enabled),
+          spf_enabled: Boolean(domainDetails.configuration.spf.enabled),
+          dmarc_enabled: Boolean(domainDetails.configuration.dmarc.enabled),
+          dmarc_policy: (domainDetails.configuration.dmarc.policy || 'none') as DomainConfigurationForm['dmarc_policy'],
         })
 
         setCurrentStep(domainDetails.domain.is_verified ? 3 : 1)
@@ -121,6 +139,49 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     } finally {
       setIsVerifying(false)
     }
+  }
+
+  const reloadSetupInstructions = async (domainId: number) => {
+    const domainDetails = await loadDomainDetails(domainId)
+    const dnsInstructions = await getDNSInstructions(domainId)
+
+    setSetupResult({
+      domain: {
+        id: domainDetails.domain.id,
+        name: domainDetails.domain.name,
+        status: (['pending', 'partial', 'verified', 'failed'].includes(domainDetails.domain.status)
+          ? domainDetails.domain.status
+          : 'pending') as DomainSetupResult['domain']['status'],
+        completion_percentage: domainDetails.domain.completion_percentage,
+        is_verified: domainDetails.domain.is_verified,
+        created_at: domainDetails.domain.created_at,
+        verified_at: domainDetails.domain.verified_at,
+      },
+      dns_instructions: dnsInstructions.instructions,
+      setup_guide: dnsInstructions.setup_guide,
+    })
+  }
+
+  const handleSaveConfiguration = async () => {
+    if (!setupResult || !domainConfiguration) {
+      return
+    }
+
+    const updated = await updateDomain(setupResult.domain.id, domainConfiguration)
+    if (!updated) {
+      return
+    }
+
+    await reloadSetupInstructions(setupResult.domain.id)
+  }
+
+  const handleRegenerateDkim = async () => {
+    if (!setupResult) {
+      return
+    }
+
+    await regenerateDKIMKeys(setupResult.domain.id)
+    await reloadSetupInstructions(setupResult.domain.id)
   }
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -276,6 +337,94 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
       {setupResult && (
         <>
+          {isEditMode && domainConfiguration && (
+            <>
+              <div className="mb-6 rounded-lg border bg-white p-4">
+                <div className="mb-4">
+                  <h4 className="font-medium">Configuracoes do dominio</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Ajuste os protocolos ativos antes de revisar os registros DNS.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-3 rounded-lg border p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">SPF</div>
+                        <div className="text-sm text-muted-foreground">Autoriza servidores de envio.</div>
+                      </div>
+                      <Switch
+                        checked={domainConfiguration.spf_enabled}
+                        onCheckedChange={(checked) =>
+                          setDomainConfiguration((current) => current ? { ...current, spf_enabled: checked } : current)
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">DKIM</div>
+                        <div className="text-sm text-muted-foreground">Assina os emails do dominio.</div>
+                      </div>
+                      <Switch
+                        checked={domainConfiguration.dkim_enabled}
+                        onCheckedChange={(checked) =>
+                          setDomainConfiguration((current) => current ? { ...current, dkim_enabled: checked } : current)
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">DMARC</div>
+                        <div className="text-sm text-muted-foreground">Aplica a politica de alinhamento.</div>
+                      </div>
+                      <Switch
+                        checked={domainConfiguration.dmarc_enabled}
+                        onCheckedChange={(checked) =>
+                          setDomainConfiguration((current) => current ? { ...current, dmarc_enabled: checked } : current)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg border p-4">
+                    <div>
+                      <Label>Politica DMARC</Label>
+                      <Select
+                        value={domainConfiguration.dmarc_policy}
+                        onValueChange={(value: DomainConfigurationForm['dmarc_policy']) =>
+                          setDomainConfiguration((current) => current ? { ...current, dmarc_policy: value } : current)
+                        }
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">none</SelectItem>
+                          <SelectItem value="quarantine">quarantine</SelectItem>
+                          <SelectItem value="reject">reject</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" onClick={handleSaveConfiguration} disabled={loading}>
+                        Salvar configuracoes
+                      </Button>
+                      <Button type="button" variant="outline" onClick={handleRegenerateDkim} disabled={loading}>
+                        Regenerar DKIM
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="my-6" />
+            </>
+          )}
+
           <Alert className="mb-6 border-blue-200 bg-blue-50">
             <Info className="h-4 w-4" />
             <div>

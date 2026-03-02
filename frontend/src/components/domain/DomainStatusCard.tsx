@@ -302,7 +302,7 @@ export const DomainStatusCard = ({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => navigate(`/app/analytics?domain=${domain.id}`)}
+              onClick={() => navigate(`/app/analytics?domainId=${domain.id}`)}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
               Analytics
@@ -326,6 +326,8 @@ export const DomainStatusGrid = ({
   onRefresh?: () => void
   loading?: boolean 
 }) => {
+  const navigate = useNavigate()
+
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -355,7 +357,7 @@ export const DomainStatusGrid = ({
           <p className="text-muted-foreground mb-4">
             Configure seu primeiro domínio para começar a enviar emails
           </p>
-          <Button onClick={() => window.location.href = '/app/domains?mode=setup'}>
+          <Button onClick={() => navigate('/app/domains?mode=setup')}>
             <Settings className="h-4 w-4 mr-2" />
             Configurar Primeiro Domínio
           </Button>

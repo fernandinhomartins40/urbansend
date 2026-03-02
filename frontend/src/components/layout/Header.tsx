@@ -12,7 +12,7 @@ interface HeaderProps {
 export function Header({ className }: HeaderProps) {
   const { user, logout } = useAuthStore()
   const { toggle } = useSidebarStore()
-  const { notifications } = useNotificationStore()
+  const { notifications, markAllAsRead } = useNotificationStore()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
 
@@ -40,7 +40,15 @@ export function Header({ className }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={() => {
+                const nextState = !showNotifications
+                setShowNotifications(nextState)
+                setShowUserMenu(false)
+
+                if (nextState && unreadCount > 0) {
+                  markAllAsRead()
+                }
+              }}
             >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
@@ -81,7 +89,10 @@ export function Header({ className }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={() => {
+                setShowUserMenu(!showUserMenu)
+                setShowNotifications(false)
+              }}
             >
               <User className="h-5 w-5" />
             </Button>

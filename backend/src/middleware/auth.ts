@@ -129,14 +129,14 @@ export const authenticateApiKey = async (
     for (const key of apiKeys) {
       try {
         // First try bcrypt verification (new secure method)
-        if (await verifyApiKey(apiKeyHeader, key.api_key_hash)) {
+        if (await verifyApiKey(apiKeyHeader, key.key_hash)) {
           matchedApiKey = key;
           break;
         }
       } catch {
         // If bcrypt fails, try legacy SHA256 verification for existing keys
         const legacyHash = legacyHashApiKey(apiKeyHeader);
-        if (legacyHash === key.api_key_hash) {
+        if (legacyHash === key.key_hash) {
           matchedApiKey = key;
           
           // Migrate to secure hash asynchronously (don't wait for it)
@@ -146,7 +146,7 @@ export const authenticateApiKey = async (
               const newHash = await hashApiKey(apiKeyHeader);
               await db('api_keys')
                 .where('id', key.id)
-                .update({ api_key_hash: newHash });
+                .update({ key_hash: newHash });
             } catch (error) {
               logger.error('Failed to migrate API key hash:', error);
             }
@@ -165,7 +165,7 @@ export const authenticateApiKey = async (
     // Update last used timestamp
     await db('api_keys')
       .where('id', apiKey.id)
-      .update({ last_used_at: new Date() });
+      .update({ last_used: new Date() });
 
     const permissions = permissionsFromJson(apiKey.permissions);
 

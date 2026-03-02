@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useDomainValidation } from '@/hooks/useUserDomains'
 import { cn } from '@/lib/utils'
+import { useNavigate } from 'react-router-dom'
 
 interface DomainInputProps {
   value: string
@@ -74,6 +75,7 @@ export const DomainInput = ({
   showValidationDetails = true,
   onValidationChange
 }: DomainInputProps) => {
+  const navigate = useNavigate()
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle')
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [shouldShowResult, setShouldShowResult] = useState(false)
@@ -200,7 +202,7 @@ export const DomainInput = ({
             <Button 
               variant="link" 
               className="p-0 h-auto text-amber-700 hover:text-amber-800"
-              onClick={() => window.location.href = '/app/domains'}
+              onClick={() => navigate('/app/domains')}
             >
               Ver em Meus Domínios <ExternalLink className="h-3 w-3 ml-1" />
             </Button>

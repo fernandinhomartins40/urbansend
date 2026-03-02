@@ -5,20 +5,25 @@ import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { generateApiKey, hashApiKey } from '../utils/crypto';
 
+const formatApiKey = (key: any) => ({
+  id: key.id,
+  key_name: key.name,
+  permissions: typeof key.permissions === 'string' ? JSON.parse(key.permissions) : key.permissions,
+  created_at: key.created_at,
+  last_used_at: key.last_used ?? null,
+  is_active: Boolean(key.is_active),
+  api_key_preview: key.key_preview || `re_${String(key.id).padStart(7, '0')}`
+});
+
 export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
 
   const apiKeys = await db('api_keys')
-    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active')
+    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active', 'key_preview')
     .where('user_id', userId)
     .orderBy('created_at', 'desc');
 
-  const formattedKeys = apiKeys.map(key => ({
-    ...key,
-    permissions: JSON.parse(key.permissions),
-    // Only show first 8 characters + '...' for security
-    api_key_preview: 're_' + '*'.repeat(56) + key.id.toString().padStart(8, '0')
-  }));
+  const formattedKeys = apiKeys.map(formatApiKey);
 
   res.json({
     api_keys: formattedKeys,
@@ -27,7 +32,8 @@ export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Re
 });
 
 export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { name, permissions } = req.body;
+  const name = req.body.key_name || req.body.name;
+  const { permissions } = req.body;
   const userId = req.user!.id;
 
   // Check if key name already exists for this user
@@ -49,6 +55,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     user_id: userId,
     name,
     key_hash: hashedApiKey,
+    key_preview: apiKey.slice(0, 10),
     permissions: JSON.stringify(permissions),
     created_at: new Date(),
     is_active: true
@@ -67,10 +74,11 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     message: 'API key created successfully',
     api_key: {
       id: keyId,
-      name,
+      key_name: name,
       permissions,
       created_at: new Date().toISOString(),
-      is_active: true
+      is_active: true,
+      api_key_preview: apiKey.slice(0, 10)
     },
     // Return the actual API key only once during creation
     key: apiKey,
@@ -85,7 +93,6 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     throw createError('API key ID is required', 400);
   }
   
-  const { name, permissions } = req.body;
   const userId = req.user!.id;
 
   const apiKey = await db('api_keys')
@@ -96,6 +103,9 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   if (!apiKey) {
     throw createError('API key not found', 404);
   }
+
+  const name = req.body.key_name ?? req.body.name ?? apiKey.name;
+  const permissions = req.body.permissions ?? (typeof apiKey.permissions === 'string' ? JSON.parse(apiKey.permissions) : apiKey.permissions);
 
   // Check if new key name conflicts with existing keys (excluding current key)
   if (name !== apiKey.name) {
@@ -119,7 +129,7 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     });
 
   const updatedKey = await db('api_keys')
-    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active')
+    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active', 'key_preview')
     .where('id', id)
     .first();
 
@@ -127,10 +137,7 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 
   res.json({
     message: 'API key updated successfully',
-    api_key: {
-      ...updatedKey,
-      permissions: JSON.parse(updatedKey.permissions)
-    }
+    api_key: formatApiKey(updatedKey)
   });
 });
 
@@ -182,6 +189,7 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
     .where('user_id', userId)
     .update({
       key_hash: hashedApiKey,
+      key_preview: newApiKey.slice(0, 10),
       last_used: null // Reset last used timestamp
     });
 
@@ -244,8 +252,42 @@ export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res
   const emailStats = await db('emails')
     .select(
       db.raw('COUNT(*) as total_emails'),
-      db.raw("COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_emails"),
-      db.raw("COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_emails"),
+      db.raw(`
+        COUNT(
+          CASE
+            WHEN status IN ('sent', 'delivered', 'opened', 'clicked')
+              OR sent_at IS NOT NULL
+            THEN 1
+          END
+        ) as sent_emails
+      `),
+      db.raw(`
+        COUNT(
+          CASE
+            WHEN status IN ('sent', 'delivered', 'opened', 'clicked')
+              OR delivered_at IS NOT NULL
+            THEN 1
+          END
+        ) as delivered_emails
+      `),
+      db.raw(`
+        COUNT(
+          CASE
+            WHEN status IN ('opened', 'clicked')
+              OR opened_at IS NOT NULL
+            THEN 1
+          END
+        ) as opened_emails
+      `),
+      db.raw(`
+        COUNT(
+          CASE
+            WHEN status = 'clicked'
+              OR clicked_at IS NOT NULL
+            THEN 1
+          END
+        ) as clicked_emails
+      `),
       db.raw("COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced_emails"),
       db.raw("COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_emails")
     )
@@ -267,9 +309,10 @@ export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res
   res.json({
     api_key: {
       id: apiKey.id,
-      name: apiKey.name,
-      last_used: apiKey.last_used,
-      is_active: apiKey.is_active
+      key_name: apiKey.name,
+      last_used_at: apiKey.last_used,
+      is_active: apiKey.is_active,
+      api_key_preview: apiKey.key_preview || `re_${String(apiKey.id).padStart(7, '0')}`
     },
     usage_stats: {
       period: '30 days',

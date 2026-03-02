@@ -11,7 +11,7 @@ import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import db from '../config/database';
-import { generateTrackingPixel, processLinksForTracking } from '../utils/email';
+import { generateTrackingPixel, processLinksForTracking, processTemplate } from '../utils/email';
 
 // Interfaces específicas para multi-tenancy
 export interface EmailRequest {
@@ -22,6 +22,8 @@ export interface EmailRequest {
   text?: string;
   template_id?: string;
   template_data?: Record<string, any>;
+  variables?: Record<string, any>;
+  tracking_enabled?: boolean;
 }
 
 export interface AuthUser {
@@ -35,7 +37,7 @@ export interface EmailResult {
   success: boolean;
   message: string;
   message_id?: string;
-  status: 'pending' | 'sent' | 'failed';
+  status: 'pending' | 'sent' | 'delivered' | 'failed';
   domain_verified?: boolean;
   domain?: string;
   error?: string;
@@ -92,16 +94,18 @@ export class MultiTenantEmailService {
    */
   async sendEmail(emailData: EmailRequest, user: AuthUser): Promise<EmailResult> {
     try {
+      const preparedEmailData = await this.prepareEmailRequest(emailData, user.id);
+
       logger.info('📧 MultiTenant: Initiating email sending', {
         userId: user.id,
         tenantId: user.tenant_id,
-        from: emailData.from,
-        to: Array.isArray(emailData.to) ? `${emailData.to.length} recipients` : emailData.to,
-        subject: emailData.subject
+        from: preparedEmailData.from,
+        to: Array.isArray(preparedEmailData.to) ? `${preparedEmailData.to.length} recipients` : preparedEmailData.to,
+        subject: preparedEmailData.subject
       });
 
       // 1. Validação rápida de entrada
-      const validationResult = this.validateEmailData(emailData);
+      const validationResult = this.validateEmailData(preparedEmailData);
       if (!validationResult.valid) {
         return {
           success: false,
@@ -112,7 +116,7 @@ export class MultiTenantEmailService {
       }
 
       // 2. Validar propriedade do domínio (multi-tenancy essencial)
-      const domain = this.extractDomain(emailData.from);
+      const domain = this.extractDomain(preparedEmailData.from);
       if (!domain) {
         return {
           success: false,
@@ -141,11 +145,11 @@ export class MultiTenantEmailService {
       const processingLog: EmailLogData = {
         user_id: user.id,
         tenant_id: user.tenant_id || null,
-        from: emailData.from,
-        to: Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
-        subject: emailData.subject,
-        html: emailData.html,
-        text: emailData.text,
+        from: preparedEmailData.from,
+        to: Array.isArray(preparedEmailData.to) ? preparedEmailData.to.join(', ') : preparedEmailData.to,
+        subject: preparedEmailData.subject,
+        html: preparedEmailData.html,
+        text: preparedEmailData.text,
         status: 'pending',
         timestamp: new Date(),
         message_id: messageId,
@@ -157,7 +161,7 @@ export class MultiTenantEmailService {
 
       // 5. Processamento SMTP assíncrono (não bloquear UI)
       setImmediate(async () => {
-        await this.processEmailAsync(emailData, user, domain, messageId, trackingId);
+        await this.processEmailAsync(preparedEmailData, user, domain, messageId, trackingId);
       });
 
       // 6. Resposta imediata (email já aparece na lista)
@@ -186,6 +190,44 @@ export class MultiTenantEmailService {
     }
   }
 
+  private async prepareEmailRequest(emailData: EmailRequest, userId: number): Promise<EmailRequest> {
+    const variables = emailData.variables || emailData.template_data || {};
+    let subject = emailData.subject;
+    let html = emailData.html;
+    let text = emailData.text;
+
+    if (emailData.template_id) {
+      const template = await db('email_templates')
+        .where('id', emailData.template_id)
+        .where('user_id', userId)
+        .first();
+
+      if (!template) {
+        throw new Error('Template not found');
+      }
+
+      subject = subject || template.subject || '';
+      html = html || template.html_content || '';
+      text = text || template.text_content || '';
+    }
+
+    if (Object.keys(variables).length > 0) {
+      subject = subject ? processTemplate(subject, variables) : subject;
+      html = html ? processTemplate(html, variables) : html;
+      text = text ? processTemplate(text, variables) : text;
+    }
+
+    return {
+      ...emailData,
+      subject,
+      html,
+      text,
+      template_data: variables,
+      variables,
+      tracking_enabled: emailData.tracking_enabled !== false
+    };
+  }
+
   /**
    * Processamento assíncrono do email (inspirado no InternalEmailService)
    *
@@ -203,7 +245,7 @@ export class MultiTenantEmailService {
   ): Promise<void> {
     // Preparar HTML com tracking pixel (de forma segura) - fora do try/catch
     let finalHtml = emailData.html;
-    if (emailData.html) {
+    if (emailData.html && emailData.tracking_enabled !== false) {
       finalHtml = this.addTrackingPixelSafely(emailData.html, trackingId);
     }
 
@@ -244,9 +286,11 @@ export class MultiTenantEmailService {
       const delivered = await this.smtpDelivery.deliverEmail(smtpEmailData);
 
       // Atualizar status no banco (em vez de inserir novo)
+      const deliveredAt = delivered ? new Date() : null;
       await this.updateEmailStatus(messageId, {
-        status: delivered ? 'sent' : 'failed',
-        sent_at: delivered ? new Date() : null,
+        status: delivered ? 'delivered' : 'failed',
+        sent_at: deliveredAt,
+        delivered_at: deliveredAt,
         error_message: delivered ? null : 'SMTP delivery failed',
         html_content: finalHtml // 🔧 Salvar HTML com pixel de tracking
       });
@@ -410,6 +454,7 @@ export class MultiTenantEmailService {
   private async updateEmailStatus(messageId: string, updates: {
     status?: string;
     sent_at?: Date | null;
+    delivered_at?: Date | null;
     error_message?: string | null;
     html_content?: string | null; // 🔧 Adicionar html_content para salvar pixel
   }): Promise<void> {

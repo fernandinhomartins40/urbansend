@@ -46,26 +46,64 @@ const applyDateRange = (query: any, column: string, startDate: Date, endDate?: D
   return query;
 };
 
+const applySenderDomainFilter = (query: any, column: string, domain?: string | null) => {
+  if (!domain) {
+    return query;
+  }
+
+  return query.whereRaw(`${sqlExtractDomain(column)} = ?`, [domain]);
+};
+
+const resolveDomainFilter = async (req: AuthenticatedRequest): Promise<string | null> => {
+  const rawDomain = typeof req.query.domain === 'string' ? req.query.domain.trim().toLowerCase() : '';
+  if (rawDomain) {
+    return rawDomain;
+  }
+
+  const rawDomainId = typeof req.query.domainId === 'string' ? Number(req.query.domainId) : Number.NaN;
+  if (!Number.isFinite(rawDomainId)) {
+    return null;
+  }
+
+  const domain = await db('domains')
+    .select('domain_name')
+    .where('id', rawDomainId)
+    .where('user_id', req.user!.id)
+    .first();
+
+  return domain?.domain_name || null;
+};
+
 const buildFilteredEmailQuery = (
   userId: number,
   startDate: Date,
-  endDate?: Date
-) => applyDateRange(db('emails').where('user_id', userId), 'created_at', startDate, endDate);
+  endDate?: Date,
+  senderDomain?: string | null
+) => applySenderDomainFilter(
+  applyDateRange(db('emails').where('user_id', userId), 'created_at', startDate, endDate),
+  'from_email',
+  senderDomain
+);
 
 const buildFilteredAnalyticsQuery = (
   userId: number,
   startDate: Date,
-  endDate?: Date
+  endDate?: Date,
+  senderDomain?: string | null
 ) => {
   const query = db('email_analytics')
     .join('emails', 'email_analytics.email_id', 'emails.id')
     .where('emails.user_id', userId);
 
-  return applyDateRange(query, 'emails.created_at', startDate, endDate);
+  return applySenderDomainFilter(
+    applyDateRange(query, 'emails.created_at', startDate, endDate),
+    'emails.from_email',
+    senderDomain
+  );
 };
 
-const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date) => {
-  const emailQuery = buildFilteredEmailQuery(userId, startDate, endDate);
+const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date, senderDomain?: string | null) => {
+  const emailQuery = buildFilteredEmailQuery(userId, startDate, endDate, senderDomain);
 
   const baseCounts = await emailQuery
     .clone()
@@ -158,11 +196,12 @@ const calculateChange = (current: number, previous: number) => {
 };
 
 router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate, previousStart, previousEnd } = getDateRange(String(req.query.period || '30d'));
 
   const [currentStats, previousStats] = await Promise.all([
-    getOverviewStats(req.user!.id, startDate, endDate),
-    getOverviewStats(req.user!.id, previousStart, previousEnd)
+    getOverviewStats(req.user!.id, startDate, endDate, senderDomain),
+    getOverviewStats(req.user!.id, previousStart, previousEnd, senderDomain)
   ]);
 
   res.json({
@@ -186,9 +225,13 @@ router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Resp
 }));
 
 router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const activities = await db('email_analytics')
+  const senderDomain = await resolveDomainFilter(req);
+  const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
+  const activities = await applySenderDomainFilter(
+    db('email_analytics')
     .join('emails', 'email_analytics.email_id', 'emails.id')
     .select(
+      'email_analytics.id as id',
       'emails.id as email_id',
       'emails.to_email',
       'emails.subject',
@@ -199,6 +242,11 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
       'email_analytics.metadata'
     )
     .where('emails.user_id', req.user!.id)
+    .where('email_analytics.created_at', '>=', startDate)
+    .where('email_analytics.created_at', '<=', endDate),
+    'emails.from_email',
+    senderDomain
+  )
     .orderBy('email_analytics.created_at', 'desc')
     .limit(20);
 
@@ -216,11 +264,15 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
     }
 
     return {
+      id: activity.id,
       email: activity.to_email,
+      email_to: activity.to_email,
       subject: activity.subject || 'Sem assunto',
+      email_subject: activity.subject || 'Sem assunto',
       status,
       event_type: activity.event_type,
       timestamp: activity.created_at,
+      created_at: activity.created_at,
       ip_address: activity.ip_address,
       user_agent: activity.user_agent,
       metadata: activity.metadata
@@ -231,11 +283,12 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
 }));
 
 router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate, previousStart, previousEnd } = getDateRange(String(req.query.timeRange || '30d'));
 
   const [currentStats, previousStats] = await Promise.all([
-    getOverviewStats(req.user!.id, startDate, endDate),
-    getOverviewStats(req.user!.id, previousStart, previousEnd)
+    getOverviewStats(req.user!.id, startDate, endDate, senderDomain),
+    getOverviewStats(req.user!.id, previousStart, previousEnd, senderDomain)
   ]);
 
   const rounded = roundMetrics(currentStats);
@@ -260,9 +313,11 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
 }));
 
 router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
-  const chart = await db('emails')
+  const chart = await applySenderDomainFilter(
+    db('emails')
     .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
     .select(
       db.raw('DATE(emails.created_at) as date'),
@@ -307,7 +362,10 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
     )
     .where('emails.user_id', req.user!.id)
     .where('emails.created_at', '>=', startDate)
-    .where('emails.created_at', '<=', endDate)
+    .where('emails.created_at', '<=', endDate),
+    'emails.from_email',
+    senderDomain
+  )
     .groupBy(db.raw('DATE(emails.created_at)'))
     .orderBy('date', 'asc');
 
@@ -324,14 +382,25 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
 }));
 
 router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
-  const emails = await db('emails')
+  const emails = await applySenderDomainFilter(
+    db('emails')
     .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
     .select(
       'emails.subject',
       db.raw('COUNT(DISTINCT emails.id) as sent_count'),
       db.raw('MAX(emails.created_at) as sent_at'),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.delivered_at IS NOT NULL
+              OR emails.status IN ('sent', 'delivered', 'opened', 'clicked')
+            THEN emails.id
+          END
+        ) as delivered_count
+      `),
       db.raw(`
         COUNT(
           DISTINCT CASE
@@ -363,7 +432,10 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
     )
     .where('emails.user_id', req.user!.id)
     .where('emails.created_at', '>=', startDate)
-    .where('emails.created_at', '<=', endDate)
+    .where('emails.created_at', '<=', endDate),
+    'emails.from_email',
+    senderDomain
+  )
     .groupBy('emails.subject')
     .orderBy('sent_count', 'desc')
     .limit(10);
@@ -371,6 +443,7 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
   res.json({
     emails: emails.map((email: any, index: number) => {
       const sentCount = Number(email.sent_count || 0);
+      const deliveredCount = Number(email.delivered_count || 0);
       const openedCount = Number(email.opened_count || 0);
       const clickedCount = Number(email.clicked_count || 0);
       const bouncedCount = Number(email.bounced_count || 0);
@@ -379,9 +452,10 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
         id: index + 1,
         subject: email.subject || 'Sem assunto',
         sent_count: sentCount,
+        delivered_count: deliveredCount,
         sent_at: email.sent_at,
-        open_rate: sentCount > 0 ? (openedCount / sentCount) * 100 : 0,
-        click_rate: sentCount > 0 ? (clickedCount / sentCount) * 100 : 0,
+        open_rate: deliveredCount > 0 ? (openedCount / deliveredCount) * 100 : 0,
+        click_rate: deliveredCount > 0 ? (clickedCount / deliveredCount) * 100 : 0,
         bounce_rate: sentCount > 0 ? (bouncedCount / sentCount) * 100 : 0
       };
     })
@@ -472,13 +546,15 @@ router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Respon
 }));
 
 router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
-  const domains = await db('emails')
+  const domains = await applySenderDomainFilter(
+    db('emails')
     .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
     .select(
       db.raw(`${sqlExtractDomain('emails.from_email')} as domain`),
-      db.raw('COUNT(DISTINCT emails.id) as total_emails'),
+      db.raw('COUNT(DISTINCT emails.id) as sent_count'),
       db.raw(`
         COUNT(
           DISTINCT CASE
@@ -486,7 +562,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
               OR emails.status IN ('sent', 'delivered', 'opened', 'clicked')
             THEN emails.id
           END
-        ) as delivered
+        ) as delivered_count
       `),
       db.raw(`
         COUNT(
@@ -495,7 +571,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
               OR email_analytics.event_type IN ('open', 'opened')
             THEN emails.id
           END
-        ) as opened
+        ) as opened_count
       `),
       db.raw(`
         COUNT(
@@ -504,31 +580,59 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
               OR email_analytics.event_type IN ('click', 'clicked')
             THEN emails.id
           END
-        ) as clicked
+        ) as clicked_count
+      `),
+      db.raw(`
+        COUNT(
+          DISTINCT CASE
+            WHEN emails.status IN ('bounced', 'failed')
+              OR emails.bounce_reason IS NOT NULL
+              OR email_analytics.event_type IN ('bounce', 'bounced')
+            THEN emails.id
+          END
+        ) as bounced_count
       `)
     )
     .where('emails.user_id', req.user!.id)
     .where('emails.created_at', '>=', startDate)
-    .where('emails.created_at', '<=', endDate)
+    .where('emails.created_at', '<=', endDate),
+    'emails.from_email',
+    senderDomain
+  )
     .groupBy(db.raw(sqlExtractDomain('emails.from_email')))
-    .orderBy('total_emails', 'desc');
+    .orderBy('sent_count', 'desc');
+
+  const domainIds = await db('domains')
+    .select('id', 'domain_name')
+    .where('user_id', req.user!.id);
+
+  const domainIdMap = new Map(domainIds.map((domain: any) => [domain.domain_name, Number(domain.id)]));
 
   res.json({
     domains: domains.map((domain: any) => {
-      const totalEmails = Number(domain.total_emails || 0);
-      const delivered = Number(domain.delivered || 0);
-      const opened = Number(domain.opened || 0);
-      const clicked = Number(domain.clicked || 0);
+      const sentCount = Number(domain.sent_count || 0);
+      const deliveredCount = Number(domain.delivered_count || 0);
+      const openedCount = Number(domain.opened_count || 0);
+      const clickedCount = Number(domain.clicked_count || 0);
+      const bouncedCount = Number(domain.bounced_count || 0);
+      const domainName = domain.domain;
 
       return {
-        domain: domain.domain,
-        total_emails: totalEmails,
-        delivered,
-        opened,
-        clicked,
-        delivery_rate: totalEmails > 0 ? (delivered / totalEmails) * 100 : 0,
-        open_rate: delivered > 0 ? (opened / delivered) * 100 : 0,
-        click_rate: delivered > 0 ? (clicked / delivered) * 100 : 0
+        domain_id: domainIdMap.get(domainName) ?? null,
+        domain: domainName,
+        sent_count: sentCount,
+        total_emails: sentCount,
+        delivered_count: deliveredCount,
+        delivered: deliveredCount,
+        opened_count: openedCount,
+        opened: openedCount,
+        clicked_count: clickedCount,
+        clicked: clickedCount,
+        bounced_count: bouncedCount,
+        delivery_rate: sentCount > 0 ? (deliveredCount / sentCount) * 100 : 0,
+        open_rate: deliveredCount > 0 ? (openedCount / deliveredCount) * 100 : 0,
+        click_rate: deliveredCount > 0 ? (clickedCount / deliveredCount) * 100 : 0,
+        bounce_rate: sentCount > 0 ? (bouncedCount / sentCount) * 100 : 0
       };
     })
   });

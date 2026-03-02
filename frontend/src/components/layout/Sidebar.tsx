@@ -33,6 +33,14 @@ export function Sidebar({ className }: SidebarProps) {
   const location = useLocation()
   const { isOpen, close } = useSidebarStore()
 
+  const isRouteActive = (href: string) => {
+    if (href === '/app') {
+      return location.pathname === '/app'
+    }
+
+    return location.pathname === href || location.pathname.startsWith(`${href}/`)
+  }
+
   return (
     <>
       {/* Backdrop for mobile */}
@@ -77,7 +85,7 @@ export function Sidebar({ className }: SidebarProps) {
           {/* Navigation */}
           <nav className="flex-1 space-y-2 p-4" aria-label="Menu principal">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href
+              const isActive = isRouteActive(item.href)
               const Icon = item.icon
               
               return (

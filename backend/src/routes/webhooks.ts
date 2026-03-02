@@ -2,6 +2,12 @@ import axios from 'axios';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
+import {
+  createWebhookPayloadSchema,
+  idParamSchema,
+  updateWebhookPayloadSchema,
+  validateRequest,
+} from '../middleware/validation';
 import { generateSecretKey, createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
 
@@ -48,7 +54,7 @@ const normalizeWebhook = (
     name: webhook.name || buildWebhookName(webhook.url),
     webhook_url: webhook.url,
     events: parseEvents(webhook.events),
-    secret: webhook.secret,
+    has_secret: Boolean(webhook.secret),
     is_active: Boolean(webhook.is_active),
     created_at: webhook.created_at,
     updated_at: webhook.updated_at,
@@ -135,11 +141,17 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   });
 }));
 
-router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const webhookUrl = req.body.webhook_url || req.body.url;
+router.post('/',
+  validateRequest({ body: createWebhookPayloadSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const webhookUrl = req.body.webhook_url;
   const events = parseEvents(req.body.events);
   const name = req.body.name || buildWebhookName(webhookUrl);
   const secret = req.body.secret || generateSecretKey();
+
+  if (!webhookUrl || events.length === 0) {
+    return res.status(400).json({ error: 'Webhook URL and at least one event are required' });
+  }
 
   const insertResult = await db('webhooks').insert({
     url: webhookUrl,
@@ -158,7 +170,9 @@ router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =
   res.status(201).json({ webhook: normalizeWebhook(webhook) });
 }));
 
-router.put('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id',
+  validateRequest({ params: idParamSchema, body: updateWebhookPayloadSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
 
   const currentWebhook = await db('webhooks')
@@ -170,7 +184,7 @@ router.put('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response)
     return res.status(404).json({ error: 'Webhook não encontrado' });
   }
 
-  const webhookUrl = req.body.webhook_url || req.body.url || currentWebhook.url;
+  const webhookUrl = req.body.webhook_url || currentWebhook.url;
   const events = req.body.events ? parseEvents(req.body.events) : parseEvents(currentWebhook.events);
 
   await db('webhooks')
@@ -180,7 +194,7 @@ router.put('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response)
       url: webhookUrl,
       name: req.body.name || currentWebhook.name || buildWebhookName(webhookUrl),
       events: JSON.stringify(events),
-      secret: req.body.secret ?? currentWebhook.secret,
+      secret: typeof req.body.secret === 'string' && req.body.secret.length > 0 ? req.body.secret : currentWebhook.secret,
       is_active: typeof req.body.is_active === 'boolean' ? req.body.is_active : currentWebhook.is_active,
       updated_at: new Date()
     });
@@ -194,7 +208,7 @@ router.put('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response)
   res.json({ webhook: normalizeWebhook(webhook, statsMap.get(Number(id))) });
 }));
 
-router.delete('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
 
   const deleted = await db('webhooks')
@@ -209,7 +223,7 @@ router.delete('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Respon
   res.json({ message: 'Webhook deletado com sucesso' });
 }));
 
-router.get('/:id/logs', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id/logs', validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { status = 'all', event_type = 'all' } = req.query;
 
@@ -241,7 +255,7 @@ router.get('/:id/logs', asyncHandler(async (req: AuthenticatedRequest, res: Resp
   res.json({ logs: logs.map(normalizeLog) });
 }));
 
-router.post('/:id/test', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/test', validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
 
   const webhook = await db('webhooks')

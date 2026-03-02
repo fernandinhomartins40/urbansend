@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'
 import { DomainSelector } from '@/components/domain/DomainSelector'
+import { SafeHTML } from '@/components/ui/SafeHTML'
 import { useUserDomains, useHasVerifiedDomains } from '@/hooks/useUserDomains'
 import { useEmailSend, extractDomain, type EmailData } from '@/hooks/useEmailSend'
 import { 
@@ -429,7 +430,7 @@ export function EmailSendForm({
                     <TabsContent value="preview">
                       <div className="border rounded-lg p-4">
                         {form.watch('html') ? (
-                          <div dangerouslySetInnerHTML={{ __html: form.watch('html') }} />
+                          <SafeHTML html={form.watch('html') || ''} strict className="prose max-w-none" />
                         ) : (
                           <pre className="whitespace-pre-wrap">
                             {form.watch('text') || 'Nenhum conteúdo para preview'}

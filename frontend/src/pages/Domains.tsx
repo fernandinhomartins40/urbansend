@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDomainSetup } from '@/hooks/useDomainSetup'
 import { analyticsApi } from '@/lib/api'
+import { useSettingsStore } from '@/lib/store'
 
 interface DomainStatsProps {
   domains: Array<{
@@ -42,6 +43,8 @@ interface DomainAnalyticsRow {
   click_rate: number
   bounce_rate: number
 }
+
+const analyticsRanges: Array<'7d' | '30d' | '90d'> = ['7d', '30d', '90d']
 
 const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
   const totalDomains = domains.length
@@ -170,13 +173,18 @@ interface DomainsPageProps {
 }
 
 export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) => {
+  const analyticsDefaultTimeRange = useSettingsStore((state) => state.settings.analyticsDefaultTimeRange)
   const [searchParams, setSearchParams] = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>(searchParams.get('mode') === 'setup' ? 'setup' : initialMode)
   const [editingDomainId, setEditingDomainId] = useState<number | null>(
     searchParams.get('domainId') ? Number(searchParams.get('domainId')) : null
   )
-  const [analyticsRange, setAnalyticsRange] = useState('30d')
-  const { domains, loadDomains } = useDomainSetup()
+  const [analyticsRange, setAnalyticsRange] = useState(analyticsDefaultTimeRange)
+  const { domains, loading, error, loadDomains, removeDomain, refreshDomain } = useDomainSetup()
+
+  useEffect(() => {
+    setAnalyticsRange(analyticsDefaultTimeRange)
+  }, [analyticsDefaultTimeRange])
 
   useEffect(() => {
     loadDomains()
@@ -286,7 +294,16 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
         </TabsList>
 
         <TabsContent value="domains" className="mt-6">
-          <DomainList onAddDomain={handleAddDomain} onEditDomain={handleEditDomain} />
+          <DomainList
+            domains={domains}
+            loading={loading}
+            error={error}
+            onReload={loadDomains}
+            onRemoveDomain={removeDomain}
+            onRefreshDomain={refreshDomain}
+            onAddDomain={handleAddDomain}
+            onEditDomain={handleEditDomain}
+          />
         </TabsContent>
 
         <TabsContent value="monitoring" className="mt-6">
@@ -300,7 +317,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
               <p className="text-sm text-muted-foreground">Metricas reais consolidadas a partir do historico de envio.</p>
             </div>
             <div className="flex items-center gap-2">
-              {['7d', '30d', '90d'].map((range) => (
+              {analyticsRanges.map((range) => (
                 <Button
                   key={range}
                   size="sm"

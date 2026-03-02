@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, Eye, Globe, Mail, MousePointer, RefreshCw, TrendingUp, XCircle } from 'lucide-react'
 import { analyticsApi } from '@/lib/api'
+import { useSettingsStore } from '@/lib/store'
 import { formatRelativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,33 +17,52 @@ const chartColors = {
   clicked: '#9333ea',
 }
 
+const analyticsRanges: Array<'7d' | '30d' | '90d'> = ['7d', '30d', '90d']
+
 export function Analytics() {
-  const [timeRange, setTimeRange] = useState('30d')
+  const analyticsDefaultTimeRange = useSettingsStore((state) => state.settings.analyticsDefaultTimeRange)
+  const [searchParams] = useSearchParams()
+  const [timeRange, setTimeRange] = useState(analyticsDefaultTimeRange)
+  const domainId = searchParams.get('domainId') || searchParams.get('domain') || undefined
 
-  const { data: analyticsResponse, isLoading, refetch } = useQuery({
-    queryKey: ['analytics', timeRange],
-    queryFn: () => analyticsApi.getAnalytics({ timeRange }),
+  useEffect(() => {
+    setTimeRange(analyticsDefaultTimeRange)
+  }, [analyticsDefaultTimeRange])
+
+  const { data: analyticsResponse, isLoading, refetch: refetchAnalytics } = useQuery({
+    queryKey: ['analytics', timeRange, domainId],
+    queryFn: () => analyticsApi.getAnalytics({ timeRange, domainId }),
   })
 
-  const { data: chartResponse } = useQuery({
-    queryKey: ['analytics', 'chart', timeRange],
-    queryFn: () => analyticsApi.getAnalyticsChart({ timeRange }),
+  const { data: chartResponse, refetch: refetchChart } = useQuery({
+    queryKey: ['analytics', 'chart', timeRange, domainId],
+    queryFn: () => analyticsApi.getAnalyticsChart({ timeRange, domainId }),
   })
 
-  const { data: topEmailsResponse } = useQuery({
-    queryKey: ['analytics', 'top-emails', timeRange],
-    queryFn: () => analyticsApi.getTopEmails({ timeRange }),
+  const { data: topEmailsResponse, refetch: refetchTopEmails } = useQuery({
+    queryKey: ['analytics', 'top-emails', timeRange, domainId],
+    queryFn: () => analyticsApi.getTopEmails({ timeRange, domainId }),
   })
 
-  const { data: domainsResponse } = useQuery({
-    queryKey: ['analytics', 'domains', timeRange],
-    queryFn: () => analyticsApi.getDomains({ timeRange }),
+  const { data: domainsResponse, refetch: refetchDomains } = useQuery({
+    queryKey: ['analytics', 'domains', timeRange, domainId],
+    queryFn: () => analyticsApi.getDomains({ timeRange, domainId }),
   })
 
-  const { data: activityResponse } = useQuery({
-    queryKey: ['analytics', 'recent-activity'],
-    queryFn: () => analyticsApi.getRecentActivity(),
+  const { data: activityResponse, refetch: refetchActivity } = useQuery({
+    queryKey: ['analytics', 'recent-activity', timeRange, domainId],
+    queryFn: () => analyticsApi.getRecentActivity({ timeRange, domainId }),
   })
+
+  const handleRefresh = async () => {
+    await Promise.all([
+      refetchAnalytics(),
+      refetchChart(),
+      refetchTopEmails(),
+      refetchDomains(),
+      refetchActivity(),
+    ])
+  }
 
   const overview = analyticsResponse?.data || {}
   const chart = chartResponse?.data?.chart || []
@@ -91,12 +112,12 @@ export function Analytics() {
         </div>
 
         <div className="flex items-center gap-2">
-          {['7d', '30d', '90d'].map((range) => (
+          {analyticsRanges.map((range) => (
             <Button key={range} size="sm" variant={timeRange === range ? 'default' : 'outline'} onClick={() => setTimeRange(range)}>
               {range}
             </Button>
           ))}
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => handleRefresh()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Atualizar
           </Button>
@@ -174,14 +195,14 @@ export function Analytics() {
                 Sem atividade recente.
               </div>
             ) : (
-              activities.slice(0, 8).map((activity: any) => (
-                <div key={activity.id} className="rounded-lg border p-3">
+              activities.slice(0, 8).map((activity: any, index: number) => (
+                <div key={activity.id || `${activity.event_type}-${activity.created_at || activity.timestamp}-${index}`} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="font-medium">{activity.event_type}</div>
-                      <div className="text-sm text-muted-foreground">{activity.email_subject || activity.email_to}</div>
+                      <div className="text-sm text-muted-foreground">{activity.email_subject || activity.subject || activity.email_to || activity.email}</div>
                     </div>
-                    <Badge variant="outline">{formatRelativeTime(activity.created_at)}</Badge>
+                    <Badge variant="outline">{formatRelativeTime(activity.created_at || activity.timestamp)}</Badge>
                   </div>
                 </div>
               ))
@@ -227,14 +248,14 @@ export function Analytics() {
                 Nenhum dominio com dados no periodo.
               </div>
             ) : (
-              topDomains.slice(0, 6).map((domain: any) => (
-                <div key={domain.domain_id} className="rounded-lg border p-4">
+              topDomains.slice(0, 6).map((domain: any, index: number) => (
+                <div key={domain.domain_id || `${domain.domain}-${index}`} className="rounded-lg border p-4">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="font-medium">{domain.domain}</div>
                     <Badge variant="outline">{Number(domain.delivery_rate || 0).toFixed(1)}% entrega</Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground md:grid-cols-4">
-                    <div>{domain.sent_count} enviados</div>
+                    <div>{domain.sent_count || domain.total_emails || 0} enviados</div>
                     <div>{Number(domain.open_rate || 0).toFixed(1)}% abertura</div>
                     <div>{Number(domain.click_rate || 0).toFixed(1)}% clique</div>
                     <div>{Number(domain.bounce_rate || 0).toFixed(1)}% bounce</div>

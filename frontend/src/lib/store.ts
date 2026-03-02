@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''
+const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`
+
 interface User {
   id: number
   name: string
@@ -30,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         try {
           // Call logout API to clear httpOnly cookies
-          await fetch('/api/auth/logout', {
+          await fetch(buildApiUrl('/auth/logout'), {
             method: 'POST',
             credentials: 'include'
           })
@@ -53,7 +56,7 @@ export const useAuthStore = create<AuthState>()(
       checkAuthStatus: async () => {
         try {
           // Try to fetch user profile to check if session is still valid
-          const response = await fetch('/api/auth/profile', {
+          const response = await fetch(buildApiUrl('/auth/profile'), {
             method: 'GET',
             credentials: 'include'
           })
@@ -200,9 +203,12 @@ interface SettingsState {
     emailsPerPage: number
     autoRefresh: boolean
     refreshInterval: number
-    defaultEmailFormat: 'html' | 'text'
-    enableNotifications: boolean
     language: 'pt-BR' | 'en-US'
+    analyticsDefaultTimeRange: '24h' | '7d' | '30d' | '90d'
+    theme: 'light' | 'dark' | 'system'
+    timezone: string
+    dateFormat: string
+    timeFormat: '12h' | '24h'
   }
   updateSettings: (settings: Partial<SettingsState['settings']>) => void
 }
@@ -214,9 +220,12 @@ export const useSettingsStore = create<SettingsState>()(
         emailsPerPage: 20,
         autoRefresh: true,
         refreshInterval: 30000, // 30 seconds
-        defaultEmailFormat: 'html',
-        enableNotifications: true,
         language: 'pt-BR',
+        analyticsDefaultTimeRange: '30d',
+        theme: 'light',
+        timezone: 'America/Sao_Paulo',
+        dateFormat: 'DD/MM/YYYY',
+        timeFormat: '24h',
       },
       
       updateSettings: (newSettings) =>

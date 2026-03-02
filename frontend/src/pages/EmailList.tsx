@@ -13,6 +13,7 @@ import { Search, Filter, RefreshCw, Send, Eye, MousePointer, AlertTriangle } fro
 import toast from 'react-hot-toast'
 import { useSmartPolling } from '@/hooks/useSmartPolling'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useSettingsStore } from '@/lib/store'
 
 interface Email {
   id: number
@@ -20,7 +21,11 @@ interface Email {
   to_email: string
   subject: string
   status: string
+  reply_to?: string
+  template_id?: string | number
+  variables?: Record<string, string> | string
   sent_at: string
+  delivered_at?: string
   opened_at?: string
   clicked_at?: string
   bounce_reason?: string
@@ -30,12 +35,12 @@ interface Email {
 
 export function EmailList() {
   const navigate = useNavigate()
+  const emailsPerPage = useSettingsStore((state) => state.settings.emailsPerPage)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
   const [domainFilter, setDomainFilter] = useState('all')
   const [page, setPage] = useState(1)
-  const [limit] = useState(20)
   const [selectedEmails, setSelectedEmails] = useState<number[]>([])
   const queryClient = useQueryClient()
 
@@ -64,7 +69,7 @@ export function EmailList() {
       dateFilter,
       domainFilter,
       page.toString(),
-      limit.toString()
+      emailsPerPage.toString()
     ],
     queryFn: () => emailApi.getEmails({
       search: debouncedSearch || undefined,
@@ -72,7 +77,7 @@ export function EmailList() {
       date_filter: dateFilter === 'all' ? undefined : dateFilter,
       domain_filter: domainFilter === 'all' ? undefined : domainFilter,
       page,
-      limit,
+      limit: emailsPerPage,
       sort: 'created_at',
       order: 'desc'
     }),
@@ -104,6 +109,93 @@ export function EmailList() {
     toast.success('Cache limpo e dados atualizados!')
   }
 
+  const handleExportSelected = async () => {
+    const selected = emails.filter((email: Email) => selectedEmails.includes(email.id))
+
+    if (selected.length === 0) {
+      toast.error('Selecione pelo menos um email para exportar')
+      return
+    }
+
+    const csvRows = [
+      ['id', 'from_email', 'to_email', 'subject', 'status', 'created_at', 'sent_at'],
+      ...selected.map((email: Email) => [
+        String(email.id),
+        email.from_email,
+        email.to_email,
+        `"${(email.subject || '').replace(/"/g, '""')}"`,
+        email.status,
+        email.created_at || '',
+        email.sent_at || '',
+      ]),
+    ]
+
+    const blob = new Blob([csvRows.map((row) => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'emails-selecionados.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Exportacao concluida')
+  }
+
+  const parseVariables = (variables: Email['variables']) => {
+    if (!variables) {
+      return undefined
+    }
+
+    if (typeof variables === 'string') {
+      try {
+        return JSON.parse(variables)
+      } catch {
+        return undefined
+      }
+    }
+
+    return variables
+  }
+
+  const resendEmails = async (emailIds: number[]) => {
+    const failedIds = emails
+      .filter((email: Email) => emailIds.includes(email.id) && email.status === 'failed')
+      .map((email: Email) => email.id)
+
+    if (failedIds.length === 0) {
+      toast.error('Nenhum email falhado selecionado para reenvio')
+      return
+    }
+
+    await toast.promise(
+      (async () => {
+        for (const emailId of failedIds) {
+          const detailResponse = await emailApi.getEmail(emailId)
+          const email = detailResponse.data.email
+
+          await emailApi.send({
+            from: email.from_email,
+            to: email.to_email,
+            subject: email.subject,
+            html: email.html_content || undefined,
+            text: email.text_content || undefined,
+            reply_to: email.reply_to || undefined,
+            template_id: email.template_id || undefined,
+            variables: parseVariables(email.variables),
+            tracking_enabled: email.tracking_enabled,
+          })
+        }
+
+        await refetch()
+        setSelectedEmails([])
+      })(),
+      {
+        loading: 'Reenviando emails falhados...',
+        success: 'Emails reenviados',
+        error: 'Falha ao reenviar emails',
+      }
+    )
+  }
+
   const handleClearFilters = () => {
     setSearch('')
     setStatusFilter('all')
@@ -118,6 +210,7 @@ export function EmailList() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case 'pending': return <RefreshCw className="h-4 w-4 text-amber-500" />
       case 'sent': return <Send className="h-4 w-4 text-blue-500" />
       case 'delivered': return <Eye className="h-4 w-4 text-green-500" />
       case 'opened': return <Eye className="h-4 w-4 text-blue-600" />
@@ -145,7 +238,8 @@ export function EmailList() {
         variant="secondary" 
         className={color}
       >
-        {email.status === 'sent' ? 'Enviado' :
+        {email.status === 'pending' ? 'Processando' :
+         email.status === 'sent' ? 'Enviado' :
          email.status === 'delivered' ? 'Entregue' :
          email.status === 'queued' ? 'Na fila' :
          email.status === 'failed' ? 'Falhou' :
@@ -364,10 +458,10 @@ export function EmailList() {
                   {selectedEmails.length} email(s) selecionado(s)
                 </span>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={() => resendEmails(selectedEmails)}>
                     Reenviar falhados
                   </Button>
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={handleExportSelected}>
                     Exportar dados
                   </Button>
                   <Button 
@@ -407,7 +501,7 @@ export function EmailList() {
               <TableHead>Assunto</TableHead>
               <TableHead>De</TableHead>
               <TableHead>Enviado</TableHead>
-              <TableHead>Taxa de Abertura</TableHead>
+              <TableHead>Engajamento</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -521,6 +615,7 @@ export function EmailList() {
                           variant="ghost" 
                           size="sm"
                           className="text-blue-600"
+                          onClick={() => resendEmails([email.id])}
                         >
                           Reenviar
                         </Button>

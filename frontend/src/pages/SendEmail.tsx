@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { emailApi, templateApi } from '@/lib/api'
+import { templateApi } from '@/lib/api'
+import { useEmailSend } from '@/hooks/useEmailSend'
 import { useHasVerifiedDomains } from '@/hooks/useUserDomains'
 
 const sendEmailSchema = z.object({
@@ -39,10 +40,18 @@ const parseTemplateVariables = (value: unknown): Record<string, string> => {
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return Object.fromEntries(parsed.map((item) => [String(item), '']))
+      }
+
       return typeof parsed === 'object' && parsed ? parsed : {}
     } catch {
       return {}
     }
+  }
+
+  if (Array.isArray(value)) {
+    return Object.fromEntries(value.map((item) => [String(item), '']))
   }
 
   if (typeof value === 'object') {
@@ -58,6 +67,7 @@ export function SendEmail() {
   const [newVarKey, setNewVarKey] = useState('')
   const [newVarValue, setNewVarValue] = useState('')
   const hasVerifiedDomains = useHasVerifiedDomains()
+  const sendEmailMutation = useEmailSend()
 
   const form = useForm<SendEmailForm>({
     resolver: zodResolver(sendEmailSchema),
@@ -79,27 +89,23 @@ export function SendEmail() {
 
   const templates = templatesResponse?.data?.templates || []
 
-  const sendEmailMutation = useMutation({
-    mutationFn: emailApi.send,
-    onSuccess: () => {
-      toast.success('Email enviado com sucesso')
-      navigate('/app/emails')
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Erro ao enviar email')
-    },
-  })
-
-  const onSubmit = (data: SendEmailForm) => {
+  const onSubmit = async (data: SendEmailForm) => {
     if (!hasVerifiedDomains) {
       toast.error('Configure pelo menos um dominio verificado para enviar emails')
       return
     }
 
-    sendEmailMutation.mutate({
-      ...data,
+    await sendEmailMutation.mutateAsync({
+      from: data.from,
+      to: data.to,
+      subject: data.subject,
+      html: data.html,
+      text: data.text,
+      template_id: data.template_id || undefined,
+      tracking_enabled: data.tracking_enabled,
       variables: customVariables,
     })
+    navigate('/app/emails')
   }
 
   const addCustomVariable = () => {
@@ -113,6 +119,13 @@ export function SendEmail() {
   const removeCustomVariable = (key: string) => {
     const { [key]: _removed, ...rest } = customVariables
     setCustomVariables(rest)
+  }
+
+  const updateCustomVariable = (key: string, value: string) => {
+    setCustomVariables((current) => ({
+      ...current,
+      [key]: value,
+    }))
   }
 
   const loadTemplate = (templateId: string) => {
@@ -342,12 +355,13 @@ export function SendEmail() {
                   {Object.entries(customVariables).length > 0 && (
                     <div className="space-y-2">
                       {Object.entries(customVariables).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between rounded bg-gray-50 p-2">
-                          <div>
-                            <span className="font-mono text-sm">{key}</span>
-                            <span className="mx-2 text-muted-foreground">=</span>
-                            <span className="text-sm">{value}</span>
-                          </div>
+                        <div key={key} className="flex items-center gap-2 rounded bg-gray-50 p-2">
+                          <div className="min-w-[120px] font-mono text-sm">{key}</div>
+                          <Input
+                            value={value}
+                            onChange={(event) => updateCustomVariable(key, event.target.value)}
+                            placeholder={`Valor para ${key}`}
+                          />
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeCustomVariable(key)}>
                             <X className="h-3 w-3" />
                           </Button>

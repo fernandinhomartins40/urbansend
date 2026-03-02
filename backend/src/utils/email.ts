@@ -62,7 +62,7 @@ export const processTemplate = (template: string, variables: Record<string, any>
 };
 
 export const extractVariablesFromTemplate = (template: string): string[] => {
-  const regex = /{{\\s*([^}\\s]+)\\s*}}/g;
+  const regex = /{{\s*([^}\s]+)\s*}}/g;
   const variables: string[] = [];
   let match;
   
@@ -75,19 +75,27 @@ export const extractVariablesFromTemplate = (template: string): string[] => {
   return variables;
 };
 
-export const generateTrackingPixel = (trackingId: string, domain: string): string => {
-  return `<img src="https://${domain}/track/open/${trackingId}" width="1" height="1" style="display:none;" alt="" />`;
+const resolveTrackingBaseUrl = (domainOrUrl: string): string => {
+  const baseUrl = /^https?:\/\//i.test(domainOrUrl) ? domainOrUrl : `https://${domainOrUrl}`;
+  return `${baseUrl.replace(/\/$/, '')}/api/emails/track`;
 };
 
-export const processLinksForTracking = (html: string, trackingId: string, domain: string): string => {
+export const generateTrackingPixel = (trackingId: string, domainOrUrl: string): string => {
+  const trackingBaseUrl = resolveTrackingBaseUrl(domainOrUrl);
+  return `<img src="${trackingBaseUrl}/open/${trackingId}" width="1" height="1" style="display:none;" alt="" />`;
+};
+
+export const processLinksForTracking = (html: string, trackingId: string, domainOrUrl: string): string => {
   const regex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi;
+  const trackingBaseUrl = resolveTrackingBaseUrl(domainOrUrl);
+  const trackingHost = trackingBaseUrl.replace(/\/api\/emails\/track$/, '');
   
   return html.replace(regex, (match, url) => {
-    if (url.startsWith('mailto:') || url.startsWith('tel:') || url.includes(domain)) {
+    if (url.startsWith('mailto:') || url.startsWith('tel:') || url.includes(trackingHost)) {
       return match;
     }
     
-    const trackingUrl = `https://${domain}/track/click/${trackingId}?url=${encodeURIComponent(url)}`;
+    const trackingUrl = `${trackingBaseUrl}/click/${trackingId}?url=${encodeURIComponent(url)}`;
     return match.replace(url, trackingUrl);
   });
 };

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Calendar, CheckCircle, Clock, Eye, Mail, MousePointer, TrendingUp, User, XCircle } from 'lucide-react'
+import { AlertCircle, Calendar, CheckCircle, Clock, Eye, Mail, MousePointer, User, XCircle } from 'lucide-react'
 import { formatDistance } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +34,8 @@ const StatusIcon = ({ status }: { status: Email['status'] }) => {
       return <CheckCircle className="h-4 w-4 text-green-500" />
     case 'sent':
       return <Clock className="h-4 w-4 text-blue-500" />
+    case 'pending':
+      return <Clock className="h-4 w-4 text-amber-500" />
     case 'queued':
     case 'draft':
       return <Clock className="h-4 w-4 text-yellow-500" />
@@ -49,6 +51,7 @@ const StatusBadge = ({ status }: { status: Email['status'] }) => {
   const labelMap: Record<Email['status'], string> = {
     draft: 'Rascunho',
     queued: 'Na fila',
+    pending: 'Processando',
     sent: 'Enviado',
     delivered: 'Entregue',
     bounced: 'Rejeitado',
@@ -62,7 +65,7 @@ const StatusBadge = ({ status }: { status: Email['status'] }) => {
       ? 'default'
       : status === 'bounced' || status === 'failed'
         ? 'destructive'
-        : status === 'queued' || status === 'draft'
+        : status === 'queued' || status === 'draft' || status === 'pending'
           ? 'outline'
           : 'secondary'
 
@@ -234,24 +237,18 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
                       )}
                     </div>
 
-                    {showAnalytics && email.analytics && (
+                    {showAnalytics && (
                       <div className="flex items-center gap-3">
-                        {email.analytics.opens > 0 && (
+                        {(email.opened_at || email.status === 'opened' || email.status === 'clicked') && (
                           <div className="flex items-center gap-1 text-blue-600">
                             <Eye className="h-3 w-3" />
-                            <span>{email.analytics.opens}</span>
+                            <span>Aberto</span>
                           </div>
                         )}
-                        {email.analytics.clicks > 0 && (
+                        {(email.clicked_at || email.status === 'clicked') && (
                           <div className="flex items-center gap-1 text-green-600">
                             <MousePointer className="h-3 w-3" />
-                            <span>{email.analytics.clicks}</span>
-                          </div>
-                        )}
-                        {email.analytics.engagement_score > 0 && (
-                          <div className="flex items-center gap-1 text-purple-600">
-                            <TrendingUp className="h-3 w-3" />
-                            <span>{email.analytics.engagement_score}</span>
+                            <span>Clicado</span>
                           </div>
                         )}
                       </div>

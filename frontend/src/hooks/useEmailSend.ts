@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import toast from 'react-hot-toast'
 import { queryKeys } from '@/lib/queryClient'
+import { useSecureNavigation } from './useSecureNavigation'
 
 /**
  * 🎯 HOOK USEEMAILSEND - ARQUITETURA SIMPLIFICADA V3
@@ -14,13 +15,13 @@ import { queryKeys } from '@/lib/queryClient'
 
 export interface EmailData {
   from: string
-  to: string | string[]
+  to: string
   subject: string
   html?: string
   text?: string
   reply_to?: string
   variables?: Record<string, string>
-  template_id?: number
+  template_id?: string | number
   tracking_enabled?: boolean
 }
 
@@ -28,7 +29,7 @@ export interface EmailSendResponse {
   success: boolean
   message: string
   message_id: string
-  status: 'processing' | 'sent' | 'failed'
+  status: 'pending' | 'sent' | 'delivered' | 'failed'
   domain_verified: boolean
   domain: string
   version: '3.0'
@@ -86,12 +87,13 @@ export function extractDomain(email: string): string | null {
  */
 export const useEmailSend = () => {
   const queryClient = useQueryClient()
+  const { secureRedirect } = useSecureNavigation()
 
   return useMutation({
     mutationFn: async (emailData: EmailData): Promise<EmailSendResponse> => {
       console.log('🚀 EMAIL SEND V3 - Iniciando envio (arquitetura simplificada):', {
         from: emailData.from,
-        to: Array.isArray(emailData.to) ? `${emailData.to.length} recipients` : emailData.to,
+        to: emailData.to,
         subject: emailData.subject,
         domain: extractDomain(emailData.from),
         version: 'v3-simplified'
@@ -131,25 +133,22 @@ export const useEmailSend = () => {
           if (!old) return old
           
           const optimisticEmail = {
-            id: Date.now(), // ID temporário
+            id: Date.now(),
             from_email: emailData.from,
-            to_email: Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
+            to_email: emailData.to,
             subject: emailData.subject,
-            status: 'processing' as const, // V3 usa 'processing' em vez de 'queued'
+            status: 'pending' as const,
             created_at: new Date().toISOString(),
             domain_verified: true,
           }
 
           return {
             ...old,
-            data: {
-              ...old.data,
-              emails: [optimisticEmail, ...old.data.emails],
-              stats: {
-                ...old.data.stats,
-                total: old.data.stats.total + 1
-              }
-            }
+            emails: [optimisticEmail, ...(old.emails || [])],
+            stats: {
+              ...old.stats,
+              total: (old.stats?.total || 0) + 1
+            },
           }
         }
       )
@@ -176,7 +175,7 @@ export const useEmailSend = () => {
         
         // Aguardar um pouco para o usuário ler o toast, depois redirecionar
         setTimeout(() => {
-          window.location.href = '/app/domains'
+          secureRedirect('/app/domains')
         }, 2000)
         
         return

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSettingsStore } from '@/lib/store'
 
 interface SmartPollingOptions {
   queryKey: string[]
@@ -20,10 +21,19 @@ export const useSmartPolling = ({
   enabled = true,
   onError
 }: SmartPollingOptions) => {
-  const [currentInterval, setCurrentInterval] = useState(baseInterval)
+  const { autoRefresh, refreshInterval } = useSettingsStore((state) => ({
+    autoRefresh: state.settings.autoRefresh,
+    refreshInterval: state.settings.refreshInterval,
+  }))
+  const configuredBaseInterval = Math.max(baseInterval, refreshInterval || baseInterval)
+  const [currentInterval, setCurrentInterval] = useState(configuredBaseInterval)
   const [isTabActive, setIsTabActive] = useState(true)
   const errorCountRef = useRef(0)
   const lastActivityRef = useRef(Date.now())
+
+  useEffect(() => {
+    setCurrentInterval(configuredBaseInterval)
+  }, [configuredBaseInterval])
 
   // Track tab visibility
   useEffect(() => {
@@ -34,7 +44,7 @@ export const useSmartPolling = ({
       if (isActive) {
         lastActivityRef.current = Date.now()
         // Reset interval when tab becomes active
-        setCurrentInterval(baseInterval)
+        setCurrentInterval(configuredBaseInterval)
         errorCountRef.current = 0
       }
     }
@@ -42,8 +52,8 @@ export const useSmartPolling = ({
     // Track user activity
     const handleActivity = () => {
       lastActivityRef.current = Date.now()
-      if (isTabActive && currentInterval > baseInterval) {
-        setCurrentInterval(baseInterval)
+      if (isTabActive && currentInterval > configuredBaseInterval) {
+        setCurrentInterval(configuredBaseInterval)
       }
     }
 
@@ -60,7 +70,7 @@ export const useSmartPolling = ({
       document.removeEventListener('scroll', handleActivity)
       document.removeEventListener('touchstart', handleActivity)
     }
-  }, [baseInterval, currentInterval, isTabActive])
+  }, [configuredBaseInterval, currentInterval, isTabActive])
 
   // Calculate dynamic interval based on inactivity
   const getDynamicInterval = () => {
@@ -74,10 +84,10 @@ export const useSmartPolling = ({
 
     if (inactiveMinutes > 10) {
       // Very slow polling after 10 minutes of inactivity
-      return Math.min(baseInterval * 8, maxInterval)
+      return Math.min(configuredBaseInterval * 8, maxInterval)
     } else if (inactiveMinutes > 5) {
       // Slower polling after 5 minutes
-      return Math.min(baseInterval * 4, maxInterval)
+      return Math.min(configuredBaseInterval * 4, maxInterval)
     }
 
     return currentInterval
@@ -87,7 +97,7 @@ export const useSmartPolling = ({
     queryKey,
     queryFn,
     enabled,
-    refetchInterval: getDynamicInterval(),
+    refetchInterval: enabled && autoRefresh ? getDynamicInterval() : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     retry: (failureCount, error) => {
@@ -95,7 +105,7 @@ export const useSmartPolling = ({
       if (failureCount < 3) {
         errorCountRef.current = failureCount + 1
         const newInterval = Math.min(
-          baseInterval * Math.pow(backoffMultiplier, errorCountRef.current),
+          configuredBaseInterval * Math.pow(backoffMultiplier, errorCountRef.current),
           maxInterval
         )
         setCurrentInterval(newInterval)
@@ -116,17 +126,17 @@ export const useSmartPolling = ({
       )
       setCurrentInterval(newInterval)
     }
-  }, [query.isError, query.error, onError, currentInterval, backoffMultiplier, maxInterval])
+  }, [query.isError, query.error, onError, currentInterval, backoffMultiplier, configuredBaseInterval, maxInterval])
 
   useEffect(() => {
     if (query.isSuccess) {
       // Reset error count and interval on success
       errorCountRef.current = 0
-      if (currentInterval > baseInterval && isTabActive) {
-        setCurrentInterval(baseInterval)
+      if (currentInterval > configuredBaseInterval && isTabActive) {
+        setCurrentInterval(configuredBaseInterval)
       }
     }
-  }, [query.isSuccess, currentInterval, baseInterval, isTabActive])
+  }, [query.isSuccess, currentInterval, configuredBaseInterval, isTabActive])
 
   // Expose polling control
   const pausePolling = () => {
@@ -134,7 +144,7 @@ export const useSmartPolling = ({
   }
 
   const resumePolling = () => {
-    setCurrentInterval(baseInterval)
+    setCurrentInterval(configuredBaseInterval)
     errorCountRef.current = 0
   }
 

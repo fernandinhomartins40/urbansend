@@ -69,12 +69,12 @@ export const useInfiniteEmails = (filters: EmailFilters = {}): InfiniteEmailsRes
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
-      const pagination = lastPage.data.pagination
-      return pagination.has_next ? pagination.current_page + 1 : undefined
+      const pagination = lastPage.pagination
+      return pagination.page < pagination.pages ? pagination.page + 1 : undefined
     },
     getPreviousPageParam: (firstPage) => {
-      const pagination = firstPage.data.pagination
-      return pagination.has_prev ? pagination.current_page - 1 : undefined
+      const pagination = firstPage.pagination
+      return pagination.page > 1 ? pagination.page - 1 : undefined
     },
     placeholderData: (previousData) => previousData,
     staleTime: INFINITE_CONFIG.STALE_TIME,
@@ -94,12 +94,12 @@ export const useInfiniteEmails = (filters: EmailFilters = {}): InfiniteEmailsRes
   const emails = useMemo(() => {
     if (!query.data?.pages) return []
     
-    return query.data.pages.flatMap(page => page.data.emails)
+    return query.data.pages.flatMap(page => page.emails)
   }, [query.data?.pages])
 
   // Memoizar total count
   const totalCount = useMemo(() => {
-    return query.data?.pages?.[0]?.data.pagination.total_count ?? 0
+    return query.data?.pages?.[0]?.pagination.total ?? 0
   }, [query.data?.pages])
 
   // Função para filtrar emails por status (otimizada)
@@ -117,15 +117,17 @@ export const useInfiniteEmails = (filters: EmailFilters = {}): InfiniteEmailsRes
     if (query.hasNextPage && !query.isFetchingNextPage) {
       const nextPageParam = query.data?.pages?.[query.data.pages.length - 1]
       if (nextPageParam) {
-        const pagination = nextPageParam.data.pagination
-        if (pagination.has_next) {
+        const pagination = nextPageParam.pagination
+        if (pagination.page < pagination.pages) {
           queryClient.prefetchQuery({
-            queryKey: [...queryKeys.emails.infinite(normalizedFilters), pagination.current_page + 1],
-            queryFn: () =>
-              emailApi.getEmails({
+            queryKey: [...queryKeys.emails.infinite(normalizedFilters), pagination.page + 1],
+            queryFn: async () => {
+              const response = await emailApi.getEmails({
                 ...normalizedFilters,
-                page: pagination.current_page + 1,
-              }),
+                page: pagination.page + 1,
+              })
+              return response.data as EmailListResponse
+            },
             staleTime: INFINITE_CONFIG.STALE_TIME,
           })
         }
@@ -281,7 +283,10 @@ export const useInfiniteEmailsCache = () => {
         promises.push(
           queryClient.prefetchQuery({
             queryKey: [...queryKeys.emails.infinite(filters), i],
-            queryFn: () => emailApi.getEmails({ ...filters, page: i }),
+            queryFn: async () => {
+              const response = await emailApi.getEmails({ ...filters, page: i })
+              return response.data as EmailListResponse
+            },
             staleTime: INFINITE_CONFIG.STALE_TIME,
           })
         )

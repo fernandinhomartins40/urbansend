@@ -61,7 +61,7 @@ export const idParamSchema = z.object({
 });
 
 // Email validation schemas
-export const sendEmailSchema = z.object({
+const sendEmailSchemaBase = z.object({
   from: emailSchema,
   to: z.union([emailSchema, z.array(emailSchema).max(50, 'Máximo de 50 destinatários por envio')]),
   subject: z.string()
@@ -96,8 +96,22 @@ export const sendEmailSchema = z.object({
   _originalFrom: z.string().optional(),
   _correctionReason: z.string().optional(),
   tracking_enabled: z.boolean().default(true).optional(),
+});
+
+export const sendEmailSchema = sendEmailSchemaBase.refine(data => data.html || data.text || data.template_id, {
+  message: "Conteúdo do email é obrigatório: 'html', 'text', ou 'template_id'"
+});
+
+export const singleSendEmailSchema = sendEmailSchemaBase.extend({
+  to: emailSchema,
 }).refine(data => data.html || data.text || data.template_id, {
   message: "Conteúdo do email é obrigatório: 'html', 'text', ou 'template_id'"
+});
+
+export const sendBatchEmailSchema = z.object({
+  emails: z.array(singleSendEmailSchema)
+    .min(1, 'Pelo menos um email Ã© obrigatÃ³rio')
+    .max(50, 'MÃ¡ximo de 50 emails por lote'),
 });
 
 // Template validation schemas
@@ -119,6 +133,8 @@ export const createTemplateSchema = z.object({
 }).refine(data => data.html_content || data.text_content, {
   message: "Either 'html_content' or 'text_content' must be provided"
 });
+
+export const updateTemplateSchema = createTemplateSchema;
 
 // Domain validation schemas
 export const addDomainSchema = z.object({
@@ -167,6 +183,52 @@ export const createWebhookSchema = z.object({
     .max(64, 'Secret deve ter no máximo 64 caracteres')
     .optional()
 });
+
+const webhookUrlInputSchema = z.string()
+  .url('URL invÃ¡lida')
+  .refine(url => url.startsWith('https://'), 'Webhook deve usar HTTPS')
+  .refine(url => !validator.isIP(new URL(url).hostname), 'URLs com IP nÃ£o sÃ£o permitidas');
+
+const webhookEventInputSchema = z.enum([
+  'email.sent',
+  'email.delivered',
+  'email.opened',
+  'email.clicked',
+  'email.bounced',
+  'email.failed',
+  'email.unsubscribed',
+  'email.spam_complaint'
+]);
+
+const webhookSecretInputSchema = z.string()
+  .min(16, 'Secret deve ter pelo menos 16 caracteres')
+  .max(64, 'Secret deve ter no mÃ¡ximo 64 caracteres');
+
+export const createWebhookPayloadSchema = z.object({
+  webhook_url: webhookUrlInputSchema.optional(),
+  url: webhookUrlInputSchema.optional(),
+  name: z.string().min(1).max(120).optional(),
+  events: z.array(webhookEventInputSchema).min(1, 'Pelo menos um evento Ã© obrigatÃ³rio'),
+  secret: webhookSecretInputSchema.optional()
+}).transform(({ webhook_url, url, ...rest }) => ({
+  ...rest,
+  webhook_url: webhook_url ?? url
+})).refine((data) => Boolean(data.webhook_url), {
+  message: 'Webhook URL Ã© obrigatÃ³ria',
+  path: ['webhook_url']
+});
+
+export const updateWebhookPayloadSchema = z.object({
+  webhook_url: webhookUrlInputSchema.optional(),
+  url: webhookUrlInputSchema.optional(),
+  name: z.string().min(1).max(120).optional(),
+  events: z.array(webhookEventInputSchema).min(1, 'Pelo menos um evento Ã© obrigatÃ³rio').optional(),
+  secret: z.union([webhookSecretInputSchema, z.literal('')]).optional(),
+  is_active: z.boolean().optional()
+}).transform(({ webhook_url, url, ...rest }) => ({
+  ...rest,
+  webhook_url: webhook_url ?? url
+}));
 
 // Auth validation schemas
 export const registerSchema = z.object({

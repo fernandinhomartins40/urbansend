@@ -200,7 +200,7 @@ export function Templates() {
   }
 
   const extractVariables = (content: string) => {
-    const regex = /{{\\s*([^}\\s]+)\\s*}}/g
+    const regex = /{{\s*([^}\s]+)\s*}}/g
     const variables: string[] = []
     let match
     while ((match = regex.exec(content)) !== null) {
@@ -564,11 +564,24 @@ export function Templates() {
                         reader.onload = (event) => {
                           try {
                             const template = JSON.parse(event.target?.result as string)
-                            setValue('name', template.name || '')
-                            setValue('subject', template.subject || '')
-                            setValue('html_content', template.html_content || '')
-                            setValue('text_content', template.text_content || '')
-                            setValue('variables', template.variables || [])
+                            const parsedTemplate = createTemplateSchema.safeParse({
+                              name: template.name || '',
+                              subject: template.subject || '',
+                              html_content: template.html_content || '',
+                              text_content: template.text_content || '',
+                              variables: Array.isArray(template.variables) ? template.variables : [],
+                            })
+
+                            if (!parsedTemplate.success) {
+                              toast.error(parsedTemplate.error.errors[0]?.message || 'Arquivo de template invalido')
+                              return
+                            }
+
+                            setValue('name', parsedTemplate.data.name)
+                            setValue('subject', parsedTemplate.data.subject)
+                            setValue('html_content', parsedTemplate.data.html_content || '')
+                            setValue('text_content', parsedTemplate.data.text_content || '')
+                            setValue('variables', parsedTemplate.data.variables || [])
                             toast.success('Template importado com sucesso!')
                           } catch (error) {
                             toast.error('Erro ao importar template')
@@ -590,24 +603,18 @@ export function Templates() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      // Simulate sending test email
                       const variables = extractVariables(htmlContent + textContent + subject)
                       const sampleData: Record<string, string> = {}
                       variables.forEach(v => {
                         sampleData[v] = `Teste ${v}`
                       })
-                      toast.promise(
-                        new Promise((resolve) => setTimeout(resolve, 2000)),
-                        {
-                          loading: 'Enviando email de teste...',
-                          success: 'Email de teste enviado!',
-                          error: 'Erro ao enviar email de teste'
-                        }
-                      )
+                      setPreviewData(sampleData)
+                      setActiveTab('preview')
+                      toast.success('Preview preenchido com dados de teste')
                     }}
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    Testar
+                    Dados de teste
                   </Button>
                   
                   <Button
@@ -678,7 +685,7 @@ export function Templates() {
                     </TabsTrigger>
                     <TabsTrigger value="visual">
                       <Edit3 className="h-4 w-4 mr-2" />
-                      Visual
+                      Editor simples
                     </TabsTrigger>
                     <TabsTrigger value="html">
                       <Code className="h-4 w-4 mr-2" />
@@ -706,9 +713,9 @@ export function Templates() {
                   <TabsContent value="visual" className="flex-1 mt-4">
                     <Card className="h-full">
                       <CardHeader>
-                        <CardTitle>Editor Visual</CardTitle>
+                        <CardTitle>Editor simples</CardTitle>
                         <CardDescription>
-                          Use o editor HTML para maior controle sobre o layout
+                          Campo rapido para editar o HTML bruto antes de ir para o editor completo
                         </CardDescription>
                       </CardHeader>
                       <CardContent>

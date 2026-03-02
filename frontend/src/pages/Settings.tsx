@@ -8,17 +8,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { authApi, settingsApi } from '@/lib/api'
-import { useAuthStore } from '@/lib/store'
+import { useAuthStore, useSettingsStore, useThemeStore } from '@/lib/store'
 
 interface SettingsState {
   notification_preferences: Record<string, boolean>
   system_preferences: {
+    theme: 'light' | 'dark' | 'system'
     language: string
     timezone: string
+    date_format: string
+    time_format: '12h' | '24h'
     items_per_page: number
     auto_refresh: boolean
     auto_refresh_interval: number
+  }
+  branding_settings: {
+    company_name: string
+    footer_text: string
   }
   analytics_settings: {
     default_time_range: '24h' | '7d' | '30d' | '90d'
@@ -37,11 +45,18 @@ const defaultSettings: SettingsState = {
     webhook_failures: true,
   },
   system_preferences: {
+    theme: 'light',
     language: 'pt-BR',
     timezone: 'America/Sao_Paulo',
+    date_format: 'DD/MM/YYYY',
+    time_format: '24h',
     items_per_page: 20,
     auto_refresh: true,
     auto_refresh_interval: 30000,
+  },
+  branding_settings: {
+    company_name: '',
+    footer_text: '',
   },
   analytics_settings: {
     default_time_range: '30d',
@@ -52,6 +67,8 @@ const defaultSettings: SettingsState = {
 
 export function Settings() {
   const updateUser = useAuthStore((state) => state.updateUser)
+  const updateAppSettings = useSettingsStore((state) => state.updateSettings)
+  const setTheme = useThemeStore((state) => state.setTheme)
   const [profileForm, setProfileForm] = useState({ name: '', email: '' })
   const [passwordForm, setPasswordForm] = useState({
     current_password: '',
@@ -97,12 +114,28 @@ export function Settings() {
         ...defaultSettings.system_preferences,
         ...settings.system_preferences,
       },
+      branding_settings: {
+        ...defaultSettings.branding_settings,
+        ...settings.branding_settings,
+      },
       analytics_settings: {
         ...defaultSettings.analytics_settings,
         ...settings.analytics_settings,
       },
     })
-  }, [settingsResponse])
+    updateAppSettings({
+      emailsPerPage: settings.system_preferences?.items_per_page ?? defaultSettings.system_preferences.items_per_page,
+      autoRefresh: settings.system_preferences?.auto_refresh ?? defaultSettings.system_preferences.auto_refresh,
+      refreshInterval: settings.system_preferences?.auto_refresh_interval ?? defaultSettings.system_preferences.auto_refresh_interval,
+      language: settings.system_preferences?.language ?? defaultSettings.system_preferences.language,
+      analyticsDefaultTimeRange: settings.analytics_settings?.default_time_range ?? defaultSettings.analytics_settings.default_time_range,
+      theme: settings.system_preferences?.theme ?? defaultSettings.system_preferences.theme,
+      timezone: settings.system_preferences?.timezone ?? defaultSettings.system_preferences.timezone,
+      dateFormat: settings.system_preferences?.date_format ?? defaultSettings.system_preferences.date_format,
+      timeFormat: settings.system_preferences?.time_format ?? defaultSettings.system_preferences.time_format,
+    })
+    setTheme((settings.system_preferences?.theme ?? defaultSettings.system_preferences.theme) as 'light' | 'dark' | 'system')
+  }, [setTheme, settingsResponse, updateAppSettings])
 
   const updateProfileMutation = useMutation({
     mutationFn: () => authApi.updateProfile({ name: profileForm.name.trim() }),
@@ -135,10 +168,23 @@ export function Settings() {
       settingsApi.updateSettings({
         notification_preferences: settingsForm.notification_preferences,
         system_preferences: settingsForm.system_preferences,
+        branding_settings: settingsForm.branding_settings,
         analytics_settings: settingsForm.analytics_settings,
       }),
     onSuccess: () => {
       refetchSettings()
+      updateAppSettings({
+        emailsPerPage: settingsForm.system_preferences.items_per_page,
+        autoRefresh: settingsForm.system_preferences.auto_refresh,
+        refreshInterval: settingsForm.system_preferences.auto_refresh_interval,
+        language: settingsForm.system_preferences.language as 'pt-BR' | 'en-US',
+        analyticsDefaultTimeRange: settingsForm.analytics_settings.default_time_range,
+        theme: settingsForm.system_preferences.theme,
+        timezone: settingsForm.system_preferences.timezone,
+        dateFormat: settingsForm.system_preferences.date_format,
+        timeFormat: settingsForm.system_preferences.time_format,
+      })
+      setTheme(settingsForm.system_preferences.theme)
       toast.success('Preferencias atualizadas')
     },
     onError: (error: any) => {
@@ -269,6 +315,27 @@ export function Settings() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
+                <Label>Tema</Label>
+                <Select
+                  value={settingsForm.system_preferences.theme}
+                  onValueChange={(value: 'light' | 'dark' | 'system') =>
+                    setSettingsForm((current) => ({
+                      ...current,
+                      system_preferences: { ...current.system_preferences, theme: value },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Claro</SelectItem>
+                    <SelectItem value="dark">Escuro</SelectItem>
+                    <SelectItem value="system">Sistema</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Idioma</Label>
                 <Select
                   value={settingsForm.system_preferences.language}
@@ -306,6 +373,50 @@ export function Settings() {
                     <SelectItem value="America/Sao_Paulo">America/Sao_Paulo</SelectItem>
                     <SelectItem value="America/New_York">America/New_York</SelectItem>
                     <SelectItem value="UTC">UTC</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Formato de data</Label>
+                <Select
+                  value={settingsForm.system_preferences.date_format}
+                  onValueChange={(value) =>
+                    setSettingsForm((current) => ({
+                      ...current,
+                      system_preferences: { ...current.system_preferences, date_format: value },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                    <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                    <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Formato de hora</Label>
+                <Select
+                  value={settingsForm.system_preferences.time_format}
+                  onValueChange={(value: '12h' | '24h') =>
+                    setSettingsForm((current) => ({
+                      ...current,
+                      system_preferences: { ...current.system_preferences, time_format: value },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="24h">24 horas</SelectItem>
+                    <SelectItem value="12h">12 horas</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -447,6 +558,43 @@ export function Settings() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Branding</CardTitle>
+          <CardDescription>Preferencias basicas de identidade usadas nos emails e na conta.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div>
+            <Label htmlFor="branding-company-name">Nome da empresa</Label>
+            <Input
+              id="branding-company-name"
+              value={settingsForm.branding_settings.company_name}
+              onChange={(event) =>
+                setSettingsForm((current) => ({
+                  ...current,
+                  branding_settings: { ...current.branding_settings, company_name: event.target.value },
+                }))
+              }
+              placeholder="Sua empresa"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor="branding-footer-text">Texto de rodape</Label>
+            <Textarea
+              id="branding-footer-text"
+              value={settingsForm.branding_settings.footer_text}
+              onChange={(event) =>
+                setSettingsForm((current) => ({
+                  ...current,
+                  branding_settings: { ...current.branding_settings, footer_text: event.target.value },
+                }))
+              }
+              placeholder="Mensagem padrao para rodape dos emails"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Button onClick={() => updateSettingsMutation.mutate()} disabled={updateSettingsMutation.isPending}>
         <Save className="mr-2 h-4 w-4" />

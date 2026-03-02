@@ -18,10 +18,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
+const webhookEvents = [
+  { value: 'email.sent', label: 'Email enviado' },
+  { value: 'email.delivered', label: 'Email entregue' },
+  { value: 'email.bounced', label: 'Email bounce' },
+  { value: 'email.opened', label: 'Email aberto' },
+  { value: 'email.clicked', label: 'Link clicado' },
+  { value: 'email.unsubscribed', label: 'Descadastro' },
+  { value: 'email.spam_complaint', label: 'Spam complaint' },
+] as const
+
+type WebhookEvent = typeof webhookEvents[number]['value']
+
 const webhookSchema = z.object({
-  webhook_url: z.string().url('URL invalida'),
-  events: z.array(z.string()).min(1, 'Selecione pelo menos um evento'),
-  secret: z.string().optional(),
+  webhook_url: z.string().url('URL invalida').refine((url) => url.startsWith('https://'), 'Webhook deve usar HTTPS'),
+  events: z.array(z.enum(webhookEvents.map((event) => event.value) as [WebhookEvent, ...WebhookEvent[]])).min(1, 'Selecione pelo menos um evento'),
+  secret: z.string().optional().refine((value) => !value || value.length >= 16, 'Secret deve ter pelo menos 16 caracteres'),
 })
 
 type WebhookForm = z.infer<typeof webhookSchema>
@@ -30,8 +42,8 @@ interface WebhookConfig {
   id: number
   name: string
   webhook_url: string
-  events: string[]
-  secret?: string
+  events: WebhookEvent[]
+  has_secret: boolean
   is_active: boolean
   created_at: string
   updated_at: string
@@ -53,16 +65,6 @@ interface WebhookLog {
   created_at: string
   error_message?: string
 }
-
-const webhookEvents = [
-  { value: 'email.sent', label: 'Email enviado' },
-  { value: 'email.delivered', label: 'Email entregue' },
-  { value: 'email.bounced', label: 'Email bounce' },
-  { value: 'email.opened', label: 'Email aberto' },
-  { value: 'email.clicked', label: 'Link clicado' },
-  { value: 'email.unsubscribed', label: 'Descadastro' },
-  { value: 'email.spam_complaint', label: 'Spam complaint' },
-]
 
 const getStatusBadge = (status: WebhookLog['status']) => {
   switch (status) {
@@ -128,7 +130,7 @@ export function Webhooks() {
       webhookApi.createWebhook({
         webhook_url: data.webhook_url,
         events: data.events,
-        secret: data.secret,
+        secret: data.secret?.trim() || undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
@@ -143,7 +145,17 @@ export function Webhooks() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<WebhookForm> & { is_active?: boolean } }) =>
-      webhookApi.updateWebhook(String(id), data),
+      webhookApi.updateWebhook(
+        String(id),
+        Object.fromEntries(
+          Object.entries({
+            webhook_url: data.webhook_url,
+            events: data.events,
+            secret: data.secret?.trim() || undefined,
+            is_active: data.is_active,
+          }).filter(([, value]) => value !== undefined)
+        )
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       toast.success('Webhook atualizado')
@@ -169,6 +181,7 @@ export function Webhooks() {
   const testMutation = useMutation({
     mutationFn: (id: number) => webhookApi.testWebhook(String(id)),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       queryClient.invalidateQueries({ queryKey: ['webhook-logs'] })
       toast.success('Webhook de teste enviado')
     },
@@ -199,7 +212,7 @@ export function Webhooks() {
     form.reset({
       webhook_url: webhook.webhook_url,
       events: webhook.events,
-      secret: webhook.secret || '',
+      secret: '',
     })
   }
 
@@ -228,13 +241,12 @@ export function Webhooks() {
       data: {
         webhook_url: webhook.webhook_url,
         events: webhook.events,
-        secret: webhook.secret,
         is_active: !webhook.is_active,
       },
     })
   }
 
-  const handleEventToggle = (eventValue: string) => {
+  const handleEventToggle = (eventValue: WebhookEvent) => {
     const currentEvents = form.getValues('events') || []
     form.setValue(
       'events',
@@ -392,6 +404,14 @@ export function Webhooks() {
                     <div>
                       <Label htmlFor="secret">Secret</Label>
                       <Input id="secret" type="password" placeholder="Opcional. Usado para assinatura HMAC." {...form.register('secret')} />
+                      {form.formState.errors.secret && (
+                        <p className="mt-1 text-sm text-destructive">{form.formState.errors.secret.message}</p>
+                      )}
+                      {selectedWebhook?.has_secret && !isCreating && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Um secret ja existe para este webhook. Deixe em branco para manter o valor atual.
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex gap-2">
@@ -477,6 +497,7 @@ export function Webhooks() {
                         {event.label}
                       </SelectItem>
                     ))}
+                    <SelectItem value="webhook.test">Teste interno</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -546,6 +567,7 @@ export function Webhooks() {
               <p>Valide a assinatura do header `X-Webhook-Signature` usando seu secret.</p>
               <p>Implemente idempotencia para suportar retries sem duplicar efeitos colaterais.</p>
               <p>Monitore falhas de entrega para revisar endpoints degradados.</p>
+              <p>Eventos de teste aparecem nos logs como `webhook.test` e nao precisam ser cadastrados na lista de eventos.</p>
             </CardContent>
           </Card>
 
