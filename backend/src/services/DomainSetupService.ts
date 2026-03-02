@@ -684,7 +684,7 @@ export class DomainSetupService {
       if (!dkimRecord) {
         // Tentar buscar por nome do domínio como fallback
         const dkimByDomain = await trx('dkim_keys')
-          .join('domains', 'dkim_keys.domain_id', 'domains.id')
+          .join('domains', 'dkim_keys.domain_id', '=', 'domains.id')
           .where('domains.domain_name', domain)
           .select('dkim_keys.*')
           .first();

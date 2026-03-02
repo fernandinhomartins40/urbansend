@@ -92,7 +92,7 @@ const buildFilteredAnalyticsQuery = (
   senderDomain?: string | null
 ) => {
   const query = db('email_analytics')
-    .join('emails', 'email_analytics.email_id', 'emails.id')
+    .join('emails', 'email_analytics.email_id', '=', 'emails.id')
     .where('emails.user_id', userId);
 
   return applySenderDomainFilter(
@@ -132,7 +132,7 @@ const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date,
 
   const openCount = await emailQuery
     .clone()
-    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')
     .countDistinct(
       db.raw(`
         CASE
@@ -146,7 +146,7 @@ const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date,
 
   const clickCount = await emailQuery
     .clone()
-    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')
     .countDistinct(
       db.raw(`
         CASE
@@ -229,7 +229,7 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
   const activities = await applySenderDomainFilter(
     db('email_analytics')
-    .join('emails', 'email_analytics.email_id', 'emails.id')
+    .join('emails', 'email_analytics.email_id', '=', 'emails.id')
     .select(
       'email_analytics.id as id',
       'emails.id as email_id',
@@ -318,7 +318,7 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
 
   const chart = await applySenderDomainFilter(
     db('emails')
-    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')
     .select(
       db.raw('DATE(emails.created_at) as date'),
       db.raw('COUNT(DISTINCT emails.id) as sent'),
@@ -387,7 +387,7 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
 
   const emails = await applySenderDomainFilter(
     db('emails')
-    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')
     .select(
       'emails.subject',
       db.raw('COUNT(DISTINCT emails.id) as sent_count'),
@@ -551,7 +551,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
 
   const domains = await applySenderDomainFilter(
     db('emails')
-    .leftJoin('email_analytics', 'email_analytics.email_id', 'emails.id')
+    .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')
     .select(
       db.raw(`${sqlExtractDomain('emails.from_email')} as domain`),
       db.raw('COUNT(DISTINCT emails.id) as sent_count'),

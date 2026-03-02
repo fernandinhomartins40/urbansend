@@ -115,7 +115,7 @@ export class MultiDomainDKIMManager extends DKIMManager {
     try {
       const config = await db('dkim_keys')
         .select('dkim_keys.*', 'domains.domain_name as domain')
-        .join('domains', 'domains.id', 'dkim_keys.domain_id')
+        .join('domains', 'domains.id', '=', 'dkim_keys.domain_id')
         .where('domains.domain_name', domain)
         .where('dkim_keys.is_active', true)
         .first();

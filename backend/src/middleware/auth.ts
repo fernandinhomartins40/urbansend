@@ -120,7 +120,7 @@ export const authenticateApiKey = async (
     // First try to find API keys to verify against
     const apiKeys = await db('api_keys')
       .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.name')
-      .join('users', 'api_keys.user_id', 'users.id')
+      .join('users', 'api_keys.user_id', '=', 'users.id')
       .where('api_keys.is_active', true);
 
     let matchedApiKey = null;

@@ -441,7 +441,7 @@ export class SharedTemplateService {
 
       const [templates, totalCount] = await Promise.all([
         db('email_templates')
-          .join('user_favorite_templates', 'email_templates.id', 'user_favorite_templates.template_id')
+          .join('user_favorite_templates', 'email_templates.id', '=', 'user_favorite_templates.template_id')
           .where('user_favorite_templates.user_id', userId)
           .where('email_templates.is_active', true)
           .select([
@@ -453,7 +453,7 @@ export class SharedTemplateService {
           .offset(offset),
         
         db('user_favorite_templates')
-          .join('email_templates', 'email_templates.id', 'user_favorite_templates.template_id')
+          .join('email_templates', 'email_templates.id', '=', 'user_favorite_templates.template_id')
           .where('user_favorite_templates.user_id', userId)
           .where('email_templates.is_active', true)
           .count('* as total')

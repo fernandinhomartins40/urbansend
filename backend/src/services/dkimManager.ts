@@ -105,7 +105,7 @@ export class DKIMManager {
   private async loadDKIMConfigs() {
     try {
       const configs = await db('dkim_keys')
-        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .join('domains', 'dkim_keys.domain_id', '=', 'domains.id')
         .where('dkim_keys.is_active', true)
         .select('dkim_keys.*', 'domains.domain_name as domain');
 
@@ -801,7 +801,7 @@ export class DKIMManager {
   public async exportDNSRecords(): Promise<string> {
     try {
       const configs = await db('dkim_keys')
-        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .join('domains', 'dkim_keys.domain_id', '=', 'domains.id')
         .where('dkim_keys.is_active', true)
         .select('domains.domain_name as domain', 'dkim_keys.selector', 'dkim_keys.public_key', 'dkim_keys.key_size');
 
@@ -925,19 +925,19 @@ export class DKIMManager {
     try {
       // Get total and active keys for user's domains
       const [totalKeys] = await db('dkim_keys')
-        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .join('domains', 'dkim_keys.domain_id', '=', 'domains.id')
         .where('domains.user_id', userId)
         .count('dkim_keys.id as count');
 
       const [activeKeys] = await db('dkim_keys')
-        .join('domains', 'dkim_keys.domain_id', 'domains.id')
+        .join('domains', 'dkim_keys.domain_id', '=', 'domains.id')
         .where('domains.user_id', userId)
         .where('dkim_keys.is_active', true)
         .count('dkim_keys.id as count');
 
       // Get domains with DKIM
       const [domainsWithDKIM] = await db('domains')
-        .join('dkim_keys', 'domains.id', 'dkim_keys.domain_id')
+        .join('dkim_keys', 'domains.id', '=', 'dkim_keys.domain_id')
         .where('domains.user_id', userId)
         .where('dkim_keys.is_active', true)
         .countDistinct('domains.id as count');
@@ -947,7 +947,7 @@ export class DKIMManager {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const signatureStats = await db('dkim_signature_logs')
-        .join('domains', 'dkim_signature_logs.domain_id', 'domains.id')
+        .join('domains', 'dkim_signature_logs.domain_id', '=', 'domains.id')
         .where('domains.user_id', userId)
         .where('dkim_signature_logs.created_at', '>=', thirtyDaysAgo)
         .select(

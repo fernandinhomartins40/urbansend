@@ -111,7 +111,7 @@ class ReputationService {
 
       // Get engagement stats from analytics
       const engagementStats = await db('email_analytics as ea')
-        .join('emails as e', 'ea.email_id', 'e.id')
+        .join('emails as e', 'ea.email_id', '=', 'e.id')
         .select(
           db.raw('SUM(CASE WHEN ea.event_type = "opened" THEN 1 ELSE 0 END) as total_opened'),
           db.raw('SUM(CASE WHEN ea.event_type = "clicked" THEN 1 ELSE 0 END) as total_clicked')
@@ -366,7 +366,7 @@ class ReputationService {
       // Count users with reputation issues
       const usersWithIssues = await db('users')
         .select('users.id')
-        .join('emails', 'users.id', 'emails.user_id')
+        .join('emails', 'users.id', '=', 'emails.user_id')
         .select(
           'users.id',
           db.raw('COUNT(*) as total_sent'),

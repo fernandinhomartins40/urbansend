@@ -41,7 +41,7 @@ export class TrendAnalyticsService {
       // Filtro opcional por domínio
       if (domainId) {
         query = query
-          .join('domains', 'emails.domain_id', 'domains.id')
+          .join('domains', 'emails.domain_id', '=', 'domains.id')
           .where('domains.id', domainId);
       }
 
