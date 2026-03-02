@@ -8,6 +8,7 @@ import { sanitizeEmailHtml } from '../middleware/validation';
 import { validateEmailAddress } from '../utils/email';
 import db from '../config/database';
 import { UserEmailStats, parseCount } from '../types/database';
+import { sqlDaysAgo } from '../utils/sqlDialect';
 
 export interface ExternalEmailServiceOptions {
   domainValidator: DomainValidator;
@@ -526,7 +527,7 @@ export class ExternalEmailService implements IEmailService {
           db.raw('SUM(CASE WHEN was_modified = true THEN 1 ELSE 0 END) as modified_emails')
         )
         .where('user_id', userId)
-        .where('timestamp', '>=', db.raw(`datetime('now', '-${days} days')`))
+        .where('timestamp', '>=', db.raw(sqlDaysAgo(days)))
         .first();
 
       const emailStats = stats as any;
