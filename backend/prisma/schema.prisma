@@ -219,7 +219,7 @@ model automation_logs {
   status                  String
   message                 String?
   metadata                Unsupported("json")?
-  email_id                String?
+  email_id                Int?
   executed_at             DateTime?             @default(now())
   created_at              DateTime?             @default(now())
   automation_steps        automation_steps?     @relation(fields: [step_id], references: [id], onUpdate: NoAction)
@@ -417,7 +417,7 @@ model contact_activities {
   contact_id    Int
   user_id       Int
   activity_type String
-  email_id      String?
+  email_id      Int?
   campaign_id   Int?
   description   String?
   activity_data Unsupported("json")?
@@ -785,7 +785,7 @@ model email_ab_tests {
 model email_analytics {
   id                      Int                  @id @default(autoincrement())
   user_id                 Int
-  email_id                String
+  email_id                Int
   event_type              String
   recipient_email         String
   campaign_id             String?
@@ -836,7 +836,7 @@ model email_analytics {
 model email_audit_logs {
   id                  Int                  @id @default(autoincrement())
   user_id             Int
-  email_id            String?
+  email_id            Int?
   original_from       String
   final_from          String
   was_modified        Boolean?             @default(false)
@@ -913,7 +913,7 @@ model email_delivery_queue {
 
 model email_events {
   id              Int      @id @default(autoincrement())
-  email_id        String
+  email_id        Int
   campaign_id     String?
   user_id         String?
   event_type      String
@@ -1226,7 +1226,7 @@ model mx_server_reputation {
 
 model phishing_detection {
   id               Int       @id @default(autoincrement())
-  email_id         String?
+  email_id         Int?
   confidence_score Float
   is_phishing      Boolean
   indicators       String?
@@ -1438,7 +1438,7 @@ model smtp_connections {
 
 model spam_analysis {
   id           Int       @id @default(autoincrement())
-  email_id     String?
+  email_id     Int?
   spam_score   Float
   is_spam      Boolean
   reason       String?
@@ -1675,11 +1675,11 @@ model user_settings {
   smtp_password_encrypted  String?
   smtp_use_tls             Boolean?             @default(true)
   smtp_use_custom          Boolean?             @default(false)
-  notification_preferences Unsupported("json")? @default(dbgenerated("'{\"email_delivery_reports\":true,\"bounce_notifications\":true,\"daily_summary\":true,\"weekly_reports\":false,\"security_alerts\":true,\"webhook_failures\":true}'"))
-  system_preferences       Unsupported("json")? @default(dbgenerated("'{\"theme\":\"light\",\"language\":\"pt-BR\",\"timezone\":\"America/Sao_Paulo\",\"date_format\":\"DD/MM/YYYY\",\"time_format\":\"24h\",\"items_per_page\":20,\"auto_refresh\":true,\"auto_refresh_interval\":30000}'"))
-  security_settings        Unsupported("json")? @default(dbgenerated("'{\"two_factor_enabled\":false,\"session_timeout\":3600,\"ip_whitelist\":[],\"api_rate_limit\":1000,\"require_password_confirmation\":false}'"))
-  branding_settings        Unsupported("json")? @default(dbgenerated("'{\"company_name\":\"\",\"company_logo_url\":\"\",\"custom_domain\":\"\",\"footer_text\":\"\",\"primary_color\":\"#3b82f6\",\"secondary_color\":\"#1e40af\"}'"))
-  analytics_settings       Unsupported("json")? @default(dbgenerated("'{\"default_time_range\":\"30d\",\"track_opens\":true,\"track_clicks\":true,\"track_downloads\":true,\"pixel_tracking\":true,\"utm_tracking\":true}'"))
+  notification_preferences Json?
+  system_preferences       Json?
+  security_settings        Json?
+  branding_settings        Json?
+  analytics_settings       Json?
   created_at               DateTime             @default(now())
   updated_at               DateTime             @default(now())
   users                    users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
