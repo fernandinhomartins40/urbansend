@@ -69,7 +69,7 @@ export class DomainVerificationLogger {
         jobId: options.jobId
       };
 
-      const [logId] = await db('domain_verification_logs').insert({
+      const insertResult = await db('domain_verification_logs').insert({
         domain_id: verificationAttempt.domainId,
         domain_name: verificationAttempt.domainName,
         user_id: verificationAttempt.userId,
@@ -80,6 +80,12 @@ export class DomainVerificationLogger {
         is_automated: verificationAttempt.isAutomatedVerification,
         job_id: verificationAttempt.jobId
       });
+      const logId = this.normalizeInsertedId(insertResult)
+        ?? await this.reloadVerificationLogId(verificationAttempt, options);
+
+      if (!logId) {
+        throw new Error('Failed to resolve verification log ID after insert');
+      }
 
       // Log estruturado
       Logger.business('domain_verification', 'verification_started', {
@@ -101,6 +107,84 @@ export class DomainVerificationLogger {
       });
       throw error;
     }
+  }
+
+  // Helpers para compatibilidade entre drivers do banco
+  private normalizeInsertedId(insertResult: unknown): number | null {
+    if (typeof insertResult === 'number' && Number.isFinite(insertResult)) {
+      return insertResult;
+    }
+
+    if (typeof insertResult === 'string' && Number.isFinite(Number(insertResult))) {
+      return Number(insertResult);
+    }
+
+    if (Array.isArray(insertResult) && insertResult.length > 0) {
+      const firstValue = insertResult[0];
+
+      if (typeof firstValue === 'number' && Number.isFinite(firstValue)) {
+        return firstValue;
+      }
+
+      if (typeof firstValue === 'string' && Number.isFinite(Number(firstValue))) {
+        return Number(firstValue);
+      }
+
+      if (firstValue && typeof firstValue === 'object' && 'id' in firstValue) {
+        const insertedId = (firstValue as { id?: unknown }).id;
+
+        if (typeof insertedId === 'number' && Number.isFinite(insertedId)) {
+          return insertedId;
+        }
+
+        if (typeof insertedId === 'string' && Number.isFinite(Number(insertedId))) {
+          return Number(insertedId);
+        }
+      }
+    }
+
+    if (insertResult && typeof insertResult === 'object' && 'insertId' in insertResult) {
+      const insertedId = (insertResult as { insertId?: unknown }).insertId;
+
+      if (typeof insertedId === 'number' && Number.isFinite(insertedId)) {
+        return insertedId;
+      }
+
+      if (typeof insertedId === 'string' && Number.isFinite(Number(insertedId))) {
+        return Number(insertedId);
+      }
+    }
+
+    return null;
+  }
+
+  private async reloadVerificationLogId(
+    verificationAttempt: Partial<DomainVerificationAttempt>,
+    options: {
+      userId?: number;
+      isAutomatedVerification?: boolean;
+      jobId?: string;
+      retryCount?: number;
+    }
+  ): Promise<number | null> {
+    let query = db('domain_verification_logs')
+      .where('domain_id', verificationAttempt.domainId)
+      .where('domain_name', verificationAttempt.domainName)
+      .where('overall_status', verificationAttempt.overallStatus)
+      .where('retry_count', verificationAttempt.retryCount || 0)
+      .where('is_automated', options.isAutomatedVerification || false)
+      .orderBy('id', 'desc');
+
+    query = options.userId === undefined
+      ? query.whereNull('user_id')
+      : query.where('user_id', options.userId);
+
+    query = options.jobId
+      ? query.where('job_id', options.jobId)
+      : query.whereNull('job_id');
+
+    const insertedLog = await query.first();
+    return insertedLog?.id ? Number(insertedLog.id) : null;
   }
 
   // Log resultado individual de verificação (SPF, DKIM, etc.)
