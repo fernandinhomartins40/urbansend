@@ -157,6 +157,9 @@ export class DomainSetupService {
       
       // 2. Verificar se domínio já existe para este usuário
       const existingDomain = await this.checkExistingDomain(userId, normalizedDomain);
+      if (existingDomain && existingDomain.user_id !== userId) {
+        throw new Error(`Domain ${normalizedDomain} is already linked to another account. Remove it from the previous account or contact support.`);
+      }
       if (existingDomain) {
         throw new Error(`Domínio ${normalizedDomain} já está configurado para esta conta`);
       }
@@ -197,9 +200,19 @@ export class DomainSetupService {
             updated_at: new Date()
           };
 
-          const [insertedId] = await trx('domains').insert(domainData);
-          domainId = insertedId;
-          domainRecord = await trx('domains').where('id', domainId).first() as DomainRecord;
+          // Knex insert payloads vary by driver, so we always reload using unique fields.
+          await trx('domains').insert(domainData);
+          domainRecord = await trx('domains')
+            .where('user_id', userId)
+            .where('domain_name', normalizedDomain)
+            .orderBy('id', 'desc')
+            .first() as DomainRecord;
+
+          if (!domainRecord) {
+            throw new Error(`Domain ${normalizedDomain} was inserted, but could not be reloaded.`);
+          }
+
+          domainId = domainRecord.id;
 
           logger.info('✅ Domain record created successfully', { 
             userId, 
@@ -208,14 +221,18 @@ export class DomainSetupService {
           });
 
         } catch (transactionError) {
-          logger.error('❌ CRITICAL: Domain creation transaction failed', {
+          const handledError = this.isUniqueConstraintViolation(transactionError)
+            ? new Error(`Domain ${normalizedDomain} is already registered in another account or was created in parallel.`)
+            : transactionError;
+
+          logger.error('Domain creation transaction failed', {
             userId,
             domain: normalizedDomain,
-            error: transactionError instanceof Error ? transactionError.message : String(transactionError)
+            error: handledError instanceof Error ? handledError.message : String(handledError)
           });
           
-          // Transação será automaticamente revertida
-          throw new Error(`Falha crítica na criação do domínio: ${transactionError instanceof Error ? transactionError.message : 'Erro desconhecido'}`);
+          // Transação será automaticamente revertida.
+          throw new Error(`Falha critica na criacao do dominio: ${handledError instanceof Error ? handledError.message : 'Erro desconhecido'}`);
         }
       });
       
@@ -1274,11 +1291,26 @@ export class DomainSetupService {
    */
   private async checkExistingDomain(userId: number, domain: string): Promise<DomainRecord | null> {
     const existing = await db('domains')
-      .where('user_id', userId)
       .where('domain_name', domain)
       .first() as DomainRecord | undefined;
 
     return existing || null;
+  }
+
+  private isUniqueConstraintViolation(error: unknown): boolean {
+    const databaseError = error as {
+      code?: string;
+      errno?: number;
+      message?: string;
+    };
+    const message = String(databaseError?.message || '').toLowerCase();
+
+    return databaseError?.code === '23505' ||
+      databaseError?.code === 'SQLITE_CONSTRAINT' ||
+      databaseError?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+      databaseError?.code === 'ER_DUP_ENTRY' ||
+      databaseError?.errno === 1062 ||
+      (message.includes('unique') && message.includes('domain_name'));
   }
 
   /**
