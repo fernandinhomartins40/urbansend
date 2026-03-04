@@ -298,7 +298,6 @@ export class DomainSetupService {
     try {
       logger.info('Starting domain verification', { userId, domainId });
 
-      // Buscar domínio
       const domain = await db('domains')
         .where('id', domainId)
         .where('user_id', userId)
@@ -333,6 +332,8 @@ export class DomainSetupService {
                         results.spf.valid &&
                         results.dkim.valid &&
                         results.dmarc.valid;
+      const verificationTimestamp = new Date();
+      const verificationErrors = this.buildVerificationErrors(results);
 
       logger.info('DNS verification completed', {
         userId,
@@ -347,33 +348,37 @@ export class DomainSetupService {
         }
       });
 
-      // Atualizar status do domínio se todas as verificações passaram
-      if (all_passed && !domain.is_verified) {
-        await db('domains')
-          .where('id', domainId)
-          .update({
-            is_verified: true,
-            verified_at: new Date(),
-            updated_at: new Date()
-          });
-
-        logger.info('Domain marked as verified', {
-          userId,
-          domainId,
-          domain: domain.domain_name
+      await db('domains')
+        .where('id', domainId)
+        .update({
+          is_verified: all_passed,
+          dkim_enabled: true,
+          spf_enabled: true,
+          dmarc_enabled: true,
+          verified_at: all_passed ? verificationTimestamp : null,
+          last_verification_attempt: verificationTimestamp,
+          verification_errors: verificationErrors.length > 0
+            ? JSON.stringify(verificationErrors)
+            : null,
+          updated_at: verificationTimestamp
         });
-      }
 
-      const verificationResult_final: VerificationResult = {
+      logger.info('Domain verification state persisted', {
+        userId,
+        domainId,
+        domain: domain.domain_name,
+        allPassed: all_passed,
+        verificationErrorsCount: verificationErrors.length
+      });
+
+      return {
         success: all_passed,
         domain: domain.domain_name,
         all_passed,
         results,
-        verified_at: new Date(),
+        verified_at: verificationTimestamp,
         nextSteps: all_passed ? [] : this.generateNextSteps(results)
       };
-
-      return verificationResult_final;
     } catch (error) {
       logger.error('Domain verification failed', {
         userId,
@@ -864,7 +869,7 @@ export class DomainSetupService {
 
       const mxRecords = await this.resolveMxWithRetry(mailFromDomain);
       const hasExpectedMx = mxRecords.some(mx =>
-        mx.exchange.toLowerCase() === expectedMx.toLowerCase()
+        this.normalizeDnsHostname(mx.exchange) === this.normalizeDnsHostname(expectedMx)
       );
 
       return {
@@ -1210,14 +1215,35 @@ export class DomainSetupService {
     if (result.status === 'fulfilled') {
       return result.value;
     }
-    
+
     logger.debug(`${operation} verification rejected`, { reason: result.reason });
-    
+
     return {
       valid: false,
       expectedValue: 'N/A',
       error: `${operation} verification failed: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
     };
+  }
+
+  private buildVerificationErrors(results: VerificationResult['results']): string[] {
+    const labels = {
+      mail_from_mx: 'MAIL FROM MX',
+      spf: 'SPF',
+      dkim: 'DKIM',
+      dmarc: 'DMARC'
+    } satisfies Record<keyof VerificationResult['results'], string>;
+
+    return Object.entries(results)
+      .filter(([, result]) => !result.valid)
+      .map(([key, result]) => {
+        const typedKey = key as keyof VerificationResult['results'];
+        const details = result.error || `Expected ${result.expectedValue}`;
+        return `${labels[typedKey]}: ${details}`;
+      });
+  }
+
+  private normalizeDnsHostname(hostname: string): string {
+    return hostname.trim().replace(/\.+$/, '').toLowerCase();
   }
 
   /**

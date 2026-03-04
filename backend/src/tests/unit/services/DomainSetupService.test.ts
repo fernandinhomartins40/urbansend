@@ -202,4 +202,74 @@ describe('DomainSetupService', () => {
     expect(result.error).toContain('Multiple SPF records');
     expect((service as any).resolveTxtWithRetry).toHaveBeenCalledWith('uz-mail.example.com');
   });
+
+  it('persists the verification state after a successful DNS verification', async () => {
+    const service = new DomainSetupService();
+    const mockDb = db as unknown as jest.Mock;
+    const domainRecord = {
+      id: 19,
+      user_id: 1,
+      domain_name: 'example.com',
+      verification_token: 'token-123',
+      verification_method: 'dns',
+      is_verified: false,
+      dkim_enabled: false,
+      dkim_selector: 'default',
+      spf_enabled: false,
+      dmarc_enabled: false,
+      dmarc_policy: 'none',
+      created_at: new Date('2026-03-03T12:00:00.000Z'),
+      updated_at: new Date('2026-03-03T12:00:00.000Z')
+    };
+    const loadBuilder: any = {
+      where: jest.fn().mockReturnThis(),
+      first: jest.fn(() => Promise.resolve(domainRecord))
+    };
+    const updateBuilder: any = {
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn(() => Promise.resolve(1))
+    };
+
+    let tableCalls = 0;
+    mockDb.mockImplementation((table: string) => {
+      if (table !== 'domains') {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+
+      tableCalls += 1;
+      return tableCalls === 1 ? loadBuilder : updateBuilder;
+    });
+
+    jest.spyOn(service as any, 'verifyMailFromMxRecord').mockResolvedValue({
+      valid: true,
+      expectedValue: 'mail.ultrazend.com.br',
+      actualValue: 'mail.ultrazend.com.br (10)'
+    });
+    jest.spyOn(service as any, 'verifySpfRecord').mockResolvedValue({
+      valid: true,
+      expectedValue: 'v=spf1 include:ultrazend.com.br -all',
+      actualValue: 'v=spf1 include:ultrazend.com.br -all'
+    });
+    jest.spyOn(service as any, 'verifyDkimRecord').mockResolvedValue({
+      valid: true,
+      expectedValue: 'v=DKIM1; k=rsa; p=<public_key>',
+      actualValue: 'v=DKIM1; k=rsa; p=public-key'
+    });
+    jest.spyOn(service as any, 'verifyDmarcRecord').mockResolvedValue({
+      valid: true,
+      expectedValue: 'v=DMARC1; p=none',
+      actualValue: 'v=DMARC1; p=none'
+    });
+
+    const result = await service.verifyDomainSetup(1, 19);
+
+    expect(result.all_passed).toBe(true);
+    expect(updateBuilder.update).toHaveBeenCalledWith(expect.objectContaining({
+      is_verified: true,
+      dkim_enabled: true,
+      spf_enabled: true,
+      dmarc_enabled: true,
+      verification_errors: null
+    }));
+  });
 });

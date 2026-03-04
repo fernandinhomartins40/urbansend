@@ -338,19 +338,19 @@ router.get('/domains/:domainId',
               mx_target: 'mail.ultrazend.com.br'
             },
             dkim: {
-              enabled: domainStatus.domain.dkim_enabled,
+              enabled: true,
               selector: domainStatus.domain.dkim_selector,
               configured: domainStatus.dkim_status.configured,
               dns_valid: domainStatus.dkim_status.dns_valid,
               public_key: domainStatus.dkim_status.public_key
             },
             spf: {
-              enabled: domainStatus.domain.spf_enabled,
+              enabled: true,
               configured: domainStatus.spf_status.configured,
               dns_valid: domainStatus.spf_status.dns_valid
             },
             dmarc: {
-              enabled: domainStatus.domain.dmarc_enabled,
+              enabled: true,
               policy: domainStatus.domain.dmarc_policy,
               configured: domainStatus.dmarc_status.configured,
               dns_valid: domainStatus.dmarc_status.dns_valid

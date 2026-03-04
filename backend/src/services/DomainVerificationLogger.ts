@@ -6,9 +6,10 @@ export interface DomainVerificationAttempt {
   domainName: string;
   userId?: number;
   attempts: {
-    spf: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
-    dkim: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
-    dmarc: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string };
+    mail_from: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string; verifiedAt?: Date; duration?: number };
+    spf: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string; verifiedAt?: Date; duration?: number };
+    dkim: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string; verifiedAt?: Date; duration?: number };
+    dmarc: { status: 'success' | 'failed' | 'pending'; error?: string; recordFound?: string; verifiedAt?: Date; duration?: number };
   };
   overallStatus: 'verified' | 'failed' | 'partial' | 'pending';
   startTime: Date;
@@ -44,6 +45,15 @@ export class DomainVerificationLogger {
     // Tables are now created via migrations
   }
 
+  private createDefaultAttempts(): DomainVerificationAttempt['attempts'] {
+    return {
+      mail_from: { status: 'pending' },
+      spf: { status: 'pending' },
+      dkim: { status: 'pending' },
+      dmarc: { status: 'pending' }
+    };
+  }
+
 
   // Log início da verificação de domínio
   public async logVerificationStart(domainId: number, domainName: string, options: {
@@ -57,11 +67,7 @@ export class DomainVerificationLogger {
         domainId,
         domainName,
         userId: options.userId,
-        attempts: {
-          spf: { status: 'pending' },
-          dkim: { status: 'pending' },
-          dmarc: { status: 'pending' }
-        },
+        attempts: this.createDefaultAttempts(),
         overallStatus: 'pending',
         startTime: new Date(),
         retryCount: options.retryCount || 0,
@@ -188,7 +194,27 @@ export class DomainVerificationLogger {
   }
 
   // Log resultado individual de verificação (SPF, DKIM, etc.)
-  public async logVerificationStep(logId: number, step: 'spf' | 'dkim' | 'dmarc', result: {
+  private parseJsonValue<T>(value: unknown, fallback: T): T {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        return fallback;
+      }
+    }
+
+    if (typeof value === 'object') {
+      return value as T;
+    }
+
+    return fallback;
+  }
+
+  public async logVerificationStep(logId: number, step: 'mail_from' | 'spf' | 'dkim' | 'dmarc', result: {
     status: 'success' | 'failed';
     error?: string;
     recordFound?: string;
@@ -201,7 +227,7 @@ export class DomainVerificationLogger {
         throw new Error(`Verification log with ID ${logId} not found`);
       }
 
-      const attempts = JSON.parse(currentLog.attempts);
+      const attempts = this.parseJsonValue(currentLog.attempts, this.createDefaultAttempts());
       attempts[step] = {
         status: result.status,
         error: result.error,
@@ -326,8 +352,14 @@ export class DomainVerificationLogger {
         });
       } else {
         // Atualizar métricas existentes
-        const hourlyDist = JSON.parse(metrics.hourly_distribution || '[]');
-        const retryStats = JSON.parse(metrics.retry_statistics || '[]');
+        const hourlyDist = this.parseJsonValue<Array<{ hour: number; count: number }>>(
+          metrics.hourly_distribution,
+          []
+        );
+        const retryStats = this.parseJsonValue<Array<{ retryCount: number; count: number }>>(
+          metrics.retry_statistics,
+          []
+        );
 
         // Atualizar distribuição por hora
         const hourEntry = hourlyDist.find((h: any) => h.hour === hour);
@@ -491,7 +523,7 @@ export class DomainVerificationLogger {
 
       return logs.map(log => ({
         ...log,
-        attempts: JSON.parse(log.attempts)
+        attempts: this.parseJsonValue(log.attempts, this.createDefaultAttempts())
       }));
     } catch (error) {
       Logger.error('Failed to get recent verification logs', error as Error, {

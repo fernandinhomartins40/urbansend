@@ -315,6 +315,12 @@ export class DomainVerificationJob {
       // Executar verificação
       const verificationResult = await this.verificationService.verifyAndUpdateDomain(domain.id);
 
+      await domainVerificationLogger.logVerificationStep(logId, 'mail_from', {
+        status: verificationResult.mail_from_mx.verified ? 'success' : 'failed',
+        error: verificationResult.mail_from_mx.error,
+        recordFound: verificationResult.mail_from_mx.record?.raw
+      });
+
       // Log de cada step
       await domainVerificationLogger.logVerificationStep(logId, 'spf', {
         status: verificationResult.spf.verified ? 'success' : 'failed',
@@ -336,13 +342,14 @@ export class DomainVerificationJob {
 
       // Determinar status geral
       const verifiedCount = [
+        verificationResult.mail_from_mx.verified,
         verificationResult.spf.verified,
         verificationResult.dkim.verified,
         verificationResult.dmarc.verified
       ].filter(Boolean).length;
 
       let overallStatus: 'verified' | 'failed' | 'partial';
-      if (verifiedCount === 3) {
+      if (verifiedCount === 4) {
         overallStatus = 'verified';
       } else if (verifiedCount > 0) {
         overallStatus = 'partial';

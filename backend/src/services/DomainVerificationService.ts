@@ -1,5 +1,9 @@
-import { DNSUtils, DNSVerificationResult, SPFRecord, DKIMRecord, DMARCRecord } from '../utils/dnsUtils';
 import db from '../config/database';
+import { DomainSetupService, type VerificationResult as DomainSetupVerificationResult } from './DomainSetupService';
+
+interface VerificationRecord {
+  raw: string;
+}
 
 export interface DomainVerificationConfig {
   domain: string;
@@ -10,20 +14,25 @@ export interface DomainVerificationConfig {
 export interface VerificationResult {
   success: boolean;
   domain: string;
+  mail_from_mx: {
+    verified: boolean;
+    error?: string;
+    record?: VerificationRecord;
+  };
   spf: {
     verified: boolean;
     error?: string;
-    record?: SPFRecord;
+    record?: VerificationRecord;
   };
   dkim: {
     verified: boolean;
     error?: string;
-    record?: DKIMRecord;
+    record?: VerificationRecord;
   };
   dmarc: {
     verified: boolean;
     error?: string;
-    record?: DMARCRecord;
+    record?: VerificationRecord;
   };
   timestamp: Date;
   errors: string[];
@@ -41,307 +50,163 @@ export interface DomainStatus {
   verification_errors?: string;
 }
 
-export class DomainVerificationService {
-  private static readonly VERIFICATION_TIMEOUT = 60000; // 60 seconds
-  private static readonly CACHE_TTL = 300000; // 5 minutes
-  private static cache: Map<string, { result: VerificationResult; timestamp: Date }> = new Map();
+type DomainRow = {
+  id: number;
+  user_id: number;
+  domain_name: string;
+  dkim_selector?: string | null;
+  dmarc_policy?: string | null;
+  is_verified: boolean;
+  spf_enabled: boolean;
+  dkim_enabled: boolean;
+  dmarc_enabled: boolean;
+  last_verification_attempt?: Date;
+  verification_errors?: string;
+};
 
-  private logVerificationAttempt(
-    domain: string, 
-    action: string, 
-    result: 'success' | 'error', 
-    message?: string
-  ): void {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] DOMAIN_VERIFICATION: ${action} for ${domain} - ${result.toUpperCase()}${message ? ': ' + message : ''}`;
-    
-    if (result === 'error') {
-      console.error(logMessage);
-    } else {
-      console.info(logMessage);
-    }
+export class DomainVerificationService {
+  private static readonly CACHE_TTL = 300000;
+  private static cache: Map<string, { result: VerificationResult; timestamp: number }> = new Map();
+  private readonly setupService = new DomainSetupService();
+
+  private getCacheKey(userId: number, domain: string): string {
+    return `${userId}:${domain.toLowerCase()}`;
   }
 
-  private getCachedResult(domain: string): VerificationResult | null {
-    const cached = DomainVerificationService.cache.get(domain);
-    if (!cached) return null;
+  private getCachedResult(key: string): VerificationResult | null {
+    const cached = DomainVerificationService.cache.get(key);
+    if (!cached) {
+      return null;
+    }
 
-    const now = new Date();
-    const timeDiff = now.getTime() - cached.timestamp.getTime();
-    
-    if (timeDiff > DomainVerificationService.CACHE_TTL) {
-      DomainVerificationService.cache.delete(domain);
+    if (Date.now() - cached.timestamp > DomainVerificationService.CACHE_TTL) {
+      DomainVerificationService.cache.delete(key);
       return null;
     }
 
     return cached.result;
   }
 
-  private setCachedResult(domain: string, result: VerificationResult): void {
-    DomainVerificationService.cache.set(domain, {
+  private setCachedResult(key: string, result: VerificationResult): void {
+    DomainVerificationService.cache.set(key, {
       result,
-      timestamp: new Date()
+      timestamp: Date.now()
     });
   }
 
-  public async verifyDomain(config: DomainVerificationConfig): Promise<VerificationResult> {
-    const { domain, dkimSelector } = config;
-    
-    this.logVerificationAttempt(domain, 'START_VERIFICATION', 'success');
+  private clearCachedResult(key: string): void {
+    DomainVerificationService.cache.delete(key);
+  }
 
-    // Check cache first
-    const cachedResult = this.getCachedResult(domain);
-    if (cachedResult) {
-      this.logVerificationAttempt(domain, 'CACHE_HIT', 'success');
-      return cachedResult;
-    }
-
-    const result: VerificationResult = {
-      success: false,
-      domain,
-      spf: { verified: false },
-      dkim: { verified: false },
-      dmarc: { verified: false },
-      timestamp: new Date(),
-      errors: []
+  private mapStep(result: DomainSetupVerificationResult['results'][keyof DomainSetupVerificationResult['results']]) {
+    return {
+      verified: result.valid,
+      error: result.error,
+      record: result.actualValue ? { raw: result.actualValue } : undefined
     };
+  }
 
-    try {
-      // Validate domain name first
-      if (!DNSUtils.validateDomainName(domain)) {
-        const error = 'Invalid domain name format';
-        result.errors.push(error);
-        this.logVerificationAttempt(domain, 'DOMAIN_VALIDATION', 'error', error);
-        return result;
-      }
+  private collectErrors(result: DomainSetupVerificationResult): string[] {
+    return Object.values(result.results)
+      .filter((entry) => !entry.valid)
+      .map((entry) => entry.error || `Expected ${entry.expectedValue}`);
+  }
 
-      // Run all verifications in parallel for better performance
-      const [spfResult, dkimResult, dmarcResult] = await Promise.all([
-        this.timeoutPromise(this.verifySPF(domain), DomainVerificationService.VERIFICATION_TIMEOUT),
-        this.timeoutPromise(this.verifyDKIM(domain, dkimSelector), DomainVerificationService.VERIFICATION_TIMEOUT),
-        this.timeoutPromise(this.verifyDMARC(domain), DomainVerificationService.VERIFICATION_TIMEOUT)
-      ]);
+  private mapVerificationResult(result: DomainSetupVerificationResult): VerificationResult {
+    return {
+      success: result.all_passed,
+      domain: result.domain,
+      mail_from_mx: this.mapStep(result.results.mail_from_mx),
+      spf: this.mapStep(result.results.spf),
+      dkim: this.mapStep(result.results.dkim),
+      dmarc: this.mapStep(result.results.dmarc),
+      timestamp: new Date(result.verified_at),
+      errors: this.collectErrors(result)
+    };
+  }
 
-      result.spf = spfResult;
-      result.dkim = dkimResult;
-      result.dmarc = dmarcResult;
+  public async verifyDomain(config: DomainVerificationConfig): Promise<VerificationResult> {
+    const domain = await db('domains')
+      .where('user_id', config.userId)
+      .where('domain_name', config.domain)
+      .first() as DomainRow | undefined;
 
-      // Overall success if SPF, DKIM and DMARC are all verified
-      result.success = result.spf.verified && result.dkim.verified && result.dmarc.verified;
-
-      // Log individual results
-      this.logVerificationAttempt(
-        domain, 
-        'SPF_CHECK', 
-        result.spf.verified ? 'success' : 'error',
-        result.spf.error
-      );
-
-      this.logVerificationAttempt(
-        domain, 
-        'DKIM_CHECK', 
-        result.dkim.verified ? 'success' : 'error',
-        result.dkim.error
-      );
-
-      this.logVerificationAttempt(
-        domain, 
-        'DMARC_CHECK', 
-        result.dmarc.verified ? 'success' : 'error',
-        result.dmarc.error
-      );
-
-      // Cache successful results
-      if (result.success) {
-        this.setCachedResult(domain, result);
-      }
-
-      this.logVerificationAttempt(
-        domain, 
-        'COMPLETE_VERIFICATION', 
-        result.success ? 'success' : 'error',
-        `Overall success: ${result.success}`
-      );
-
-      return result;
-
-    } catch (error: any) {
-      const errorMessage = `Verification failed: ${error.message}`;
-      result.errors.push(errorMessage);
-      this.logVerificationAttempt(domain, 'VERIFICATION_ERROR', 'error', errorMessage);
-      return result;
+    if (!domain) {
+      throw new Error(`Domain ${config.domain} not found for user ${config.userId}`);
     }
-  }
 
-  private async timeoutPromise<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error('Operation timeout')), timeoutMs)
-      )
-    ]);
-  }
-
-
-  private async verifySPF(domain: string): Promise<VerificationResult['spf']> {
-    try {
-      const spfResult = await DNSUtils.verifySPFRecord(domain);
-      
-      return {
-        verified: spfResult.valid,
-        error: spfResult.error,
-        record: spfResult.record
-      };
-    } catch (error: any) {
-      return {
-        verified: false,
-        error: `SPF verification error: ${error.message}`
-      };
+    const cacheKey = this.getCacheKey(domain.user_id, domain.domain_name);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) {
+      return cached;
     }
-  }
 
-  private async verifyDKIM(
-    domain: string, 
-    selector: string
-  ): Promise<VerificationResult['dkim']> {
-    try {
-      const dkimResult = await DNSUtils.verifyDKIMRecord(domain, selector);
-      
-      return {
-        verified: dkimResult.valid,
-        error: dkimResult.error,
-        record: dkimResult.record
-      };
-    } catch (error: any) {
-      return {
-        verified: false,
-        error: `DKIM verification error: ${error.message}`
-      };
+    const result = await this.verifyAndUpdateDomain(domain.id);
+
+    if (result.success) {
+      this.setCachedResult(cacheKey, result);
     }
+
+    return result;
   }
 
-  private async verifyDMARC(domain: string): Promise<VerificationResult['dmarc']> {
-    try {
-      const dmarcResult = await DNSUtils.verifyDMARCRecord(domain);
-      
-      return {
-        verified: dmarcResult.valid,
-        error: dmarcResult.error,
-        record: dmarcResult.record
-      };
-    } catch (error: any) {
-      return {
-        verified: false,
-        error: `DMARC verification error: ${error.message}`
-      };
-    }
-  }
+  public async updateDomainStatus(domainId: number, verificationResult: VerificationResult): Promise<void> {
+    const timestamp = verificationResult.timestamp || new Date();
 
-  public async updateDomainStatus(
-    domainId: number, 
-    verificationResult: VerificationResult
-  ): Promise<void> {
-    try {
-      const updateData = {
+    await db('domains')
+      .where('id', domainId)
+      .update({
         is_verified: verificationResult.success,
-        spf_enabled: verificationResult.spf.verified,
-        dkim_enabled: verificationResult.dkim.verified,
-        dmarc_enabled: verificationResult.dmarc.verified,
-        last_verification_attempt: new Date(),
-        verification_errors: verificationResult.errors.length > 0 
-          ? JSON.stringify(verificationResult.errors) 
+        spf_enabled: true,
+        dkim_enabled: true,
+        dmarc_enabled: true,
+        verified_at: verificationResult.success ? timestamp : null,
+        last_verification_attempt: timestamp,
+        verification_errors: verificationResult.errors.length > 0
+          ? JSON.stringify(verificationResult.errors)
           : null,
-        updated_at: new Date()
-      };
-
-      // Only set verified_at if domain is verified and wasn't verified before
-      const currentDomain = await db('domains').where('id', domainId).first();
-      if (verificationResult.success && !currentDomain?.is_verified) {
-        (updateData as any).verified_at = new Date();
-      }
-
-      await db('domains').where('id', domainId).update(updateData);
-
-      this.logVerificationAttempt(
-        verificationResult.domain,
-        'DATABASE_UPDATE',
-        'success',
-        `Domain ID ${domainId} updated in database`
-      );
-
-    } catch (error: any) {
-      this.logVerificationAttempt(
-        verificationResult.domain,
-        'DATABASE_UPDATE',
-        'error',
-        `Failed to update domain ID ${domainId}: ${error.message}`
-      );
-      throw error;
-    }
+        updated_at: timestamp
+      });
   }
 
   public async verifyAndUpdateDomain(domainId: number): Promise<VerificationResult> {
-    try {
-      // Get domain from database
-      const domain = await db('domains').where('id', domainId).first();
-      
-      if (!domain) {
-        throw new Error(`Domain with ID ${domainId} not found`);
-      }
+    const domain = await db('domains').where('id', domainId).first() as DomainRow | undefined;
 
-      const config: DomainVerificationConfig = {
-        domain: domain.domain_name,
-        dkimSelector: domain.dkim_selector || 'default',
-        userId: domain.user_id
-      };
-
-      // Perform verification
-      const result = await this.verifyDomain(config);
-
-      // Update database with results
-      await this.updateDomainStatus(domainId, result);
-
-      return result;
-
-    } catch (error: any) {
-      this.logVerificationAttempt(
-        'unknown',
-        'VERIFY_AND_UPDATE',
-        'error',
-        `Domain ID ${domainId}: ${error.message}`
-      );
-      throw error;
+    if (!domain) {
+      throw new Error(`Domain with ID ${domainId} not found`);
     }
+
+    const result = this.mapVerificationResult(
+      await this.setupService.verifyDomainSetup(domain.user_id, domain.id)
+    );
+    const cacheKey = this.getCacheKey(domain.user_id, domain.domain_name);
+
+    if (result.success) {
+      this.setCachedResult(cacheKey, result);
+    } else {
+      this.clearCachedResult(cacheKey);
+    }
+
+    return result;
   }
 
   public async getDomainStatus(domainId: number): Promise<DomainStatus | null> {
-    try {
-      const domain = await db('domains')
-        .select(
-          'id',
-          'domain_name',
-          'is_verified',
-          'spf_enabled',
-          'dkim_enabled',
-          'dmarc_enabled',
-          'dkim_selector',
-          'last_verification_attempt',
-          'verification_errors'
-        )
-        .where('id', domainId)
-        .first();
+    const domain = await db('domains')
+      .select(
+        'id',
+        'domain_name',
+        'is_verified',
+        'spf_enabled',
+        'dkim_enabled',
+        'dmarc_enabled',
+        'dkim_selector',
+        'last_verification_attempt',
+        'verification_errors'
+      )
+      .where('id', domainId)
+      .first();
 
-      return domain || null;
-
-    } catch (error: any) {
-      this.logVerificationAttempt(
-        'unknown',
-        'GET_DOMAIN_STATUS',
-        'error',
-        `Domain ID ${domainId}: ${error.message}`
-      );
-      throw error;
-    }
+    return domain || null;
   }
 
   public async getDNSInstructions(domainId: number): Promise<{
@@ -351,84 +216,44 @@ export class DomainVerificationService {
       spf: string;
       dkim: string;
       dmarc: string;
-    }
+    };
   } | null> {
-    try {
-      const domain = await db('domains').where('id', domainId).first();
-      
-      if (!domain) {
-        return null;
-      }
+    const domain = await db('domains').where('id', domainId).first() as DomainRow | undefined;
 
-      const dkimSelector = domain.dkim_selector || 'default';
-
-      return {
-        domain: domain.domain_name,
-        instructions: {
-          spf: `uz-mail.${domain.domain_name} TXT "v=spf1 include:ultrazend.com.br -all"`,
-          mail_from_mx: `uz-mail.${domain.domain_name} MX 10 mail.ultrazend.com.br`,
-          dkim: `${dkimSelector}._domainkey.${domain.domain_name} TXT "v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY_HERE"`,
-          dmarc: `_dmarc.${domain.domain_name} TXT "v=DMARC1; p=none"`
-        }
-      };
-
-    } catch (error: any) {
-      this.logVerificationAttempt(
-        'unknown',
-        'GET_DNS_INSTRUCTIONS',
-        'error',
-        `Domain ID ${domainId}: ${error.message}`
-      );
-      throw error;
+    if (!domain) {
+      return null;
     }
+
+    const dkimSelector = domain.dkim_selector || 'default';
+    const dmarcPolicy = domain.dmarc_policy || 'none';
+
+    return {
+      domain: domain.domain_name,
+      instructions: {
+        mail_from_mx: `uz-mail.${domain.domain_name} MX 10 mail.ultrazend.com.br`,
+        spf: `uz-mail.${domain.domain_name} TXT "v=spf1 include:ultrazend.com.br -all"`,
+        dkim: `${dkimSelector}._domainkey.${domain.domain_name} TXT "v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY_HERE"`,
+        dmarc: `_dmarc.${domain.domain_name} TXT "v=DMARC1; p=${dmarcPolicy}"`
+      }
+    };
   }
 
-  public async retryVerification(
-    domainId: number, 
-    maxRetries: number = 3
-  ): Promise<VerificationResult> {
+  public async retryVerification(domainId: number, maxRetries: number = 3): Promise<VerificationResult> {
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        this.logVerificationAttempt(
-          'unknown',
-          'RETRY_ATTEMPT',
-          'success',
-          `Attempt ${attempt}/${maxRetries} for domain ID ${domainId}`
-        );
-
-        const result = await this.verifyAndUpdateDomain(domainId);
-        
-        if (result.success) {
-          return result;
-        }
-
-        // If not successful, wait before retry (except on last attempt)
-        if (attempt < maxRetries) {
-          await this.delay(2000 * attempt); // Exponential backoff
-        }
-
-      } catch (error: any) {
-        lastError = error;
-        this.logVerificationAttempt(
-          'unknown',
-          'RETRY_ERROR',
-          'error',
-          `Attempt ${attempt}/${maxRetries} failed: ${error.message}`
-        );
+        return await this.verifyAndUpdateDomain(domainId);
+      } catch (error) {
+        lastError = error as Error;
 
         if (attempt < maxRetries) {
-          await this.delay(2000 * attempt);
+          await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
         }
       }
     }
 
     throw lastError || new Error('All retry attempts failed');
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   public static clearCache(): void {
