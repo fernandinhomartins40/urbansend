@@ -85,6 +85,8 @@ export interface ApplicationErrorLogFilters {
 export class ApplicationErrorLogService {
   private static instance: ApplicationErrorLogService;
   private readonly tableName = 'application_error_logs';
+  private persistenceUnavailable = false;
+  private hasWarnedAboutUnavailablePersistence = false;
 
   public static getInstance(): ApplicationErrorLogService {
     if (!ApplicationErrorLogService.instance) {
@@ -164,10 +166,42 @@ export class ApplicationErrorLogService {
     };
   }
 
+  private isMissingTableError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const candidate = error as { code?: unknown; message?: unknown };
+    const code = typeof candidate.code === 'string' ? candidate.code : '';
+    const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : '';
+
+    return code === '42P01'
+      || message.includes('relation "application_error_logs" does not exist')
+      || message.includes('no such table: application_error_logs');
+  }
+
   private async persist(entry: Record<string, unknown>): Promise<void> {
+    if (this.persistenceUnavailable) {
+      return;
+    }
+
     try {
       await db(this.tableName).insert(entry);
     } catch (error) {
+      if (this.isMissingTableError(error)) {
+        this.persistenceUnavailable = true;
+
+        if (!this.hasWarnedAboutUnavailablePersistence) {
+          this.hasWarnedAboutUnavailablePersistence = true;
+          console.warn(
+            'Application error log persistence disabled until the application_error_logs table exists',
+            error
+          );
+        }
+
+        return;
+      }
+
       console.error('Failed to persist application error log', error);
     }
   }

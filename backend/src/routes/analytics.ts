@@ -4,6 +4,13 @@ import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { AnalyticsController } from '../controllers/analyticsController';
 import { sqlExtractDomain } from '../utils/sqlDialect';
+import {
+  analyticsEmailColumns,
+  applyDateRange,
+  applySenderDomainFilter,
+  buildFilteredAnalyticsQuery,
+  buildFilteredEmailQuery
+} from './analyticsQueryBuilders';
 
 const router = Router();
 
@@ -36,24 +43,6 @@ const getDateRange = (timeRange?: string) => {
   return { days, startDate, endDate, previousStart, previousEnd };
 };
 
-const applyDateRange = (query: any, column: string, startDate: Date, endDate?: Date) => {
-  query.where(column, '>=', startDate);
-
-  if (endDate) {
-    query.where(column, '<=', endDate);
-  }
-
-  return query;
-};
-
-const applySenderDomainFilter = (query: any, column: string, domain?: string | null) => {
-  if (!domain) {
-    return query;
-  }
-
-  return query.whereRaw(`${sqlExtractDomain(column)} = ?`, [domain]);
-};
-
 const resolveDomainFilter = async (req: AuthenticatedRequest): Promise<string | null> => {
   const rawDomain = typeof req.query.domain === 'string' ? req.query.domain.trim().toLowerCase() : '';
   if (rawDomain) {
@@ -74,36 +63,8 @@ const resolveDomainFilter = async (req: AuthenticatedRequest): Promise<string | 
   return domain?.domain_name || null;
 };
 
-const buildFilteredEmailQuery = (
-  userId: number,
-  startDate: Date,
-  endDate?: Date,
-  senderDomain?: string | null
-) => applySenderDomainFilter(
-  applyDateRange(db('emails').where('user_id', userId), 'created_at', startDate, endDate),
-  'from_email',
-  senderDomain
-);
-
-const buildFilteredAnalyticsQuery = (
-  userId: number,
-  startDate: Date,
-  endDate?: Date,
-  senderDomain?: string | null
-) => {
-  const query = db('email_analytics')
-    .join('emails', 'email_analytics.email_id', '=', 'emails.id')
-    .where('emails.user_id', userId);
-
-  return applySenderDomainFilter(
-    applyDateRange(query, 'emails.created_at', startDate, endDate),
-    'emails.from_email',
-    senderDomain
-  );
-};
-
 const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date, senderDomain?: string | null) => {
-  const emailQuery = buildFilteredEmailQuery(userId, startDate, endDate, senderDomain);
+  const emailQuery = buildFilteredEmailQuery(db, userId, startDate, endDate, senderDomain);
 
   const baseCounts = await emailQuery
     .clone()
@@ -126,7 +87,7 @@ const getOverviewStats = async (userId: number, startDate: Date, endDate?: Date,
           END
         ) as bounced_count
       `),
-      db.raw('COUNT(DISTINCT to_email) as unique_recipients')
+      db.raw(`COUNT(DISTINCT ${analyticsEmailColumns.toEmail}) as unique_recipients`)
     )
     .first() as any;
 
@@ -227,9 +188,7 @@ router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Resp
 router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
-  const activities = await applySenderDomainFilter(
-    db('email_analytics')
-    .join('emails', 'email_analytics.email_id', '=', 'emails.id')
+  const activities = await buildFilteredAnalyticsQuery(db, req.user!.id, startDate, endDate, senderDomain)
     .select(
       'email_analytics.id as id',
       'emails.id as email_id',
@@ -241,12 +200,6 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
       'email_analytics.user_agent',
       'email_analytics.metadata'
     )
-    .where('emails.user_id', req.user!.id)
-    .where('email_analytics.created_at', '>=', startDate)
-    .where('email_analytics.created_at', '<=', endDate),
-    'emails.from_email',
-    senderDomain
-  )
     .orderBy('email_analytics.created_at', 'desc')
     .limit(20);
 
