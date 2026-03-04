@@ -10,6 +10,10 @@ declare module 'express-serve-static-core' {
       email: string;
       name: string;
       permissions?: string[];
+      account_id?: number;
+      organization_id?: number | null;
+      organization_name?: string;
+      organization_role?: 'owner' | 'admin' | 'member';
     };
     apiKey?: {
       id: number;

@@ -1,9 +1,10 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { validateRequest, createTemplateSchema, idParamSchema, sanitizeEmailHtml, updateTemplateSchema } from '../middleware/validation';
-import { authenticateJWT } from '../middleware/auth';
+import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
+import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();
 
@@ -32,9 +33,11 @@ const normalizeTemplate = (template: any) => ({
 // Get templates
 router.get('/', 
   authenticateJWT,
+  requirePermission('template:read'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const templates = await db('email_templates')
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .orderBy('created_at', 'desc');
     
     res.json({ templates: templates.map(normalizeTemplate) });
@@ -44,11 +47,13 @@ router.get('/',
 // Create template
 router.post('/',
   authenticateJWT,
+  requirePermission('template:write'),
   validateRequest({ body: createTemplateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const templateData = {
       ...req.body,
-      user_id: req.user!.id,
+      user_id: accountUserId,
       variables: JSON.stringify(req.body.variables || []),
       created_at: new Date(),
       updated_at: new Date()
@@ -70,11 +75,13 @@ router.post('/',
 // Get template by ID
 router.get('/:id',
   authenticateJWT,
+  requirePermission('template:read'),
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const template = await db('email_templates')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .first();
 
     if (!template) {
@@ -88,11 +95,13 @@ router.get('/:id',
 // Update template
 router.put('/:id',
   authenticateJWT,
+  requirePermission('template:write'),
   validateRequest({ params: idParamSchema, body: updateTemplateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const existingTemplate = await db('email_templates')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .first();
 
     if (!existingTemplate) {
@@ -112,12 +121,12 @@ router.put('/:id',
 
     await db('email_templates')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .update(updateData);
 
     const template = await db('email_templates')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .first();
 
     res.json({ template: normalizeTemplate(template) });
@@ -127,11 +136,13 @@ router.put('/:id',
 // Delete template
 router.delete('/:id',
   authenticateJWT,
+  requirePermission('template:write'),
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const deleted = await db('email_templates')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .del();
 
     if (deleted === 0) {

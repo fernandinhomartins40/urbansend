@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Router, Response } from 'express';
-import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import {
   createWebhookPayloadSchema,
@@ -11,6 +11,7 @@ import {
 import { generateSecretKey, createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
 import { resolveInsertedId } from '../utils/insertedId';
+import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();
 
@@ -130,9 +131,10 @@ const logWebhookDelivery = async (params: {
   });
 };
 
-router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission('webhook:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const webhooks = await db('webhooks')
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .orderBy('created_at', 'desc');
 
   const statsMap = await getWebhookStatsMap(webhooks.map((webhook: any) => Number(webhook.id)));
@@ -143,8 +145,10 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
 }));
 
 router.post('/',
+  requirePermission('webhook:write'),
   validateRequest({ body: createWebhookPayloadSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const webhookUrl = req.body.webhook_url;
   const events = parseEvents(req.body.events);
   const name = req.body.name || buildWebhookName(webhookUrl);
@@ -160,7 +164,7 @@ router.post('/',
     events: JSON.stringify(events),
     secret,
     is_active: true,
-    user_id: req.user!.id,
+    user_id: accountUserId,
     created_at: new Date(),
     updated_at: new Date()
   });
@@ -170,7 +174,7 @@ router.post('/',
       (
         await db('webhooks')
           .select('id')
-          .where('user_id', req.user!.id)
+          .where('user_id', accountUserId)
           .where('url', webhookUrl)
           .where('name', name)
           .orderBy('id', 'desc')
@@ -188,13 +192,15 @@ router.post('/',
 }));
 
 router.put('/:id',
+  requirePermission('webhook:write'),
   validateRequest({ params: idParamSchema, body: updateWebhookPayloadSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const { id } = req.params;
 
   const currentWebhook = await db('webhooks')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .first();
 
   if (!currentWebhook) {
@@ -206,7 +212,7 @@ router.put('/:id',
 
   await db('webhooks')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .update({
       url: webhookUrl,
       name: req.body.name || currentWebhook.name || buildWebhookName(webhookUrl),
@@ -218,19 +224,20 @@ router.put('/:id',
 
   const webhook = await db('webhooks')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .first();
 
   const statsMap = await getWebhookStatsMap([Number(id)]);
   res.json({ webhook: normalizeWebhook(webhook, statsMap.get(Number(id))) });
 }));
 
-router.delete('/:id', validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', requirePermission('webhook:write'), validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const accountUserId = getAccountUserId(req);
 
   const deleted = await db('webhooks')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .del();
 
   if (deleted === 0) {
@@ -240,13 +247,14 @@ router.delete('/:id', validateRequest({ params: idParamSchema }), asyncHandler(a
   res.json({ message: 'Webhook deletado com sucesso' });
 }));
 
-router.get('/:id/logs', validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id/logs', requirePermission('webhook:read'), validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { status = 'all', event_type = 'all' } = req.query;
+  const accountUserId = getAccountUserId(req);
 
   const webhook = await db('webhooks')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .first();
 
   if (!webhook) {
@@ -272,12 +280,13 @@ router.get('/:id/logs', validateRequest({ params: idParamSchema }), asyncHandler
   res.json({ logs: logs.map(normalizeLog) });
 }));
 
-router.post('/:id/test', validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/test', requirePermission('webhook:write'), validateRequest({ params: idParamSchema }), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const accountUserId = getAccountUserId(req);
 
   const webhook = await db('webhooks')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .first();
 
   if (!webhook) {
@@ -290,7 +299,7 @@ router.post('/:id/test', validateRequest({ params: idParamSchema }), asyncHandle
     data: {
       message: 'Teste de webhook do UltraZend',
       webhook_id: webhook.id,
-      user_id: req.user!.id
+      user_id: accountUserId
     }
   };
 

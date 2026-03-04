@@ -6,8 +6,9 @@ import { Env } from '../utils/env';
 import { verifyApiKey, legacyHashApiKey } from '../utils/crypto';
 import db from '../config/database';
 import { logger } from '../config/logger';
-import { permissionsFromJson } from '../constants/permissions';
+import { hasPermission, permissionsFromJson } from '../constants/permissions';
 import { requestContextService } from '../services/RequestContextService';
+import { workspaceService } from '../services/WorkspaceService';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -15,6 +16,10 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     name: string;
     permissions?: string[];
+    account_id?: number;
+    organization_id?: number | null;
+    organization_name?: string;
+    organization_role?: 'owner' | 'admin' | 'member';
   };
   apiKey?: {
     id: number;
@@ -67,8 +72,10 @@ export const authenticateJWT = async (
     
     const decoded = jwt.verify(token, Env.jwtSecret) as any;
     
+    const requestedOrganizationId = Number(req.headers['x-organization-id'] || 0) || undefined;
+
     const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified', 'permissions')
+      .select('id', 'email', 'name', 'is_verified', 'is_active', 'permissions')
       .where('id', decoded.userId)
       .first();
 
@@ -80,11 +87,21 @@ export const authenticateJWT = async (
       throw createError('Email verification required', 403);
     }
 
+    if (user.is_active === false) {
+      throw createError('Account is inactive', 403);
+    }
+
+    const workspaceContext = await workspaceService.getContext(user.id, requestedOrganizationId);
+
     req.user = {
       id: user.id,
       email: user.email,
       name: user.name,
       permissions: permissionsFromJson(user.permissions),
+      account_id: workspaceContext.accountUserId,
+      organization_id: workspaceContext.organizationId,
+      organization_name: workspaceContext.organizationName,
+      organization_role: workspaceContext.role
     };
     req.userId = String(user.id);
     requestContextService.update({
@@ -113,6 +130,7 @@ export const authenticateApiKey = async (
 ) => {
   try {
     const apiKeyHeader = req.headers['x-api-key'] as string;
+    const requestedOrganizationId = Number(req.headers['x-organization-id'] || 0) || undefined;
     
     if (!apiKeyHeader) {
       throw createError('API key required', 401);
@@ -125,9 +143,22 @@ export const authenticateApiKey = async (
 
     // First try to find API keys to verify against
     const apiKeys = await db('api_keys')
-      .select('api_keys.*', 'users.id as user_id', 'users.email', 'users.name')
+      .select(
+        'api_keys.*',
+        'users.id as user_id',
+        'users.email',
+        'users.name',
+        'users.is_verified as user_is_verified',
+        'users.is_active as user_is_active'
+      )
       .join('users', 'api_keys.user_id', '=', 'users.id')
-      .where('api_keys.is_active', true);
+      .where('api_keys.is_active', true)
+      .where('users.is_active', true)
+      .modify((query) => {
+        query.where((builder) => {
+          builder.whereNull('api_keys.expires_at').orWhere('api_keys.expires_at', '>', new Date());
+        });
+      });
 
     let matchedApiKey = null;
 
@@ -168,17 +199,31 @@ export const authenticateApiKey = async (
 
     const apiKey = matchedApiKey;
 
+    if (!apiKey.user_is_verified) {
+      throw createError('Email verification required', 403);
+    }
+
+    if (apiKey.user_is_active === false) {
+      throw createError('Account is inactive', 403);
+    }
+
     // Update last used timestamp
     await db('api_keys')
       .where('id', apiKey.id)
       .update({ last_used: new Date() });
 
     const permissions = permissionsFromJson(apiKey.permissions);
+    const workspaceContext = await workspaceService.getContext(apiKey.user_id, requestedOrganizationId);
 
     req.user = {
       id: apiKey.user_id,
       email: apiKey.email,
-      name: apiKey.name
+      name: apiKey.name,
+      permissions,
+      account_id: workspaceContext.accountUserId,
+      organization_id: workspaceContext.organizationId,
+      organization_name: workspaceContext.organizationName,
+      organization_role: workspaceContext.role
     };
     req.userId = String(apiKey.user_id);
 
@@ -200,13 +245,11 @@ export const authenticateApiKey = async (
 
 export const requirePermission = (permission: string) => {
   return (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
-    // If authenticated via JWT, allow all operations
-    if (req.user && !req.apiKey) {
+    if (req.user && hasPermission(req.user.permissions, permission)) {
       return next();
     }
 
-    // If authenticated via API key, check permissions
-    if (req.apiKey && req.apiKey.permissions.includes(permission)) {
+    if (req.apiKey && hasPermission(req.apiKey.permissions, permission)) {
       return next();
     }
 

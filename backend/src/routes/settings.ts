@@ -1,9 +1,10 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
-import { asyncHandler } from '../middleware/errorHandler';
-import db from '../config/database';
+import { asyncHandler, createError } from '../middleware/errorHandler';
+import { settingsService } from '../services/SettingsService';
+import { workspaceService } from '../services/WorkspaceService';
 
 const router = Router();
 
@@ -21,154 +22,73 @@ const settingsSchema = z.object({
     auto_refresh: z.boolean().optional(),
     auto_refresh_interval: z.number().int().min(5000).max(300000).optional()
   }).optional(),
+  security_settings: z.object({
+    session_timeout: z.number().int().min(300).max(86400).optional(),
+    require_password_confirmation: z.boolean().optional(),
+    ip_whitelist: z.array(z.string()).max(50).optional(),
+    two_factor_enabled: z.boolean().optional(),
+    api_rate_limit: z.number().int().min(10).max(100000).optional()
+  }).optional(),
   branding_settings: z.object({
     company_name: z.string().max(150).optional(),
-    footer_text: z.string().max(200).optional()
+    company_logo_url: z.string().max(500).optional(),
+    custom_domain: z.string().max(255).optional(),
+    footer_text: z.string().max(300).optional(),
+    primary_color: z.string().max(20).optional(),
+    secondary_color: z.string().max(20).optional()
   }).optional(),
   analytics_settings: z.object({
     default_time_range: z.enum(['24h', '7d', '30d', '90d']).optional(),
     track_opens: z.boolean().optional(),
-    track_clicks: z.boolean().optional()
+    track_clicks: z.boolean().optional(),
+    track_downloads: z.boolean().optional(),
+    pixel_tracking: z.boolean().optional(),
+    utm_tracking: z.boolean().optional()
+  }).optional(),
+  smtp_settings: z.object({
+    use_custom: z.boolean().optional(),
+    host: z.string().max(255).optional(),
+    port: z.number().int().min(1).max(65535).nullable().optional(),
+    username: z.string().max(255).optional(),
+    password: z.string().max(500).optional(),
+    use_tls: z.boolean().optional()
+  }).optional(),
+  sending_settings: z.object({
+    timezone: z.string().optional(),
+    default_from_email: z.string().email().optional(),
+    default_from_name: z.string().max(150).optional(),
+    bounce_handling: z.boolean().optional(),
+    open_tracking: z.boolean().optional(),
+    click_tracking: z.boolean().optional(),
+    unsubscribe_tracking: z.boolean().optional(),
+    suppression_list_enabled: z.boolean().optional()
+  }).optional(),
+  webhook_settings: z.object({
+    enabled: z.boolean().optional(),
+    webhook_url: z.union([z.string().url(), z.literal('')]).optional(),
+    webhook_secret: z.string().max(255).optional(),
+    custom_headers: z.record(z.string()).optional()
   }).optional()
 });
 
-const parseJsonField = <T>(value: unknown, fallback: T): T => {
-  if (!value) {
-    return fallback;
-  }
-
-  if (typeof value === 'object') {
-    return value as T;
-  }
-
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T;
-    } catch {
-      return fallback;
-    }
-  }
-
-  return fallback;
-};
-
-const getDefaultSettings = () => ({
-  notification_preferences: {
-    email_delivery_reports: true,
-    bounce_notifications: true,
-    daily_summary: true,
-    weekly_reports: false,
-    security_alerts: true,
-    webhook_failures: true
-  },
-  system_preferences: {
-    theme: 'light',
-    language: 'pt-BR',
-    timezone: 'America/Sao_Paulo',
-    date_format: 'DD/MM/YYYY',
-    time_format: '24h',
-    items_per_page: 20,
-    auto_refresh: true,
-    auto_refresh_interval: 30000
-  },
-  branding_settings: {
-    company_name: '',
-    company_logo_url: '',
-    custom_domain: '',
-    footer_text: '',
-    primary_color: '#3b82f6',
-    secondary_color: '#1e40af'
-  },
-  analytics_settings: {
-    default_time_range: '30d',
-    track_opens: true,
-    track_clicks: true,
-    track_downloads: true,
-    pixel_tracking: true,
-    utm_tracking: true
-  }
-});
-
-const normalizeSettings = (row: any) => {
-  const defaults = getDefaultSettings();
-
-  return {
-    notification_preferences: {
-      ...defaults.notification_preferences,
-      ...parseJsonField(row?.notification_preferences, {})
-    },
-    system_preferences: {
-      ...defaults.system_preferences,
-      ...parseJsonField(row?.system_preferences, {})
-    },
-    branding_settings: {
-      ...defaults.branding_settings,
-      ...parseJsonField(row?.branding_settings, {})
-    },
-    analytics_settings: {
-      ...defaults.analytics_settings,
-      ...parseJsonField(row?.analytics_settings, {})
-    }
-  };
-};
-
-const ensureUserSettings = async (userId: number) => {
-  let settings = await db('user_settings').where('user_id', userId).first();
-
-  if (!settings) {
-    await db('user_settings').insert({
-      user_id: userId,
-      created_at: new Date(),
-      updated_at: new Date()
-    });
-
-    settings = await db('user_settings').where('user_id', userId).first();
-  }
-
-  return settings;
-};
-
-router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const settings = await ensureUserSettings(req.user!.id);
-  res.json({ settings: normalizeSettings(settings) });
+router.get('/', requirePermission('settings:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const workspace = await workspaceService.getContext(req.user!.id, req.user?.organization_id);
+  const settings = await settingsService.getEffectiveSettings(req.user!.id, workspace);
+  res.json({ settings });
 }));
 
 router.put('/',
+  requirePermission('settings:write'),
   validateRequest({ body: settingsSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const current = await ensureUserSettings(req.user!.id);
-    const normalized = normalizeSettings(current);
+    const workspace = await workspaceService.getContext(req.user!.id, req.user?.organization_id);
 
-    const updatedSettings = {
-      notification_preferences: {
-        ...normalized.notification_preferences,
-        ...(req.body.notification_preferences || {})
-      },
-      system_preferences: {
-        ...normalized.system_preferences,
-        ...(req.body.system_preferences || {})
-      },
-      branding_settings: {
-        ...normalized.branding_settings,
-        ...(req.body.branding_settings || {})
-      },
-      analytics_settings: {
-        ...normalized.analytics_settings,
-        ...(req.body.analytics_settings || {})
-      }
-    };
-
-    await db('user_settings')
-      .where('user_id', req.user!.id)
-      .update({
-        notification_preferences: JSON.stringify(updatedSettings.notification_preferences),
-        system_preferences: JSON.stringify(updatedSettings.system_preferences),
-        branding_settings: JSON.stringify(updatedSettings.branding_settings),
-        analytics_settings: JSON.stringify(updatedSettings.analytics_settings),
-        updated_at: new Date()
-      });
-
-    res.json({ settings: updatedSettings });
+    try {
+      const settings = await settingsService.updateEffectiveSettings(req.user!.id, workspace, req.body);
+      res.json({ settings });
+    } catch (error) {
+      throw createError(error instanceof Error ? error.message : 'Failed to update settings', 403);
+    }
   })
 );
 

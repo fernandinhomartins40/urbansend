@@ -7,6 +7,14 @@ interface User {
   name: string
   email: string
   is_verified: boolean
+  is_active?: boolean
+  active_organization?: {
+    id: number | null
+    name: string
+    slug: string
+    role: 'owner' | 'admin' | 'member'
+    account_user_id: number
+  }
 }
 
 interface AuthState {

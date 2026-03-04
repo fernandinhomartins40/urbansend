@@ -9,6 +9,7 @@ import { validateEmailAddress } from '../utils/email';
 import { Env } from '../utils/env';
 import { InternalEmailService } from '../services/InternalEmailService';
 import { DEFAULT_USER_PERMISSIONS, permissionsToJson } from '../constants/permissions';
+import { workspaceService } from '../services/WorkspaceService';
 
 // Secure cookie configuration
 const getCookieOptions = () => ({
@@ -180,6 +181,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // Check if email is verified
   if (!user.is_verified) {
     throw createError('Please verify your email before logging in', 403);
+  }
+
+  if (user.is_active === false) {
+    throw createError('Account is inactive', 403);
   }
 
   // Generate tokens
@@ -426,8 +431,8 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     const decoded = jwt.verify(refreshToken, Env.jwtRefreshSecret) as any;
     
     // Find user
-    const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified')
+  const user = await db('users')
+      .select('id', 'email', 'name', 'is_verified', 'is_active')
       .where('id', decoded.userId)
       .first();
 
@@ -437,6 +442,10 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
     if (!user.is_verified) {
       throw createError('Email verification required', 403);
+    }
+
+    if (user.is_active === false) {
+      throw createError('Account is inactive', 403);
     }
 
     // Generate new access token
@@ -469,7 +478,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const user = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'is_verified', 'is_active', 'created_at', 'updated_at')
     .where('id', req.user!.id)
     .first();
 
@@ -477,8 +486,19 @@ export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Re
     throw createError('User not found', 404);
   }
 
+  const workspace = await workspaceService.getContext(req.user!.id, req.user?.organization_id);
+
   res.json({
-    user
+    user: {
+      ...user,
+      active_organization: {
+        id: workspace.organizationId,
+        name: workspace.organizationName,
+        slug: workspace.organizationSlug,
+        role: workspace.role,
+        account_user_id: workspace.accountUserId
+      }
+    }
   });
 });
 

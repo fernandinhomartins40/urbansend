@@ -1,146 +1,326 @@
-import { useEffect, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Loader2, Save, Shield, User as UserIcon } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Bell,
+  Building2,
+  Clock3,
+  Globe2,
+  KeyRound,
+  Loader2,
+  Mail,
+  Palette,
+  Save,
+  Send,
+  Shield,
+  UserRound,
+  UserRoundPlus,
+  Users,
+  Webhook,
+  XCircle,
+  type LucideIcon,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { authApi, settingsApi } from '@/lib/api'
+import { authApi, organizationsApi, settingsApi } from '@/lib/api'
 import { useAuthStore, useSettingsStore, useThemeStore } from '@/lib/store'
 
-interface SettingsState {
-  notification_preferences: Record<string, boolean>
-  system_preferences: {
-    theme: 'light' | 'dark' | 'system'
-    language: string
-    timezone: string
-    date_format: string
-    time_format: '12h' | '24h'
-    items_per_page: number
-    auto_refresh: boolean
-    auto_refresh_interval: number
+type WorkspaceRole = 'owner' | 'admin' | 'member'
+
+type ToggleSettingItem = {
+  key: keyof SettingsResponse['account_preferences']['sending_settings']
+  label: string
+  Icon: LucideIcon
+}
+
+interface SettingsResponse {
+  workspace: {
+    organization_id: number | null
+    organization_name: string
+    organization_slug: string
+    role: WorkspaceRole
+    account_user_id: number
+    is_personal: boolean
   }
-  branding_settings: {
-    company_name: string
-    footer_text: string
+  profile: {
+    id: number
+    name: string
+    email: string
+    is_verified: boolean
+    is_active: boolean
   }
-  analytics_settings: {
-    default_time_range: '24h' | '7d' | '30d' | '90d'
-    track_opens: boolean
-    track_clicks: boolean
+  plan: {
+    name: string
+    status: string
+    expires_at: string | null
+  }
+  personal_preferences: {
+    notification_preferences: Record<string, boolean>
+    system_preferences: {
+      theme: 'light' | 'dark' | 'system'
+      language: string
+      timezone: string
+      date_format: string
+      time_format: '12h' | '24h'
+      items_per_page: number
+      auto_refresh: boolean
+      auto_refresh_interval: number
+    }
+    security_settings: {
+      session_timeout: number
+      require_password_confirmation: boolean
+      ip_whitelist: string[]
+      two_factor_enabled: boolean
+      api_rate_limit: number
+    }
+  }
+  account_preferences: {
+    smtp_settings: {
+      use_custom: boolean
+      host: string
+      port: number | null
+      username: string
+      password_configured: boolean
+      use_tls: boolean
+    }
+    branding_settings: {
+      company_name: string
+      company_logo_url: string
+      custom_domain: string
+      footer_text: string
+      primary_color: string
+      secondary_color: string
+    }
+    analytics_settings: {
+      default_time_range: '24h' | '7d' | '30d' | '90d'
+      track_opens: boolean
+      track_clicks: boolean
+      track_downloads: boolean
+      pixel_tracking: boolean
+      utm_tracking: boolean
+    }
+    sending_settings: {
+      timezone: string
+      default_from_email: string
+      default_from_name: string
+      bounce_handling: boolean
+      open_tracking: boolean
+      click_tracking: boolean
+      unsubscribe_tracking: boolean
+      suppression_list_enabled: boolean
+    }
+    webhook_settings: {
+      enabled: boolean
+      webhook_url: string
+      webhook_secret_configured: boolean
+      custom_headers: Record<string, string>
+    }
   }
 }
 
-const defaultSettings: SettingsState = {
-  notification_preferences: {
-    email_delivery_reports: true,
-    bounce_notifications: true,
-    daily_summary: true,
-    weekly_reports: false,
-    security_alerts: true,
-    webhook_failures: true,
-  },
-  system_preferences: {
-    theme: 'light',
-    language: 'pt-BR',
-    timezone: 'America/Sao_Paulo',
-    date_format: 'DD/MM/YYYY',
-    time_format: '24h',
-    items_per_page: 20,
-    auto_refresh: true,
-    auto_refresh_interval: 30000,
-  },
-  branding_settings: {
-    company_name: '',
-    footer_text: '',
-  },
-  analytics_settings: {
-    default_time_range: '30d',
-    track_opens: true,
-    track_clicks: true,
-  },
+interface WorkspaceContextResponse {
+  workspace: {
+    organizationId: number | null
+    organizationName: string
+    organizationSlug: string
+    role: WorkspaceRole
+    accountUserId: number
+    memberships: Array<{
+      organizationId: number
+      organizationName: string
+      organizationSlug: string
+      role: WorkspaceRole
+      isPersonal: boolean
+      ownerUserId: number
+    }>
+    isPersonal: boolean
+  }
+  members: Array<{
+    membershipId: number
+    userId: number
+    email: string
+    name: string
+    role: WorkspaceRole
+    joinedAt: string
+  }>
+  pending_invitations: Array<{
+    id: number
+    email: string
+    role: WorkspaceRole
+    status: string
+    token: string
+    organizationId: number
+    organizationName: string
+    createdAt: string
+  }>
+  received_invitations: Array<{
+    id: number
+    email: string
+    role: WorkspaceRole
+    status: string
+    token: string
+    organizationId: number
+    organizationName: string
+    createdAt: string
+  }>
 }
+
+const notificationLabels: Record<string, string> = {
+  email_delivery_reports: 'Relatorios de entrega',
+  bounce_notifications: 'Alertas de bounce',
+  daily_summary: 'Resumo diario',
+  weekly_reports: 'Resumo semanal',
+  security_alerts: 'Alertas de seguranca',
+  webhook_failures: 'Falhas de webhook',
+}
+
+const roleLabels: Record<WorkspaceRole, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  member: 'Member',
+}
+
+const planTone = (plan: string) => {
+  if (plan === 'enterprise') return 'bg-amber-500/10 text-amber-700 border-amber-200'
+  if (plan === 'pro') return 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
+  return 'bg-slate-500/10 text-slate-700 border-slate-200'
+}
+
+const formatJson = (value: Record<string, string>) => JSON.stringify(value || {}, null, 2)
 
 export function Settings() {
+  const queryClient = useQueryClient()
   const updateUser = useAuthStore((state) => state.updateUser)
   const updateAppSettings = useSettingsStore((state) => state.updateSettings)
   const setTheme = useThemeStore((state) => state.setTheme)
-  const [profileForm, setProfileForm] = useState({ name: '', email: '' })
+  const [settingsForm, setSettingsForm] = useState<SettingsResponse | null>(null)
+  const [profileForm, setProfileForm] = useState({ name: '' })
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [inviteForm, setInviteForm] = useState({ email: '', role: 'member' as 'admin' | 'member' })
   const [passwordForm, setPasswordForm] = useState({
     current_password: '',
     new_password: '',
     confirm_password: '',
   })
-  const [settingsForm, setSettingsForm] = useState<SettingsState>(defaultSettings)
+  const [smtpPassword, setSmtpPassword] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
+  const [webhookHeadersDraft, setWebhookHeadersDraft] = useState('{}')
+  const sendingToggleItems: ToggleSettingItem[] = [
+    { key: 'open_tracking', label: 'Open tracking', Icon: Mail },
+    { key: 'click_tracking', label: 'Click tracking', Icon: Send },
+    { key: 'bounce_handling', label: 'Bounce handling', Icon: Shield },
+    { key: 'unsubscribe_tracking', label: 'Unsubscribe tracking', Icon: Globe2 },
+    { key: 'suppression_list_enabled', label: 'Suppression list', Icon: Bell },
+  ]
 
-  const { data: profileResponse, isLoading: profileLoading } = useQuery({
-    queryKey: ['profile'],
-    queryFn: () => authApi.getProfile(),
-  })
-
-  const { data: settingsResponse, isLoading: settingsLoading, refetch: refetchSettings } = useQuery({
+  const settingsQuery = useQuery({
     queryKey: ['settings'],
     queryFn: () => settingsApi.getSettings(),
   })
 
-  useEffect(() => {
-    const user = profileResponse?.data?.user
-    if (!user) {
-      return
-    }
-
-    setProfileForm({
-      name: user.name || '',
-      email: user.email || '',
-    })
-  }, [profileResponse])
+  const workspaceQuery = useQuery({
+    queryKey: ['workspace-context'],
+    queryFn: () => organizationsApi.getContext(),
+  })
 
   useEffect(() => {
-    const settings = settingsResponse?.data?.settings
-    if (!settings) {
-      return
-    }
+    const settings = settingsQuery.data?.data?.settings as SettingsResponse | undefined
+    if (!settings) return
 
-    setSettingsForm({
-      notification_preferences: {
-        ...defaultSettings.notification_preferences,
-        ...settings.notification_preferences,
-      },
-      system_preferences: {
-        ...defaultSettings.system_preferences,
-        ...settings.system_preferences,
-      },
-      branding_settings: {
-        ...defaultSettings.branding_settings,
-        ...settings.branding_settings,
-      },
-      analytics_settings: {
-        ...defaultSettings.analytics_settings,
-        ...settings.analytics_settings,
-      },
-    })
+    setSettingsForm(settings)
+    setProfileForm({ name: settings.profile.name || '' })
+    setWorkspaceName(settings.workspace.organization_name || '')
+    setSmtpPassword('')
+    setWebhookSecret('')
+    setWebhookHeadersDraft(formatJson(settings.account_preferences.webhook_settings.custom_headers || {}))
     updateAppSettings({
-      emailsPerPage: settings.system_preferences?.items_per_page ?? defaultSettings.system_preferences.items_per_page,
-      autoRefresh: settings.system_preferences?.auto_refresh ?? defaultSettings.system_preferences.auto_refresh,
-      refreshInterval: settings.system_preferences?.auto_refresh_interval ?? defaultSettings.system_preferences.auto_refresh_interval,
-      language: settings.system_preferences?.language ?? defaultSettings.system_preferences.language,
-      analyticsDefaultTimeRange: settings.analytics_settings?.default_time_range ?? defaultSettings.analytics_settings.default_time_range,
-      theme: settings.system_preferences?.theme ?? defaultSettings.system_preferences.theme,
-      timezone: settings.system_preferences?.timezone ?? defaultSettings.system_preferences.timezone,
-      dateFormat: settings.system_preferences?.date_format ?? defaultSettings.system_preferences.date_format,
-      timeFormat: settings.system_preferences?.time_format ?? defaultSettings.system_preferences.time_format,
+      emailsPerPage: settings.personal_preferences.system_preferences.items_per_page,
+      autoRefresh: settings.personal_preferences.system_preferences.auto_refresh,
+      refreshInterval: settings.personal_preferences.system_preferences.auto_refresh_interval,
+      language: settings.personal_preferences.system_preferences.language as 'pt-BR' | 'en-US',
+      analyticsDefaultTimeRange: settings.account_preferences.analytics_settings.default_time_range,
+      theme: settings.personal_preferences.system_preferences.theme,
+      timezone: settings.personal_preferences.system_preferences.timezone,
+      dateFormat: settings.personal_preferences.system_preferences.date_format,
+      timeFormat: settings.personal_preferences.system_preferences.time_format,
     })
-    setTheme((settings.system_preferences?.theme ?? defaultSettings.system_preferences.theme) as 'light' | 'dark' | 'system')
-  }, [setTheme, settingsResponse, updateAppSettings])
+    setTheme(settings.personal_preferences.system_preferences.theme)
+  }, [setTheme, settingsQuery.data, updateAppSettings])
+
+  const workspaceData = workspaceQuery.data?.data as WorkspaceContextResponse | undefined
+  const members = workspaceData?.members || []
+  const pendingInvitations = workspaceData?.pending_invitations || []
+  const receivedInvitations = workspaceData?.received_invitations || []
+  const memberships = workspaceData?.workspace.memberships || []
+  const canManageWorkspace = settingsForm?.workspace.role === 'owner' || settingsForm?.workspace.role === 'admin'
+
+  const quickStats = useMemo(() => {
+    if (!settingsForm) return []
+
+    return [
+      {
+        label: 'Plano ativo',
+        value: settingsForm.plan.name.toUpperCase(),
+        icon: Building2,
+        tone: planTone(settingsForm.plan.name),
+      },
+      {
+        label: 'Workspace',
+        value: settingsForm.workspace.organization_name,
+        icon: Users,
+        tone: 'bg-sky-500/10 text-sky-700 border-sky-200',
+      },
+      {
+        label: 'Tracking',
+        value: settingsForm.account_preferences.sending_settings.open_tracking ? 'Ligado' : 'Desligado',
+        icon: Send,
+        tone: settingsForm.account_preferences.sending_settings.open_tracking
+          ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
+          : 'bg-rose-500/10 text-rose-700 border-rose-200',
+      },
+      {
+        label: 'Seguranca',
+        value: settingsForm.profile.is_active ? 'Conta ativa' : 'Conta bloqueada',
+        icon: Shield,
+        tone: settingsForm.profile.is_active
+          ? 'bg-violet-500/10 text-violet-700 border-violet-200'
+          : 'bg-rose-500/10 text-rose-700 border-rose-200',
+      },
+    ]
+  }, [settingsForm])
+
+  const invalidateSettings = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['settings'] }),
+      queryClient.invalidateQueries({ queryKey: ['workspace-context'] }),
+      queryClient.invalidateQueries({ queryKey: ['profile'] }),
+    ])
+  }
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => settingsApi.updateSettings(payload),
+    onSuccess: async () => {
+      await invalidateSettings()
+      toast.success('Configuracoes atualizadas')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Falha ao atualizar configuracoes')
+    },
+  })
 
   const updateProfileMutation = useMutation({
     mutationFn: () => authApi.updateProfile({ name: profileForm.name.trim() }),
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       updateUser(response.data.user)
+      await invalidateSettings()
       toast.success('Perfil atualizado')
     },
     onError: (error: any) => {
@@ -149,11 +329,10 @@ export function Settings() {
   })
 
   const updatePasswordMutation = useMutation({
-    mutationFn: () =>
-      authApi.changePassword({
-        current_password: passwordForm.current_password,
-        new_password: passwordForm.new_password,
-      }),
+    mutationFn: () => authApi.changePassword({
+      current_password: passwordForm.current_password,
+      new_password: passwordForm.new_password,
+    }),
     onSuccess: () => {
       setPasswordForm({ current_password: '', new_password: '', confirm_password: '' })
       toast.success('Senha atualizada')
@@ -163,46 +342,66 @@ export function Settings() {
     },
   })
 
-  const updateSettingsMutation = useMutation({
-    mutationFn: () =>
-      settingsApi.updateSettings({
-        notification_preferences: settingsForm.notification_preferences,
-        system_preferences: settingsForm.system_preferences,
-        branding_settings: settingsForm.branding_settings,
-        analytics_settings: settingsForm.analytics_settings,
-      }),
-    onSuccess: () => {
-      refetchSettings()
-      updateAppSettings({
-        emailsPerPage: settingsForm.system_preferences.items_per_page,
-        autoRefresh: settingsForm.system_preferences.auto_refresh,
-        refreshInterval: settingsForm.system_preferences.auto_refresh_interval,
-        language: settingsForm.system_preferences.language as 'pt-BR' | 'en-US',
-        analyticsDefaultTimeRange: settingsForm.analytics_settings.default_time_range,
-        theme: settingsForm.system_preferences.theme,
-        timezone: settingsForm.system_preferences.timezone,
-        dateFormat: settingsForm.system_preferences.date_format,
-        timeFormat: settingsForm.system_preferences.time_format,
-      })
-      setTheme(settingsForm.system_preferences.theme)
-      toast.success('Preferencias atualizadas')
+  const switchOrganizationMutation = useMutation({
+    mutationFn: (organizationId: number) => organizationsApi.switchOrganization(organizationId),
+    onSuccess: async () => {
+      await invalidateSettings()
+      toast.success('Workspace alterado')
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Falha ao salvar configuracoes')
+      toast.error(error.response?.data?.message || 'Falha ao trocar workspace')
     },
   })
 
-  const loading = profileLoading || settingsLoading
+  const updateWorkspaceMutation = useMutation({
+    mutationFn: () => organizationsApi.updateCurrentOrganization({ name: workspaceName.trim() }),
+    onSuccess: async () => {
+      await invalidateSettings()
+      toast.success('Workspace atualizado')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Falha ao atualizar workspace')
+    },
+  })
 
-  const handleNotificationToggle = (key: string, value: boolean) => {
-    setSettingsForm((current) => ({
-      ...current,
-      notification_preferences: {
-        ...current.notification_preferences,
-        [key]: value,
-      },
-    }))
-  }
+  const inviteMutation = useMutation({
+    mutationFn: () => organizationsApi.createInvitation(inviteForm),
+    onSuccess: async () => {
+      setInviteForm({ email: '', role: 'member' })
+      await invalidateSettings()
+      toast.success('Convite criado')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Falha ao criar convite')
+    },
+  })
+
+  const removeMemberMutation = useMutation({
+    mutationFn: (membershipId: number) => organizationsApi.removeMember(membershipId),
+    onSuccess: async () => {
+      await invalidateSettings()
+      toast.success('Membro removido')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Falha ao remover membro')
+    },
+  })
+
+  const respondInvitationMutation = useMutation({
+    mutationFn: ({ token, action }: { token: string; action: 'accept' | 'decline' }) =>
+      action === 'accept'
+        ? organizationsApi.acceptInvitation(token)
+        : organizationsApi.declineInvitation(token),
+    onSuccess: async (_response, variables) => {
+      await invalidateSettings()
+      toast.success(variables.action === 'accept' ? 'Convite aceito' : 'Convite recusado')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Falha ao responder convite')
+    },
+  })
+
+  const loading = settingsQuery.isLoading || workspaceQuery.isLoading || !settingsForm
 
   if (loading) {
     return (
@@ -215,391 +414,1230 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Ajuste conta, seguranca e preferencias operacionais.</p>
-      </div>
+      <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6">
+        <div className="absolute inset-y-0 right-0 w-72 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.18),_transparent_55%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.16),_transparent_55%)]" />
+        <div className="relative space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge className={planTone(settingsForm.plan.name)}>{settingsForm.plan.name.toUpperCase()}</Badge>
+            <Badge variant="outline">{roleLabels[settingsForm.workspace.role]}</Badge>
+            <Badge variant="outline">{settingsForm.profile.is_verified ? 'Email verificado' : 'Verificacao pendente'}</Badge>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">Configuracoes da conta e do workspace</h1>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              A pagina agora concentra preferencias pessoais, defaults operacionais da conta, tracking,
+              branding, webhooks e colaboracao do workspace.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            {quickStats.map((item) => {
+              const Icon = item.icon
+              return (
+                <div key={item.label} className={`rounded-2xl border p-4 ${item.tone}`}>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em]">
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </div>
+                  <div className="mt-3 text-lg font-semibold">{item.value}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserIcon className="h-5 w-5" />
-              Perfil
-            </CardTitle>
-            <CardDescription>Dados basicos usados na conta.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="settings-name">Nome</Label>
-              <Input
-                id="settings-name"
-                value={profileForm.name}
-                onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="settings-email">Email</Label>
-              <Input id="settings-email" value={profileForm.email} disabled />
-            </div>
-            <Button onClick={() => updateProfileMutation.mutate()} disabled={updateProfileMutation.isPending || !profileForm.name.trim()}>
-              <Save className="mr-2 h-4 w-4" />
-              {updateProfileMutation.isPending ? 'Salvando...' : 'Salvar perfil'}
-            </Button>
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="account" className="space-y-4">
+        <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-2xl bg-transparent p-0">
+          <TabsTrigger value="account">Conta</TabsTrigger>
+          <TabsTrigger value="workspace">Workspace</TabsTrigger>
+          <TabsTrigger value="sending">Envio</TabsTrigger>
+          <TabsTrigger value="experience">Experiencia</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Seguranca
-            </CardTitle>
-            <CardDescription>Troca de senha da conta.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="current-password">Senha atual</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={passwordForm.current_password}
-                onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="new-password">Nova senha</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={passwordForm.new_password}
-                onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirm-password">Confirmar nova senha</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={passwordForm.confirm_password}
-                onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))}
-              />
-            </div>
-            <Button
-              onClick={() => {
-                if (passwordForm.new_password.length < 8) {
-                  toast.error('A nova senha precisa ter ao menos 8 caracteres')
-                  return
-                }
-                if (passwordForm.new_password !== passwordForm.confirm_password) {
-                  toast.error('A confirmacao da senha nao confere')
-                  return
-                }
-                updatePasswordMutation.mutate()
-              }}
-              disabled={updatePasswordMutation.isPending}
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              {updatePasswordMutation.isPending ? 'Atualizando...' : 'Atualizar senha'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="account" className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserRound className="h-5 w-5" />
+                  Perfil da conta
+                </CardTitle>
+                <CardDescription>
+                  Dados do usuario autenticado e indicadores do workspace ativo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="settings-name">Nome</Label>
+                    <Input
+                      id="settings-name"
+                      value={profileForm.name}
+                      onChange={(event) => setProfileForm({ name: event.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="settings-email">Email</Label>
+                    <Input id="settings-email" value={settingsForm.profile.email} disabled />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Workspace</div>
+                    <div className="mt-2 font-semibold">{settingsForm.workspace.organization_name}</div>
+                  </div>
+                  <div className="rounded-2xl border p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Role</div>
+                    <div className="mt-2 font-semibold">{roleLabels[settingsForm.workspace.role]}</div>
+                  </div>
+                  <div className="rounded-2xl border p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Conta</div>
+                    <div className="mt-2 font-semibold">{settingsForm.profile.is_active ? 'Ativa' : 'Inativa'}</div>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => updateProfileMutation.mutate()}
+                  disabled={updateProfileMutation.isPending || !profileForm.name.trim()}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {updateProfileMutation.isPending ? 'Salvando...' : 'Salvar perfil'}
+                </Button>
+              </CardContent>
+            </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sistema</CardTitle>
-            <CardDescription>Preferencias de idioma, pagina e atualizacao.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Tema</Label>
-                <Select
-                  value={settingsForm.system_preferences.theme}
-                  onValueChange={(value: 'light' | 'dark' | 'system') =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: { ...current.system_preferences, theme: value },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Claro</SelectItem>
-                    <SelectItem value="dark">Escuro</SelectItem>
-                    <SelectItem value="system">Sistema</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Idioma</Label>
-                <Select
-                  value={settingsForm.system_preferences.language}
-                  onValueChange={(value) =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: { ...current.system_preferences, language: value },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pt-BR">Portugues</SelectItem>
-                    <SelectItem value="en-US">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Timezone</Label>
-                <Select
-                  value={settingsForm.system_preferences.timezone}
-                  onValueChange={(value) =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: { ...current.system_preferences, timezone: value },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="America/Sao_Paulo">America/Sao_Paulo</SelectItem>
-                    <SelectItem value="America/New_York">America/New_York</SelectItem>
-                    <SelectItem value="UTC">UTC</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Senha e acesso
+                </CardTitle>
+                <CardDescription>
+                  Atualize a senha e use chaves/API webhooks no fluxo de automacao.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="current-password">Senha atual</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    value={passwordForm.current_password}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new-password">Nova senha</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={passwordForm.new_password}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={passwordForm.confirm_password}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))}
+                  />
+                </div>
+                <Button
+                  onClick={() => {
+                    if (passwordForm.new_password.length < 8) {
+                      toast.error('A nova senha precisa ter ao menos 8 caracteres')
+                      return
+                    }
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Formato de data</Label>
-                <Select
-                  value={settingsForm.system_preferences.date_format}
-                  onValueChange={(value) =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: { ...current.system_preferences, date_format: value },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                    <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                    <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Formato de hora</Label>
-                <Select
-                  value={settingsForm.system_preferences.time_format}
-                  onValueChange={(value: '12h' | '24h') =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: { ...current.system_preferences, time_format: value },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="24h">24 horas</SelectItem>
-                    <SelectItem value="12h">12 horas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                    if (passwordForm.new_password !== passwordForm.confirm_password) {
+                      toast.error('A confirmacao da senha nao confere')
+                      return
+                    }
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="items-per-page">Itens por pagina</Label>
-                <Input
-                  id="items-per-page"
-                  type="number"
-                  min={5}
-                  max={100}
-                  value={settingsForm.system_preferences.items_per_page}
-                  onChange={(event) =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: {
-                        ...current.system_preferences,
-                        items_per_page: Number(event.target.value || 20),
+                    updatePasswordMutation.mutate()
+                  }}
+                  disabled={updatePasswordMutation.isPending}
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  {updatePasswordMutation.isPending ? 'Atualizando...' : 'Atualizar senha'}
+                </Button>
+                <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+                  <div className="font-medium text-foreground">Developer access</div>
+                  <p className="mt-2">Use API Keys, Webhooks e a documentacao tecnica para integrar a conta compartilhada do workspace.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/app/api-keys">API Keys</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/app/webhooks">Webhooks</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/app/developers">Developer Docs</Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="workspace" className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Contexto do workspace
+                </CardTitle>
+                <CardDescription>
+                  Troque de workspace, renomeie o atual e controle quem pode operar a conta.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Workspace ativo</Label>
+                  <Select
+                    value={String(settingsForm.workspace.organization_id || '')}
+                    onValueChange={(value) => switchOrganizationMutation.mutate(Number(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {memberships.map((membership) => (
+                        <SelectItem key={membership.organizationId} value={String(membership.organizationId)}>
+                          {membership.organizationName} · {roleLabels[membership.role]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="workspace-name">Nome do workspace</Label>
+                  <Input
+                    id="workspace-name"
+                    value={workspaceName}
+                    onChange={(event) => setWorkspaceName(event.target.value)}
+                    disabled={!canManageWorkspace}
+                  />
+                </div>
+                <Button
+                  onClick={() => updateWorkspaceMutation.mutate()}
+                  disabled={!canManageWorkspace || updateWorkspaceMutation.isPending || workspaceName.trim().length < 2}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {updateWorkspaceMutation.isPending ? 'Salvando...' : 'Salvar workspace'}
+                </Button>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl border p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Members</div>
+                    <div className="mt-2 text-2xl font-semibold">{members.length}</div>
+                  </div>
+                  <div className="rounded-2xl border p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Invites pendentes</div>
+                    <div className="mt-2 text-2xl font-semibold">{pendingInvitations.length}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Time e convites
+                </CardTitle>
+                <CardDescription>
+                  Owners e admins podem convidar operadores e compartilhar dominos, templates e analytics da mesma conta.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr_0.6fr_auto]">
+                  <div>
+                    <Label htmlFor="invite-email">Email do membro</Label>
+                    <Input
+                      id="invite-email"
+                      value={inviteForm.email}
+                      onChange={(event) => setInviteForm((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="membro@empresa.com"
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <div>
+                    <Label>Role</Label>
+                    <Select
+                      value={inviteForm.role}
+                      onValueChange={(value: 'admin' | 'member') => setInviteForm((current) => ({ ...current, role: value }))}
+                      disabled={!canManageWorkspace}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-2 flex items-end">
+                    <Button
+                      onClick={() => inviteMutation.mutate()}
+                      disabled={!canManageWorkspace || inviteMutation.isPending || !inviteForm.email.trim()}
+                    >
+                      <UserRoundPlus className="mr-2 h-4 w-4" />
+                      Convidar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {members.map((member) => (
+                    <div key={member.membershipId} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4">
+                      <div>
+                        <div className="font-medium">{member.name}</div>
+                        <div className="text-sm text-muted-foreground">{member.email}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{roleLabels[member.role]}</Badge>
+                        {canManageWorkspace && member.role !== 'owner' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => removeMemberMutation.mutate(member.membershipId)}
+                            disabled={removeMemberMutation.isPending}
+                          >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Remover
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {pendingInvitations.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">Convites emitidos</div>
+                    {pendingInvitations.map((invitation) => (
+                      <div key={invitation.id} className="rounded-2xl border border-dashed p-4">
+                        <div className="font-medium">{invitation.email}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Role: {roleLabels[invitation.role]} · Status: {invitation.status}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {receivedInvitations.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">Convites para voce</div>
+                    {receivedInvitations.map((invitation) => (
+                      <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4">
+                        <div>
+                          <div className="font-medium">{invitation.organizationName}</div>
+                          <div className="text-sm text-muted-foreground">Role sugerida: {roleLabels[invitation.role]}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => respondInvitationMutation.mutate({ token: invitation.token, action: 'accept' })}
+                            disabled={respondInvitationMutation.isPending}
+                          >
+                            Aceitar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => respondInvitationMutation.mutate({ token: invitation.token, action: 'decline' })}
+                            disabled={respondInvitationMutation.isPending}
+                          >
+                            Recusar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sending" className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Defaults de envio e tracking
+                </CardTitle>
+                <CardDescription>
+                  Esses defaults afetam a conta compartilhada do workspace e o pipeline real de tracking.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="default-from-email">Default from email</Label>
+                    <Input
+                      id="default-from-email"
+                      value={settingsForm.account_preferences.sending_settings.default_from_email}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            sending_settings: {
+                              ...current.account_preferences.sending_settings,
+                              default_from_email: event.target.value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="default-from-name">Default from name</Label>
+                    <Input
+                      id="default-from-name"
+                      value={settingsForm.account_preferences.sending_settings.default_from_name}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            sending_settings: {
+                              ...current.account_preferences.sending_settings,
+                              default_from_name: event.target.value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {sendingToggleItems.map(({ key, label, Icon }) => {
+                    const typedKey = key
+                    return (
+                      <div key={key} className="flex items-center justify-between rounded-2xl border p-4">
+                        <div className="flex items-center gap-3">
+                          <Icon className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <div className="font-medium">{label}</div>
+                            <div className="text-sm text-muted-foreground">Controla o comportamento operacional da conta.</div>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={Boolean(settingsForm.account_preferences.sending_settings[typedKey])}
+                          onCheckedChange={(value) =>
+                            setSettingsForm((current) => current ? ({
+                              ...current,
+                              account_preferences: {
+                                ...current.account_preferences,
+                                sending_settings: {
+                                  ...current.account_preferences.sending_settings,
+                                  [typedKey]: value,
+                                },
+                              },
+                            }) : current)
+                          }
+                          disabled={!canManageWorkspace}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Periodo padrao do analytics</Label>
+                    <Select
+                      value={settingsForm.account_preferences.analytics_settings.default_time_range}
+                      onValueChange={(value: '24h' | '7d' | '30d' | '90d') =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            analytics_settings: {
+                              ...current.account_preferences.analytics_settings,
+                              default_time_range: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="24h">24h</SelectItem>
+                        <SelectItem value="7d">7 dias</SelectItem>
+                        <SelectItem value="30d">30 dias</SelectItem>
+                        <SelectItem value="90d">90 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3 rounded-2xl border p-4">
+                    {[
+                      ['track_opens', 'Medir aberturas'],
+                      ['track_clicks', 'Medir cliques'],
+                      ['pixel_tracking', 'Injetar pixel'],
+                      ['utm_tracking', 'Preparar UTM'],
+                    ].map(([key, label]) => {
+                      const typedKey = key as keyof SettingsResponse['account_preferences']['analytics_settings']
+                      return (
+                        <div key={key} className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{label}</span>
+                          <Switch
+                            checked={Boolean(settingsForm.account_preferences.analytics_settings[typedKey])}
+                            onCheckedChange={(value) =>
+                              setSettingsForm((current) => current ? ({
+                                ...current,
+                                account_preferences: {
+                                  ...current.account_preferences,
+                                  analytics_settings: {
+                                    ...current.account_preferences.analytics_settings,
+                                    [typedKey]: value,
+                                  },
+                                },
+                              }) : current)
+                            }
+                            disabled={!canManageWorkspace}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => saveSettingsMutation.mutate({
+                    sending_settings: settingsForm.account_preferences.sending_settings,
+                    analytics_settings: settingsForm.account_preferences.analytics_settings,
+                  })}
+                  disabled={!canManageWorkspace || saveSettingsMutation.isPending}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {saveSettingsMutation.isPending ? 'Salvando...' : 'Salvar defaults de envio'}
+                </Button>
+              </CardContent>
+            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    SMTP customizado
+                  </CardTitle>
+                  <CardDescription>
+                    Quando ativo, a conta tenta entregar primeiro pelo relay configurado neste workspace.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                    <div>
+                      <div className="font-medium">Usar relay SMTP da conta</div>
+                      <div className="text-sm text-muted-foreground">
+                        Mantem fallback da plataforma se o relay customizado falhar.
+                      </div>
+                    </div>
+                    <Switch
+                      checked={settingsForm.account_preferences.smtp_settings.use_custom}
+                      onCheckedChange={(value) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            smtp_settings: {
+                              ...current.account_preferences.smtp_settings,
+                              use_custom: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="smtp-host">Host SMTP</Label>
+                      <Input
+                        id="smtp-host"
+                        value={settingsForm.account_preferences.smtp_settings.host}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              smtp_settings: {
+                                ...current.account_preferences.smtp_settings,
+                                host: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="smtp-port">Porta</Label>
+                      <Input
+                        id="smtp-port"
+                        type="number"
+                        min={1}
+                        max={65535}
+                        value={settingsForm.account_preferences.smtp_settings.port ?? ''}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              smtp_settings: {
+                                ...current.account_preferences.smtp_settings,
+                                port: event.target.value ? Number(event.target.value) : null,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="smtp-username">Usuario SMTP</Label>
+                      <Input
+                        id="smtp-username"
+                        value={settingsForm.account_preferences.smtp_settings.username}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              smtp_settings: {
+                                ...current.account_preferences.smtp_settings,
+                                username: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="smtp-password">
+                        Senha SMTP {settingsForm.account_preferences.smtp_settings.password_configured ? '(ja configurada)' : ''}
+                      </Label>
+                      <Input
+                        id="smtp-password"
+                        type="password"
+                        value={smtpPassword}
+                        placeholder={settingsForm.account_preferences.smtp_settings.password_configured ? 'Digite para substituir' : 'Digite a senha'}
+                        onChange={(event) => setSmtpPassword(event.target.value)}
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                    <div>
+                      <div className="font-medium">Usar TLS</div>
+                      <div className="text-sm text-muted-foreground">
+                        Ative quando o relay exigir conexao segura na porta configurada.
+                      </div>
+                    </div>
+                    <Switch
+                      checked={settingsForm.account_preferences.smtp_settings.use_tls}
+                      onCheckedChange={(value) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            smtp_settings: {
+                              ...current.account_preferences.smtp_settings,
+                              use_tls: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+
+                  <Button
+                    onClick={() => saveSettingsMutation.mutate({
+                      smtp_settings: {
+                        ...settingsForm.account_preferences.smtp_settings,
+                        password: smtpPassword || undefined,
                       },
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="refresh-interval">Intervalo de refresh (ms)</Label>
-                <Input
-                  id="refresh-interval"
-                  type="number"
-                  min={5000}
-                  max={300000}
-                  step={5000}
-                  value={settingsForm.system_preferences.auto_refresh_interval}
-                  onChange={(event) =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      system_preferences: {
-                        ...current.system_preferences,
-                        auto_refresh_interval: Number(event.target.value || 30000),
-                      },
-                    }))
-                  }
-                />
-              </div>
+                    })}
+                    disabled={!canManageWorkspace || saveSettingsMutation.isPending}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar SMTP
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Palette className="h-5 w-5" />
+                    Branding operacional
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="branding-company-name">Nome da empresa</Label>
+                      <Input
+                        id="branding-company-name"
+                        value={settingsForm.account_preferences.branding_settings.company_name}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              branding_settings: {
+                                ...current.account_preferences.branding_settings,
+                                company_name: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branding-logo-url">Logo URL</Label>
+                      <Input
+                        id="branding-logo-url"
+                        value={settingsForm.account_preferences.branding_settings.company_logo_url}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              branding_settings: {
+                                ...current.account_preferences.branding_settings,
+                                company_logo_url: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branding-domain">Custom domain</Label>
+                      <Input
+                        id="branding-domain"
+                        value={settingsForm.account_preferences.branding_settings.custom_domain}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              branding_settings: {
+                                ...current.account_preferences.branding_settings,
+                                custom_domain: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="branding-primary-color">Cor primaria</Label>
+                      <Input
+                        id="branding-primary-color"
+                        value={settingsForm.account_preferences.branding_settings.primary_color}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              branding_settings: {
+                                ...current.account_preferences.branding_settings,
+                                primary_color: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branding-secondary-color">Cor secundaria</Label>
+                      <Input
+                        id="branding-secondary-color"
+                        value={settingsForm.account_preferences.branding_settings.secondary_color}
+                        onChange={(event) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            account_preferences: {
+                              ...current.account_preferences,
+                              branding_settings: {
+                                ...current.account_preferences.branding_settings,
+                                secondary_color: event.target.value,
+                              },
+                            },
+                          }) : current)
+                        }
+                        disabled={!canManageWorkspace}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="branding-footer-text">Texto de rodape</Label>
+                    <Textarea
+                      id="branding-footer-text"
+                      value={settingsForm.account_preferences.branding_settings.footer_text}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            branding_settings: {
+                              ...current.account_preferences.branding_settings,
+                              footer_text: event.target.value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => saveSettingsMutation.mutate({
+                      branding_settings: settingsForm.account_preferences.branding_settings,
+                    })}
+                    disabled={!canManageWorkspace || saveSettingsMutation.isPending}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar branding
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Webhook className="h-5 w-5" />
+                    Default webhook da conta
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                    <div>
+                      <div className="font-medium">Ativar webhook padrao</div>
+                      <div className="text-sm text-muted-foreground">Configuracao central da conta compartilhada.</div>
+                    </div>
+                    <Switch
+                      checked={settingsForm.account_preferences.webhook_settings.enabled}
+                      onCheckedChange={(value) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            webhook_settings: {
+                              ...current.account_preferences.webhook_settings,
+                              enabled: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="default-webhook-url">Webhook URL</Label>
+                    <Input
+                      id="default-webhook-url"
+                      value={settingsForm.account_preferences.webhook_settings.webhook_url}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          account_preferences: {
+                            ...current.account_preferences,
+                            webhook_settings: {
+                              ...current.account_preferences.webhook_settings,
+                              webhook_url: event.target.value,
+                            },
+                          },
+                        }) : current)
+                      }
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="default-webhook-secret">
+                      Webhook secret {settingsForm.account_preferences.webhook_settings.webhook_secret_configured ? '(ja configurado)' : ''}
+                    </Label>
+                    <Input
+                      id="default-webhook-secret"
+                      type="password"
+                      value={webhookSecret}
+                      placeholder={settingsForm.account_preferences.webhook_settings.webhook_secret_configured ? 'Digite para substituir' : 'Digite o secret'}
+                      onChange={(event) => setWebhookSecret(event.target.value)}
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="default-webhook-headers">Headers customizados (JSON)</Label>
+                    <Textarea
+                      id="default-webhook-headers"
+                      rows={6}
+                      className="font-mono text-sm"
+                      value={webhookHeadersDraft}
+                      onChange={(event) => setWebhookHeadersDraft(event.target.value)}
+                      disabled={!canManageWorkspace}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => {
+                      try {
+                        const customHeaders = webhookHeadersDraft.trim()
+                          ? JSON.parse(webhookHeadersDraft)
+                          : {}
+
+                        saveSettingsMutation.mutate({
+                          webhook_settings: {
+                            ...settingsForm.account_preferences.webhook_settings,
+                            webhook_secret: webhookSecret || undefined,
+                            custom_headers: customHeaders,
+                          },
+                        })
+                      } catch {
+                        toast.error('Headers do webhook precisam estar em JSON valido')
+                      }
+                    }}
+                    disabled={!canManageWorkspace || saveSettingsMutation.isPending}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar webhook padrao
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
+          </div>
+        </TabsContent>
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <div className="font-medium">Atualizacao automatica</div>
-                <div className="text-sm text-muted-foreground">Usada nas listas e dashboards.</div>
-              </div>
-              <Switch
-                checked={settingsForm.system_preferences.auto_refresh}
-                onCheckedChange={(value) =>
-                  setSettingsForm((current) => ({
-                    ...current,
-                    system_preferences: { ...current.system_preferences, auto_refresh: value },
-                  }))
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Notificacoes e analytics</CardTitle>
-            <CardDescription>Controle o que a plataforma acompanha e envia para voce.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              ['email_delivery_reports', 'Relatorios de entrega'],
-              ['bounce_notifications', 'Alertas de bounce'],
-              ['daily_summary', 'Resumo diario'],
-              ['weekly_reports', 'Resumo semanal'],
-              ['security_alerts', 'Alertas de seguranca'],
-              ['webhook_failures', 'Falhas de webhook'],
-            ].map(([key, label]) => (
-              <div key={key} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="font-medium">{label}</div>
-                <Switch
-                  checked={Boolean(settingsForm.notification_preferences[key])}
-                  onCheckedChange={(value) => handleNotificationToggle(key, value)}
-                />
-              </div>
-            ))}
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Periodo padrao</Label>
-                <Select
-                  value={settingsForm.analytics_settings.default_time_range}
-                  onValueChange={(value: '24h' | '7d' | '30d' | '90d') =>
-                    setSettingsForm((current) => ({
-                      ...current,
-                      analytics_settings: { ...current.analytics_settings, default_time_range: value },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="24h">24h</SelectItem>
-                    <SelectItem value="7d">7 dias</SelectItem>
-                    <SelectItem value="30d">30 dias</SelectItem>
-                    <SelectItem value="90d">90 dias</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Track opens</span>
+        <TabsContent value="experience" className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe2 className="h-5 w-5" />
+                  Preferencias pessoais
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Tema</Label>
+                    <Select
+                      value={settingsForm.personal_preferences.system_preferences.theme}
+                      onValueChange={(value: 'light' | 'dark' | 'system') =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            system_preferences: {
+                              ...current.personal_preferences.system_preferences,
+                              theme: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">Claro</SelectItem>
+                        <SelectItem value="dark">Escuro</SelectItem>
+                        <SelectItem value="system">Sistema</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Idioma</Label>
+                    <Select
+                      value={settingsForm.personal_preferences.system_preferences.language}
+                      onValueChange={(value) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            system_preferences: {
+                              ...current.personal_preferences.system_preferences,
+                              language: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pt-BR">Portugues</SelectItem>
+                        <SelectItem value="en-US">English</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Timezone</Label>
+                    <Select
+                      value={settingsForm.personal_preferences.system_preferences.timezone}
+                      onValueChange={(value) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            system_preferences: {
+                              ...current.personal_preferences.system_preferences,
+                              timezone: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="America/Sao_Paulo">America/Sao_Paulo</SelectItem>
+                        <SelectItem value="America/New_York">America/New_York</SelectItem>
+                        <SelectItem value="UTC">UTC</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Formato de hora</Label>
+                    <Select
+                      value={settingsForm.personal_preferences.system_preferences.time_format}
+                      onValueChange={(value: '12h' | '24h') =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            system_preferences: {
+                              ...current.personal_preferences.system_preferences,
+                              time_format: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="24h">24 horas</SelectItem>
+                        <SelectItem value="12h">12 horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="items-per-page">Itens por pagina</Label>
+                    <Input
+                      id="items-per-page"
+                      type="number"
+                      min={5}
+                      max={100}
+                      value={settingsForm.personal_preferences.system_preferences.items_per_page}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            system_preferences: {
+                              ...current.personal_preferences.system_preferences,
+                              items_per_page: Number(event.target.value || 20),
+                            },
+                          },
+                        }) : current)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="refresh-interval">Refresh (ms)</Label>
+                    <Input
+                      id="refresh-interval"
+                      type="number"
+                      min={5000}
+                      max={300000}
+                      step={5000}
+                      value={settingsForm.personal_preferences.system_preferences.auto_refresh_interval}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            system_preferences: {
+                              ...current.personal_preferences.system_preferences,
+                              auto_refresh_interval: Number(event.target.value || 30000),
+                            },
+                          },
+                        }) : current)
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border p-4">
+                  <div>
+                    <div className="font-medium">Atualizacao automatica</div>
+                    <div className="text-sm text-muted-foreground">Controla polling das listas e dashboards pessoais.</div>
+                  </div>
                   <Switch
-                    checked={settingsForm.analytics_settings.track_opens}
+                    checked={settingsForm.personal_preferences.system_preferences.auto_refresh}
                     onCheckedChange={(value) =>
-                      setSettingsForm((current) => ({
+                      setSettingsForm((current) => current ? ({
                         ...current,
-                        analytics_settings: { ...current.analytics_settings, track_opens: value },
-                      }))
+                        personal_preferences: {
+                          ...current.personal_preferences,
+                          system_preferences: {
+                            ...current.personal_preferences.system_preferences,
+                            auto_refresh: value,
+                          },
+                        },
+                      }) : current)
                     }
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Track clicks</span>
-                  <Switch
-                    checked={settingsForm.analytics_settings.track_clicks}
-                    onCheckedChange={(value) =>
-                      setSettingsForm((current) => ({
-                        ...current,
-                        analytics_settings: { ...current.analytics_settings, track_clicks: value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
+                <Button
+                  onClick={() => saveSettingsMutation.mutate({
+                    system_preferences: settingsForm.personal_preferences.system_preferences,
+                  })}
+                  disabled={saveSettingsMutation.isPending}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Salvar preferencias pessoais
+                </Button>
+              </CardContent>
+            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    Notificacoes pessoais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {Object.entries(notificationLabels).map(([key, label]) => (
+                    <div key={key} className="flex items-center justify-between rounded-2xl border p-4">
+                      <div>
+                        <div className="font-medium">{label}</div>
+                        <div className="text-sm text-muted-foreground">Preferencia individual, sem impacto em outros membros.</div>
+                      </div>
+                      <Switch
+                        checked={Boolean(settingsForm.personal_preferences.notification_preferences[key])}
+                        onCheckedChange={(value) =>
+                          setSettingsForm((current) => current ? ({
+                            ...current,
+                            personal_preferences: {
+                              ...current.personal_preferences,
+                              notification_preferences: {
+                                ...current.personal_preferences.notification_preferences,
+                                [key]: value,
+                              },
+                            },
+                          }) : current)
+                        }
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    onClick={() => saveSettingsMutation.mutate({
+                      notification_preferences: settingsForm.personal_preferences.notification_preferences,
+                    })}
+                    disabled={saveSettingsMutation.isPending}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar notificacoes
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock3 className="h-5 w-5" />
+                    Politicas pessoais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="session-timeout">Session timeout (segundos)</Label>
+                    <Input
+                      id="session-timeout"
+                      type="number"
+                      min={300}
+                      max={86400}
+                      value={settingsForm.personal_preferences.security_settings.session_timeout}
+                      onChange={(event) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            security_settings: {
+                              ...current.personal_preferences.security_settings,
+                              session_timeout: Number(event.target.value || 3600),
+                            },
+                          },
+                        }) : current)
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                    <div>
+                      <div className="font-medium">Confirmacao adicional em acoes sensiveis</div>
+                      <div className="text-sm text-muted-foreground">Aplica uma politica pessoal para operacoes destrutivas.</div>
+                    </div>
+                    <Switch
+                      checked={settingsForm.personal_preferences.security_settings.require_password_confirmation}
+                      onCheckedChange={(value) =>
+                        setSettingsForm((current) => current ? ({
+                          ...current,
+                          personal_preferences: {
+                            ...current.personal_preferences,
+                            security_settings: {
+                              ...current.personal_preferences.security_settings,
+                              require_password_confirmation: value,
+                            },
+                          },
+                        }) : current)
+                      }
+                    />
+                  </div>
+                  <Button
+                    onClick={() => saveSettingsMutation.mutate({
+                      security_settings: settingsForm.personal_preferences.security_settings,
+                    })}
+                    disabled={saveSettingsMutation.isPending}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar politicas pessoais
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Branding</CardTitle>
-          <CardDescription>Preferencias basicas de identidade usadas nos emails e na conta.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="branding-company-name">Nome da empresa</Label>
-            <Input
-              id="branding-company-name"
-              value={settingsForm.branding_settings.company_name}
-              onChange={(event) =>
-                setSettingsForm((current) => ({
-                  ...current,
-                  branding_settings: { ...current.branding_settings, company_name: event.target.value },
-                }))
-              }
-              placeholder="Sua empresa"
-            />
           </div>
-          <div className="md:col-span-2">
-            <Label htmlFor="branding-footer-text">Texto de rodape</Label>
-            <Textarea
-              id="branding-footer-text"
-              value={settingsForm.branding_settings.footer_text}
-              onChange={(event) =>
-                setSettingsForm((current) => ({
-                  ...current,
-                  branding_settings: { ...current.branding_settings, footer_text: event.target.value },
-                }))
-              }
-              placeholder="Mensagem padrao para rodape dos emails"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Button onClick={() => updateSettingsMutation.mutate()} disabled={updateSettingsMutation.isPending}>
-        <Save className="mr-2 h-4 w-4" />
-        {updateSettingsMutation.isPending ? 'Salvando...' : 'Salvar preferencias'}
-      </Button>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

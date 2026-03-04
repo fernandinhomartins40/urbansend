@@ -1,16 +1,18 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { authenticateJWT } from '../middleware/auth';
+import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
+import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();
 router.use(authenticateJWT);
 
-router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission('domain:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { verified_only, sort = 'created_at', order = 'desc' } = req.query;
+  const accountUserId = getAccountUserId(req);
   
-  let query = db('domains').where('user_id', req.user!.id);
+  let query = db('domains').where('user_id', accountUserId);
   
   // Filtrar apenas domínios verificados se solicitado
   if (verified_only === 'true') {
@@ -48,10 +50,11 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   });
 }));
 
-router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requirePermission('domain:write'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const insertResult = await db('domains').insert({
     ...req.body,
-    user_id: req.user!.id,
+    user_id: accountUserId,
     created_at: new Date()
   });
   
@@ -60,12 +63,13 @@ router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =
   res.status(201).json({ domain });
 }));
 
-router.get('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', requirePermission('domain:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const accountUserId = getAccountUserId(req);
   
   const domain = await db('domains')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .first();
     
   if (!domain) {
@@ -75,13 +79,14 @@ router.get('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response)
   res.json({ domain });
 }));
 
-router.post('/:id/verify', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/verify', requirePermission('domain:write'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const accountUserId = getAccountUserId(req);
   
   // Verificar se domínio pertence ao usuário
   const domain = await db('domains')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .first();
     
   if (!domain) {
@@ -92,7 +97,7 @@ router.post('/:id/verify', asyncHandler(async (req: AuthenticatedRequest, res: R
   const setupService = new DomainSetupService();
   
   try {
-    const verificationResult = await setupService.verifyDomainSetup(req.user!.id, parseInt(id));
+    const verificationResult = await setupService.verifyDomainSetup(accountUserId, parseInt(id));
     
     if (verificationResult.success) {
       res.json({ 
@@ -136,12 +141,13 @@ router.post('/:id/verify', asyncHandler(async (req: AuthenticatedRequest, res: R
   }
 }));
 
-router.delete('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', requirePermission('domain:write'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const accountUserId = getAccountUserId(req);
   
   const deleted = await db('domains')
     .where('id', id)
-    .where('user_id', req.user!.id)
+    .where('user_id', accountUserId)
     .del();
     
   if (deleted === 0) {

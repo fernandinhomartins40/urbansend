@@ -5,6 +5,7 @@ import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { generateApiKey, hashApiKey } from '../utils/crypto';
 import { resolveInsertedId } from '../utils/insertedId';
+import { getAccountUserId, getActorUserId } from '../utils/accountContext';
 
 const formatApiKey = (key: any) => ({
   id: key.id,
@@ -17,7 +18,7 @@ const formatApiKey = (key: any) => ({
 });
 
 export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
 
   const apiKeys = await db('api_keys')
     .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active', 'key_preview')
@@ -35,7 +36,8 @@ export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Re
 export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const name = req.body.key_name || req.body.name;
   const { permissions } = req.body;
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
+  const actorUserId = getActorUserId(req);
 
   // Check if key name already exists for this user
   const existingKey = await db('api_keys')
@@ -80,6 +82,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 
   logger.info('API key created successfully', { 
     userId, 
+    actorUserId,
     keyId, 
     keyName: name,
     permissions: permissions.length 
@@ -108,7 +111,7 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     throw createError('API key ID is required', 400);
   }
   
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')
     .where('id', id)
@@ -158,7 +161,7 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 
 export const deleteApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')
     .where('id', id)
@@ -183,7 +186,7 @@ export const deleteApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 
 export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
 
   const existingKey = await db('api_keys')
     .where('id', id)
@@ -219,7 +222,7 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
 
 export const toggleApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')
     .where('id', id)
@@ -249,7 +252,7 @@ export const toggleApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 
 export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const userId = req.user!.id;
+  const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')
     .where('id', id)

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validateRequest, idParamSchema, createApiKeySchema } from '../middleware/validation';
-import { authenticateJWT } from '../middleware/auth';
+import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { apiKeyRateLimit } from '../middleware/rateLimiting';
 import {
   getApiKeys,
@@ -43,7 +43,7 @@ router.use(authenticateJWT);
  *       401:
  *         description: Unauthorized
  */
-router.get('/', getApiKeys);
+router.get('/', requirePermission('api_key:read'), getApiKeys);
 
 /**
  * @swagger
@@ -88,7 +88,7 @@ router.get('/', getApiKeys);
  *       409:
  *         description: API key name already exists
  */
-router.post('/', validateRequest({ body: createApiKeySchema }), createApiKey);
+router.post('/', requirePermission('api_key:write'), validateRequest({ body: createApiKeySchema }), createApiKey);
 
 /**
  * @swagger
@@ -142,7 +142,7 @@ router.put('/:id', validateRequest({
       'webhook:write'
     ])).min(1).optional()
   })
-}), updateApiKey);
+}), requirePermission('api_key:write'), updateApiKey);
 
 /**
  * @swagger
@@ -164,7 +164,7 @@ router.put('/:id', validateRequest({
  *       404:
  *         description: API key not found
  */
-router.delete('/:id', validateRequest({ params: idParamSchema }), deleteApiKey);
+router.delete('/:id', requirePermission('api_key:write'), validateRequest({ params: idParamSchema }), deleteApiKey);
 
 /**
  * @swagger
@@ -186,7 +186,7 @@ router.delete('/:id', validateRequest({ params: idParamSchema }), deleteApiKey);
  *       404:
  *         description: API key not found
  */
-router.post('/:id/regenerate', validateRequest({ params: idParamSchema }), regenerateApiKey);
+router.post('/:id/regenerate', requirePermission('api_key:write'), validateRequest({ params: idParamSchema }), regenerateApiKey);
 
 /**
  * @swagger
@@ -208,7 +208,7 @@ router.post('/:id/regenerate', validateRequest({ params: idParamSchema }), regen
  *       404:
  *         description: API key not found
  */
-router.post('/:id/toggle', validateRequest({ params: idParamSchema }), toggleApiKey);
+router.post('/:id/toggle', requirePermission('api_key:write'), validateRequest({ params: idParamSchema }), toggleApiKey);
 
 /**
  * @swagger
@@ -254,6 +254,6 @@ router.post('/:id/toggle', validateRequest({ params: idParamSchema }), toggleApi
  *       404:
  *         description: API key not found
  */
-router.get('/:id/usage', validateRequest({ params: idParamSchema }), getApiKeyUsage);
+router.get('/:id/usage', requirePermission('api_key:read'), validateRequest({ params: idParamSchema }), getApiKeyUsage);
 
 export default router;

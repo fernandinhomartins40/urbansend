@@ -24,7 +24,7 @@ import {
 
 // Interfaces específicas para multi-tenancy
 export interface EmailRequest {
-  from: string;
+  from?: string;
   to: string | string[];
   subject: string;
   html?: string;
@@ -33,6 +33,8 @@ export interface EmailRequest {
   template_data?: Record<string, any>;
   variables?: Record<string, any>;
   tracking_enabled?: boolean;
+  open_tracking_enabled?: boolean;
+  click_tracking_enabled?: boolean;
 }
 
 export interface AuthUser {
@@ -83,6 +85,26 @@ export class MultiTenantEmailService {
   private readonly smtpDelivery: SMTPDeliveryService;
   private readonly emailValidator: SimpleEmailValidator;
   private emailTableSupportsApiKeyId: boolean | null = null;
+
+  private parseJsonField<T>(value: unknown, fallback: T): T {
+    if (!value) {
+      return fallback;
+    }
+
+    if (typeof value === 'object') {
+      return value as T;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        return fallback;
+      }
+    }
+
+    return fallback;
+  }
 
   constructor() {
     this.smtpDelivery = new SMTPDeliveryService();
@@ -210,10 +232,30 @@ export class MultiTenantEmailService {
   }
 
   private async prepareEmailRequest(emailData: EmailRequest, userId: number): Promise<EmailRequest> {
-    const variables = emailData.variables || emailData.template_data || {};
+    const [accountSettings, tenantSettings] = await Promise.all([
+      db('user_settings')
+        .select('branding_settings', 'analytics_settings')
+        .where('user_id', userId)
+        .first(),
+      db('tenant_settings')
+        .select('default_from_email', 'open_tracking', 'click_tracking')
+        .where('user_id', userId)
+        .first()
+    ]);
+
+    const brandingSettings = this.parseJsonField<Record<string, any>>(accountSettings?.branding_settings, {});
+    const analyticsSettings = this.parseJsonField<Record<string, any>>(accountSettings?.analytics_settings, {});
+
+    const variables = {
+      ...(emailData.variables || emailData.template_data || {}),
+      ...(brandingSettings.company_name && !(emailData.variables || emailData.template_data || {}).company_name
+        ? { company_name: brandingSettings.company_name }
+        : {})
+    };
     let subject = emailData.subject;
     let html = normalizeOptionalEmailContent(emailData.html);
     let text = normalizeOptionalEmailContent(emailData.text);
+    const footerText = normalizeOptionalEmailContent(brandingSettings.footer_text);
 
     if (emailData.template_id) {
       const template = await db('email_templates')
@@ -247,14 +289,35 @@ export class MultiTenantEmailService {
       text = buildTextFromHtml(html);
     }
 
+    if (footerText) {
+      if (html && !html.includes(footerText)) {
+        html = `${html}<hr><p style="font-size:12px;color:#6b7280;">${footerText}</p>`;
+      }
+
+      if (text && !text.includes(footerText)) {
+        text = `${text}\n\n${footerText}`;
+      }
+    }
+
+    const trackingRequested = emailData.tracking_enabled !== false;
+    const openTrackingEnabled = trackingRequested
+      && analyticsSettings.track_opens !== false
+      && tenantSettings?.open_tracking !== false;
+    const clickTrackingEnabled = trackingRequested
+      && analyticsSettings.track_clicks !== false
+      && tenantSettings?.click_tracking !== false;
+
     return {
       ...emailData,
+      from: emailData.from || tenantSettings?.default_from_email || emailData.from,
       subject,
       html,
       text,
       template_data: variables,
       variables,
-      tracking_enabled: emailData.tracking_enabled !== false
+      tracking_enabled: openTrackingEnabled || clickTrackingEnabled,
+      open_tracking_enabled: openTrackingEnabled,
+      click_tracking_enabled: clickTrackingEnabled
     };
   }
 
@@ -275,8 +338,11 @@ export class MultiTenantEmailService {
   ): Promise<void> {
     // Preparar HTML com tracking pixel (de forma segura) - fora do try/catch
     let finalHtml = emailData.html;
-    if (finalHtml && emailData.tracking_enabled !== false) {
-      finalHtml = this.addTrackingPixelSafely(finalHtml, trackingId);
+    if (finalHtml && (emailData.open_tracking_enabled || emailData.click_tracking_enabled)) {
+      finalHtml = this.addTrackingPixelSafely(finalHtml, trackingId, {
+        open: emailData.open_tracking_enabled !== false,
+        click: emailData.click_tracking_enabled !== false
+      });
     }
 
     try {
@@ -302,6 +368,7 @@ export class MultiTenantEmailService {
         subject: emailData.subject,
         html: finalHtml,
         text: emailData.text,
+        accountUserId: user.id,
         headers: {
           'X-Message-ID': messageId,
           'X-Tracking-ID': trackingId,
@@ -469,7 +536,11 @@ export class MultiTenantEmailService {
   /**
    * Adicionar pixel de tracking ao HTML de forma segura (não crítica)
    */
-  private addTrackingPixelSafely(html: string, trackingId: string): string {
+  private addTrackingPixelSafely(
+    html: string,
+    trackingId: string,
+    options: { open: boolean; click: boolean }
+  ): string {
     try {
       if (!html || typeof html !== 'string') {
         return html;
@@ -479,7 +550,13 @@ export class MultiTenantEmailService {
       const trackingDomain = 'www.ultrazend.com.br';
 
       // 1. Processar links para tracking de cliques
-      let processedHtml = processLinksForTracking(html, trackingId, trackingDomain);
+      let processedHtml = options.click
+        ? processLinksForTracking(html, trackingId, trackingDomain)
+        : html;
+
+      if (!options.open) {
+        return processedHtml;
+      }
 
       // 2. Adicionar pixel de tracking para abertura
       const trackingPixel = generateTrackingPixel(trackingId, trackingDomain);

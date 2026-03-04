@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { AnalyticsController } from '../controllers/analyticsController';
@@ -11,6 +11,7 @@ import {
   buildFilteredAnalyticsQuery,
   buildFilteredEmailQuery
 } from './analyticsQueryBuilders';
+import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();
 
@@ -57,7 +58,7 @@ const resolveDomainFilter = async (req: AuthenticatedRequest): Promise<string | 
   const domain = await db('domains')
     .select('domain_name')
     .where('id', rawDomainId)
-    .where('user_id', req.user!.id)
+    .where('user_id', getAccountUserId(req))
     .first();
 
   return domain?.domain_name || null;
@@ -156,13 +157,14 @@ const calculateChange = (current: number, previous: number) => {
   return ((current - previous) / previous) * 100;
 };
 
-router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/overview', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate, previousStart, previousEnd } = getDateRange(String(req.query.period || '30d'));
 
   const [currentStats, previousStats] = await Promise.all([
-    getOverviewStats(req.user!.id, startDate, endDate, senderDomain),
-    getOverviewStats(req.user!.id, previousStart, previousEnd, senderDomain)
+    getOverviewStats(accountUserId, startDate, endDate, senderDomain),
+    getOverviewStats(accountUserId, previousStart, previousEnd, senderDomain)
   ]);
 
   res.json({
@@ -185,10 +187,11 @@ router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Resp
   });
 }));
 
-router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/recent-activity', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
-  const activities = await buildFilteredAnalyticsQuery(db, req.user!.id, startDate, endDate, senderDomain)
+  const activities = await buildFilteredAnalyticsQuery(db, accountUserId, startDate, endDate, senderDomain)
     .select(
       'email_analytics.id as id',
       'emails.id as email_id',
@@ -235,13 +238,14 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
   res.json({ activities: normalizedActivities });
 }));
 
-router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate, previousStart, previousEnd } = getDateRange(String(req.query.timeRange || '30d'));
 
   const [currentStats, previousStats] = await Promise.all([
-    getOverviewStats(req.user!.id, startDate, endDate, senderDomain),
-    getOverviewStats(req.user!.id, previousStart, previousEnd, senderDomain)
+    getOverviewStats(accountUserId, startDate, endDate, senderDomain),
+    getOverviewStats(accountUserId, previousStart, previousEnd, senderDomain)
   ]);
 
   const rounded = roundMetrics(currentStats);
@@ -265,7 +269,8 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   });
 }));
 
-router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/chart', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
@@ -313,7 +318,7 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
         ) as bounced
       `)
     )
-    .where('emails.user_id', req.user!.id)
+    .where('emails.user_id', accountUserId)
     .where('emails.created_at', '>=', startDate)
     .where('emails.created_at', '<=', endDate),
     'emails.from_email',
@@ -334,7 +339,8 @@ router.get('/chart', asyncHandler(async (req: AuthenticatedRequest, res: Respons
   });
 }));
 
-router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/top-emails', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
@@ -383,7 +389,7 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
         ) as bounced_count
       `)
     )
-    .where('emails.user_id', req.user!.id)
+    .where('emails.user_id', accountUserId)
     .where('emails.created_at', '>=', startDate)
     .where('emails.created_at', '<=', endDate),
     'emails.from_email',
@@ -415,7 +421,7 @@ router.get('/top-emails', asyncHandler(async (req: AuthenticatedRequest, res: Re
   });
 }));
 
-router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/emails', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const {
     page = '1',
     limit = '20',
@@ -427,10 +433,11 @@ router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Respon
     order = 'desc'
   } = req.query;
 
+  const accountUserId = getAccountUserId(req);
   const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
   let query = db('emails')
-    .where('user_id', req.user!.id);
+    .where('user_id', accountUserId);
 
   if (status && status !== 'all') {
     query = query.where('status', status as string);
@@ -498,7 +505,8 @@ router.get('/emails', asyncHandler(async (req: AuthenticatedRequest, res: Respon
   });
 }));
 
-router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/domains', requirePermission('analytics:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const accountUserId = getAccountUserId(req);
   const senderDomain = await resolveDomainFilter(req);
   const { startDate, endDate } = getDateRange(String(req.query.timeRange || '30d'));
 
@@ -546,7 +554,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
         ) as bounced_count
       `)
     )
-    .where('emails.user_id', req.user!.id)
+    .where('emails.user_id', accountUserId)
     .where('emails.created_at', '>=', startDate)
     .where('emails.created_at', '<=', endDate),
     'emails.from_email',
@@ -557,7 +565,7 @@ router.get('/domains', asyncHandler(async (req: AuthenticatedRequest, res: Respo
 
   const domainIds = await db('domains')
     .select('id', 'domain_name')
-    .where('user_id', req.user!.id);
+    .where('user_id', accountUserId);
 
   const domainIdMap = new Map(domainIds.map((domain: any) => [domain.domain_name, Number(domain.id)]));
 

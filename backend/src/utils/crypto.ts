@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { Env } from './env';
 
 export const generateApiKey = (): string => {
   const randomBytes = crypto.randomBytes(32);
@@ -45,6 +46,51 @@ export const legacyHashApiKey = (apiKey: string): string => {
 
 export const createWebhookSignature = (payload: string, secret: string): string => {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+};
+
+const buildEncryptionKey = (): Buffer =>
+  crypto.createHash('sha256').update(Env.appEncryptionKey).digest();
+
+export const encryptSensitiveValue = (value: string): string => {
+  if (!value) {
+    return '';
+  }
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', buildEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+};
+
+export const decryptSensitiveValue = (value: string): string => {
+  if (!value) {
+    return '';
+  }
+
+  const parts = value.split(':');
+  if (parts.length !== 3) {
+    return value;
+  }
+
+  try {
+    const [ivHex, authTagHex, encryptedHex] = parts;
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      buildEncryptionKey(),
+      Buffer.from(ivHex, 'hex')
+    );
+    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encryptedHex, 'hex')),
+      decipher.final()
+    ]);
+
+    return decrypted.toString('utf8');
+  } catch {
+    return value;
+  }
 };
 
 export const verifyWebhookSignature = (payload: string, signature: string, secret: string): boolean => {

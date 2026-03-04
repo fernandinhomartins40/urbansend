@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import SharedTemplateService from '../services/SharedTemplateService';
+import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ router.post('/:id/clone',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const templateId = parseInt(req.params.id, 10);
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
     const customizations = req.body;
 
     if (isNaN(templateId)) {
@@ -86,7 +87,7 @@ router.post('/:id/favorite',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const templateId = parseInt(req.params.id, 10);
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     if (isNaN(templateId)) {
       return res.status(400).json({ error: 'ID do template inválido' });
@@ -104,7 +105,7 @@ router.post('/:id/favorite',
 router.get('/favorites',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
 
@@ -150,7 +151,7 @@ router.post('/:id/record-usage',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const templateId = parseInt(req.params.id, 10);
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     if (isNaN(templateId)) {
       return res.status(400).json({ error: 'ID do template inválido' });
@@ -169,7 +170,7 @@ router.post('/:id/rate',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const templateId = parseInt(req.params.id, 10);
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
     const { rating, review } = req.body;
 
     if (isNaN(templateId)) {
@@ -233,7 +234,7 @@ router.get('/collections',
 router.post('/collections',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
     const { name, description, is_public } = req.body;
 
     if (!name || name.trim().length === 0) {
@@ -282,7 +283,7 @@ router.post('/collections/:id/add-template',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const collectionId = parseInt(req.params.id, 10);
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
     const { template_id } = req.body;
 
     if (isNaN(collectionId) || !template_id) {
@@ -303,7 +304,7 @@ router.delete('/collections/:id/remove-template/:templateId',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const collectionId = parseInt(req.params.id, 10);
     const templateId = parseInt(req.params.templateId, 10);
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     if (isNaN(collectionId) || isNaN(templateId)) {
       return res.status(400).json({ error: 'IDs inválidos' });
@@ -336,7 +337,7 @@ router.get('/analytics',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const templateId = req.query.template_id ? parseInt(req.query.template_id as string, 10) : undefined;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     const analytics = await SharedTemplateService.getAdvancedAnalytics(templateId, userId);
     res.json(analytics);
@@ -351,7 +352,7 @@ router.post('/export',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { template_ids } = req.body;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     if (!Array.isArray(template_ids) || template_ids.length === 0) {
       return res.status(400).json({ error: 'IDs de templates são obrigatórios' });
@@ -373,7 +374,7 @@ router.post('/import',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { templates } = req.body;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     if (!Array.isArray(templates) || templates.length === 0) {
       return res.status(400).json({ error: 'Templates para importar são obrigatórios' });

@@ -39,6 +39,7 @@ import domainsRoutes from './routes/domains';
 import analyticsRoutes from './routes/analytics';
 import webhooksRoutes from './routes/webhooks';
 import settingsRoutes from './routes/settings';
+import organizationsRoutes from './routes/organizations';
 import dnsRoutes from './routes/dns';
 import healthRoutes from './routes/health';
 import domainMonitoringRoutes from './routes/domain-monitoring';
@@ -389,6 +390,7 @@ app.use('/api/shared-templates', sharedTemplatesRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/organizations', organizationsRoutes);
 // Fase 3 - Domain setup routes
 app.use('/api/domain-setup', domainSetupRoutes);
 

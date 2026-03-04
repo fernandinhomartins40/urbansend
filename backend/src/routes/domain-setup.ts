@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
 import { asyncHandler } from '../middleware/errorHandler';
 import { DomainSetupService } from '../services/DomainSetupService';
@@ -7,6 +7,7 @@ import { MultiDomainDKIMManager } from '../services/MultiDomainDKIMManager';
 import { logger } from '../config/logger';
 import db from '../config/database';
 import { z } from 'zod';
+import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();
 
@@ -46,10 +47,11 @@ const domainUpdateSchema = z.object({
  * Inicia configuração de um novo domínio
  */
 router.post('/setup', 
+  requirePermission('domain:write'),
   validateRequest({ body: domainSetupSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domain } = req.body;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.info('Domain setup request received', { 
       userId, 
@@ -115,10 +117,11 @@ router.post('/setup',
  * Verifica configuração DNS de um domínio
  */
 router.post('/:domainId/verify',
+  requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.info('Domain verification request received', { 
       userId, 
@@ -216,8 +219,9 @@ router.post('/:domainId/verify',
  * Obtém status de todos os domínios do usuário
  */
 router.get('/domains', 
+  requirePermission('domain:read'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.debug('Domains status request received', { userId });
 
@@ -293,10 +297,11 @@ router.get('/domains',
  * Obtém detalhes completos de um domínio específico
  */
 router.get('/domains/:domainId',
+  requirePermission('domain:read'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.debug('Domain details request received', { userId, domainId });
 
@@ -387,10 +392,11 @@ router.get('/domains/:domainId',
  * Remove um domínio (marca como inativo)
  */
 router.delete('/domains/:domainId',
+  requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.info('Domain removal request received', { userId, domainId });
 
@@ -437,10 +443,11 @@ router.delete('/domains/:domainId',
  * Regenera chaves DKIM para um domínio
  */
 router.post('/domains/:domainId/regenerate-dkim',
+  requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.info('DKIM regeneration request received', { userId, domainId });
 
@@ -517,10 +524,11 @@ router.post('/domains/:domainId/regenerate-dkim',
  * Obtém instruções DNS atualizadas para um domínio
  */
 router.get('/dns-instructions/:domainId',
+  requirePermission('domain:read'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.debug('DNS instructions request received', { userId, domainId });
 
@@ -591,10 +599,11 @@ router.get('/dns-instructions/:domainId',
  * Atualiza configurações de um domínio existente
  */
 router.put('/domains/:domainId',
+  requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema, body: domainUpdateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domainId } = req.params;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
     const { dkim_enabled, spf_enabled, dmarc_enabled, dmarc_policy } = req.body;
 
     logger.debug('Domain update request received', { userId, domainId, updates: req.body });
@@ -662,10 +671,11 @@ router.put('/domains/:domainId',
  * Valida um domínio antes de configurá-lo
  */
 router.post('/validate',
+  requirePermission('domain:write'),
   validateRequest({ body: domainValidationSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domain } = req.body;
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
 
     logger.debug('Domain validation request received', { userId, domain });
 

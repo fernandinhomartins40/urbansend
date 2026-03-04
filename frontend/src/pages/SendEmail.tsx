@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { templateApi } from '@/lib/api'
+import { settingsApi, templateApi } from '@/lib/api'
 import { useEmailSend } from '@/hooks/useEmailSend'
 import { useHasVerifiedDomains } from '@/hooks/useUserDomains'
 
@@ -87,7 +87,33 @@ export function SendEmail() {
     queryFn: templateApi.getTemplates,
   })
 
+  const { data: settingsResponse } = useQuery({
+    queryKey: ['settings', 'send-email-defaults'],
+    queryFn: settingsApi.getSettings,
+  })
+
   const templates = templatesResponse?.data?.templates || []
+
+  useEffect(() => {
+    const settings = settingsResponse?.data?.settings
+    if (!settings) {
+      return
+    }
+
+    const currentFrom = form.getValues('from')
+    if (!currentFrom && settings.account_preferences?.sending_settings?.default_from_email) {
+      form.setValue('from', settings.account_preferences.sending_settings.default_from_email)
+    }
+
+    if (typeof settings.account_preferences?.sending_settings?.open_tracking === 'boolean'
+      || typeof settings.account_preferences?.sending_settings?.click_tracking === 'boolean') {
+      form.setValue(
+        'tracking_enabled',
+        settings.account_preferences.sending_settings.open_tracking !== false
+          || settings.account_preferences.sending_settings.click_tracking !== false
+      )
+    }
+  }, [form, settingsResponse?.data?.settings])
 
   const onSubmit = async (data: SendEmailForm) => {
     if (!hasVerifiedDomains) {

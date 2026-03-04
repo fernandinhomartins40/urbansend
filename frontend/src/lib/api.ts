@@ -376,8 +376,40 @@ export const settingsApi = {
   updateSettings: (data: {
     notification_preferences?: Record<string, boolean>;
     system_preferences?: Record<string, string | number | boolean>;
+    security_settings?: Record<string, string | number | boolean | string[]>;
     branding_settings?: Record<string, string>;
     analytics_settings?: Record<string, string | boolean>;
+    smtp_settings?: Record<string, string | number | boolean | null>;
+    sending_settings?: Record<string, string | boolean>;
+    webhook_settings?: {
+      enabled?: boolean;
+      webhook_url?: string;
+      webhook_secret?: string;
+      custom_headers?: Record<string, string>;
+    };
   }) =>
     api.put('/settings', data),
+}
+
+export const organizationsApi = {
+  getContext: () =>
+    api.get('/organizations/context'),
+
+  switchOrganization: (organizationId: number) =>
+    api.post('/organizations/switch', { organization_id: organizationId }),
+
+  updateCurrentOrganization: (data: { name: string }) =>
+    api.put('/organizations/current', data),
+
+  createInvitation: (data: { email: string; role: 'admin' | 'member' }) =>
+    api.post('/organizations/invitations', data),
+
+  acceptInvitation: (token: string) =>
+    api.post(`/organizations/invitations/${token}/accept`),
+
+  declineInvitation: (token: string) =>
+    api.post(`/organizations/invitations/${token}/decline`),
+
+  removeMember: (membershipId: number) =>
+    api.delete(`/organizations/members/${membershipId}`),
 }

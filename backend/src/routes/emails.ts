@@ -24,8 +24,11 @@ import { logger } from '../config/logger';
 import { emailTrackingService, resolveTrackingClientIp } from '../services/EmailTrackingService';
 import { sqlExtractDomain } from '../utils/sqlDialect';
 import { applyEmailListFilters, buildEmailListStatsQuery, EmailListFilters } from './emailListQueryBuilders';
+import { getAccountUserId, getActorUserId, getOrganizationId } from '../utils/accountContext';
+import { TenantContextService } from '../services/TenantContextService';
 
 const router = Router();
+const tenantContextService = TenantContextService.getInstance();
 
 /**
  * Rate limiting middleware simplificado para emails
@@ -33,7 +36,8 @@ const router = Router();
  */
 const emailRateLimit = async (req: AuthenticatedRequest, res: Response, next: any) => {
   try {
-    const userId = req.user!.id;
+    const userId = getAccountUserId(req);
+    const tenantContext = await tenantContextService.getTenantContext(userId);
     const now = new Date();
     const oneMinuteAgo = new Date(now.getTime() - 60000); // 1 minuto atrás
     
@@ -47,7 +51,7 @@ const emailRateLimit = async (req: AuthenticatedRequest, res: Response, next: an
     const emailCount = Number((recentEmails as any)?.count || 0);
     
     // Limite simplificado: 10 emails por minuto por usuário
-    const limit = 10;
+    const limit = tenantContext.rateLimits.emailsSending.perMinute || 10;
     
     if (emailCount >= limit) {
       logger.warn('Email rate limit exceeded', {
@@ -126,11 +130,12 @@ router.post('/send',
 
   // Handler principal - ultra-simplificado
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const user: AuthUser = {
-      id: req.user!.id,
+      id: accountUserId,
       email: req.user!.email,
       name: req.user!.name,
-      tenant_id: req.user!.id, // Simplificado: user.id como tenant_id
+      tenant_id: getOrganizationId(req) || accountUserId,
       api_key_id: req.apiKey?.id || null
     };
 
@@ -145,6 +150,27 @@ router.post('/send',
       variables: req.body.variables,
       tracking_enabled: req.body.tracking_enabled
     };
+
+    const fromDomain = String(emailData.from || '').split('@')[1]?.toLowerCase();
+    if (fromDomain) {
+      const tenantValidation = await tenantContextService.validateTenantOperation(accountUserId, {
+        operation: 'send_email',
+        resource: fromDomain,
+        metadata: {
+          to: emailData.to
+        }
+      });
+
+      if (!tenantValidation.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: tenantValidation.reason || 'Tenant policy blocked email sending',
+          code: 'TENANT_POLICY_BLOCKED',
+          metadata: tenantValidation.metadata,
+          version: '3.0'
+        });
+      }
+    }
 
     logger.info('📧 Email send request - Simplified Route', {
       userId: user.id,
@@ -223,6 +249,7 @@ router.post('/send-batch',
   emailRateLimit,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { emails } = req.body;
+    const accountUserId = getAccountUserId(req);
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       return res.status(400).json({
@@ -234,7 +261,7 @@ router.post('/send-batch',
     }
 
     logger.info('📧 Batch email request - Simplified Processing', {
-      userId: req.user!.id,
+      userId: accountUserId,
       count: emails.length,
       version: '3.0'
     });
@@ -246,15 +273,36 @@ router.post('/send-batch',
 
     for (let i = 0; i < emails.length; i++) {
       const emailData = emails[i];
+      const fromDomain = String(emailData?.from || '').split('@')[1]?.toLowerCase();
       const user: AuthUser = {
-        id: req.user!.id,
+        id: accountUserId,
         email: req.user!.email,
         name: req.user!.name,
-        tenant_id: req.user!.id,
+        tenant_id: getOrganizationId(req) || accountUserId,
         api_key_id: req.apiKey?.id || null
       };
 
       try {
+        if (fromDomain) {
+          const tenantValidation = await tenantContextService.validateTenantOperation(accountUserId, {
+            operation: 'send_email',
+            resource: fromDomain,
+            metadata: {
+              to: emailData?.to
+            }
+          });
+
+          if (!tenantValidation.allowed) {
+            results.push({
+              index: i,
+              success: false,
+              error: tenantValidation.reason || 'Tenant policy blocked email sending',
+              metadata: tenantValidation.metadata
+            });
+            continue;
+          }
+        }
+
         const result = await emailService.sendEmail(emailData, user);
         results.push({
           index: i,
@@ -336,6 +384,7 @@ router.get('/status',
  */
 router.get('/test',
   authenticateJWT,
+  requirePermission('email:read'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
       const emailService = new MultiTenantEmailService();
@@ -345,7 +394,7 @@ router.get('/test',
         success: connectionOk,
         message: connectionOk ? 'Service connection OK' : 'Service connection failed',
         timestamp: new Date().toISOString(),
-        userId: req.user!.id,
+        userId: getAccountUserId(req),
         version: '3.0'
       });
     } catch (error) {
@@ -376,9 +425,11 @@ router.get('/health',
 // Get emails
 router.get('/',
   authenticateJWT,
+  requirePermission('email:read'),
   emailStatsMiddleware, // 🆕 Adicionar estatísticas da nova arquitetura
   validateRequest({ query: paginationSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const {
       page,
       limit,
@@ -391,7 +442,7 @@ router.get('/',
     } = req.query as any;
     const offset = (page - 1) * limit;
     const filters: EmailListFilters = {
-      userId: req.user!.id,
+      userId: accountUserId,
       status,
       search,
       dateFilter: date_filter,
@@ -458,11 +509,13 @@ router.get('/',
 // Get email by ID
 router.get('/:id',
   authenticateJWT,
+  requirePermission('email:read'),
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const email = await db('emails')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .first();
 
     if (!email) {
@@ -481,12 +534,14 @@ router.get('/:id',
 // Get email analytics by ID
 router.get('/:id/analytics',
   authenticateJWT,
+  requirePermission('email:read'),
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     // Verify email ownership
     const email = await db('emails')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .first();
 
     if (!email) {
@@ -503,11 +558,13 @@ router.get('/:id/analytics',
 
 router.delete('/:id',
   authenticateJWT,
+  requirePermission('email:manage'),
   validateRequest({ params: idParamSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const accountUserId = getAccountUserId(req);
     const email = await db('emails')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .first();
 
     if (!email) {
@@ -520,7 +577,7 @@ router.delete('/:id',
 
     await db('emails')
       .where('id', req.params['id'])
-      .where('user_id', req.user!.id)
+      .where('user_id', accountUserId)
       .del();
 
     return res.json({ success: true, message: 'Email deleted successfully' });

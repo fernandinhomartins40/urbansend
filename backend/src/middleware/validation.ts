@@ -103,6 +103,7 @@ export const sendEmailSchema = sendEmailSchemaBase.refine(data => data.html || d
 });
 
 export const singleSendEmailSchema = sendEmailSchemaBase.extend({
+  from: emailSchema.optional(),
   to: emailSchema,
 }).refine(data => data.html || data.text || data.template_id, {
   message: "Conteúdo do email é obrigatório: 'html', 'text', ou 'template_id'"

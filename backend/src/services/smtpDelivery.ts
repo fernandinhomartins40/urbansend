@@ -1,4 +1,3 @@
-// Removed inversify dependency temporarily
 import { createTransport, Transporter } from 'nodemailer';
 import dns from 'dns';
 import { logger } from '../config/logger';
@@ -6,6 +5,7 @@ import { Env } from '../utils/env';
 import db from '../config/database';
 import { DKIMManager } from './dkimManager';
 import { buildManagedMailFromDomain } from '../utils/mailFrom';
+import { decryptSensitiveValue } from '../utils/crypto';
 
 interface MXRecord {
   exchange: string;
@@ -19,6 +19,18 @@ interface EmailData {
   html?: string;
   text?: string;
   headers?: Record<string, string>;
+  accountUserId?: number;
+}
+
+interface RelayConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  auth?: {
+    user: string;
+    pass: string;
+  };
+  label: string;
 }
 
 export class SMTPDeliveryService {
@@ -28,25 +40,46 @@ export class SMTPDeliveryService {
 
   constructor() {
     this.dkimManager = new DKIMManager();
-    logger.info('🚀 UltraZend SMTP Server initialized - Direct MX Delivery Mode');
+    logger.info('UltraZend SMTP Server initialized', {
+      mode: 'smart-delivery'
+    });
   }
 
   async deliverEmail(emailData: EmailData): Promise<boolean> {
-    logger.info('📧 UltraZend SMTP: Initiating email delivery', {
+    logger.info('UltraZend SMTP: initiating delivery', {
       from: emailData.from,
       to: emailData.to,
       subject: emailData.subject,
-      mode: 'Smart Delivery with Fallback'
+      mode: 'custom-relay -> platform-relay -> direct-mx'
     });
 
-    // Aplicar assinatura DKIM antes da entrega
     const signedEmailData = await this.dkimManager.signEmail(emailData);
-    logger.info('🔐 Email signed with DKIM', {
+    logger.info('Email signed with DKIM', {
       hasDKIMSignature: !!signedEmailData.dkimSignature,
       from: emailData.from
     });
 
-    // Tentar entrega direta primeiro (produção)
+    const customRelayConfig = emailData.accountUserId
+      ? await this.getCustomSMTPRelayConfig(emailData.accountUserId)
+      : null;
+
+    if (customRelayConfig) {
+      try {
+        const delivered = await this.deliverViaSMTPRelay(signedEmailData, customRelayConfig);
+        if (delivered) {
+          return true;
+        }
+      } catch (error) {
+        logger.warn('Custom SMTP relay failed, falling back to platform delivery', {
+          accountUserId: emailData.accountUserId,
+          host: customRelayConfig.host,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    const fallbackRelayConfig = this.getFallbackRelayConfig();
+
     if (Env.isProduction) {
       try {
         const directResult = await this.deliverDirectlyViaMX(signedEmailData);
@@ -54,43 +87,46 @@ export class SMTPDeliveryService {
           return true;
         }
       } catch (error) {
-        logger.warn('Direct MX delivery failed in production', { 
+        logger.warn('Direct MX delivery failed in production', {
           error: error instanceof Error ? error.message : 'Unknown error',
-          to: emailData.to 
+          to: emailData.to
         });
-        // Em produção, tentar fallback apenas se configurado
-        if (this.hasSMTPFallbackConfig()) {
-          logger.info('Trying SMTP fallback in production', { to: emailData.to });
-          return await this.deliverViaSMTPRelay(signedEmailData);
+
+        if (fallbackRelayConfig) {
+          logger.info('Trying platform SMTP fallback in production', {
+            to: emailData.to,
+            host: fallbackRelayConfig.host
+          });
+          return this.deliverViaSMTPRelay(signedEmailData, fallbackRelayConfig);
         }
+
         return false;
       }
     }
 
-    // Em desenvolvimento, tentar fallback SMTP primeiro
-    if (this.hasSMTPFallbackConfig()) {
+    if (fallbackRelayConfig) {
       try {
-        logger.debug('Using SMTP fallback for development', { 
-          host: process.env.SMTP_FALLBACK_HOST,
+        logger.debug('Using platform SMTP fallback before direct MX', {
+          host: fallbackRelayConfig.host,
           to: emailData.to
         });
-        const fallbackResult = await this.deliverViaSMTPRelay(signedEmailData);
+
+        const fallbackResult = await this.deliverViaSMTPRelay(signedEmailData, fallbackRelayConfig);
         if (fallbackResult) {
           return true;
         }
       } catch (fallbackError) {
-        logger.warn('SMTP fallback failed, trying direct delivery', { 
+        logger.warn('SMTP fallback failed, trying direct delivery', {
           fallbackError: fallbackError instanceof Error ? fallbackError.message : 'Unknown error',
           to: emailData.to
         });
       }
     }
 
-    // Se fallback falhou ou não configurado, tentar entrega direta
     try {
       return await this.deliverDirectlyViaMX(signedEmailData);
     } catch (error) {
-      logger.error('❌ UltraZend SMTP: All delivery methods failed', {
+      logger.error('UltraZend SMTP: all delivery methods failed', {
         to: emailData.to,
         domain: emailData.to.split('@')[1],
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -99,11 +135,57 @@ export class SMTPDeliveryService {
     }
   }
 
-  private hasSMTPFallbackConfig(): boolean {
-    return !!(
-      process.env.SMTP_FALLBACK_HOST && 
-      process.env.SMTP_FALLBACK_PORT
-    );
+  private getFallbackRelayConfig(): RelayConfig | null {
+    if (!process.env.SMTP_FALLBACK_HOST || !process.env.SMTP_FALLBACK_PORT) {
+      return null;
+    }
+
+    return {
+      host: process.env.SMTP_FALLBACK_HOST,
+      port: parseInt(process.env.SMTP_FALLBACK_PORT || '587', 10),
+      secure: process.env.SMTP_FALLBACK_SECURE === 'true',
+      auth: process.env.SMTP_FALLBACK_USER
+        ? {
+            user: process.env.SMTP_FALLBACK_USER,
+            pass: process.env.SMTP_FALLBACK_PASS || ''
+          }
+        : undefined,
+      label: 'platform-fallback'
+    };
+  }
+
+  private async getCustomSMTPRelayConfig(accountUserId: number): Promise<RelayConfig | null> {
+    const settings = await db('user_settings')
+      .select(
+        'smtp_use_custom',
+        'smtp_host',
+        'smtp_port',
+        'smtp_username',
+        'smtp_password_encrypted',
+        'smtp_use_tls'
+      )
+      .where('user_id', accountUserId)
+      .first();
+
+    if (!settings?.smtp_use_custom || !settings.smtp_host || !settings.smtp_username || !settings.smtp_password_encrypted) {
+      return null;
+    }
+
+    const password = decryptSensitiveValue(String(settings.smtp_password_encrypted));
+    if (!password) {
+      return null;
+    }
+
+    return {
+      host: String(settings.smtp_host),
+      port: Number(settings.smtp_port || 587),
+      secure: settings.smtp_use_tls === true,
+      auth: {
+        user: String(settings.smtp_username),
+        pass: password
+      },
+      label: 'custom-account-relay'
+    };
   }
 
   private buildEnvelopeFrom(emailData: EmailData): string {
@@ -119,7 +201,7 @@ export class SMTPDeliveryService {
     return `bounce+${trackingToken}@${buildManagedMailFromDomain(fromDomain)}`;
   }
 
-  private buildHeaders(emailData: any, envelopeFrom: string): Record<string, string> {
+  private buildHeaders(emailData: EmailData & { dkimSignature?: string }, envelopeFrom: string): Record<string, string> {
     return {
       ...emailData.headers,
       'Return-Path': `<${envelopeFrom}>`,
@@ -140,15 +222,15 @@ export class SMTPDeliveryService {
     return ['ultrazend.com.br', 'mail.ultrazend.com.br', 'www.ultrazend.com.br'].includes(domain.toLowerCase());
   }
 
-  private async deliverViaSMTPRelay(emailData: any): Promise<boolean> {
+  private async deliverViaSMTPRelay(
+    emailData: EmailData & { dkimSignature?: string },
+    relayConfig: RelayConfig
+  ): Promise<boolean> {
     const transporter = createTransport({
-      host: process.env.SMTP_FALLBACK_HOST,
-      port: parseInt(process.env.SMTP_FALLBACK_PORT || '587'),
-      secure: process.env.SMTP_FALLBACK_SECURE === 'true',
-      auth: process.env.SMTP_FALLBACK_USER ? {
-        user: process.env.SMTP_FALLBACK_USER,
-        pass: process.env.SMTP_FALLBACK_PASS
-      } : undefined
+      host: relayConfig.host,
+      port: relayConfig.port,
+      secure: relayConfig.secure,
+      auth: relayConfig.auth
     });
 
     try {
@@ -166,47 +248,48 @@ export class SMTPDeliveryService {
         }
       });
 
-      logger.info('📤 Email delivered via SMTP fallback', {
+      logger.info('Email delivered via SMTP relay', {
         to: emailData.to,
         messageId: result.messageId,
-        host: process.env.SMTP_FALLBACK_HOST,
-        deliveryMode: 'SMTP Relay'
+        host: relayConfig.host,
+        deliveryMode: relayConfig.label
       });
 
-      await this.recordDeliverySuccess(emailData, process.env.SMTP_FALLBACK_HOST || 'smtp-fallback');
+      await this.recordDeliverySuccess(emailData, relayConfig.host);
+      transporter.close();
       return true;
     } catch (error) {
-      logger.error('❌ SMTP fallback delivery failed', {
+      logger.error('SMTP relay delivery failed', {
         to: emailData.to,
-        host: process.env.SMTP_FALLBACK_HOST,
+        host: relayConfig.host,
+        deliveryMode: relayConfig.label,
         error: error instanceof Error ? error.message : String(error)
       });
       await this.recordDeliveryFailure(emailData, error instanceof Error ? error : new Error(String(error)));
+      transporter.close();
       return false;
     }
   }
 
-  private async deliverDirectlyViaMX(emailData: any): Promise<boolean> {
+  private async deliverDirectlyViaMX(emailData: EmailData & { dkimSignature?: string }): Promise<boolean> {
     const domain = emailData.to.split('@')[1];
-    
-    // 🚀 ULTRAZEND SMTP: Entrega direta aos MX records
     const mxRecords = await this.getMXRecords(domain);
+
     if (mxRecords.length === 0) {
       const error = new Error(`No MX records found for domain ${domain}`);
       await this.recordDeliveryFailure(emailData, error);
       throw error;
     }
 
-    logger.info('🌐 Found MX records for domain', {
+    logger.info('Found MX records for domain', {
       domain,
       mxCount: mxRecords.length,
-      mxServers: mxRecords.map(mx => `${mx.exchange} (priority: ${mx.priority})`)
+      mxServers: mxRecords.map((mx) => `${mx.exchange} (priority: ${mx.priority})`)
     });
 
-    // Tentar entrega em ordem de prioridade
     for (const mx of mxRecords) {
       try {
-        logger.info('🔄 Attempting delivery via MX server', {
+        logger.info('Attempting delivery via MX server', {
           mxServer: mx.exchange,
           priority: mx.priority,
           to: emailData.to
@@ -215,20 +298,19 @@ export class SMTPDeliveryService {
         const success = await this.attemptDeliveryViaMX(emailData, mx.exchange);
         if (success) {
           await this.recordDeliverySuccess(emailData, mx.exchange);
-          logger.info('✅ UltraZend SMTP: Email delivered successfully', {
+          logger.info('Email delivered successfully', {
             to: emailData.to,
             mxServer: mx.exchange,
-            deliveryMode: 'Direct MX'
+            deliveryMode: 'direct-mx'
           });
           return true;
         }
       } catch (error) {
-        logger.warn('⚠️ MX delivery failed, trying next server', {
+        logger.warn('MX delivery failed, trying next server', {
           to: emailData.to,
           mxServer: mx.exchange,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
-        continue; // Tentar próximo MX
       }
     }
 
@@ -245,11 +327,10 @@ export class SMTPDeliveryService {
           return;
         }
 
-        // Ordenar por prioridade (menor número = maior prioridade)
         const sortedRecords = addresses
-          .map(addr => ({
-            exchange: addr.exchange,
-            priority: addr.priority
+          .map((address) => ({
+            exchange: address.exchange,
+            priority: address.priority
           }))
           .sort((a, b) => a.priority - b.priority);
 
@@ -258,13 +339,15 @@ export class SMTPDeliveryService {
     });
   }
 
-  private async attemptDeliveryViaMX(emailData: any, mxServer: string): Promise<boolean> {
+  private async attemptDeliveryViaMX(
+    emailData: EmailData & { dkimSignature?: string },
+    mxServer: string
+  ): Promise<boolean> {
     const transporter = await this.getTransporter(mxServer);
-    
+
     try {
-      // Preparar dados do email com headers DKIM se disponível
       const envelopeFrom = this.buildEnvelopeFrom(emailData);
-      const mailOptions = {
+      const result = await transporter.sendMail({
         from: emailData.from,
         to: emailData.to,
         subject: emailData.subject,
@@ -275,9 +358,8 @@ export class SMTPDeliveryService {
           from: envelopeFrom,
           to: emailData.to
         }
-      };
+      });
 
-      const result = await transporter.sendMail(mailOptions);
       logger.info('Email delivered via MX with DKIM', {
         to: emailData.to,
         mxServer,
@@ -330,8 +412,22 @@ export class SMTPDeliveryService {
           ignoreTLS: true
         });
         await transporter.verify();
+        transporter.close();
         return true;
       }
+
+      const fallbackRelayConfig = this.getFallbackRelayConfig();
+      if (fallbackRelayConfig) {
+        const transporter = createTransport({
+          host: fallbackRelayConfig.host,
+          port: fallbackRelayConfig.port,
+          secure: fallbackRelayConfig.secure,
+          auth: fallbackRelayConfig.auth
+        });
+        await transporter.verify();
+        transporter.close();
+      }
+
       return true;
     } catch (error) {
       logger.error('SMTP connection test failed', { error });
@@ -339,10 +435,9 @@ export class SMTPDeliveryService {
     }
   }
 
-  // Método para processar jobs de entrega (integração com filas)
   async processDeliveryJob(jobData: any): Promise<void> {
     const { emailData, emailId } = jobData;
-    
+
     logger.info('Processing delivery job', {
       jobId: jobData.id,
       emailId,
@@ -351,30 +446,20 @@ export class SMTPDeliveryService {
 
     try {
       const delivered = await this.deliverEmail(emailData);
-      
       if (!delivered) {
         throw new Error('Delivery failed');
       }
-      
-      // Atualizar status do email no banco de dados
-      // await this.updateEmailStatus(emailId, 'delivered');
-      
     } catch (error) {
-      logger.error('Delivery job failed', { 
-        error: error instanceof Error ? error.message : 'Unknown error', 
-        emailId 
+      logger.error('Delivery job failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        emailId
       });
-      
-      // Atualizar status do email como falha
-      // await this.updateEmailStatus(emailId, 'failed', error.message);
-      throw error; // Will trigger job retry
+      throw error;
     }
   }
 
-  // Método para processar fila de emails (chamado pelo scheduler)
   async processEmailQueue(): Promise<void> {
     try {
-      // Buscar emails pendentes no banco de dados
       const pendingEmails = await db('emails')
         .where('status', 'queued')
         .orderBy('created_at', 'asc')
@@ -388,8 +473,7 @@ export class SMTPDeliveryService {
 
       for (const email of pendingEmails) {
         try {
-          // Marcar como processando
-          await db('emails').where('id', email.id).update({ 
+          await db('emails').where('id', email.id).update({
             status: 'processing',
             updated_at: new Date()
           });
@@ -399,12 +483,12 @@ export class SMTPDeliveryService {
             to: email.recipient_email,
             subject: email.subject,
             html: email.html_content,
-            text: email.text_content
+            text: email.text_content,
+            accountUserId: email.user_id
           };
 
           const delivered = await this.deliverEmail(emailData);
 
-          // Atualizar status baseado no resultado
           await db('emails').where('id', email.id).update({
             status: delivered ? 'sent' : 'failed',
             sent_at: delivered ? new Date() : null,
@@ -416,9 +500,7 @@ export class SMTPDeliveryService {
           } else {
             logger.error(`Email ${email.id} delivery failed`);
           }
-
         } catch (error) {
-          // Marcar como falha
           await db('emails').where('id', email.id).update({
             status: 'failed',
             updated_at: new Date()
@@ -429,7 +511,6 @@ export class SMTPDeliveryService {
           });
         }
       }
-
     } catch (error) {
       logger.error('Error processing email queue', {
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -437,7 +518,6 @@ export class SMTPDeliveryService {
     }
   }
 
-  // 📊 Métodos para tracking de deliverability do UltraZend SMTP
   private async recordDeliverySuccess(emailData: EmailData, mxServer: string): Promise<void> {
     try {
       await db('delivery_stats').insert({
@@ -446,10 +526,10 @@ export class SMTPDeliveryService {
         status: 'delivered',
         delivered_at: new Date(),
         from_address: emailData.from
-      }).onConflict().ignore(); // Ignora se tabela não existe ainda
+      }).onConflict().ignore();
     } catch (error) {
-      logger.debug('Could not record delivery success (table may not exist)', { 
-        error: error instanceof Error ? error.message : 'Unknown' 
+      logger.debug('Could not record delivery success', {
+        error: error instanceof Error ? error.message : 'Unknown'
       });
     }
   }
@@ -462,10 +542,10 @@ export class SMTPDeliveryService {
         error_message: error.message,
         failed_at: new Date(),
         from_address: emailData.from
-      }).onConflict().ignore(); // Ignora se tabela não existe ainda
+      }).onConflict().ignore();
     } catch (dbError) {
-      logger.debug('Could not record delivery failure (table may not exist)', { 
-        dbError: dbError instanceof Error ? dbError.message : 'Unknown' 
+      logger.debug('Could not record delivery failure', {
+        dbError: dbError instanceof Error ? dbError.message : 'Unknown'
       });
     }
   }

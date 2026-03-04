@@ -543,11 +543,11 @@ export class TenantContextService {
         timezone: settings?.timezone || 'America/Sao_Paulo',
         defaultFromEmail: settings?.default_from_email || user?.email || '',
         defaultFromName: settings?.default_from_name || user?.name || 'UltraZend User',
-        bounceHandling: settings?.bounce_handling || true,
-        openTracking: settings?.open_tracking || true,
-        clickTracking: settings?.click_tracking || true,
-        unsubscribeTracking: settings?.unsubscribe_tracking || true,
-        suppressionListEnabled: settings?.suppression_list_enabled || true
+        bounceHandling: settings?.bounce_handling !== false,
+        openTracking: settings?.open_tracking !== false,
+        clickTracking: settings?.click_tracking !== false,
+        unsubscribeTracking: settings?.unsubscribe_tracking !== false,
+        suppressionListEnabled: settings?.suppression_list_enabled !== false
       };
     } catch (error) {
       logger.error('Erro ao buscar configurações do tenant', { userId, error });
