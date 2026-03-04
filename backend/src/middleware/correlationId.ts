@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { requestContextService } from '../services/RequestContextService';
 
 /**
  * Enterprise Correlation ID Middleware
@@ -14,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface CorrelatedRequest extends Request {
   correlationId: string;
+  requestId: string;
 }
 
 export const correlationIdMiddleware = (
@@ -21,33 +23,37 @@ export const correlationIdMiddleware = (
   res: Response, 
   next: NextFunction
 ): void => {
-  // Extract correlation ID from various possible headers
-  const existingId = 
-    req.headers['x-correlation-id'] as string ||
-    req.headers['x-request-id'] as string ||
-    req.headers['x-trace-id'] as string;
-  
-  // Generate new UUID if no existing correlation ID found
-  const correlationId = existingId || uuidv4();
-  
-  // Add correlation ID to request object for use in controllers/services
+  const requestId =
+    (req.headers['x-request-id'] as string) ||
+    (req.headers['x-trace-id'] as string) ||
+    uuidv4();
+  const correlationId =
+    (req.headers['x-correlation-id'] as string) ||
+    requestId;
+
+  req.requestId = requestId;
   req.correlationId = correlationId;
-  
-  // Add correlation ID to response headers
+
+  res.setHeader('X-Request-ID', requestId);
   res.setHeader('X-Correlation-ID', correlationId);
-  
-  // Add correlation ID to all subsequent logs in this request context
-  // This creates a closure that maintains the correlation ID
+
   const originalJson = res.json;
   res.json = function(body) {
-    // Ensure correlation ID is included in error responses
     if (body && typeof body === 'object' && body.error) {
       body.correlationId = correlationId;
+      body.requestId = requestId;
     }
     return originalJson.call(this, body);
   };
-  
-  next();
+
+  requestContextService.run({
+    requestId,
+    correlationId,
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  }, () => next());
 };
 
 /**
@@ -55,6 +61,7 @@ export const correlationIdMiddleware = (
  * Use this in your logger to automatically include correlation ID
  */
 export const getLoggingContext = (req: CorrelatedRequest) => ({
+  requestId: req.requestId,
   correlationId: req.correlationId,
   method: req.method,
   path: req.path,

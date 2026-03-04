@@ -2,6 +2,7 @@ import React, { Component, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from './button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card';
+import { reportFrontendError } from '../../lib/errorReporter';
 
 interface Props {
   children: ReactNode;
@@ -34,17 +35,17 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error details
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    void reportFrontendError({
+      type: 'react_error',
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      component: 'ErrorBoundary'
+    });
     
-    // Call custom error handler if provided
     this.props.onError?.(error, errorInfo);
-
-    // In production, you could send this to an error reporting service
-    if (process.env.NODE_ENV === 'production') {
-      // Example: Sentry, LogRocket, etc.
-      // errorReportingService.logError(error, errorInfo);
-    }
   }
 
   handleRetry = () => {
@@ -126,8 +127,13 @@ export class ErrorBoundary extends Component<Props, State> {
 export const useErrorHandler = () => {
   return (error: Error, errorInfo?: React.ErrorInfo) => {
     console.error('Error caught by useErrorHandler:', error, errorInfo);
-    
-    // In a real app, you might want to trigger a global error state
-    // or send the error to a reporting service
+    void reportFrontendError({
+      type: 'react_error',
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      componentStack: errorInfo?.componentStack,
+      component: 'useErrorHandler'
+    });
   };
 };

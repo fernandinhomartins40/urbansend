@@ -1,5 +1,7 @@
-import axios from 'axios'
+import axios, { AxiosHeaders } from 'axios'
 import toast from 'react-hot-toast'
+import { API_BASE_URL } from './apiBase'
+import { createClientRequestId, reportFrontendError } from './errorReporter'
 
 let sessionExpiredToastShown = false
 let sessionExpiredTimeout: NodeJS.Timeout | null = null
@@ -26,8 +28,6 @@ const resetSessionExpiredToast = () => {
   }
 }
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''
-
 export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -39,12 +39,11 @@ export const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const apiKey = localStorage.getItem('api_key')
-
-    if (apiKey && config.headers['x-api-key-override']) {
-      config.headers['x-api-key'] = apiKey
-      delete config.headers['x-api-key-override']
+    const headers = AxiosHeaders.from(config.headers)
+    if (!headers.get('X-Request-ID')) {
+      headers.set('X-Request-ID', createClientRequestId())
     }
+    config.headers = headers
 
     return config
   },
@@ -57,6 +56,9 @@ api.interceptors.response.use(
     return response
   },
   async (error) => {
+    const correlationId = error.response?.headers?.['x-correlation-id'] || error.response?.data?.correlationId
+    const requestId = error.config?.headers?.['X-Request-ID'] || error.response?.headers?.['x-request-id'] || error.response?.data?.requestId
+
     if (error.response?.status === 401 && !error.config?._retry) {
       error.config._retry = true
 
@@ -96,6 +98,26 @@ api.interceptors.response.use(
         }
 
         return Promise.reject(refreshError)
+      }
+    }
+
+    if (!String(error.config?.url || '').includes('/application-logs/frontend-error')) {
+      const statusCode = error.response?.status
+      if (!statusCode || statusCode >= 400) {
+        void reportFrontendError({
+          type: 'api_error',
+          message: error.message || 'API request failed',
+          name: error.name,
+          stack: error.stack,
+          requestId: typeof requestId === 'string' ? requestId : undefined,
+          correlationId: typeof correlationId === 'string' ? correlationId : undefined,
+          statusCode,
+          metadata: {
+            method: error.config?.method,
+            apiUrl: error.config?.url,
+            responseData: error.response?.data
+          }
+        })
       }
     }
 

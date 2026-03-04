@@ -1,7 +1,10 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import { Env } from '../utils/env';
+import { requestContextService } from '../services/RequestContextService';
 
 interface LogEntry {
   '@timestamp': string;
@@ -60,8 +63,48 @@ const logDir = Env.isProduction
   ? Env.get('LOG_FILE_PATH', '/var/www/ultrazend/logs')
   : path.join(__dirname, '../../logs');
 
+const withRequestContext = winston.format((info) => {
+  const context = requestContextService.get();
+
+  if (!context) {
+    return info;
+  }
+
+  info.requestId = info.requestId || context.requestId;
+  info.correlationId = info.correlationId || context.correlationId;
+  info.userId = info.userId || context.userId;
+
+  if (!info.request) {
+    info.request = {
+      method: context.method || 'UNKNOWN',
+      url: context.path || '',
+      ip: context.ip || '',
+      userAgent: context.userAgent || ''
+    };
+  }
+
+  return info;
+});
+
+const ensureLogDirectory = (targetPath: string) => {
+  try {
+    fs.mkdirSync(targetPath, { recursive: true });
+  } catch (error) {
+    console.warn(`Failed to ensure log directory ${targetPath}:`, error);
+  }
+};
+
+if (Env.isProduction) {
+  ['application', 'errors', 'security', 'performance', 'business'].forEach((directory) => {
+    ensureLogDirectory(path.join(logDir, directory));
+  });
+} else {
+  ensureLogDirectory(logDir);
+}
+
 // Structured JSON format for production
 const productionFormat = winston.format.combine(
+  withRequestContext(),
   winston.format.timestamp({
     format: 'YYYY-MM-DD[T]HH:mm:ss.SSSZ'
   }),
@@ -75,7 +118,7 @@ const productionFormat = winston.format.combine(
       environment: Env.get('NODE_ENV', 'development'),
       version: Env.get('APP_VERSION', '1.0.0'),
       buildNumber: Env.get('BUILD_NUMBER', 'unknown'),
-      hostname: require('os').hostname(),
+      hostname: os.hostname(),
       pid: process.pid,
       message: String(message),
       ...meta
@@ -87,6 +130,7 @@ const productionFormat = winston.format.combine(
 
 // Human-readable format for development
 const developmentFormat = winston.format.combine(
+  withRequestContext(),
   winston.format.timestamp({
     format: 'YYYY-MM-DD HH:mm:ss.SSS'
   }),
@@ -195,7 +239,7 @@ const logger = winston.createLogger({
     environment: Env.get('NODE_ENV', 'development'),
     version: Env.get('APP_VERSION', '1.0.0'),
     buildNumber: Env.get('BUILD_NUMBER', 'unknown'),
-    hostname: require('os').hostname(),
+    hostname: os.hostname(),
     pid: process.pid
   },
   transports,
@@ -204,15 +248,12 @@ const logger = winston.createLogger({
   handleRejections: true
 });
 
-// Console transport for development
-if (!Env.isProduction) {
-  logger.add(new winston.transports.Console({
-    level: logLevel,
-    format: developmentFormat,
-    handleExceptions: true,
-    handleRejections: true
-  }));
-}
+logger.add(new winston.transports.Console({
+  level: logLevel,
+  format: Env.isProduction ? productionFormat : developmentFormat,
+  handleExceptions: true,
+  handleRejections: true
+}));
 
 // Structured logging helpers
 class Logger {

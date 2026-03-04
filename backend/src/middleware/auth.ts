@@ -7,6 +7,7 @@ import { verifyApiKey, legacyHashApiKey } from '../utils/crypto';
 import db from '../config/database';
 import { logger } from '../config/logger';
 import { permissionsFromJson } from '../constants/permissions';
+import { requestContextService } from '../services/RequestContextService';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -85,6 +86,11 @@ export const authenticateJWT = async (
       name: user.name,
       permissions: permissionsFromJson(user.permissions),
     };
+    req.userId = String(user.id);
+    requestContextService.update({
+      userId: String(user.id),
+      userEmail: user.email
+    });
 
     next();
   } catch (error) {
@@ -174,12 +180,17 @@ export const authenticateApiKey = async (
       email: apiKey.email,
       name: apiKey.name
     };
+    req.userId = String(apiKey.user_id);
 
     req.apiKey = {
       id: apiKey.id,
       user_id: apiKey.user_id,
       permissions
     };
+    requestContextService.update({
+      userId: String(apiKey.user_id),
+      userEmail: apiKey.email
+    });
 
     next();
   } catch (error) {

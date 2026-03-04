@@ -8,6 +8,7 @@ import { useAuthCheck } from './hooks/useAuthCheck'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster } from 'react-hot-toast'
 import queryClient, { initializePersistence } from './lib/queryClient'
+import { installGlobalErrorHandlers, reportFrontendError } from './lib/errorReporter'
 import './styles/globals.css'
 
 // Loading component
@@ -223,12 +224,23 @@ function AppRoutes() {
 function App() {
   useEffect(() => {
     initializePersistence()
+    const cleanup = installGlobalErrorHandlers()
+
+    return cleanup
   }, [])
 
   return (
     <ErrorBoundary 
       onError={(error, errorInfo) => {
         console.error('React Error Boundary:', error, errorInfo);
+        void reportFrontendError({
+          type: 'react_error',
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+          componentStack: errorInfo.componentStack,
+          component: 'App'
+        })
       }}
     >
       <QueryClientProvider client={queryClient}>

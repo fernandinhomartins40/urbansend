@@ -14,6 +14,7 @@ import path from 'path';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { performanceMiddleware, performanceMonitor } from './middleware/performanceMonitoring';
 import { metricsMiddleware, healthCheckMiddleware, metricsEndpointMiddleware } from './middleware/monitoring';
+import { correlationIdMiddleware } from './middleware/correlationId';
 import { monitoringService } from './services/monitoringService';
 import { logger } from './config/logger';
 import { setupSwagger } from './config/swagger';
@@ -25,6 +26,7 @@ import { SMTPDeliveryService } from './services/smtpDelivery';
 import { domainVerificationInitializer } from './services/domainVerificationInitializer';
 import { autoRollbackService } from './services/AutoRollbackService';
 import { getFeatureFlags } from './config/features';
+import { applicationErrorLogService } from './services/ApplicationErrorLogService';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -48,6 +50,7 @@ import smtpMonitoringRoutes from './routes/smtp-monitoring';
 import domainSetupRoutes from './routes/domain-setup';
 // Fase 4 - Monitoramento e Alertas
 import monitoringRoutes from './routes/monitoring';
+import applicationLogsRoutes from './routes/application-logs';
 import schedulerRoutes from './routes/scheduler';
 import { healthCheckScheduler } from './scheduler/healthCheckScheduler';
 // TEMPORÁRIO - Admin audit para corrigir vazamento de dados
@@ -217,6 +220,7 @@ const io = new Server(primaryServer, {
 
 // Configure trust proxy
 app.set('trust proxy', 1);
+app.use(correlationIdMiddleware);
 
 // Security middleware
 app.use(helmet({
@@ -347,30 +351,32 @@ app.use((req, _res, next) => {
 });
 
 
-// Performance statistics endpoint
-app.get('/api/performance', async (req, res) => {
-  try {
-    const performanceStats = performanceMonitor.getPerformanceStats();
-    const systemStats = await monitoringService.getSystemStats();
-    
-    res.json({
-      timestamp: new Date().toISOString(),
-      performance: performanceStats,
-      system: systemStats,
-      uptime: Math.round(process.uptime())
-    });
-  } catch (error) {
-    logger.error('Error getting performance stats', { error });
-    res.status(500).json({
-      error: 'Failed to get performance statistics',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
+if (Env.enableInternalRoutes) {
+  app.get('/api/performance', async (req, res) => {
+    try {
+      const performanceStats = performanceMonitor.getPerformanceStats();
+      const systemStats = await monitoringService.getSystemStats();
+      
+      res.json({
+        timestamp: new Date().toISOString(),
+        performance: performanceStats,
+        system: systemStats,
+        uptime: Math.round(process.uptime())
+      });
+    } catch (error) {
+      logger.error('Error getting performance stats', { error });
+      res.status(500).json({
+        error: 'Failed to get performance statistics',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+}
 
 // API Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/version', healthRoutes); // Version endpoint shares health routes for consistency
+app.use('/api/application-logs', applicationLogsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/keys', keysRoutes);
 // Manter rota atual funcionando (Fase 3.2)
@@ -380,31 +386,34 @@ app.use('/api/emails', emailsRoutes);
 // emails-v2 route removida - substituída por /api/emails com nova arquitetura
 app.use('/api/templates', templatesRoutes);
 app.use('/api/shared-templates', sharedTemplatesRoutes);
-app.use('/api/domains', domainsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/dns', dnsRoutes);
-app.use('/api/domain-monitoring', domainMonitoringRoutes);
-// Fase 1 - Settings routes removidas temporariamente
-// Fase 2 - Enhanced service routes
-app.use('/api/dkim', dkimRoutes);
-app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
 // Fase 3 - Domain setup routes
 app.use('/api/domain-setup', domainSetupRoutes);
-// Fase 4 - Monitoramento e Alertas routes
-app.use('/api/monitoring', monitoringRoutes);
-app.use('/api/scheduler', schedulerRoutes);
-// TEMPORÁRIO - Admin audit para diagnóstico e correção
-app.use('/api/admin-audit', adminAuditRoutes);
-// Professional DKIM Administration routes
-app.use('/api/admin/dkim', adminDkimRoutes);
-// TEMPORÁRIO - Rotas de teste para Fase 2 - Integração de domínios  
-app.use('/api/test', testIntegrationRoutes);
-// Fase 6 - Feature flags para rollout gradual da integração
-app.use('/api/feature-flags', featureFlagsRoutes);
-app.use('/api/migration-monitoring', migrationMonitoringRoutes);
-app.use('/api/auto-rollback', autoRollbackRoutes);
+
+if (Env.enableLegacyDomainRoutes) {
+  app.use('/api/domains', domainsRoutes);
+} else {
+  logger.info('Legacy domain routes disabled; using /api/domain-setup as the single public contract');
+}
+
+if (Env.enableInternalRoutes) {
+  app.use('/api/dns', dnsRoutes);
+  app.use('/api/domain-monitoring', domainMonitoringRoutes);
+  app.use('/api/dkim', dkimRoutes);
+  app.use('/api/smtp-monitoring', smtpMonitoringRoutes);
+  app.use('/api/monitoring', monitoringRoutes);
+  app.use('/api/scheduler', schedulerRoutes);
+  app.use('/api/admin-audit', adminAuditRoutes);
+  app.use('/api/admin/dkim', adminDkimRoutes);
+  app.use('/api/test', testIntegrationRoutes);
+  app.use('/api/feature-flags', featureFlagsRoutes);
+  app.use('/api/migration-monitoring', migrationMonitoringRoutes);
+  app.use('/api/auto-rollback', autoRollbackRoutes);
+} else {
+  logger.info('Internal and migration routes disabled in the default runtime');
+}
 // app.use('/api/campaigns', campaignsRoutes); // Temporarily disabled - needs TS conversion  
 // app.use('/api/segmentation', segmentationRoutes); // Temporarily disabled - needs TS conversion
 // app.use('/api/trend-analytics', trendAnalyticsRoutes); // Temporarily disabled - needs TS conversion
@@ -676,7 +685,7 @@ const initializeServices = async () => {
       critical: false, // Não crítico
       init: async () => {
         const flags = getFeatureFlags();
-        if (flags.ENABLE_AUTO_ROLLBACK) {
+        if (Env.enableInternalRoutes && flags.ENABLE_AUTO_ROLLBACK) {
           autoRollbackService.start();
           logger.info('✅ Auto Rollback Service inicializado e ativo');
         } else {
@@ -984,6 +993,13 @@ process.on('uncaughtException', (error) => {
       severity: 'CRITICAL',
       timestamp: new Date().toISOString()
     });
+    void applicationErrorLogService.captureBackendError({
+      error,
+      context: {
+        severity: 'CRITICAL',
+        processEvent: 'uncaughtException'
+      }
+    });
   } catch (logError) {
     // Fallback logging se logger falhar
     console.error('CRITICAL: Uncaught exception + logging failed', error.message);
@@ -1001,6 +1017,17 @@ process.on('unhandledRejection', (reason, promise) => {
       reason: reasonStr,
       severity: 'HIGH',
       timestamp: new Date().toISOString()
+    });
+    const rejectionError = reason instanceof Error
+      ? reason
+      : new Error(reasonStr);
+    void applicationErrorLogService.captureBackendError({
+      error: rejectionError,
+      context: {
+        severity: 'HIGH',
+        processEvent: 'unhandledRejection',
+        promise: String(promise)
+      }
     });
   } catch (logError) {
     const reasonStr = reason instanceof Error ? reason.message : String(reason);

@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../config/logger';
+import { logger, Logger } from '../config/logger';
 import { ZodError } from 'zod';
 import { Env } from '../utils/env';
+import { applicationErrorLogService } from '../services/ApplicationErrorLogService';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -21,13 +22,37 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
-  logger.error('Error occurred:', {
-    error: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
+  const statusCode = err instanceof ZodError
+    ? 400
+    : err.statusCode || 500;
+  const normalizedError = err instanceof Error
+    ? err
+    : new Error('Unknown application error');
+
+  Logger.error('Request processing failed', normalizedError, {
+    requestId: req.requestId,
+    userId: req.user?.id ? String(req.user.id) : undefined,
+    context: {
+      statusCode,
+      method: req.method,
+      url: req.originalUrl || req.url,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    }
+  });
+  void applicationErrorLogService.captureBackendError({
+    error: normalizedError,
+    req,
+    statusCode,
+    context: err instanceof ZodError
+      ? {
+          validationErrors: err.errors.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code
+          }))
+        }
+      : undefined
   });
 
   // Handle Zod validation errors
