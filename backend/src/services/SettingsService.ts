@@ -1,6 +1,7 @@
 import db from '../config/database';
 import { WorkspaceContext } from './WorkspaceService';
 import { encryptSensitiveValue } from '../utils/crypto';
+import { logger } from '../config/logger';
 
 type JsonRecord = Record<string, any>;
 
@@ -179,6 +180,46 @@ const DEFAULT_ANALYTICS_SETTINGS: EffectiveSettings['account_preferences']['anal
 };
 
 class SettingsService {
+  private userPlansHasStatusColumn: boolean | null = null;
+
+  private async hasUserPlanStatusColumn(): Promise<boolean> {
+    if (this.userPlansHasStatusColumn !== null) {
+      return this.userPlansHasStatusColumn;
+    }
+
+    try {
+      this.userPlansHasStatusColumn = await db.schema.hasColumn('user_plans', 'status');
+      return this.userPlansHasStatusColumn;
+    } catch {
+      this.userPlansHasStatusColumn = false;
+      return false;
+    }
+  }
+
+  private async getActivePlan(userId: number): Promise<any | null> {
+    try {
+      const hasStatusColumn = await this.hasUserPlanStatusColumn();
+      const query = db('user_plans')
+        .where('user_id', userId)
+        .where('is_active', true)
+        .orderBy('created_at', 'desc');
+
+      if (hasStatusColumn) {
+        query.select('plan_name', 'status', 'expires_at', 'is_active');
+      } else {
+        query.select('plan_name', 'expires_at', 'is_active');
+      }
+
+      return await query.first();
+    } catch (error) {
+      logger.warn('Failed to load active user plan, using free fallback', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
+  }
+
   async ensureUserSettings(userId: number): Promise<any> {
     let settings = await db('user_settings').where('user_id', userId).first();
 
@@ -234,12 +275,7 @@ class SettingsService {
         .first(),
       this.ensureUserSettings(workspace.accountUserId),
       this.ensureTenantSettings(workspace.accountUserId),
-      db('user_plans')
-        .select('plan_name', 'status', 'expires_at')
-        .where('user_id', workspace.accountUserId)
-        .where('is_active', true)
-        .orderBy('created_at', 'desc')
-        .first()
+      this.getActivePlan(workspace.accountUserId)
     ]);
 
     const actorSystem = {
@@ -285,7 +321,7 @@ class SettingsService {
       },
       plan: {
         name: activePlan?.plan_name || 'free',
-        status: activePlan?.status || 'active',
+        status: activePlan?.status || (activePlan?.is_active === false ? 'inactive' : 'active'),
         expires_at: activePlan?.expires_at ? new Date(activePlan.expires_at).toISOString() : null
       },
       personal_preferences: {
