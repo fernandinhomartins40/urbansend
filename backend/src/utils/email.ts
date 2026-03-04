@@ -61,6 +61,75 @@ export const processTemplate = (template: string, variables: Record<string, any>
   return processed;
 };
 
+export const normalizeOptionalEmailContent = (content?: string | null): string | undefined => {
+  if (typeof content !== 'string') {
+    return undefined;
+  }
+
+  const normalized = content.trim();
+  return normalized.length > 0 ? normalized : undefined;
+};
+
+const escapeHtml = (value: string): string => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const autoLinkText = (value: string): string => {
+  const urlRegex = /(https?:\/\/[^\s<]+)/gi;
+  return value.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+};
+
+export const buildHtmlFromText = (text: string): string => {
+  const normalizedText = normalizeOptionalEmailContent(text);
+  if (!normalizedText) {
+    return '';
+  }
+
+  const escaped = escapeHtml(normalizedText);
+  const linked = autoLinkText(escaped);
+  const formatted = linked.replace(/\r?\n/g, '<br />');
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="pt-BR">',
+    '<body>',
+    '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;">',
+    formatted,
+    '</div>',
+    '</body>',
+    '</html>'
+  ].join('');
+};
+
+export const buildTextFromHtml = (html: string): string => {
+  const normalizedHtml = normalizeOptionalEmailContent(html);
+  if (!normalizedHtml) {
+    return '';
+  }
+
+  const withLineBreaks = normalizedHtml
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '- ');
+
+  const withoutTags = withLineBreaks.replace(/<[^>]+>/g, '');
+
+  return withoutTags
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, '\'')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 export const extractVariablesFromTemplate = (template: string): string[] => {
   const regex = /{{\s*([^}\s]+)\s*}}/g;
   const variables: string[] = [];

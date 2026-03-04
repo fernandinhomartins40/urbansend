@@ -131,6 +131,12 @@ export class EmailTrackingService {
       const normalizedUrl = typeof linkUrl === 'string' ? linkUrl : null;
 
       await db.transaction(async (trx) => {
+        const existingOpen = await trx('email_analytics')
+          .where('email_id', email.id)
+          .whereIn('event_type', ['open', 'opened'])
+          .where('ip_address', ipAddress)
+          .first();
+
         const existingClickQuery = trx('email_analytics')
           .where('email_id', email.id)
           .where('event_type', 'click')
@@ -151,6 +157,22 @@ export class EmailTrackingService {
             status: 'clicked',
             updated_at: clickedAt
           });
+
+        if (!existingOpen) {
+          await insertTrackingEvent(trx, {
+            userId: email.user_id,
+            emailId: email.id,
+            eventType: 'open',
+            recipientEmail: email.to_email,
+            trackingId,
+            userAgent: context.userAgent || 'unknown',
+            ipAddress,
+            metadata: {
+              source: 'tracked_link_inferred_open',
+              acceptedByServer: ['delivered', 'opened', 'clicked'].includes(email.status)
+            }
+          });
+        }
 
         if (existingClick) {
           return;

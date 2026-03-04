@@ -12,7 +12,14 @@ import { logger } from '../config/logger';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import db from '../config/database';
 import { emailTrackingService } from './EmailTrackingService';
-import { generateTrackingPixel, processLinksForTracking, processTemplate } from '../utils/email';
+import {
+  buildHtmlFromText,
+  buildTextFromHtml,
+  generateTrackingPixel,
+  normalizeOptionalEmailContent,
+  processLinksForTracking,
+  processTemplate
+} from '../utils/email';
 
 // Interfaces específicas para multi-tenancy
 export interface EmailRequest {
@@ -194,8 +201,8 @@ export class MultiTenantEmailService {
   private async prepareEmailRequest(emailData: EmailRequest, userId: number): Promise<EmailRequest> {
     const variables = emailData.variables || emailData.template_data || {};
     let subject = emailData.subject;
-    let html = emailData.html;
-    let text = emailData.text;
+    let html = normalizeOptionalEmailContent(emailData.html);
+    let text = normalizeOptionalEmailContent(emailData.text);
 
     if (emailData.template_id) {
       const template = await db('email_templates')
@@ -208,14 +215,25 @@ export class MultiTenantEmailService {
       }
 
       subject = subject || template.subject || '';
-      html = html || template.html_content || '';
-      text = text || template.text_content || '';
+      html = html || normalizeOptionalEmailContent(template.html_content) || '';
+      text = text || normalizeOptionalEmailContent(template.text_content) || '';
     }
 
     if (Object.keys(variables).length > 0) {
       subject = subject ? processTemplate(subject, variables) : subject;
       html = html ? processTemplate(html, variables) : html;
       text = text ? processTemplate(text, variables) : text;
+    }
+
+    html = normalizeOptionalEmailContent(html);
+    text = normalizeOptionalEmailContent(text);
+
+    if (!html && text) {
+      html = buildHtmlFromText(text);
+    }
+
+    if (!text && html) {
+      text = buildTextFromHtml(html);
     }
 
     return {
@@ -246,8 +264,8 @@ export class MultiTenantEmailService {
   ): Promise<void> {
     // Preparar HTML com tracking pixel (de forma segura) - fora do try/catch
     let finalHtml = emailData.html;
-    if (emailData.html && emailData.tracking_enabled !== false) {
-      finalHtml = this.addTrackingPixelSafely(emailData.html, trackingId);
+    if (finalHtml && emailData.tracking_enabled !== false) {
+      finalHtml = this.addTrackingPixelSafely(finalHtml, trackingId);
     }
 
     try {
@@ -257,7 +275,7 @@ export class MultiTenantEmailService {
         domain
       });
 
-      if (emailData.html && finalHtml) {
+      if (finalHtml) {
         logger.debug('📧 Tracking pixel added', {
           userId: user.id,
           messageId,

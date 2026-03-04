@@ -133,16 +133,18 @@ describe('EmailTrackingService', () => {
         status: 'opened'
       }
     });
+    const existingOpenLookup = createQueryBuilder({ firstValue: undefined });
     const existingClickLookup = createQueryBuilder({ firstValue: undefined });
     const emailUpdate = createQueryBuilder();
-    const eventInsert = createQueryBuilder();
+    const inferredOpenInsert = createQueryBuilder();
+    const clickInsert = createQueryBuilder();
 
     mockDb.mockImplementation(createTableDispatcher({
       emails: [emailLookup]
     }));
     mockDb.transaction.mockImplementation(async (callback: (trx: any) => Promise<void>) => {
       const trx = createTableDispatcher({
-        email_analytics: [existingClickLookup, eventInsert],
+        email_analytics: [existingOpenLookup, existingClickLookup, inferredOpenInsert, clickInsert],
         emails: [emailUpdate]
       });
       return callback(trx);
@@ -162,7 +164,12 @@ describe('EmailTrackingService', () => {
     expect(emailUpdate.update).toHaveBeenCalledWith(expect.objectContaining({
       status: 'clicked'
     }));
-    expect(eventInsert.insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(inferredOpenInsert.insert).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: 'open',
+      tracking_id: 'track-click-1',
+      ip_address: '198.51.100.5'
+    }));
+    expect(clickInsert.insert).toHaveBeenCalledWith(expect.objectContaining({
       event_type: 'click',
       link_url: 'https://example.com/oferta',
       tracking_id: 'track-click-1'

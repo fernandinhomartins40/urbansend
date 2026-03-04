@@ -324,14 +324,16 @@ export function SendEmail() {
                   <FormField
                     control={form.control}
                     name="tracking_enabled"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <FormLabel>Tracking</FormLabel>
-                          <FormDescription>Habilita abertura e clique no email enviado.</FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                          <div>
+                            <FormLabel>Tracking</FormLabel>
+                            <FormDescription>
+                              Habilita abertura e clique. Se o email tiver apenas texto, a plataforma gera HTML automaticamente para viabilizar a abertura.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
                         </FormControl>
                       </FormItem>
                     )}
