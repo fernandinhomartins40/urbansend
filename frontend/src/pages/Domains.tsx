@@ -140,8 +140,9 @@ const DomainMonitoring: React.FC<{ domains: ReturnType<typeof useDomainSetup>['d
               </Badge>
             </div>
 
-            <div className="grid gap-2 md:grid-cols-3">
+            <div className="grid gap-2 md:grid-cols-4">
               {[
+                { label: 'MAIL FROM', state: domain.dns_status.mail_from, helper: domain.dns_status.mail_from.domain },
                 { label: 'SPF', state: domain.dns_status.spf },
                 { label: 'DKIM', state: domain.dns_status.dkim },
                 { label: 'DMARC', state: domain.dns_status.dmarc },
@@ -156,6 +157,7 @@ const DomainMonitoring: React.FC<{ domains: ReturnType<typeof useDomainSetup>['d
                   <div className="text-sm text-muted-foreground">
                     {item.state.configured ? 'Registro publicado' : 'Registro ausente'}
                   </div>
+                  {'helper' in item && item.helper ? <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div> : null}
                 </div>
               ))}
             </div>

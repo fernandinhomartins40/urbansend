@@ -146,6 +146,7 @@ export const DomainList: React.FC<DomainListProps> = ({
 
   const renderDNSStatus = (domain: DomainStatus) => {
     const checks = [
+      { name: 'MAIL FROM', status: domain.dns_status.mail_from },
       { name: 'DKIM', status: domain.dns_status.dkim },
       { name: 'SPF', status: domain.dns_status.spf },
       { name: 'DMARC', status: domain.dns_status.dmarc }

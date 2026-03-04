@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Eye,
   Globe,
+  Mail,
   Shield,
   Key
 } from 'lucide-react';
@@ -250,7 +251,13 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
               <span>Configurações de Autenticação</span>
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {renderConfigStatus(
+                domainDetails.configuration.mail_from,
+                'MAIL FROM',
+                <Mail className="w-4 h-4 text-amber-600" />
+              )}
+
               {renderConfigStatus(
                 config.spf, 
                 'SPF Record', 
@@ -270,6 +277,28 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
               )}
             </div>
           </div>
+
+          <Card className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="font-medium flex items-center space-x-2">
+                <Mail className="w-4 h-4" />
+                <span>Subdominio tecnico</span>
+              </h4>
+              <Badge variant={config.mail_from.dns_valid ? 'default' : 'destructive'} className="text-xs">
+                {config.mail_from.dns_valid ? 'Validado' : 'Pendente'}
+              </Badge>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">MAIL FROM:</span>
+                <span className="font-mono">{config.mail_from.domain}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">MX tecnico:</span>
+                <span className="font-mono">{config.mail_from.mx_target}</span>
+              </div>
+            </div>
+          </Card>
 
           {/* DKIM Details */}
           {config.dkim.enabled && (

@@ -5,6 +5,7 @@ import { logger } from '../config/logger';
 import { Env } from '../utils/env';
 import db from '../config/database';
 import { DKIMManager } from './dkimManager';
+import { buildManagedMailFromDomain } from '../utils/mailFrom';
 
 interface MXRecord {
   exchange: string;
@@ -23,6 +24,7 @@ interface EmailData {
 export class SMTPDeliveryService {
   private connectionPool: Map<string, Transporter> = new Map();
   private dkimManager: DKIMManager;
+  private readonly platformMailHostname = Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br');
 
   constructor() {
     this.dkimManager = new DKIMManager();
@@ -104,6 +106,40 @@ export class SMTPDeliveryService {
     );
   }
 
+  private buildEnvelopeFrom(emailData: EmailData): string {
+    const fromDomain = this.extractDomain(emailData.from);
+    const trackingToken = this.sanitizeToken(
+      emailData.headers?.['X-Message-ID'] || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    );
+
+    if (!fromDomain || this.isUltraZendDomain(fromDomain)) {
+      return `bounce+${trackingToken}@${this.platformMailHostname}`;
+    }
+
+    return `bounce+${trackingToken}@${buildManagedMailFromDomain(fromDomain)}`;
+  }
+
+  private buildHeaders(emailData: any, envelopeFrom: string): Record<string, string> {
+    return {
+      ...emailData.headers,
+      'Return-Path': `<${envelopeFrom}>`,
+      ...(emailData.dkimSignature && { 'DKIM-Signature': emailData.dkimSignature })
+    };
+  }
+
+  private extractDomain(email: string): string {
+    const parts = email.split('@');
+    return parts[1]?.trim().toLowerCase() || '';
+  }
+
+  private sanitizeToken(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'email';
+  }
+
+  private isUltraZendDomain(domain: string): boolean {
+    return ['ultrazend.com.br', 'mail.ultrazend.com.br', 'www.ultrazend.com.br'].includes(domain.toLowerCase());
+  }
+
   private async deliverViaSMTPRelay(emailData: any): Promise<boolean> {
     const transporter = createTransport({
       host: process.env.SMTP_FALLBACK_HOST,
@@ -116,15 +152,17 @@ export class SMTPDeliveryService {
     });
 
     try {
+      const envelopeFrom = this.buildEnvelopeFrom(emailData);
       const result = await transporter.sendMail({
         from: emailData.from,
         to: emailData.to,
         subject: emailData.subject,
         html: emailData.html,
         text: emailData.text,
-        headers: {
-          ...emailData.headers,
-          ...(emailData.dkimSignature && { 'DKIM-Signature': emailData.dkimSignature })
+        headers: this.buildHeaders(emailData, envelopeFrom),
+        envelope: {
+          from: envelopeFrom,
+          to: emailData.to
         }
       });
 
@@ -225,15 +263,17 @@ export class SMTPDeliveryService {
     
     try {
       // Preparar dados do email com headers DKIM se disponível
+      const envelopeFrom = this.buildEnvelopeFrom(emailData);
       const mailOptions = {
         from: emailData.from,
         to: emailData.to,
         subject: emailData.subject,
         html: emailData.html,
         text: emailData.text,
-        headers: {
-          ...emailData.headers,
-          ...(emailData.dkimSignature && { 'DKIM-Signature': emailData.dkimSignature })
+        headers: this.buildHeaders(emailData, envelopeFrom),
+        envelope: {
+          from: envelopeFrom,
+          to: emailData.to
         }
       };
 

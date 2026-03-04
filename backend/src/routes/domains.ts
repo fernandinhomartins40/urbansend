@@ -23,7 +23,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   // Calcular estatísticas para cada domínio e adicionar verification_status baseado em is_verified
   const domainsWithStats = domains.map(domain => ({
     ...domain,
-    verification_status: domain.is_verified ? 'verified' : 'pending', // 🔧 FIX: Calcular status baseado em is_verified
+    verification_status: domain.is_verified ? 'verified' : 'pending', // FIX: Calcular status baseado em is_verified
     configuration_score: [
       domain.dkim_enabled,
       domain.spf_enabled, 
@@ -88,38 +88,42 @@ router.post('/:id/verify', asyncHandler(async (req: AuthenticatedRequest, res: R
     return res.status(404).json({ error: 'Domínio não encontrado' });
   }
   
-  // 🔧 CORREÇÃO CRÍTICA: Implementar verificação DNS REAL
-  const { DomainVerificationService } = await import('../services/DomainVerificationService');
-  const verificationService = new DomainVerificationService();
+  const { DomainSetupService } = await import('../services/DomainSetupService');
+  const setupService = new DomainSetupService();
   
   try {
-    const verificationResult = await verificationService.verifyAndUpdateDomain(parseInt(id));
+    const verificationResult = await setupService.verifyDomainSetup(req.user!.id, parseInt(id));
     
     if (verificationResult.success) {
       res.json({ 
         message: 'Domínio verificado com sucesso',
         verification: {
-          spf: verificationResult.spf.verified,
-          dkim: verificationResult.dkim.verified, 
-          dmarc: verificationResult.dmarc.verified,
-          timestamp: verificationResult.timestamp
+          mail_from_mx: verificationResult.results.mail_from_mx.valid,
+          spf: verificationResult.results.spf.valid,
+          dkim: verificationResult.results.dkim.valid, 
+          dmarc: verificationResult.results.dmarc.valid,
+          timestamp: verificationResult.verified_at
         }
       });
     } else {
       res.status(400).json({ 
         error: 'Falha na verificação DNS',
         details: {
+          mail_from_mx: {
+            verified: verificationResult.results.mail_from_mx.valid,
+            error: verificationResult.results.mail_from_mx.error
+          },
           spf: {
-            verified: verificationResult.spf.verified,
-            error: verificationResult.spf.error
+            verified: verificationResult.results.spf.valid,
+            error: verificationResult.results.spf.error
           },
           dkim: {
-            verified: verificationResult.dkim.verified,
-            error: verificationResult.dkim.error
+            verified: verificationResult.results.dkim.valid,
+            error: verificationResult.results.dkim.error
           },
           dmarc: {
-            verified: verificationResult.dmarc.verified,
-            error: verificationResult.dmarc.error
+            verified: verificationResult.results.dmarc.valid,
+            error: verificationResult.results.dmarc.error
           }
         }
       });

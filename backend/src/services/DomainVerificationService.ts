@@ -347,6 +347,7 @@ export class DomainVerificationService {
   public async getDNSInstructions(domainId: number): Promise<{
     domain: string;
     instructions: {
+      mail_from_mx: string;
       spf: string;
       dkim: string;
       dmarc: string;
@@ -364,9 +365,10 @@ export class DomainVerificationService {
       return {
         domain: domain.domain_name,
         instructions: {
-          spf: `${domain.domain_name} TXT "v=spf1 include:ultrazend.com.br ~all"`,
+          spf: `uz-mail.${domain.domain_name} TXT "v=spf1 include:ultrazend.com.br -all"`,
+          mail_from_mx: `uz-mail.${domain.domain_name} MX 10 mail.ultrazend.com.br`,
           dkim: `${dkimSelector}._domainkey.${domain.domain_name} TXT "v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY_HERE"`,
-          dmarc: `_dmarc.${domain.domain_name} TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@ultrazend.com.br"`
+          dmarc: `_dmarc.${domain.domain_name} TXT "v=DMARC1; p=none"`
         }
       };
 

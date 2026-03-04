@@ -10,7 +10,6 @@ import { Label } from '../ui/label'
 import { Progress } from '../ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Separator } from '../ui/separator'
-import { Switch } from '../ui/switch'
 import { type DomainSetupResult, type VerificationResult, useDomainSetup } from '../../hooks/useDomainSetup'
 
 interface DomainSetupWizardProps {
@@ -22,15 +21,12 @@ interface DomainSetupWizardProps {
 
 const steps = [
   { label: 'Inserir dominio', description: 'Informe o dominio que sera usado no envio' },
-  { label: 'Configurar DNS', description: 'Adicione os registros no provedor de DNS' },
-  { label: 'Verificar', description: 'Confirme SPF, DKIM e DMARC' },
+  { label: 'Configurar DNS', description: 'Publique MAIL FROM, SPF, DKIM e DMARC' },
+  { label: 'Verificar', description: 'Confirme o subdominio tecnico e a autenticacao' },
   { label: 'Concluido', description: 'Dominio pronto para enviar' },
 ]
 
 interface DomainConfigurationForm {
-  dkim_enabled: boolean
-  spf_enabled: boolean
-  dmarc_enabled: boolean
   dmarc_policy: 'none' | 'quarantine' | 'reject'
 }
 
@@ -92,9 +88,6 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           setup_guide: dnsInstructions.setup_guide,
         })
         setDomainConfiguration({
-          dkim_enabled: Boolean(domainDetails.configuration.dkim.enabled),
-          spf_enabled: Boolean(domainDetails.configuration.spf.enabled),
-          dmarc_enabled: Boolean(domainDetails.configuration.dmarc.enabled),
           dmarc_policy: (domainDetails.configuration.dmarc.policy || 'none') as DomainConfigurationForm['dmarc_policy'],
         })
 
@@ -245,7 +238,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     <div key={type} className="space-y-3 rounded-lg border bg-gray-50 p-4">
       <div className="flex items-center justify-between">
         <h4 className="font-medium uppercase">{type}</h4>
-        <Badge variant="outline">Prioridade {record.priority}</Badge>
+        {record.priority ? <Badge variant="outline">Prioridade {record.priority}</Badge> : null}
       </div>
 
       <p className="text-sm text-muted-foreground">{record.description}</p>
@@ -343,49 +336,31 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
                 <div className="mb-4">
                   <h4 className="font-medium">Configuracoes do dominio</h4>
                   <p className="text-sm text-muted-foreground">
-                    Ajuste os protocolos ativos antes de revisar os registros DNS.
+                    DKIM e SPF tecnico sao obrigatorios. Aqui voce ajusta apenas a politica DMARC e pode rotacionar a chave DKIM.
                   </p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-3 rounded-lg border p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">SPF</div>
-                        <div className="text-sm text-muted-foreground">Autoriza servidores de envio.</div>
+                    <div>
+                      <div className="font-medium">SPF tecnico</div>
+                      <div className="text-sm text-muted-foreground">
+                        Obrigatorio. Publicado no subdominio de return-path para autenticar o envelope sender.
                       </div>
-                      <Switch
-                        checked={domainConfiguration.spf_enabled}
-                        onCheckedChange={(checked) =>
-                          setDomainConfiguration((current) => current ? { ...current, spf_enabled: checked } : current)
-                        }
-                      />
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">DKIM</div>
-                        <div className="text-sm text-muted-foreground">Assina os emails do dominio.</div>
+                    <div>
+                      <div className="font-medium">DKIM</div>
+                      <div className="text-sm text-muted-foreground">
+                        Obrigatorio. Assina o cabecalho From do dominio de envio.
                       </div>
-                      <Switch
-                        checked={domainConfiguration.dkim_enabled}
-                        onCheckedChange={(checked) =>
-                          setDomainConfiguration((current) => current ? { ...current, dkim_enabled: checked } : current)
-                        }
-                      />
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">DMARC</div>
-                        <div className="text-sm text-muted-foreground">Aplica a politica de alinhamento.</div>
+                    <div>
+                      <div className="font-medium">DMARC</div>
+                      <div className="text-sm text-muted-foreground">
+                        Recomendado. Comece com none e endureca depois de validar o alinhamento.
                       </div>
-                      <Switch
-                        checked={domainConfiguration.dmarc_enabled}
-                        onCheckedChange={(checked) =>
-                          setDomainConfiguration((current) => current ? { ...current, dmarc_enabled: checked } : current)
-                        }
-                      />
                     </div>
                   </div>
 
@@ -428,44 +403,50 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           <Alert className="mb-6 border-blue-200 bg-blue-50">
             <Info className="h-4 w-4" />
             <div>
-              <h4 className="font-medium">Mantenha os registros atuais do site</h4>
+              <h4 className="font-medium">Nao altere o site nem o MX principal</h4>
               <p className="text-sm">
-                Adicione apenas os registros de email mostrados aqui. Isso ativa o envio sem interferir no site.
+                A UltraZend usa um subdominio tecnico de return-path. O dominio raiz e o email corporativo do cliente continuam intactos.
               </p>
             </div>
           </Alert>
 
-          {setupResult.dns_instructions.a_records && (
-            <div className="mb-6">
-              <h4 className="mb-3 font-medium">Registros A</h4>
-              <div className="space-y-4">
-                {Object.entries(setupResult.dns_instructions.a_records).map(([key, record]) =>
-                  renderDNSRecord(`A ${key}`, record)
-                )}
-              </div>
+          <div className="mb-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border bg-white p-4">
+              <div className="text-sm font-medium text-muted-foreground">Dominio de envio</div>
+              <div className="mt-2 text-lg font-semibold">{setupResult.dns_instructions.sending_domain}</div>
             </div>
-          )}
+            <div className="rounded-lg border bg-white p-4">
+              <div className="text-sm font-medium text-muted-foreground">Subdominio tecnico (MAIL FROM)</div>
+              <div className="mt-2 text-lg font-semibold">{setupResult.dns_instructions.mail_from_domain}</div>
+            </div>
+          </div>
 
-          {setupResult.dns_instructions.mx && (
-            <>
-              <Separator className="my-6" />
-              <div className="mb-6">
-                <h4 className="mb-3 font-medium">Registro MX</h4>
-                {renderDNSRecord('MX', setupResult.dns_instructions.mx)}
-              </div>
-            </>
-          )}
+          <div className="mb-6">
+            <h4 className="mb-3 font-medium">Subdominio tecnico</h4>
+            {renderDNSRecord('MAIL FROM MX', setupResult.dns_instructions.mail_from_mx)}
+          </div>
 
           <Separator className="my-6" />
 
           <div className="mb-6">
-            <h4 className="mb-3 font-medium">Autenticacao TXT</h4>
+            <h4 className="mb-3 font-medium">Autenticacao DNS</h4>
             <div className="space-y-4">
-              {setupResult.dns_instructions.spf && renderDNSRecord('SPF', setupResult.dns_instructions.spf)}
-              {setupResult.dns_instructions.dkim && renderDNSRecord('DKIM', setupResult.dns_instructions.dkim)}
-              {setupResult.dns_instructions.dmarc && renderDNSRecord('DMARC', setupResult.dns_instructions.dmarc)}
+              {renderDNSRecord('SPF', setupResult.dns_instructions.spf)}
+              {renderDNSRecord('DKIM', setupResult.dns_instructions.dkim)}
+              {renderDNSRecord('DMARC', setupResult.dns_instructions.dmarc)}
             </div>
           </div>
+
+          {setupResult.dns_instructions.notes.length > 0 && (
+            <div className="mb-6 rounded-lg border bg-amber-50 p-4">
+              <h4 className="mb-2 font-medium text-amber-900">Notas importantes</h4>
+              <div className="space-y-1 text-sm text-amber-800">
+                {setupResult.dns_instructions.notes.map((note) => (
+                  <div key={note}>- {note}</div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="rounded-lg bg-blue-50 p-4">
             <h4 className="mb-2 font-medium text-blue-900">Passo a passo</h4>
@@ -519,12 +500,13 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     <Card className="p-6">
       <div className="mb-6 text-center">
         <h3 className="mb-2 text-lg font-semibold">Verificar configuracao</h3>
-        <p className="text-muted-foreground">Confira se SPF, DKIM e DMARC ja propagaram no DNS.</p>
+        <p className="text-muted-foreground">Confira se o MAIL FROM tecnico, SPF, DKIM e DMARC ja propagaram no DNS.</p>
       </div>
 
       {verificationResult && (
         <div className="mb-6 space-y-6">
           <div className="space-y-2">
+            {renderVerificationResult('MAIL FROM MX', verificationResult.results.mail_from_mx)}
             {renderVerificationResult('SPF', verificationResult.results.spf)}
             {renderVerificationResult('DKIM', verificationResult.results.dkim)}
             {renderVerificationResult('DMARC', verificationResult.results.dmarc)}
@@ -581,10 +563,11 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       <div className="mb-6 rounded-lg bg-green-50 p-4 text-left">
         <h4 className="mb-2 font-medium text-green-900">O que ficou valido</h4>
         <div className="space-y-1 text-sm text-green-800">
-          <div>OK SPF autorizado</div>
+          <div>OK MAIL FROM tecnico validado</div>
+          <div>OK SPF tecnico autorizado</div>
           <div>OK DKIM assinado</div>
           <div>OK DMARC publicado</div>
-          <div>OK infraestrutura de email preparada</div>
+          <div>OK dominio pronto para envio transacional</div>
         </div>
       </div>
 

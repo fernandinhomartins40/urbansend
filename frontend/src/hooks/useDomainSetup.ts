@@ -5,16 +5,18 @@ import { api } from '../lib/api'
 export interface DNSRecordInstruction {
   record: string
   value: string
-  priority: number
+  priority?: number
   description: string
 }
 
 export interface DNSInstructions {
-  a_records: Record<string, DNSRecordInstruction>
-  mx?: DNSRecordInstruction
-  spf?: DNSRecordInstruction
-  dkim?: DNSRecordInstruction
-  dmarc?: DNSRecordInstruction
+  sending_domain: string
+  mail_from_domain: string
+  mail_from_mx: DNSRecordInstruction
+  spf: DNSRecordInstruction
+  dkim: DNSRecordInstruction
+  dmarc: DNSRecordInstruction
+  notes: string[]
 }
 
 export interface DomainRecord {
@@ -47,6 +49,7 @@ export interface VerificationResult {
   all_passed: boolean
   verified_at: string
   results: {
+    mail_from_mx: DNSVerificationResult
     spf: DNSVerificationResult
     dkim: DNSVerificationResult
     dmarc: DNSVerificationResult
@@ -63,6 +66,11 @@ export interface DomainStatus {
   created_at: string
   verified_at?: string
   dns_status: {
+    mail_from: {
+      configured: boolean
+      valid: boolean
+      domain: string
+    }
     dkim: {
       configured: boolean
       valid: boolean
@@ -91,6 +99,13 @@ export interface DomainDetails {
     verified_at?: string
   }
   configuration: {
+    mail_from: {
+      enabled: boolean
+      domain: string
+      configured: boolean
+      dns_valid: boolean
+      mx_target: string
+    }
     dkim: {
       enabled: boolean
       selector: string
@@ -163,6 +178,11 @@ const normalizeDomainStatus = (domain: any): DomainStatus => ({
   created_at: domain.created_at,
   verified_at: domain.verified_at || undefined,
   dns_status: {
+    mail_from: {
+      configured: Boolean(domain.dns_status?.mail_from?.configured),
+      valid: Boolean(domain.dns_status?.mail_from?.valid),
+      domain: domain.dns_status?.mail_from?.domain || '',
+    },
     dkim: {
       configured: Boolean(domain.dns_status?.dkim?.configured),
       valid: Boolean(domain.dns_status?.dkim?.valid),

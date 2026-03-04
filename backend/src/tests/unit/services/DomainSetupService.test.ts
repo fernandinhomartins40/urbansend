@@ -16,44 +16,30 @@ jest.mock('../../../services/MultiDomainDKIMManager', () => ({
 
 describe('DomainSetupService', () => {
   const createDnsInstructions = () => ({
-    a_records: {
-      smtp: {
-        record: 'smtp',
-        value: '31.97.162.155',
-        priority: 10,
-        description: 'SMTP host'
-      },
-      mail: {
-        record: 'mail',
-        value: '31.97.162.155',
-        priority: 10,
-        description: 'Mail host'
-      }
-    },
-    mx: {
-      record: '@',
-      value: 'mail.example.com',
+    sending_domain: 'example.com',
+    mail_from_domain: 'uz-mail.example.com',
+    mail_from_mx: {
+      record: 'uz-mail.example.com',
+      value: 'mail.ultrazend.com.br',
       priority: 10,
-      description: 'MX record'
+      description: 'Mail-from MX record'
     },
     spf: {
-      record: '@',
-      value: 'v=spf1 include:ultrazend.com.br ~all',
-      priority: 10,
+      record: 'uz-mail.example.com',
+      value: 'v=spf1 include:ultrazend.com.br -all',
       description: 'SPF record'
     },
     dkim: {
-      record: 'default._domainkey',
+      record: 'default._domainkey.example.com',
       value: 'v=DKIM1; k=rsa; p=public-key',
-      priority: 10,
       description: 'DKIM record'
     },
     dmarc: {
-      record: '_dmarc',
-      value: 'v=DMARC1; p=quarantine;',
-      priority: 10,
+      record: '_dmarc.example.com',
+      value: 'v=DMARC1; p=none',
       description: 'DMARC record'
-    }
+    },
+    notes: ['note 1']
   });
 
   const configureDbMocks = (options: {
@@ -72,7 +58,7 @@ describe('DomainSetupService', () => {
       dkim_selector: 'default',
       spf_enabled: true,
       dmarc_enabled: true,
-      dmarc_policy: 'quarantine',
+      dmarc_policy: 'none',
       created_at: new Date('2026-03-03T12:00:00.000Z'),
       updated_at: new Date('2026-03-03T12:00:00.000Z')
     };
@@ -180,5 +166,40 @@ describe('DomainSetupService', () => {
       'already linked to another account'
     );
     expect(transactionSpy).not.toHaveBeenCalled();
+  });
+
+  it('creates DNS instructions with a managed mail-from subdomain instead of apex MX takeover', () => {
+    const service = new DomainSetupService();
+
+    const instructions = (service as any).createDNSInstructions(
+      {
+        domain_name: 'example.com',
+        dmarc_policy: 'none'
+      },
+      'public-key'
+    );
+
+    expect(instructions.mail_from_domain).toBe('uz-mail.example.com');
+    expect(instructions.mail_from_mx.record).toBe('uz-mail.example.com');
+    expect(instructions.mail_from_mx.value).toBe('mail.ultrazend.com.br');
+    expect(instructions.spf.record).toBe('uz-mail.example.com');
+    expect(instructions.spf.value).toContain('include:ultrazend.com.br');
+    expect(instructions.dmarc.value).toBe('v=DMARC1; p=none');
+    expect(instructions.notes[0]).toContain('Nao altere os registros @');
+  });
+
+  it('verifies SPF on the managed mail-from subdomain and rejects duplicate SPF records', async () => {
+    const service = new DomainSetupService();
+
+    jest.spyOn(service as any, 'resolveTxtWithRetry').mockResolvedValue([
+      'v=spf1 include:ultrazend.com.br -all',
+      'v=spf1 include:another.example -all'
+    ]);
+
+    const result = await (service as any).verifySpfRecord('example.com');
+
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Multiple SPF records');
+    expect((service as any).resolveTxtWithRetry).toHaveBeenCalledWith('uz-mail.example.com');
   });
 });

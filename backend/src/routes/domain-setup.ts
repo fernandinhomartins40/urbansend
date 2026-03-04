@@ -140,6 +140,13 @@ router.post('/:domainId/verify',
           all_passed: verification.all_passed,
           verified_at: verification.verified_at,
           results: {
+            mail_from_mx: {
+              valid: verification.results.mail_from_mx.valid,
+              status: verification.results.mail_from_mx.valid ? 'verified' : 'failed',
+              expected: verification.results.mail_from_mx.expectedValue,
+              found: verification.results.mail_from_mx.actualValue,
+              error: verification.results.mail_from_mx.error
+            },
             spf: {
               valid: verification.results.spf.valid,
               status: verification.results.spf.valid ? 'verified' : 'failed',
@@ -172,6 +179,7 @@ router.post('/:domainId/verify',
         domain: verification.domain,
         allPassed: verification.all_passed,
         results: {
+          mail_from_mx: verification.results.mail_from_mx.valid,
           spf: verification.results.spf.valid,
           dkim: verification.results.dkim.valid,
           dmarc: verification.results.dmarc.valid
@@ -230,6 +238,11 @@ router.get('/domains',
             created_at: status.domain.created_at,
             verified_at: status.domain.verified_at,
             dns_status: {
+              mail_from: {
+                configured: status.mail_from_status.configured,
+                valid: status.mail_from_status.dns_valid,
+                domain: status.mail_from_status.domain
+              },
               dkim: {
                 configured: status.dkim_status.configured,
                 valid: status.dkim_status.dns_valid
@@ -317,6 +330,13 @@ router.get('/domains/:domainId',
             verified_at: domainStatus.domain.verified_at
           },
           configuration: {
+            mail_from: {
+              enabled: true,
+              domain: domainStatus.mail_from_status.domain,
+              configured: domainStatus.mail_from_status.configured,
+              dns_valid: domainStatus.mail_from_status.dns_valid,
+              mx_target: 'mail.ultrazend.com.br'
+            },
             dkim: {
               enabled: domainStatus.domain.dkim_enabled,
               selector: domainStatus.domain.dkim_selector,
@@ -534,7 +554,7 @@ router.get('/dns-instructions/:domainId',
       // Criar instruções DNS usando o mesmo método do DomainSetupService
       const setupService = new DomainSetupService();
       const dnsInstructions = setupService['createDNSInstructions'](
-        domainRecord.domain_name,
+        domainRecord,
         dkimKey.public_key
       );
 
@@ -544,7 +564,7 @@ router.get('/dns-instructions/:domainId',
         data: {
           domain: domainRecord.domain_name,
           instructions: dnsInstructions,
-          setup_guide: setupService['generateSetupGuide'](domainRecord.domain_name),
+          setup_guide: setupService['generateSetupGuide'](domainRecord),
           last_updated: new Date()
         }
       };
@@ -598,9 +618,9 @@ router.put('/domains/:domainId',
       await db('domains')
         .where('id', domainId)
         .update({
-          dkim_enabled: dkim_enabled ?? domain.dkim_enabled,
-          spf_enabled: spf_enabled ?? domain.spf_enabled,
-          dmarc_enabled: dmarc_enabled ?? domain.dmarc_enabled,
+          dkim_enabled: true,
+          spf_enabled: true,
+          dmarc_enabled: true,
           dmarc_policy: dmarc_policy ?? domain.dmarc_policy,
           updated_at: new Date()
         });
@@ -609,7 +629,7 @@ router.put('/domains/:domainId',
         userId,
         domainId,
         domainName: domain.domain_name,
-        updates: { dkim_enabled, spf_enabled, dmarc_enabled, dmarc_policy }
+        updates: { dmarc_policy }
       });
 
       res.json({

@@ -9,6 +9,7 @@ import { DKIMManager } from './dkimManager';
 import { DeliveryManager } from './deliveryManager';
 import { TenantContextService } from './TenantContextService';
 import { sqlJsonExtract } from '../utils/sqlDialect';
+import { extractManagedMailFromBaseDomain } from '../utils/mailFrom';
 
 export interface ProcessingResult {
   success: boolean;
@@ -515,6 +516,16 @@ export class EmailProcessor {
   public async validateLocalRecipient(recipientAddress: string): Promise<RecipientValidation> {
     try {
       const domain = this.extractDomain(recipientAddress);
+      const managedMailFromDomain = await this.isManagedMailFromDomain(domain);
+
+      if (managedMailFromDomain) {
+        return {
+          valid: true,
+          isLocal: true,
+          userExists: true
+        };
+      }
+
       const isLocal = await this.isLocalDomain(recipientAddress);
 
       if (!isLocal) {
@@ -581,7 +592,21 @@ export class EmailProcessor {
 
   public async isLocalDomain(emailAddress: string): Promise<boolean> {
     const domain = this.extractDomain(emailAddress);
-    return this.localDomains.has(domain);
+    return this.localDomains.has(domain) || await this.isManagedMailFromDomain(domain);
+  }
+
+  private async isManagedMailFromDomain(domain: string): Promise<boolean> {
+    const baseDomain = extractManagedMailFromBaseDomain(domain);
+
+    if (!baseDomain) {
+      return false;
+    }
+
+    const configuredDomain = await db('domains')
+      .where('domain_name', baseDomain)
+      .first();
+
+    return Boolean(configuredDomain);
   }
 
   // Métodos auxiliares
@@ -637,6 +662,11 @@ export class EmailProcessor {
   ): Promise<any> {
     try {
       // Salvar email na caixa de entrada do usuário
+      if (await this.isManagedMailFromDomain(this.extractDomain(recipient))) {
+        logger.info('Accepted managed return-path email', { recipient });
+        return { delivered: true, managedReturnPath: true };
+      }
+
       const user = await db('users').where('email', recipient).first();
       
       if (user) {
