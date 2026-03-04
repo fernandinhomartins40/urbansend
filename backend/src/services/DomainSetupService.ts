@@ -5,6 +5,7 @@ import { MultiDomainDKIMManager } from './MultiDomainDKIMManager';
 import { DomainValidator } from './DomainValidator';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import { buildManagedMailFromDomain, DEFAULT_PLATFORM_MX_HOST } from '../utils/mailFrom';
+import { Env } from '../utils/env';
 import dns from 'dns';
 import { promisify } from 'util';
 
@@ -45,6 +46,8 @@ export interface DNSInstructions {
   dkim: DNSRecordInstruction;
   dmarc: DNSRecordInstruction;
   notes: string[];
+  deliverability_requirements: string[];
+  recommended_practices: string[];
 }
 
 export interface DomainSetupResult {
@@ -109,8 +112,13 @@ export class DomainSetupService {
   private readonly domainValidator: DomainValidator;
   
   // Configurações DNS UltraZend
-  private readonly ULTRAZEND_SPF_INCLUDE = 'ultrazend.com.br';
   private readonly PLATFORM_MAIL_FROM_MX = DEFAULT_PLATFORM_MX_HOST;
+  private readonly ULTRAZEND_SPF_INCLUDE = Env.get('ULTRAZEND_SPF_INCLUDE', '').trim().toLowerCase();
+  private readonly ULTRAZEND_SPF_IPS = this.parseCsvList(Env.get('ULTRAZEND_SPF_IPS', ''))
+    .filter((ip) => this.isValidIpv4(ip));
+  private readonly ULTRAZEND_SPF_HOSTS = this.parseCsvList(Env.get('ULTRAZEND_SPF_HOSTS', ''))
+    .map((host) => this.normalizeDnsHostname(host));
+  private readonly ULTRAZEND_DMARC_RUA = Env.get('ULTRAZEND_DMARC_RUA', 'dmarc@ultrazend.com.br').trim().toLowerCase();
   private readonly DNS_TIMEOUT = 10000; // 10 segundos
   private readonly MAX_DNS_RETRIES = 3;
 
@@ -762,6 +770,8 @@ export class DomainSetupService {
    */
   private createDNSInstructions(domainRecord: DomainRecord, dkimPublicKey: string): DNSInstructions {
     const mailFromDomain = this.getMailFromDomain(domainRecord.domain_name);
+    const spfRecordValue = this.buildExpectedSpfRecord();
+    const dmarcRecordValue = this.buildExpectedDmarcRecord(domainRecord.dmarc_policy);
 
     return {
       sending_domain: domainRecord.domain_name,
@@ -774,8 +784,8 @@ export class DomainSetupService {
       },
       spf: {
         record: mailFromDomain,
-        value: `v=spf1 include:${this.ULTRAZEND_SPF_INCLUDE} -all`,
-        description: 'Registro SPF do subdominio tecnico usado no envelope sender da UltraZend.'
+        value: spfRecordValue,
+        description: 'SPF do subdominio tecnico do Return-Path. Mantenha apenas um TXT SPF neste host.'
       },
       dkim: {
         record: `default._domainkey.${domainRecord.domain_name}`,
@@ -784,13 +794,26 @@ export class DomainSetupService {
       },
       dmarc: {
         record: `_dmarc.${domainRecord.domain_name}`,
-        value: `v=DMARC1; p=${domainRecord.dmarc_policy}`,
+        value: dmarcRecordValue,
         description: 'Politica DMARC do dominio de envio. O onboarding inicia em none para evitar impacto no mail flow existente.'
       },
       notes: [
         'Nao altere os registros @, www ou o MX principal do dominio.',
         'O subdominio tecnico de return-path e isolado do site e do email corporativo do cliente.',
+        `Mantenha um unico registro SPF em ${mailFromDomain}. Se ja existir SPF neste host, mescle em um unico TXT.`,
         'DKIM no dominio principal + MAIL FROM tecnico formam o setup recomendado para email transacional.'
+      ],
+      deliverability_requirements: [
+        'SPF, DKIM e DMARC devem estar validos antes do primeiro envio em producao.',
+        'Use um remetente real do dominio autenticado (ex: no-reply@seu-dominio.com).',
+        'Mantenha taxa de bounce baixa e remova contatos invalidos imediatamente.',
+        'Evite picos bruscos de volume no primeiro dia; aqueça o dominio gradualmente.'
+      ],
+      recommended_practices: [
+        'Para campanhas, inclua List-Unsubscribe e uma pagina de opt-out clara.',
+        'Comece DMARC em none, monitore por 7-14 dias e avance para quarantine/reject.',
+        'Use apenas listas com opt-in e nunca compre bases de contatos.',
+        'Monitore reputacao em Google Postmaster e outros paines de entregabilidade.'
       ]
     };
   }
@@ -803,14 +826,14 @@ export class DomainSetupService {
    */
   private generateSetupGuide(domainRecord: DomainRecord): string[] {
     const mailFromDomain = this.getMailFromDomain(domainRecord.domain_name);
+    const spfRecordValue = this.buildExpectedSpfRecord();
 
     return [
       'CONFIGURACAO SEGURA - sem mexer no site ou no MX principal do cliente',
-      '',
       '1. Acesse o provedor DNS do dominio.',
       '2. Mantenha intactos os registros @, www e o MX atual do dominio principal.',
       `3. Adicione o MX do subdominio tecnico ${mailFromDomain} apontando para ${this.PLATFORM_MAIL_FROM_MX}.`,
-      `4. Adicione o TXT SPF no subdominio tecnico ${mailFromDomain}.`,
+      `4. Publique um unico TXT SPF em ${mailFromDomain} com o valor: ${spfRecordValue}.`,
       `5. Adicione o TXT DKIM em default._domainkey.${domainRecord.domain_name}.`,
       `6. Adicione ou ajuste o TXT DMARC em _dmarc.${domainRecord.domain_name}.`,
       '7. Aguarde a propagacao DNS e execute a verificacao.',
@@ -820,6 +843,70 @@ export class DomainSetupService {
 
   private getMailFromDomain(domain: string): string {
     return buildManagedMailFromDomain(domain);
+  }
+
+  private parseCsvList(value: string): string[] {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private isValidIpv4(value: string): boolean {
+    return /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(value);
+  }
+
+  private normalizeSpfToken(token: string): string {
+    const normalized = token.trim().toLowerCase();
+    if (['+', '-', '~', '?'].includes(normalized.charAt(0))) {
+      return normalized.slice(1);
+    }
+    return normalized;
+  }
+
+  private hasSpfMechanism(tokens: string[], expectedMechanism: string): boolean {
+    const expected = expectedMechanism.toLowerCase();
+    return tokens.some((token) => this.normalizeSpfToken(token) === expected);
+  }
+
+  private getExpectedSpfMechanisms(): string[] {
+    const mechanisms: string[] = [];
+    const normalizedMxHost = this.normalizeDnsHostname(this.PLATFORM_MAIL_FROM_MX);
+
+    if (normalizedMxHost) {
+      mechanisms.push(`a:${normalizedMxHost}`);
+    }
+
+    this.ULTRAZEND_SPF_HOSTS.forEach((host) => {
+      if (host) {
+        mechanisms.push(`a:${host}`);
+      }
+    });
+
+    this.ULTRAZEND_SPF_IPS.forEach((ip) => {
+      mechanisms.push(`ip4:${ip}`);
+    });
+
+    if (this.ULTRAZEND_SPF_INCLUDE) {
+      mechanisms.push(`include:${this.ULTRAZEND_SPF_INCLUDE}`);
+    }
+
+    return Array.from(new Set(mechanisms.map((item) => item.toLowerCase())));
+  }
+
+  private buildExpectedSpfRecord(): string {
+    const mechanisms = this.getExpectedSpfMechanisms();
+    return `v=spf1 ${mechanisms.join(' ')} -all`;
+  }
+
+  private buildExpectedDmarcRecord(policy: string): string {
+    const parts = [`v=DMARC1`, `p=${policy}`];
+
+    if (this.ULTRAZEND_DMARC_RUA) {
+      parts.push(`rua=mailto:${this.ULTRAZEND_DMARC_RUA}`);
+    }
+
+    return parts.join('; ');
   }
 
   /**
@@ -901,7 +988,8 @@ export class DomainSetupService {
    */
   private async verifySpfRecord(domain: string): Promise<DNSVerificationResult> {
     const mailFromDomain = this.getMailFromDomain(domain);
-    const expectedValue = `v=spf1 include:${this.ULTRAZEND_SPF_INCLUDE} -all`;
+    const expectedValue = this.buildExpectedSpfRecord();
+    const expectedMechanisms = this.getExpectedSpfMechanisms();
     
     try {
       logger.debug('Verifying SPF record', { domain, mailFromDomain, expectedValue });
@@ -929,13 +1017,29 @@ export class DomainSetupService {
       }
 
       const spfRecord = spfRecords[0];
-      const includesUltraZend = spfRecord.toLowerCase().includes(this.ULTRAZEND_SPF_INCLUDE.toLowerCase());
+      const spfTokens = spfRecord
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(' ')
+        .filter(Boolean);
+
+      const missingMechanisms = expectedMechanisms.filter((mechanism) =>
+        !this.hasSpfMechanism(spfTokens, mechanism)
+      );
+      const hasTerminalPolicy = spfTokens.some((token) => this.normalizeSpfToken(token) === 'all');
+      const valid = missingMechanisms.length === 0 && hasTerminalPolicy;
+      const missingDetails = missingMechanisms.length > 0
+        ? `Missing mechanisms: ${missingMechanisms.join(', ')}`
+        : '';
+      const policyDetails = hasTerminalPolicy ? '' : 'Missing terminal all policy (-all or ~all)';
+      const errorDetails = [missingDetails, policyDetails].filter(Boolean).join('. ');
       
       return {
-        valid: includesUltraZend,
+        valid,
         expectedValue,
         actualValue: spfRecord,
-        error: includesUltraZend ? undefined : 'SPF record does not include UltraZend servers'
+        error: valid ? undefined : errorDetails || 'SPF record is incomplete'
       };
     } catch (error) {
       logger.debug('SPF verification failed', { 
@@ -1011,7 +1115,7 @@ export class DomainSetupService {
    */
   private async verifyDmarcRecord(domain: string, policy: string): Promise<DNSVerificationResult> {
     const dmarcDomain = `_dmarc.${domain}`;
-    const expectedValue = `v=DMARC1; p=${policy}`;
+    const expectedValue = this.buildExpectedDmarcRecord(policy);
     
     try {
       logger.debug('Verifying DMARC record', { domain, dmarcDomain });
@@ -1260,7 +1364,7 @@ export class DomainSetupService {
     }
 
     if (!results.spf.valid) {
-      steps.push('Publique o SPF no subdominio tecnico uz-mail.seudominio.com com include da UltraZend.');
+      steps.push('Publique um unico SPF no subdominio tecnico uz-mail.seudominio.com usando os mecanismos exibidos no assistente.');
     }
 
     if (!results.dkim.valid) {

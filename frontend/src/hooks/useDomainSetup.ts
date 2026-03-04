@@ -17,6 +17,8 @@ export interface DNSInstructions {
   dkim: DNSRecordInstruction
   dmarc: DNSRecordInstruction
   notes: string[]
+  deliverability_requirements: string[]
+  recommended_practices: string[]
 }
 
 export interface DomainRecord {

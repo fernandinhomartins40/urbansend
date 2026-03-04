@@ -410,6 +410,16 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             </div>
           </Alert>
 
+          <Alert className="mb-6 border-amber-200 bg-amber-50">
+            <Info className="h-4 w-4" />
+            <div>
+              <h4 className="font-medium">Foco em inbox (anti-spam)</h4>
+              <p className="text-sm">
+                Use exatamente os hosts e valores abaixo. SPF em duplicidade, DKIM incompleto ou DMARC ausente derrubam entregabilidade.
+              </p>
+            </div>
+          </Alert>
+
           <div className="mb-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border bg-white p-4">
               <div className="text-sm font-medium text-muted-foreground">Dominio de envio</div>
@@ -443,6 +453,28 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
               <div className="space-y-1 text-sm text-amber-800">
                 {setupResult.dns_instructions.notes.map((note) => (
                   <div key={note}>- {note}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(setupResult.dns_instructions.deliverability_requirements || []).length > 0 && (
+            <div className="mb-6 rounded-lg border bg-green-50 p-4">
+              <h4 className="mb-2 font-medium text-green-900">Requisitos para evitar spam</h4>
+              <div className="space-y-1 text-sm text-green-800">
+                {setupResult.dns_instructions.deliverability_requirements.map((item) => (
+                  <div key={item}>- {item}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(setupResult.dns_instructions.recommended_practices || []).length > 0 && (
+            <div className="mb-6 rounded-lg border bg-slate-50 p-4">
+              <h4 className="mb-2 font-medium text-slate-900">Boas praticas recomendadas</h4>
+              <div className="space-y-1 text-sm text-slate-700">
+                {setupResult.dns_instructions.recommended_practices.map((item) => (
+                  <div key={item}>- {item}</div>
                 ))}
               </div>
             </div>
