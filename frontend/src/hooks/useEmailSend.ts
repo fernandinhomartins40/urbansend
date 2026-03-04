@@ -1,17 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../lib/api'
 import toast from 'react-hot-toast'
+import { api } from '../lib/api'
 import { queryKeys } from '@/lib/queryClient'
 import { useSecureNavigation } from './useSecureNavigation'
-
-/**
- * 🎯 HOOK USEEMAILSEND - ARQUITETURA SIMPLIFICADA V3
- * 
- * Hook para envio de emails com nova arquitetura simplificada
- * Utiliza a nova rota /emails/send que substitui completamente o sistema v2
- * 
- * Baseado na Fase 3 do PLANO_SIMPLIFICACAO_MULTITENANT.md
- */
 
 export interface EmailData {
   from: string
@@ -45,93 +36,60 @@ export interface EmailSendError {
   version: '3.0'
 }
 
-/**
- * Extrair domínio do endereço de email
- * Mantida do sistema anterior para compatibilidade
- */
 export function extractDomain(email: string): string | null {
-  try {
-    if (!email || typeof email !== 'string') {
-      return null
-    }
-    
-    const trimmedEmail = email.trim()
-    const atIndex = trimmedEmail.lastIndexOf('@')
-    
-    if (atIndex === -1 || atIndex === trimmedEmail.length - 1) {
-      return null
-    }
-    
-    const domain = trimmedEmail.substring(atIndex + 1).toLowerCase()
-    
-    // Validação básica do domínio
-    if (domain.length === 0 || domain.includes(' ') || !domain.includes('.')) {
-      return null
-    }
-    
-    return domain
-  } catch (error) {
-    console.error('Failed to extract domain', { email, error })
+  if (!email || typeof email !== 'string') {
     return null
   }
+
+  const trimmedEmail = email.trim()
+  const atIndex = trimmedEmail.lastIndexOf('@')
+
+  if (atIndex === -1 || atIndex === trimmedEmail.length - 1) {
+    return null
+  }
+
+  const domain = trimmedEmail.substring(atIndex + 1).toLowerCase()
+  if (domain.length === 0 || domain.includes(' ') || !domain.includes('.')) {
+    return null
+  }
+
+  return domain
 }
 
-/**
- * Hook principal para envio de emails - ARQUITETURA SIMPLIFICADA
- * 
- * Características da V3:
- * - URL única: /api/emails/send (não mais /api/emails-v2/send-v2)
- * - Processamento direto com setImmediate()
- * - Multi-tenancy preservado mas simplificado
- * - 90% mais rápido que sistema v2
- */
 export const useEmailSend = () => {
   const queryClient = useQueryClient()
   const { secureRedirect } = useSecureNavigation()
 
   return useMutation({
     mutationFn: async (emailData: EmailData): Promise<EmailSendResponse> => {
-      console.log('🚀 EMAIL SEND V3 - Iniciando envio (arquitetura simplificada):', {
-        from: emailData.from,
-        to: emailData.to,
-        subject: emailData.subject,
-        domain: extractDomain(emailData.from),
-        version: 'v3-simplified'
-      })
-
-      // URL simplificada - sistema único (conforme Fase 3 do plano)
       const response = await api.post('/emails/send', emailData)
       return response.data
     },
     onMutate: async (emailData) => {
-      // Validação prévia no cliente para UX mais rápida
       const domain = extractDomain(emailData.from)
-      
+
       if (!domain) {
         throw {
           success: false,
           error: 'Formato de email inválido no campo "from"',
           code: 'INVALID_EMAIL_FORMAT',
-          version: '3.0'
+          version: '3.0',
         }
       }
 
-      console.log('🔍 EMAIL SEND V3 - Validação prévia:', { domain, from: emailData.from })
-
-      // Cancel any outgoing refetches for emails
       await queryClient.cancelQueries({ queryKey: queryKeys.emails.all })
 
-      // Snapshot the previous value
-      const previousEmails = queryClient.getQueriesData({ 
-        queryKey: queryKeys.emails.all 
+      const previousEmails = queryClient.getQueriesData({
+        queryKey: queryKeys.emails.all,
       })
 
-      // Optimistically update email list
       queryClient.setQueriesData(
         { queryKey: queryKeys.emails.lists() },
         (old: any) => {
-          if (!old) return old
-          
+          if (!old) {
+            return old
+          }
+
           const optimisticEmail = {
             id: Date.now(),
             from_email: emailData.from,
@@ -147,44 +105,39 @@ export const useEmailSend = () => {
             emails: [optimisticEmail, ...(old.emails || [])],
             stats: {
               ...old.stats,
-              total: (old.stats?.total || 0) + 1
+              total: (old.stats?.total || 0) + 1,
             },
           }
         }
       )
 
-      return { previousEmails, domain }
+      return { previousEmails }
     },
-    onError: (error: any, emailData, context) => {
-      console.error('🔴 EMAIL SEND V3 - Erro:', error)
-
-      // Rollback optimistic updates
+    onError: (error: any, _emailData, context) => {
       if (context?.previousEmails) {
         context.previousEmails.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data)
         })
       }
 
-      // Tratar erros específicos da nova arquitetura V3
       if (error.response?.data?.code === 'DOMAIN_NOT_VERIFIED') {
         const errorData: EmailSendError = error.response.data
-        
+
         toast.error(`Domínio '${errorData.domain}' não verificado. Redirecionando para verificação...`, {
           duration: 4000,
         })
-        
-        // Aguardar um pouco para o usuário ler o toast, depois redirecionar
+
         setTimeout(() => {
           secureRedirect('/app/domains')
         }, 2000)
-        
+
         return
       }
 
       if (error.response?.data?.code === 'RATE_LIMIT_EXCEEDED') {
         const errorData: EmailSendError = error.response.data
         const retryAfter = errorData.retryAfter || 60
-        
+
         toast.error(`Rate limit excedido. Tente novamente em ${retryAfter} segundos.`, {
           duration: 4000,
         })
@@ -196,88 +149,49 @@ export const useEmailSend = () => {
         return
       }
 
-      // Erro genérico
       const message = error.response?.data?.error || error.message || 'Erro ao enviar email'
       toast.error(`Erro no envio: ${message}`)
     },
-    onSuccess: (data, emailData) => {
-      console.log('✅ EMAIL SEND V3 - Sucesso (arquitetura simplificada):', {
-        message_id: data.message_id,
-        domain: data.domain,
-        domain_verified: data.domain_verified,
-        status: data.status,
-        version: data.version,
-        speed: 'Resposta em ~100ms vs 1000ms+ do v2'
-      })
-
-      toast.success(`Email enviado com sucesso! Domínio ${data.domain} verificado. (v3.0)`, {
+    onSuccess: (data) => {
+      toast.success(`Email enviado com sucesso. Domínio ${data.domain} verificado.`, {
         duration: 4000,
       })
 
-      // Invalidar cache para atualizar listas
       queryClient.invalidateQueries({ queryKey: queryKeys.emails.all })
     },
     onSettled: () => {
-      // Always refresh email lists after success or error
       queryClient.invalidateQueries({ queryKey: queryKeys.emails.all })
-    }
+    },
   })
 }
 
-/**
- * Hook para envio em lote - ARQUITETURA SIMPLIFICADA
- * 
- * Nova URL: /api/emails/send-batch (não mais /api/emails-v2/send-v2-batch)
- */
 export const useBatchEmailSend = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (emails: EmailData[]) => {
-      console.log('🚀 BATCH EMAIL SEND V3 - Iniciando envio em lote (arquitetura simplificada):', {
-        count: emails.length,
-        domains: [...new Set(emails.map(e => extractDomain(e.from)).filter(Boolean))],
-        version: 'v3-simplified'
-      })
-
-      // URL simplificada - sistema único
       const response = await api.post('/emails/send-batch', { emails })
       return response.data
     },
     onError: (error: any) => {
-      console.error('🔴 BATCH EMAIL SEND V3 - Erro:', error)
-      
       const message = error.response?.data?.error || error.message || 'Erro ao enviar emails em lote'
       toast.error(`Erro no envio em lote: ${message}`)
     },
     onSuccess: (data) => {
-      console.log('✅ BATCH EMAIL SEND V3 - Sucesso (arquitetura simplificada):', {
-        total: data.total_emails,
-        successful: data.successful_emails,
-        failed: data.failed_emails,
-        version: data.version
-      })
-
       if (data.failed_emails > 0) {
-        toast(`Lote processado: ${data.successful_emails} enviados, ${data.failed_emails} falharam (v3.0)`, {
-          icon: '⚠️',
+        toast(`Lote processado: ${data.successful_emails} enviados, ${data.failed_emails} falharam.`, {
+          icon: '!',
           duration: 5000,
         })
       } else {
-        toast.success(`Lote enviado com sucesso! ${data.successful_emails} emails processados. (v3.0)`)
+        toast.success(`Lote enviado com sucesso. ${data.successful_emails} emails processados.`)
       }
 
-      // Invalidar cache
       queryClient.invalidateQueries({ queryKey: queryKeys.emails.all })
-    }
+    },
   })
 }
 
-/**
- * Hook para testar conexão do serviço - ARQUITETURA SIMPLIFICADA
- * 
- * Nova URL: /api/emails/test (não mais /api/emails-v2/test-domain/)
- */
 export const useTestEmailService = () => {
   return useMutation({
     mutationFn: async () => {
@@ -289,15 +203,12 @@ export const useTestEmailService = () => {
       toast.error(message)
     },
     onSuccess: (data) => {
-      const status = data.success ? '✅ Funcionando' : '❌ Com problemas'
-      toast.success(`Teste do serviço V3: ${status}`)
-    }
+      const status = data.success ? 'Funcionando' : 'Com problemas'
+      toast.success(`Teste do serviço: ${status}`)
+    },
   })
 }
 
-/**
- * Hook para verificar status da nova arquitetura
- */
 export const useEmailServiceStatus = () => {
   return useMutation({
     mutationFn: async () => {
@@ -305,14 +216,7 @@ export const useEmailServiceStatus = () => {
       return response.data
     },
     onSuccess: (data) => {
-      console.log('📊 Status da Arquitetura V3:', {
-        version: data.version,
-        architecture: data.architecture,
-        improvements: data.improvements,
-        endpoints: data.endpoints
-      })
-      
-      toast.success(`Sistema V3 ativo - ${data.architecture}`, { duration: 3000 })
-    }
+      toast.success(`Sistema ativo - ${data.architecture}`, { duration: 3000 })
+    },
   })
 }

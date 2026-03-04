@@ -59,6 +59,12 @@ export default defineConfig({
     // Optimize asset handling
     assetsInlineLimit: 4096,
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+    css: true,
+  },
   // Production optimizations
   esbuild: {
     // Remove console logs in production

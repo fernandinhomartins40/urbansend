@@ -202,16 +202,7 @@ export const cacheUtils = {
  * (Versão simplificada sem persistência externa)
  */
 export const initializePersistence = () => {
-  if (typeof window !== 'undefined') {
-    // Log de inicialização do cache otimizado
-    console.log('✅ Cache otimizado da Fase 2 inicializado')
-    console.log('📊 Configurações:', {
-      staleTime: '5 minutos',
-      gcTime: '30 minutos', 
-      retries: 2,
-      persistência: 'React Query padrão'
-    })
-  }
+  return undefined
 }
 
 /**

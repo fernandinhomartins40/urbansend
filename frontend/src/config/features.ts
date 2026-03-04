@@ -11,6 +11,7 @@ export interface FrontendFeatureFlags {
 let featureFlagsCache: FrontendFeatureFlags | null = null
 let lastFlagsFetch = 0
 const FLAGS_CACHE_TTL = 60_000
+const REMOTE_FLAGS_ENABLED = (import.meta as any).env?.VITE_ENABLE_REMOTE_FEATURE_FLAGS === 'true'
 
 const fallbackFlags: FrontendFeatureFlags = {
   USE_INTEGRATED_EMAIL_SEND: true,
@@ -25,6 +26,12 @@ export async function getFeatureFlags(): Promise<FrontendFeatureFlags> {
 
   if (featureFlagsCache && now - lastFlagsFetch < FLAGS_CACHE_TTL) {
     return featureFlagsCache
+  }
+
+  if (!REMOTE_FLAGS_ENABLED) {
+    featureFlagsCache = fallbackFlags
+    lastFlagsFetch = now
+    return fallbackFlags
   }
 
   try {

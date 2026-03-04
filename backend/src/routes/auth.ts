@@ -168,8 +168,8 @@ router.post('/resend-verification',
   resendVerificationEmail
 );
 
-// Debug endpoint - only available in development
-if (!Env.isProduction) {
+// Debug endpoint - only available when explicitly enabled
+if (Env.enableDebugRoutes) {
   router.get('/debug/verification-tokens', asyncHandler(async (req: Request, res: Response) => {
     const users = await db('users')
       .select('id', 'email', 'verification_token', 'is_verified', 'created_at')

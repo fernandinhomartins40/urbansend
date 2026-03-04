@@ -47,6 +47,36 @@ describe('DomainVerificationLogger', () => {
     return { mockDb, insertBuilder, reloadBuilder };
   };
 
+  const configureLogStepDbMocks = (attempts: unknown) => {
+    const mockDb = db as unknown as jest.Mock;
+    const currentLog = {
+      id: 17,
+      domain_id: 9,
+      domain_name: 'example.com',
+      attempts
+    };
+    const selectBuilder: any = {
+      where: jest.fn().mockReturnThis(),
+      first: jest.fn(() => Promise.resolve(currentLog))
+    };
+    const updateBuilder: any = {
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn(() => Promise.resolve(1))
+    };
+
+    let tableCalls = 0;
+    mockDb.mockImplementation((table: string) => {
+      if (table !== 'domain_verification_logs') {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+
+      tableCalls += 1;
+      return tableCalls === 1 ? selectBuilder : updateBuilder;
+    });
+
+    return { selectBuilder, updateBuilder };
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -106,5 +136,29 @@ describe('DomainVerificationLogger', () => {
 
     expect(logId).toBe(73);
     expect(reloadBuilder.first).not.toHaveBeenCalled();
+  });
+
+  it('updates verification steps when postgres returns JSON columns as objects', async () => {
+    const verificationLogger = new DomainVerificationLogger();
+    const { updateBuilder } = configureLogStepDbMocks({
+      spf: { status: 'pending' },
+      dkim: { status: 'pending' },
+      dmarc: { status: 'pending' }
+    });
+
+    await verificationLogger.logVerificationStep(17, 'spf', {
+      status: 'failed',
+      error: 'Missing SPF record',
+      duration: 320
+    });
+
+    expect(updateBuilder.update).toHaveBeenCalledTimes(1);
+
+    const updatedAttempts = JSON.parse(updateBuilder.update.mock.calls[0][0].attempts);
+    expect(updatedAttempts.spf).toEqual(expect.objectContaining({
+      status: 'failed',
+      error: 'Missing SPF record',
+      duration: 320
+    }));
   });
 });

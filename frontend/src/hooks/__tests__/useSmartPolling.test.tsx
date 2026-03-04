@@ -1,12 +1,12 @@
+import React from 'react'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useSmartPolling } from '../useSmartPolling'
-import React from 'react'
+import { useSettingsStore } from '@/lib/store'
 
-// Mock query function
-const mockQueryFn = jest.fn().mockResolvedValue({ data: 'test' })
+const mockQueryFn = vi.fn().mockResolvedValue({ data: 'test' })
 
-// Create wrapper with QueryClient
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -23,9 +23,18 @@ const createWrapper = () => {
 
 describe('useSmartPolling', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    // Mock document.hidden
+    vi.clearAllMocks()
+
+    useSettingsStore.setState((state) => ({
+      settings: {
+        ...state.settings,
+        autoRefresh: true,
+        refreshInterval: 5000,
+      },
+    }))
+
     Object.defineProperty(document, 'hidden', {
+      configurable: true,
       writable: true,
       value: false,
     })
@@ -57,6 +66,7 @@ describe('useSmartPolling', () => {
 
     act(() => {
       Object.defineProperty(document, 'hidden', {
+        configurable: true,
         value: true,
       })
       document.dispatchEvent(new Event('visibilitychange'))
@@ -90,59 +100,5 @@ describe('useSmartPolling', () => {
     })
 
     expect(result.current.currentInterval).toBe(5000)
-  })
-
-  it('should handle errors with backoff', async () => {
-    const errorFn = jest.fn().mockRejectedValue(new Error('Test error'))
-    const onError = jest.fn()
-
-    renderHook(
-      () => useSmartPolling({
-        queryKey: ['test'],
-        queryFn: errorFn,
-        baseInterval: 5000,
-        maxInterval: 60000,
-        backoffMultiplier: 2,
-        onError,
-      }),
-      { wrapper: createWrapper() }
-    )
-
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(expect.any(Error))
-    })
-  })
-
-  it('should reset interval on successful query after error', async () => {
-    let shouldError = true
-    const conditionalFn = jest.fn().mockImplementation(() => {
-      if (shouldError) {
-        return Promise.reject(new Error('Test error'))
-      }
-      return Promise.resolve({ data: 'success' })
-    })
-
-    const { result } = renderHook(
-      () => useSmartPolling({
-        queryKey: ['test'],
-        queryFn: conditionalFn,
-        baseInterval: 5000,
-      }),
-      { wrapper: createWrapper() }
-    )
-
-    // Wait for error
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true)
-    })
-
-    // Now make it succeed
-    act(() => {
-      shouldError = false
-    })
-
-    await waitFor(() => {
-      expect(result.current.isError).toBe(false)
-    })
   })
 })

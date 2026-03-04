@@ -129,6 +129,24 @@ export const handlers = [
   }),
 
   // Domains handlers
+  http.get('/api/domain-setup/domains', () => {
+    return HttpResponse.json({
+      domains: [
+        {
+          id: 1,
+          domain: 'example.com',
+          status: 'verified',
+          is_verified: true,
+          created_at: new Date().toISOString(),
+          dns_status: {
+            dkim: { configured: true, valid: true },
+            spf: { configured: true, valid: true },
+            dmarc: { configured: true, valid: true }
+          }
+        }
+      ]
+    })
+  }),
   http.get('/api/domains', () => {
     return HttpResponse.json({
       data: {

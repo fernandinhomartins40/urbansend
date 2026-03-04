@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''
-const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`
+import { buildApiUrl } from './apiBase'
 
 interface User {
   id: number
