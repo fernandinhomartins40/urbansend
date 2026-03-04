@@ -117,13 +117,23 @@ router.delete('/remove-orphan-domains',
       // Remover em transação
       const removedCount = await db.transaction(async (trx) => {
         // Remover chaves DKIM associadas
-        await trx('dkim_keys').whereIn('domain_id', orphanIds).del();
+        if (await trx.schema.hasTable('dkim_keys')) {
+          await trx('dkim_keys').whereIn('domain_id', orphanIds).del();
+        }
         
         // Remover registros de verificação DNS
-        await trx('dns_verification_records').whereIn('domain_id', orphanIds).del();
+        if (await trx.schema.hasTable('dns_verification_records')) {
+          await trx('dns_verification_records').whereIn('domain_id', orphanIds).del();
+        }
         
         // Remover histórico de verificação
-        await trx('domain_verification_history').whereIn('domain_id', orphanIds).del();
+        if (await trx.schema.hasTable('domain_verification_history')) {
+          await trx('domain_verification_history').whereIn('domain_id', orphanIds).del();
+        }
+
+        if (await trx.schema.hasTable('domain_verification_logs')) {
+          await trx('domain_verification_logs').whereIn('domain_id', orphanIds).del();
+        }
         
         // Remover os domínios órfãos
         const deleted = await trx('domains').whereIn('id', orphanIds).del();

@@ -569,19 +569,31 @@ export class DomainSetupService {
       // REMO�?�fO REAL do domínio e dados relacionados
       await db.transaction(async (trx) => {
         // Remover chaves DKIM associadas
-        await trx('dkim_keys')
-          .where('domain_id', domainId)
-          .del();
+        if (await trx.schema.hasTable('dkim_keys')) {
+          await trx('dkim_keys')
+            .where('domain_id', domainId)
+            .del();
+        }
 
         // Remover registros de verificação DNS se existirem
-        await trx('dns_verification_records')
-          .where('domain_id', domainId)
-          .del();
+        if (await trx.schema.hasTable('dns_verification_records')) {
+          await trx('dns_verification_records')
+            .where('domain_id', domainId)
+            .del();
+        }
 
         // Remover qualquer histórico de verificação
-        await trx('domain_verification_history')
-          .where('domain_id', domainId)
-          .del();
+        if (await trx.schema.hasTable('domain_verification_history')) {
+          await trx('domain_verification_history')
+            .where('domain_id', domainId)
+            .del();
+        }
+
+        if (await trx.schema.hasTable('domain_verification_logs')) {
+          await trx('domain_verification_logs')
+            .where('domain_id', domainId)
+            .del();
+        }
 
         // Finalmente, remover o domínio
         await trx('domains')
@@ -602,7 +614,7 @@ export class DomainSetupService {
         domainId,
         error: error instanceof Error ? error.message : String(error)
       });
-      return false;
+      throw error;
     }
   }
 
