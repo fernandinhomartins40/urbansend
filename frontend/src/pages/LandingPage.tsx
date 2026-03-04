@@ -1,675 +1,353 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { 
-  Mail, 
-  Zap, 
-  Shield, 
-  Globe, 
-  CheckCircle2, 
-  ArrowRight, 
-  Menu, 
-  X,
-  Users,
-  Clock,
-  TrendingUp,
-  Code,
-  Activity,
-  Sparkles
+import {
+  ArrowRight,
+  BadgeCheck,
+  BookOpen,
+  Code2,
+  Globe2,
+  KeyRound,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+  Webhook,
+  Workflow,
 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  apiEndpointCatalog,
+  apiKeyPresets,
+  getSwaggerDocsUrl,
+  webhookEventCatalog,
+} from '@/lib/developerPortal'
+
+const pillars = [
+  {
+    title: 'Envio transacional por API',
+    description:
+      'Dispare emails via API key com permissoes granulares, observando cada mensagem no painel.',
+    icon: Mail,
+    surface: 'border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50',
+    iconTone: 'bg-teal-500/15 text-teal-700',
+  },
+  {
+    title: 'Autenticacao de dominio guiada',
+    description:
+      'Fluxo em 4 etapas com MAIL FROM tecnico, SPF, DKIM e DMARC para melhorar entregabilidade.',
+    icon: ShieldCheck,
+    surface: 'border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50',
+    iconTone: 'bg-blue-500/15 text-blue-700',
+  },
+  {
+    title: 'Templates e biblioteca',
+    description:
+      'Editor rico, colecoes, biblioteca compartilhada e modelos reutilizaveis para escalar operacao.',
+    icon: Workflow,
+    surface: 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50',
+    iconTone: 'bg-amber-500/15 text-amber-700',
+  },
+  {
+    title: 'Analytics e eventos',
+    description:
+      'Painel de aceite SMTP, abertura, clique e falhas, com webhooks assinados para automacao.',
+    icon: Webhook,
+    surface: 'border-pink-100 bg-gradient-to-br from-pink-50 via-white to-rose-50',
+    iconTone: 'bg-pink-500/15 text-pink-700',
+  },
+] as const
+
+const onboardingSteps = [
+  {
+    title: '1. Gere API key com escopo',
+    description: 'Use presets prontos e habilite apenas as permissoes necessarias para seu backend.',
+    icon: KeyRound,
+    tone: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+  },
+  {
+    title: '2. Autentique dominio',
+    description: 'Publique MAIL FROM, SPF, DKIM e DMARC com o assistente de dominio da plataforma.',
+    icon: Globe2,
+    tone: 'border-blue-100 bg-blue-50 text-blue-700',
+  },
+  {
+    title: '3. Configure templates',
+    description: 'Crie templates no editor rico ou clone modelos da biblioteca para acelerar entregas.',
+    icon: Workflow,
+    tone: 'border-amber-100 bg-amber-50 text-amber-700',
+  },
+  {
+    title: '4. Feche o loop com webhooks',
+    description: 'Valide assinatura HMAC e processe eventos de entrega, abertura e clique em tempo real.',
+    icon: Webhook,
+    tone: 'border-pink-100 bg-pink-50 text-pink-700',
+  },
+] as const
+
+const methodTone: Record<string, string> = {
+  GET: 'border-blue-200 bg-blue-100 text-blue-700',
+  POST: 'border-emerald-200 bg-emerald-100 text-emerald-700',
+  PUT: 'border-amber-200 bg-amber-100 text-amber-700',
+  DELETE: 'border-rose-200 bg-rose-100 text-rose-700',
+}
 
 export function LandingPage() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const liveEvents = webhookEventCatalog.filter((event) => event.availability === 'live')
+  const plannedEvents = webhookEventCatalog.filter((event) => event.availability === 'planned')
+  const endpointPreview = apiEndpointCatalog.slice(0, 6)
+  const swaggerDocsUrl = getSwaggerDocsUrl()
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="fixed top-0 w-full bg-white/95 backdrop-blur-xl border-b border-gray-200/50 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center">
-              <div className="relative">
-                <Mail className="h-10 w-10 text-indigo-600" />
-                <Sparkles className="h-4 w-4 text-yellow-500 absolute -top-1 -right-1" />
-              </div>
-              <span className="ml-3 text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                UltraZend
-              </span>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur">
+        <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link to="/" className="inline-flex items-center gap-3">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-500">
+              <Mail className="h-5 w-5 text-white" />
             </div>
-            
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex space-x-10">
-              <a href="#features" className="text-gray-700 hover:text-indigo-600 transition-all duration-200 font-medium">
-                Recursos
-              </a>
-              <a href="#pricing" className="text-gray-700 hover:text-indigo-600 transition-all duration-200 font-medium">
-                Preços
-              </a>
-              <a href="#testimonials" className="text-gray-700 hover:text-indigo-600 transition-all duration-200 font-medium">
-                Depoimentos
-              </a>
-              <a href="#docs" className="text-gray-700 hover:text-indigo-600 transition-all duration-200 font-medium">
-                Docs
-              </a>
-            </nav>
-
-            <div className="hidden lg:flex items-center space-x-4">
-              <Link 
-                to="/login" 
-                className="text-gray-700 hover:text-indigo-600 transition-all duration-200 font-medium px-4 py-2"
-              >
-                Entrar
-              </Link>
-              <Link 
-                to="/login" 
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/30 transform hover:-translate-y-0.5"
-              >
-                Começar Grátis
-              </Link>
+            <div>
+              <div className="text-lg font-semibold text-white">UltraZend</div>
+              <div className="text-xs text-slate-300">Email transacional para SaaS</div>
             </div>
+          </Link>
 
-            {/* Mobile menu button */}
-            <button 
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
+          <nav className="hidden items-center gap-8 text-sm text-slate-300 lg:flex">
+            <a href="#plataforma" className="transition hover:text-white">Plataforma</a>
+            <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
+            <a href="#integracao" className="transition hover:text-white">Integracao</a>
+            <a href="#api" className="transition hover:text-white">API</a>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <Button asChild variant="ghost" className="text-slate-200 hover:bg-white/10 hover:text-white">
+              <Link to="/login">Entrar</Link>
+            </Button>
+            <Button asChild className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
+              <Link to="/login">Acessar painel</Link>
+            </Button>
           </div>
         </div>
-
-        {/* Mobile Navigation */}
-        {isMenuOpen && (
-          <div className="lg:hidden bg-white/95 backdrop-blur-xl border-t border-gray-200/50 shadow-lg">
-            <div className="px-4 py-6 space-y-4">
-              <a href="#features" className="block py-3 text-gray-700 hover:text-indigo-600 font-medium transition-colors">
-                Recursos
-              </a>
-              <a href="#pricing" className="block py-3 text-gray-700 hover:text-indigo-600 font-medium transition-colors">
-                Preços
-              </a>
-              <a href="#testimonials" className="block py-3 text-gray-700 hover:text-indigo-600 font-medium transition-colors">
-                Depoimentos
-              </a>
-              <a href="#docs" className="block py-3 text-gray-700 hover:text-indigo-600 font-medium transition-colors">
-                Docs
-              </a>
-              <div className="pt-4 border-t border-gray-200">
-                <Link to="/login" className="block py-3 text-gray-700 hover:text-indigo-600 font-medium transition-colors">
-                  Entrar
-                </Link>
-                <Link to="/login" className="block mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-xl font-semibold text-center shadow-lg">
-                  Começar Grátis
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
       </header>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, rgb(156 163 175 / 0.15) 1px, transparent 0)`,
-            backgroundSize: '24px 24px'
-          }} />
-        </div>
-        
-        {/* Decorative elements */}
-        <div className="absolute top-20 left-10 w-72 h-72 bg-gradient-to-br from-indigo-400/20 to-purple-600/20 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse" />
-        <div className="absolute top-40 right-10 w-72 h-72 bg-gradient-to-br from-purple-400/20 to-pink-600/20 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse animation-delay-2000" />
-        
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-5xl mx-auto">
-            <div className="mb-8">
-              <span className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-100 text-indigo-700 text-sm font-medium mb-6">
-                <Sparkles className="w-4 h-4 mr-2" />
-                Plataforma #1 em Email Transacional
-              </span>
-            </div>
-            
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-8 leading-tight">
-              <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent">
-                Email Transacional
-              </span>
-              <br />
-              <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                que funciona
-              </span>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.2),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(251,113,133,0.18),transparent_30%)]" />
+        <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-4 pb-16 pt-16 sm:px-6 lg:grid-cols-[1.35fr_1fr] lg:px-8 lg:pb-24 lg:pt-20">
+          <div className="space-y-6">
+            <Badge className="border-cyan-300/40 bg-cyan-500/15 text-cyan-200">
+              <Sparkles className="mr-2 h-3.5 w-3.5" />
+              Plataforma alinhada ao produto real
+            </Badge>
+            <h1 className="text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+              Email transacional com
+              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 bg-clip-text text-transparent"> API, dominio, templates e observabilidade</span>
             </h1>
-            
-            <p className="text-xl sm:text-2xl text-gray-600 mb-12 max-w-4xl mx-auto leading-relaxed">
-              API simples, entrega garantida e análises em tempo real. 
-              <span className="font-semibold text-gray-700">
-                Integre em minutos, escale para milhões.
-              </span>
+            <p className="max-w-3xl text-lg text-slate-200">
+              UltraZend entrega um fluxo completo para SaaS: envio por API key, autenticacao de dominio,
+              biblioteca de templates, analytics e webhooks assinados.
             </p>
-            
-            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-              <Link 
-                to="/login" 
-                className="group bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-10 py-5 rounded-2xl font-semibold text-lg shadow-xl shadow-indigo-500/25 transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/40 transform hover:-translate-y-1 flex items-center"
-              >
-                Começar Grátis
-                <ArrowRight className="ml-3 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <a 
-                href="#features" 
-                className="group border-2 border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 px-10 py-5 rounded-2xl font-semibold text-lg transition-all duration-300 hover:bg-gray-50"
-              >
-                Ver Demonstração
-                <span className="ml-2 group-hover:ml-3 transition-all">→</span>
-              </a>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
+                <Link to="/login">
+                  Comecar no painel
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10">
+                <a href={swaggerDocsUrl} target="_blank" rel="noreferrer">
+                  API docs
+                  <BookOpen className="ml-2 h-4 w-4" />
+                </a>
+              </Button>
             </div>
-            
-            {/* Trust indicators */}
-            <div className="mb-20">
-              <p className="text-sm text-gray-500 mb-6 font-medium">Confiado por mais de 10.000 desenvolvedores</p>
-              <div className="flex flex-wrap justify-center items-center gap-8 opacity-60">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-blue-500 rounded"></div>
-                  <span className="font-semibold text-gray-600">Startup A</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-green-500 rounded"></div>
-                  <span className="font-semibold text-gray-600">Tech Corp</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-purple-500 rounded"></div>
-                  <span className="font-semibold text-gray-600">DevCo</span>
-                </div>
+          </div>
+
+          <Card className="border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Pronto hoje na aplicacao</CardTitle>
+              <CardDescription className="text-slate-300">
+                Dados puxados da configuracao atual do produto.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 p-4">
+                <div className="text-2xl font-semibold">{liveEvents.length}</div>
+                <div className="text-sm text-cyan-100">eventos de webhook em producao</div>
               </div>
-            </div>
-            
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
-              <div className="group">
-                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-200/50 shadow-sm hover:shadow-lg transition-all duration-300 hover:bg-white/80">
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="p-3 bg-indigo-100 rounded-xl group-hover:bg-indigo-200 transition-colors">
-                      <Users className="h-8 w-8 text-indigo-600" />
-                    </div>
+              <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
+                <div className="text-2xl font-semibold">{apiKeyPresets.length}</div>
+                <div className="text-sm text-emerald-100">presets de API key no painel</div>
+              </div>
+              <div className="rounded-xl border border-blue-300/30 bg-blue-500/10 p-4">
+                <div className="text-2xl font-semibold">{apiEndpointCatalog.length}</div>
+                <div className="text-sm text-blue-100">rotas-chave mapeadas na documentacao</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section id="plataforma" className="bg-slate-50 py-20 text-slate-900">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12 max-w-3xl">
+            <Badge className="border-slate-200 bg-white text-slate-700">Plataforma</Badge>
+            <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Design e narrativa alinhados ao produto real</h2>
+            <p className="mt-3 text-slate-600">
+              A landing agora reflete os mesmos blocos funcionais ja presentes nas telas autenticadas.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            {pillars.map((pillar) => (
+              <Card key={pillar.title} className={pillar.surface}>
+                <CardHeader>
+                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${pillar.iconTone}`}>
+                    <pillar.icon className="h-5 w-5" />
                   </div>
-                  <div className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">10,000+</div>
-                  <p className="text-gray-600 font-medium">Desenvolvedores Ativos</p>
-                </div>
-              </div>
-              
-              <div className="group">
-                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-200/50 shadow-sm hover:shadow-lg transition-all duration-300 hover:bg-white/80">
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="p-3 bg-purple-100 rounded-xl group-hover:bg-purple-200 transition-colors">
-                      <Mail className="h-8 w-8 text-purple-600" />
-                    </div>
-                  </div>
-                  <div className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">5M+</div>
-                  <p className="text-gray-600 font-medium">Emails Entregues/Mês</p>
-                </div>
-              </div>
-              
-              <div className="group">
-                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-200/50 shadow-sm hover:shadow-lg transition-all duration-300 hover:bg-white/80">
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="p-3 bg-green-100 rounded-xl group-hover:bg-green-200 transition-colors">
-                      <TrendingUp className="h-8 w-8 text-green-600" />
-                    </div>
-                  </div>
-                  <div className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">99.9%</div>
-                  <p className="text-gray-600 font-medium">Taxa de Entrega</p>
-                </div>
-              </div>
-            </div>
+                  <CardTitle className="pt-2 text-xl">{pillar.title}</CardTitle>
+                  <CardDescription className="text-slate-700">{pillar.description}</CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-slate-50/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <div className="mb-6">
-              <span className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-100 text-indigo-700 text-sm font-medium">
-                <Code className="w-4 h-4 mr-2" />
-                Recursos Profissionais
-              </span>
-            </div>
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                Tudo que você precisa
-              </span>
-              <br />
-              <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                para emails profissionais
-              </span>
-            </h2>
-            <p className="text-xl sm:text-2xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
-              Recursos avançados desenvolvidos especificamente para desenvolvedores e empresas que precisam de máxima confiabilidade
-            </p>
+      <section id="onboarding" className="bg-white py-20 text-slate-900">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 flex items-center gap-3">
+            <Badge className="border-blue-200 bg-blue-50 text-blue-700">
+              <Globe2 className="mr-2 h-3.5 w-3.5" />
+              Fluxo recomendado
+            </Badge>
+            <p className="text-sm text-slate-500">Mesmo fluxo pratico usado no painel /app</p>
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mb-16">
-            {/* Feature 1 - API Simples */}
-            <div className="group relative">
-              <div className="bg-white rounded-3xl p-8 lg:p-10 shadow-sm border border-gray-200/50 hover:shadow-xl transition-all duration-500 hover:bg-gradient-to-br hover:from-white hover:to-indigo-50/30">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="p-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-500/25 group-hover:shadow-xl group-hover:shadow-indigo-500/40 transition-all duration-300">
-                      <Zap className="h-8 w-8 text-white" />
-                    </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {onboardingSteps.map((step) => (
+              <Card key={step.title} className="border-slate-200">
+                <CardContent className="flex items-start gap-4 p-6">
+                  <div className={`inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border ${step.tone}`}>
+                    <step.icon className="h-5 w-5" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4 group-hover:text-indigo-900 transition-colors">
-                      API Simples & Poderosa
-                    </h3>
-                    <p className="text-gray-600 text-lg leading-relaxed mb-6">
-                      Integração em minutos com nossa API RESTful intuitiva. SDKs oficiais para Node.js, Python, PHP, Ruby e mais.
-                    </p>
-                    <div className="bg-gray-900 rounded-lg p-4 text-sm">
-                      <code className="text-green-400">
-                        curl -X POST https://api.ultrazend.com/send \<br />
-                        &nbsp;&nbsp;-H "Authorization: Bearer your-key" \<br />
-                        &nbsp;&nbsp;-d {`'{"to": "user@example.com", "subject": "Welcome!"}'`}
-                      </code>
-                    </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">{step.title}</h3>
+                    <p className="mt-1 text-sm text-slate-600">{step.description}</p>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 2 - Segurança */}
-            <div className="group relative">
-              <div className="bg-white rounded-3xl p-8 lg:p-10 shadow-sm border border-gray-200/50 hover:shadow-xl transition-all duration-500 hover:bg-gradient-to-br hover:from-white hover:to-purple-50/30">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-lg shadow-purple-500/25 group-hover:shadow-xl group-hover:shadow-purple-500/40 transition-all duration-300">
-                      <Shield className="h-8 w-8 text-white" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4 group-hover:text-purple-900 transition-colors">
-                      Segurança Nível Bancário
-                    </h3>
-                    <p className="text-gray-600 text-lg leading-relaxed mb-6">
-                      DKIM, SPF, DMARC configurados automaticamente. TLS 1.3, criptografia de ponta a ponta e auditoria completa.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">DKIM</span>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">SPF</span>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">DMARC</span>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">TLS 1.3</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 3 - Analytics */}
-            <div className="group relative">
-              <div className="bg-white rounded-3xl p-8 lg:p-10 shadow-sm border border-gray-200/50 hover:shadow-xl transition-all duration-500 hover:bg-gradient-to-br hover:from-white hover:to-blue-50/30">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/25 group-hover:shadow-xl group-hover:shadow-blue-500/40 transition-all duration-300">
-                      <Activity className="h-8 w-8 text-white" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4 group-hover:text-blue-900 transition-colors">
-                      Analytics Avançados
-                    </h3>
-                    <p className="text-gray-600 text-lg leading-relaxed mb-6">
-                      Dashboard em tempo real com métricas detalhadas: entrega, abertura, cliques, bounces, geolocalização e muito mais.
-                    </p>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">99.2%</div>
-                        <div className="text-sm text-gray-500">Taxa Entrega</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">24.8%</div>
-                        <div className="text-sm text-gray-500">Taxa Abertura</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">4.2%</div>
-                        <div className="text-sm text-gray-500">Taxa Clique</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 4 - Global */}
-            <div className="group relative">
-              <div className="bg-white rounded-3xl p-8 lg:p-10 shadow-sm border border-gray-200/50 hover:shadow-xl transition-all duration-500 hover:bg-gradient-to-br hover:from-white hover:to-green-50/30">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="p-4 bg-gradient-to-br from-green-500 to-teal-600 rounded-2xl shadow-lg shadow-green-500/25 group-hover:shadow-xl group-hover:shadow-green-500/40 transition-all duration-300">
-                      <Globe className="h-8 w-8 text-white" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4 group-hover:text-green-900 transition-colors">
-                      Infraestrutura Global
-                    </h3>
-                    <p className="text-gray-600 text-lg leading-relaxed mb-6">
-                      Servidores distribuídos em múltiplos continentes para máxima velocidade e confiabilidade. Latência &lt; 50ms globalmente.
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-lg font-semibold text-green-600">🌎 Americas</div>
-                        <div className="text-sm text-gray-500">5 data centers</div>
-                      </div>
-                      <div>
-                        <div className="text-lg font-semibold text-green-600">🌍 Europe</div>
-                        <div className="text-sm text-gray-500">3 data centers</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional features grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="group bg-white rounded-2xl p-6 border border-gray-200/50 hover:shadow-lg hover:border-indigo-200 transition-all duration-300">
-              <div className="p-3 bg-indigo-100 rounded-xl w-fit mb-4 group-hover:bg-indigo-200 transition-colors">
-                <Mail className="h-6 w-6 text-indigo-600" />
-              </div>
-              <h4 className="text-xl font-semibold text-gray-900 mb-3">Templates Avançados</h4>
-              <p className="text-gray-600">
-                Editor drag & drop, variáveis dinâmicas e templates responsivos
-              </p>
-            </div>
-
-            <div className="group bg-white rounded-2xl p-6 border border-gray-200/50 hover:shadow-lg hover:border-purple-200 transition-all duration-300">
-              <div className="p-3 bg-purple-100 rounded-xl w-fit mb-4 group-hover:bg-purple-200 transition-colors">
-                <Clock className="h-6 w-6 text-purple-600" />
-              </div>
-              <h4 className="text-xl font-semibold text-gray-900 mb-3">Suporte 24/7</h4>
-              <p className="text-gray-600">
-                Equipe técnica especializada em português, chat e email
-              </p>
-            </div>
-
-            <div className="group bg-white rounded-2xl p-6 border border-gray-200/50 hover:shadow-lg hover:border-green-200 transition-all duration-300 md:col-span-2 lg:col-span-1">
-              <div className="p-3 bg-green-100 rounded-xl w-fit mb-4 group-hover:bg-green-200 transition-colors">
-                <TrendingUp className="h-6 w-6 text-green-600" />
-              </div>
-              <h4 className="text-xl font-semibold text-gray-900 mb-3">Webhooks Inteligentes</h4>
-              <p className="text-gray-600">
-                Notificações em tempo real para eventos de email
-              </p>
-            </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-24 bg-white relative overflow-hidden">
-        {/* Background decoration */}
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <div className="mb-6">
-              <span className="inline-flex items-center px-4 py-2 rounded-full bg-green-100 text-green-700 text-sm font-medium">
-                💰 Preços Transparentes
-              </span>
-            </div>
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                Comece grátis,
-              </span>
-              <br />
-              <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                escale quando quiser
-              </span>
-            </h2>
-            <p className="text-xl sm:text-2xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
-              Sem taxas ocultas, sem truques. Pague apenas pelo que usar e cancele quando quiser.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-4 items-end">
-            {/* Free Plan */}
-            <div className="group relative">
-              <div className="bg-white rounded-3xl p-8 border border-gray-200/50 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-gray-300">
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Starter</h3>
-                  <p className="text-gray-600">Perfeito para começar</p>
-                </div>
-                
-                <div className="text-center mb-8">
-                  <div className="flex items-baseline justify-center">
-                    <span className="text-5xl font-bold text-gray-900">R$ 0</span>
-                    <span className="text-gray-500 ml-2">/mês</span>
+      <section id="integracao" className="bg-slate-50 py-20 text-slate-900">
+        <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
+          <Card className="border-slate-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Webhook className="h-5 w-5 text-pink-600" />
+                Eventos de webhook
+              </CardTitle>
+              <CardDescription>
+                Eventos live e roadmap exibidos de forma consistente com /app/webhooks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {webhookEventCatalog.slice(0, 6).map((event) => (
+                <div key={event.value} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{event.value}</div>
+                    <div className="text-xs text-slate-600">{event.deliveryMeaning}</div>
                   </div>
-                  <p className="text-sm text-gray-500 mt-2">Para sempre gratuito</p>
+                  <Badge
+                    className={event.availability === 'live'
+                      ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                      : 'border-amber-200 bg-amber-100 text-amber-700'}
+                  >
+                    {event.availability === 'live' ? 'live' : 'planned'}
+                  </Badge>
                 </div>
-                
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">1.000 emails/mês</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">API REST completa</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Analytics básicas</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Suporte por email</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Templates básicos</span>
-                  </li>
-                </ul>
-                
-                <Link 
-                  to="/login"
-                  className="w-full bg-gray-900 hover:bg-gray-800 text-white py-4 px-6 rounded-xl font-semibold text-center transition-colors block group-hover:bg-indigo-600"
-                >
-                  Começar Grátis
-                </Link>
+              ))}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
+                  <div className="text-xl font-semibold text-emerald-700">{liveEvents.length}</div>
+                  <div className="text-xs text-emerald-700">eventos live</div>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
+                  <div className="text-xl font-semibold text-amber-700">{plannedEvents.length}</div>
+                  <div className="text-xs text-amber-700">eventos planejados</div>
+                </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Pro Plan */}
-            <div className="group relative lg:scale-105">
-              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2">
-                <span className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg">
-                  🚀 Mais Popular
-                </span>
-              </div>
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl p-8 border-2 border-indigo-200 shadow-xl hover:shadow-2xl transition-all duration-300">
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
-                  <p className="text-gray-600">Para empresas em crescimento</p>
-                </div>
-                
-                <div className="text-center mb-8">
-                  <div className="flex items-baseline justify-center">
-                    <span className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">R$ 49</span>
-                    <span className="text-gray-500 ml-2">/mês</span>
+          <Card className="border-slate-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Code2 className="h-5 w-5 text-blue-600" />
+                Endpoints principais
+              </CardTitle>
+              <CardDescription>
+                Rotas operacionais para envio, leitura, templates e automacao.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {endpointPreview.map((endpoint) => (
+                <div key={`${endpoint.method}-${endpoint.path}`} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Badge className={methodTone[endpoint.method] || 'border-slate-200 bg-slate-100 text-slate-700'}>
+                      {endpoint.method}
+                    </Badge>
+                    <code className="text-xs text-slate-700">{endpoint.path}</code>
                   </div>
-                  <p className="text-sm text-indigo-600 mt-2 font-medium">14 dias grátis</p>
+                  <p className="text-xs text-slate-600">{endpoint.description}</p>
                 </div>
-                
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700"><strong>50.000</strong> emails/mês</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Analytics avançadas</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Domínio personalizado</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Webhooks avançados</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Templates ilimitados</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Suporte prioritário</span>
-                  </li>
-                </ul>
-                
-                <Link 
-                  to="/login"
-                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-4 px-6 rounded-xl font-semibold text-center transition-all duration-200 shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/40 transform hover:-translate-y-0.5 block"
-                >
-                  Começar Teste Grátis
-                </Link>
-              </div>
-            </div>
-
-            {/* Enterprise Plan */}
-            <div className="group relative">
-              <div className="bg-white rounded-3xl p-8 border border-gray-200/50 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-gray-300">
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
-                  <p className="text-gray-600">Para grandes volumes</p>
-                </div>
-                
-                <div className="text-center mb-8">
-                  <div className="flex items-baseline justify-center">
-                    <span className="text-5xl font-bold text-gray-900">R$ 199</span>
-                    <span className="text-gray-500 ml-2">/mês</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">Volume personalizado</p>
-                </div>
-                
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700"><strong>500.000+</strong> emails/mês</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">IP dedicado</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">SLA 99.9%</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Gerente dedicado</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Suporte 24/7</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-700">Integração customizada</span>
-                  </li>
-                </ul>
-                
-                <Link 
-                  to="/login"
-                  className="w-full bg-gray-900 hover:bg-gray-800 text-white py-4 px-6 rounded-xl font-semibold text-center transition-colors block"
-                >
-                  Falar com Vendas
-                </Link>
-              </div>
-            </div>
-          </div>
-          
-          <div className="text-center mt-12">
-            <p className="text-gray-600 mb-4">
-              ✅ Todos os planos incluem: DKIM/SPF/DMARC, SSL, Webhooks, Analytics, API completa
-            </p>
-            <p className="text-sm text-gray-500">
-              Precisa de mais emails? Entre em contato para preços personalizados.
-            </p>
-          </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-indigo-600">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Pronto para começar?
-          </h2>
-          <p className="text-xl text-indigo-100 mb-8">
-            Integre em minutos e envie seus primeiros emails hoje mesmo.
+      <section id="api" className="bg-white py-20 text-slate-900">
+        <div className="mx-auto w-full max-w-5xl px-4 text-center sm:px-6 lg:px-8">
+          <Badge className="border-slate-200 bg-slate-100 text-slate-700">
+            <BadgeCheck className="mr-2 h-3.5 w-3.5" />
+            Integracao robusta e objetiva
+          </Badge>
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Suba rapido sem perder controle tecnico</h2>
+          <p className="mx-auto mt-3 max-w-3xl text-slate-600">
+            O produto combina UI operacional e API para ciclo completo: envio, autenticacao de dominio,
+            observabilidade e automacao por eventos.
           </p>
-          <Link 
-            to="/login"
-            className="bg-white text-indigo-600 px-8 py-4 rounded-lg hover:bg-gray-50 transition-colors inline-flex items-center text-lg font-semibold"
-          >
-            Começar Grátis Agora <ArrowRight className="ml-2 h-5 w-5" />
-          </Link>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
+              <Link to="/login">
+                Entrar no painel
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <a href={swaggerDocsUrl} target="_blank" rel="noreferrer">
+                Ver API docs
+                <BookOpen className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center mb-4">
-                <Mail className="h-8 w-8 text-indigo-400" />
-                <span className="ml-2 text-xl font-bold">UltraZend</span>
-              </div>
-              <p className="text-gray-400">
-                Plataforma profissional de email transacional para desenvolvedores e empresas.
-              </p>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Produto</h3>
-              <ul className="space-y-2">
-                <li><a href="#features" className="text-gray-400 hover:text-white transition-colors">Recursos</a></li>
-                <li><a href="#pricing" className="text-gray-400 hover:text-white transition-colors">Preços</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Documentação</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Status</a></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Empresa</h3>
-              <ul className="space-y-2">
-                <li><a href="#about" className="text-gray-400 hover:text-white transition-colors">Sobre</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#contact" className="text-gray-400 hover:text-white transition-colors">Contato</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Privacidade</a></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Suporte</h3>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Central de Ajuda</a></li>
-                <li><a href="#contact" className="text-gray-400 hover:text-white transition-colors">Contato</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Status do Serviço</a></li>
-              </ul>
-            </div>
+      <footer className="border-t border-white/10 bg-slate-950 py-10 text-slate-300">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 text-sm sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="inline-flex items-center gap-2">
+            <Mail className="h-4 w-4 text-cyan-300" />
+            <span>UltraZend</span>
           </div>
-          
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center">
-            <p className="text-gray-400">
-              © 2025 UltraZend. Todos os direitos reservados.
-            </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <a href="#plataforma" className="transition hover:text-white">Plataforma</a>
+            <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
+            <a href="#integracao" className="transition hover:text-white">Integracao</a>
+            <a href="#api" className="transition hover:text-white">API</a>
           </div>
+          <div>(c) 2026 UltraZend. Todos os direitos reservados.</div>
         </div>
       </footer>
     </div>

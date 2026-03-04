@@ -121,6 +121,8 @@ export class DomainSetupService {
   private readonly ULTRAZEND_DMARC_RUA = Env.get('ULTRAZEND_DMARC_RUA', 'dmarc@ultrazend.com.br').trim().toLowerCase();
   private readonly DNS_TIMEOUT = 10000; // 10 segundos
   private readonly MAX_DNS_RETRIES = 3;
+  private readonly ENABLE_DNS_FALLBACK = Env.get('ENABLE_DNS_FALLBACK', 'true').toLowerCase() !== 'false';
+  private readonly DNS_FALLBACK_SERVERS = this.parseCsvList(Env.get('DNS_FALLBACK_SERVERS', '1.1.1.1,8.8.8.8'));
 
   constructor() {
     this.dkimManager = new MultiDomainDKIMManager();
@@ -921,6 +923,34 @@ export class DomainSetupService {
     return parts.join('; ');
   }
 
+  private normalizeDkimPublicKey(value: string | null | undefined): string {
+    return (value || '').replace(/\s+/g, '').replace(/"/g, '').trim();
+  }
+
+  private extractDkimPublicKey(record: string): string {
+    const match = record.match(/(?:^|;)\s*p=([^;]+)/i);
+    return this.normalizeDkimPublicKey(match?.[1] || '');
+  }
+
+  private extractDmarcPolicy(record: string): string | null {
+    const match = record.match(/(?:^|;)\s*p=([a-z]+)/i);
+    return match?.[1]?.toLowerCase() || null;
+  }
+
+  private async getExpectedDkimPublicKey(domain: string, selector: string): Promise<string | null> {
+    const dkimRecord = await db('dkim_keys')
+      .join('domains', 'dkim_keys.domain_id', '=', 'domains.id')
+      .where('domains.domain_name', domain)
+      .where('dkim_keys.selector', selector)
+      .where('dkim_keys.is_active', true)
+      .select('dkim_keys.public_key')
+      .orderBy('dkim_keys.created_at', 'desc')
+      .first();
+
+    const normalized = this.normalizeDkimPublicKey(dkimRecord?.public_key);
+    return normalized || null;
+  }
+
   /**
    * Verifica registro A de um subdomínio
    *
@@ -1082,11 +1112,11 @@ export class DomainSetupService {
       logger.debug('Verifying DKIM record', { domain, selector, dkimDomain });
 
       const txtRecords = await this.resolveTxtWithRetry(dkimDomain);
-      const dkimRecord = txtRecords.find(record => 
+      const dkimRecords = txtRecords.filter((record) =>
         record.toLowerCase().startsWith('v=dkim1')
       );
 
-      if (!dkimRecord) {
+      if (dkimRecords.length === 0) {
         return {
           valid: false,
           expectedValue: 'v=DKIM1; k=rsa; p=<public_key>',
@@ -1095,14 +1125,34 @@ export class DomainSetupService {
       }
 
       // Verificar se tem chave pública
-      const hasPublicKey = dkimRecord.toLowerCase().includes('p=') && 
-                          !dkimRecord.toLowerCase().includes('p=;');
-      
+      if (dkimRecords.length > 1) {
+        return {
+          valid: false,
+          expectedValue: 'Single DKIM TXT record for selector',
+          actualValue: dkimRecords.join(' | '),
+          error: 'Multiple DKIM records found for this selector'
+        };
+      }
+
+      const dkimRecord = dkimRecords[0];
+      const actualPublicKey = this.extractDkimPublicKey(dkimRecord);
+      if (!actualPublicKey) {
+        return {
+          valid: false,
+          expectedValue: 'v=DKIM1; k=rsa; p=<public_key>',
+          actualValue: dkimRecord,
+          error: 'DKIM record is missing public key'
+        };
+      }
+
+      const expectedPublicKey = await this.getExpectedDkimPublicKey(domain, selector);
+      const keyMatches = expectedPublicKey ? actualPublicKey === expectedPublicKey : true;
+
       return {
-        valid: hasPublicKey,
+        valid: keyMatches,
         expectedValue: 'v=DKIM1; k=rsa; p=<public_key>',
         actualValue: dkimRecord,
-        error: hasPublicKey ? undefined : 'DKIM record is missing public key'
+        error: keyMatches ? undefined : 'DKIM public key mismatch for active selector'
       };
     } catch (error) {
       logger.debug('DKIM verification failed', { 
@@ -1133,11 +1183,11 @@ export class DomainSetupService {
       logger.debug('Verifying DMARC record', { domain, dmarcDomain });
 
       const txtRecords = await this.resolveTxtWithRetry(dmarcDomain);
-      const dmarcRecord = txtRecords.find(record => 
+      const dmarcRecords = txtRecords.filter((record) =>
         record.toLowerCase().startsWith('v=dmarc1')
       );
 
-      if (!dmarcRecord) {
+      if (dmarcRecords.length === 0) {
         return {
           valid: false,
           expectedValue,
@@ -1145,13 +1195,30 @@ export class DomainSetupService {
         };
       }
 
-      const hasPolicy = dmarcRecord.toLowerCase().includes(`p=${policy}`.toLowerCase());
-      
+      if (dmarcRecords.length > 1) {
+        return {
+          valid: false,
+          expectedValue,
+          actualValue: dmarcRecords.join(' | '),
+          error: 'Multiple DMARC records found'
+        };
+      }
+
+      const dmarcRecord = dmarcRecords[0];
+      const expectedPolicy = policy.toLowerCase();
+      const actualPolicy = this.extractDmarcPolicy(dmarcRecord);
+      const hasPolicy = actualPolicy === expectedPolicy;
+      const error = !actualPolicy
+        ? 'DMARC record is missing policy'
+        : hasPolicy
+          ? undefined
+          : `DMARC policy mismatch. Expected p=${expectedPolicy}, found p=${actualPolicy}`;
+
       return {
         valid: hasPolicy,
         expectedValue,
         actualValue: dmarcRecord,
-        error: hasPolicy ? undefined : 'DMARC record is missing policy'
+        error
       };
     } catch (error) {
       logger.debug('DMARC verification failed', { 
@@ -1211,6 +1278,44 @@ export class DomainSetupService {
    * @param domain - Domínio a resolver
    * @returns Array de registros TXT
    */
+  private async resolveTxtViaFallbackResolvers(domain: string): Promise<string[] | null> {
+    if (!this.ENABLE_DNS_FALLBACK || this.DNS_FALLBACK_SERVERS.length === 0) {
+      return null;
+    }
+
+    for (const resolverServer of this.DNS_FALLBACK_SERVERS) {
+      try {
+        const resolver = new dns.promises.Resolver();
+        resolver.setServers([resolverServer]);
+
+        const records = await Promise.race([
+          resolver.resolveTxt(domain),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('DNS timeout')), this.DNS_TIMEOUT)
+          )
+        ]);
+
+        const flattened = records.map((entry) => entry.join(''));
+        if (flattened.length > 0) {
+          logger.debug('DNS TXT resolution succeeded via fallback resolver', {
+            domain,
+            resolverServer,
+            recordCount: flattened.length
+          });
+          return flattened;
+        }
+      } catch (error) {
+        logger.debug('DNS TXT fallback resolver failed', {
+          domain,
+          resolverServer,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    return null;
+  }
+
   private async resolveTxtWithRetry(domain: string): Promise<string[]> {
     let lastError: Error | undefined;
     
@@ -1240,6 +1345,11 @@ export class DomainSetupService {
       }
     }
     
+    const fallbackRecords = await this.resolveTxtViaFallbackResolvers(domain);
+    if (fallbackRecords && fallbackRecords.length > 0) {
+      return fallbackRecords;
+    }
+
     throw lastError || new Error('Resolução DNS falhou após tentativas');
   }
 

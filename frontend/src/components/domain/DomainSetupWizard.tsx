@@ -520,6 +520,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           <div>
             <div className="font-medium">{label}</div>
             {result.error && <div className="text-sm text-red-600">{result.error}</div>}
+            {!result.valid && result.expected && (
+              <div className="text-xs text-muted-foreground">Esperado: {result.expected}</div>
+            )}
             {result.found && <div className="text-xs text-muted-foreground">Atual: {result.found}</div>}
           </div>
         </div>
