@@ -606,12 +606,33 @@ class SharedTemplateServiceV2 {
 
   async getTemplateStats(templateId: number) {
     try {
+      const hasTemplatesTable = await this.hasTable('email_templates')
+      if (!hasTemplatesTable) {
+        return {
+          usage_count: 0,
+          clone_count: 0,
+          avg_rating: 0,
+          total_ratings: 0,
+          recent_ratings: [],
+          total_clones: 0
+        }
+      }
+
       const hasRatingsTable = await this.hasTable('template_ratings')
       const hasCloneHistoryTable = await this.hasTable('template_clone_history')
+      const hasUsageCount = await this.hasColumn('email_templates', 'usage_count')
+      const hasCloneCount = await this.hasColumn('email_templates', 'clone_count')
+      const hasRating = await this.hasColumn('email_templates', 'rating')
+      const hasTotalRatings = await this.hasColumn('email_templates', 'total_ratings')
 
-      const template = await db('email_templates')
+      const template: any = await db('email_templates')
         .where('id', templateId)
-        .select(['usage_count', 'clone_count', 'rating', 'total_ratings'])
+        .select([
+          hasUsageCount ? 'usage_count' : db.raw('0 as usage_count'),
+          hasCloneCount ? 'clone_count' : db.raw('0 as clone_count'),
+          hasRating ? 'rating' : db.raw('0 as rating'),
+          hasTotalRatings ? 'total_ratings' : db.raw('0 as total_ratings')
+        ])
         .first()
 
       const ratings = hasRatingsTable
@@ -643,6 +664,64 @@ class SharedTemplateServiceV2 {
     }
   }
 
+  private createOperationalError(message: string, statusCode: number = 503) {
+    const error: any = new Error(message)
+    error.statusCode = statusCode
+    error.isOperational = true
+    return error
+  }
+
+  private isSchemaCompatibilityError(error: any): boolean {
+    const code = String(error?.code || '')
+    const message = String(error?.message || '').toLowerCase()
+    return (
+      code === '42P01' ||
+      code === '42703' ||
+      message.includes('does not exist') ||
+      message.includes('no such table') ||
+      message.includes('no such column') ||
+      message.includes('unknown column')
+    )
+  }
+
+  private buildEmptyCollectionsResult(page: number, limit: number) {
+    return {
+      collections: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0
+      }
+    }
+  }
+
+  private buildEmptyGeneralAnalytics() {
+    return {
+      user_stats: {
+        total_templates: 0,
+        total_usage: 0,
+        total_clones: 0,
+        public_templates: 0,
+        avg_rating: 0,
+        total_ratings: 0
+      },
+      top_categories: []
+    }
+  }
+
+  private buildEmptyTemplateAnalytics() {
+    return {
+      template: null,
+      ratings: {
+        average: 0,
+        total: 0,
+        satisfaction: 0
+      },
+      usage_trend: []
+    }
+  }
+
   cloneTemplate(...args: any[]) {
     return (LegacySharedTemplateService as any).cloneTemplate(...args)
   }
@@ -667,32 +746,386 @@ class SharedTemplateServiceV2 {
     return (LegacySharedTemplateService as any).getTemplateReviews(...args)
   }
 
-  getCollections(...args: any[]) {
-    return (LegacySharedTemplateService as any).getCollections(...args)
+  async getCollections(userId?: number, isPublic: boolean = false, page: number = 1, limit: number = 20) {
+    const normalizedPage = Math.max(1, Number(page) || 1)
+    const normalizedLimit = Math.min(Math.max(1, Number(limit) || 20), 100)
+
+    const hasCollectionsTable = await this.hasTable('template_collections')
+    if (!hasCollectionsTable) {
+      return this.buildEmptyCollectionsResult(normalizedPage, normalizedLimit)
+    }
+
+    try {
+      return await (LegacySharedTemplateService as any).getCollections(
+        userId,
+        isPublic,
+        normalizedPage,
+        normalizedLimit
+      )
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        logger.warn('Colecoes indisponiveis por incompatibilidade de schema; retornando lista vazia')
+        return this.buildEmptyCollectionsResult(normalizedPage, normalizedLimit)
+      }
+      throw error
+    }
   }
 
-  createCollection(...args: any[]) {
-    return (LegacySharedTemplateService as any).createCollection(...args)
+  async createCollection(userId: number, data: { name: string; description?: string; is_public: boolean }) {
+    const hasCollectionsTable = await this.hasTable('template_collections')
+    if (!hasCollectionsTable) {
+      throw this.createOperationalError('Colecoes de templates nao estao habilitadas neste ambiente', 503)
+    }
+
+    try {
+      return await (LegacySharedTemplateService as any).createCollection(userId, data)
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        throw this.createOperationalError('Colecoes de templates indisponiveis temporariamente', 503)
+      }
+      throw error
+    }
   }
 
-  getCollection(...args: any[]) {
-    return (LegacySharedTemplateService as any).getCollection(...args)
+  async getCollection(collectionId: number, userId?: number) {
+    const hasCollectionsTable = await this.hasTable('template_collections')
+    if (!hasCollectionsTable) {
+      return null
+    }
+
+    try {
+      return await (LegacySharedTemplateService as any).getCollection(collectionId, userId)
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        logger.warn('Detalhes da colecao indisponiveis por incompatibilidade de schema')
+        return null
+      }
+      throw error
+    }
   }
 
-  addTemplateToCollection(...args: any[]) {
-    return (LegacySharedTemplateService as any).addTemplateToCollection(...args)
+  async addTemplateToCollection(collectionId: number, templateId: number, userId: number) {
+    const hasCollectionsTable = await this.hasTable('template_collections')
+    const hasCollectionItemsTable = await this.hasTable('template_collection_items')
+    if (!hasCollectionsTable || !hasCollectionItemsTable) {
+      throw this.createOperationalError('Colecoes de templates nao estao habilitadas neste ambiente', 503)
+    }
+
+    try {
+      return await (LegacySharedTemplateService as any).addTemplateToCollection(collectionId, templateId, userId)
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        throw this.createOperationalError('Colecoes de templates indisponiveis temporariamente', 503)
+      }
+      throw error
+    }
   }
 
-  removeTemplateFromCollection(...args: any[]) {
-    return (LegacySharedTemplateService as any).removeTemplateFromCollection(...args)
+  async removeTemplateFromCollection(collectionId: number, templateId: number, userId: number) {
+    const hasCollectionsTable = await this.hasTable('template_collections')
+    const hasCollectionItemsTable = await this.hasTable('template_collection_items')
+    if (!hasCollectionsTable || !hasCollectionItemsTable) {
+      throw this.createOperationalError('Colecoes de templates nao estao habilitadas neste ambiente', 503)
+    }
+
+    try {
+      return await (LegacySharedTemplateService as any).removeTemplateFromCollection(collectionId, templateId, userId)
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        throw this.createOperationalError('Colecoes de templates indisponiveis temporariamente', 503)
+      }
+      throw error
+    }
   }
 
-  getTrendingTemplates(...args: any[]) {
-    return (LegacySharedTemplateService as any).getTrendingTemplates(...args)
+  async getTrendingTemplates(period: 'day' | 'week' | 'month' = 'week', limit: number = 10) {
+    try {
+      const hasTemplatesTable = await this.hasTable('email_templates')
+      if (!hasTemplatesTable) {
+        return []
+      }
+
+      const [
+        hasName,
+        hasSubject,
+        hasDescription,
+        hasCategory,
+        hasTemplateType,
+        hasIsPublic,
+        hasUsageCount,
+        hasCloneCount,
+        hasCreatedAt,
+        hasUpdatedAt
+      ] = await Promise.all([
+        this.hasColumn('email_templates', 'name'),
+        this.hasColumn('email_templates', 'subject'),
+        this.hasColumn('email_templates', 'description'),
+        this.hasColumn('email_templates', 'category'),
+        this.hasColumn('email_templates', 'template_type'),
+        this.hasColumn('email_templates', 'is_public'),
+        this.hasColumn('email_templates', 'usage_count'),
+        this.hasColumn('email_templates', 'clone_count'),
+        this.hasColumn('email_templates', 'created_at'),
+        this.hasColumn('email_templates', 'updated_at')
+      ])
+
+      const hasRatingsTable = await this.hasTable('template_ratings')
+      const [hasRatingsTemplateId, hasRatingsValue] = hasRatingsTable
+        ? await Promise.all([
+          this.hasColumn('template_ratings', 'template_id'),
+          this.hasColumn('template_ratings', 'rating')
+        ])
+        : [false, false]
+      const canJoinRatings = hasRatingsTable && hasRatingsTemplateId && hasRatingsValue
+
+      const periodMap = { day: 1, week: 7, month: 30 }
+      const days = periodMap[period] || 7
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - days)
+
+      let query: any = db('email_templates as et')
+        .select(
+          'et.id',
+          hasName ? 'et.name' : db.raw("'Template' as name"),
+          hasSubject ? 'et.subject' : db.raw("'' as subject"),
+          hasDescription ? 'et.description' : db.raw('NULL as description'),
+          hasCategory ? 'et.category' : db.raw("'general' as category"),
+          hasTemplateType ? 'et.template_type' : db.raw("'system' as template_type"),
+          hasUsageCount ? 'et.usage_count' : db.raw('0 as usage_count'),
+          hasCloneCount ? 'et.clone_count' : db.raw('0 as clone_count'),
+          hasCreatedAt ? 'et.created_at' : db.raw('CURRENT_TIMESTAMP as created_at'),
+          hasUpdatedAt ? 'et.updated_at' : db.raw('CURRENT_TIMESTAMP as updated_at')
+        )
+
+      if (canJoinRatings) {
+        query = query
+          .leftJoin('template_ratings as tr', 'et.id', 'tr.template_id')
+          .select(db.raw('COALESCE(AVG(tr.rating), 0) as avg_rating'))
+          .select(db.raw('COUNT(tr.template_id) as rating_count'))
+      } else {
+        query = query
+          .select(db.raw('0 as avg_rating'))
+          .select(db.raw('0 as rating_count'))
+      }
+
+      if (hasTemplateType && hasIsPublic) {
+        query = query.where(function() {
+          this.where('et.template_type', 'system')
+            .orWhere('et.is_public', true)
+        })
+      } else if (hasTemplateType) {
+        query = query.where('et.template_type', 'system')
+      } else if (hasIsPublic) {
+        query = query.where('et.is_public', true)
+      }
+
+      if (hasUpdatedAt) {
+        query = query.where('et.updated_at', '>=', cutoffDate)
+      } else if (hasCreatedAt) {
+        query = query.where('et.created_at', '>=', cutoffDate)
+      }
+
+      if (canJoinRatings) {
+        const groupByColumns = ['et.id']
+        if (hasName) groupByColumns.push('et.name')
+        if (hasSubject) groupByColumns.push('et.subject')
+        if (hasDescription) groupByColumns.push('et.description')
+        if (hasCategory) groupByColumns.push('et.category')
+        if (hasTemplateType) groupByColumns.push('et.template_type')
+        if (hasUsageCount) groupByColumns.push('et.usage_count')
+        if (hasCloneCount) groupByColumns.push('et.clone_count')
+        if (hasCreatedAt) groupByColumns.push('et.created_at')
+        if (hasUpdatedAt) groupByColumns.push('et.updated_at')
+        query = query.groupBy(groupByColumns)
+      }
+
+      if (hasUsageCount || hasCloneCount || canJoinRatings) {
+        const usageExpr = hasUsageCount ? 'COALESCE(et.usage_count, 0)' : '0'
+        const cloneExpr = hasCloneCount ? 'COALESCE(et.clone_count, 0)' : '0'
+        const ratingExpr = canJoinRatings ? 'COUNT(tr.template_id) * 2' : '0'
+        query = query.orderByRaw(`(${usageExpr} + ${cloneExpr} + ${ratingExpr}) DESC`)
+      } else if (hasUpdatedAt) {
+        query = query.orderBy('et.updated_at', 'desc')
+      } else if (hasCreatedAt) {
+        query = query.orderBy('et.created_at', 'desc')
+      } else {
+        query = query.orderBy('et.id', 'desc')
+      }
+
+      const normalizedLimit = Math.min(Math.max(1, Number(limit) || 10), 50)
+      const trending = await query.limit(normalizedLimit)
+
+      return trending.map((template: any) => ({
+        ...template,
+        template_name: template.name || 'Template',
+        avg_rating: Number(template.avg_rating || 0),
+        rating_count: Number(template.rating_count || 0),
+        usage_count: Number(template.usage_count || 0),
+        clone_count: Number(template.clone_count || 0)
+      }))
+    } catch (error) {
+      logger.error('Erro ao buscar templates em tendencia (V2):', error)
+      return []
+    }
   }
 
-  getAdvancedAnalytics(...args: any[]) {
-    return (LegacySharedTemplateService as any).getAdvancedAnalytics(...args)
+  async getAdvancedAnalytics(templateId?: number, userId?: number) {
+    try {
+      const hasTemplatesTable = await this.hasTable('email_templates')
+      if (!hasTemplatesTable) {
+        return templateId ? this.buildEmptyTemplateAnalytics() : this.buildEmptyGeneralAnalytics()
+      }
+
+      if (templateId) {
+        const [hasName, hasCreatedAt, hasUsageCount, hasCloneCount] = await Promise.all([
+          this.hasColumn('email_templates', 'name'),
+          this.hasColumn('email_templates', 'created_at'),
+          this.hasColumn('email_templates', 'usage_count'),
+          this.hasColumn('email_templates', 'clone_count')
+        ])
+
+        const template: any = await db('email_templates')
+          .where('id', templateId)
+          .select([
+            'id',
+            hasName ? 'name' : db.raw("'Template' as name"),
+            hasCreatedAt ? 'created_at' : db.raw('CURRENT_TIMESTAMP as created_at'),
+            hasUsageCount ? 'usage_count' : db.raw('0 as usage_count'),
+            hasCloneCount ? 'clone_count' : db.raw('0 as clone_count')
+          ])
+          .first()
+
+        const hasRatingsTable = await this.hasTable('template_ratings')
+        const [hasRatingsTemplateId, hasRatingsValue, hasRatingsCreatedAt] = hasRatingsTable
+          ? await Promise.all([
+            this.hasColumn('template_ratings', 'template_id'),
+            this.hasColumn('template_ratings', 'rating'),
+            this.hasColumn('template_ratings', 'created_at')
+          ])
+          : [false, false, false]
+
+        const canUseRatings = hasRatingsTable && hasRatingsTemplateId && hasRatingsValue
+
+        const ratings = canUseRatings
+          ? await db('template_ratings')
+            .where('template_id', templateId)
+            .select(
+              db.raw('COALESCE(AVG(rating), 0) as avg_rating'),
+              db.raw('COUNT(*) as total_ratings'),
+              db.raw('COUNT(CASE WHEN rating >= 4 THEN 1 END) as positive_ratings')
+            )
+            .first() as any
+          : { avg_rating: 0, total_ratings: 0, positive_ratings: 0 }
+
+        const usageTrend = canUseRatings && hasRatingsCreatedAt
+          ? await db('template_ratings')
+            .where('template_id', templateId)
+            .where('created_at', '>=', db.raw("NOW() - INTERVAL '30 days'"))
+            .select(
+              db.raw('DATE(created_at) as date'),
+              db.raw('COUNT(*) as daily_usage')
+            )
+            .groupBy(db.raw('DATE(created_at)'))
+            .orderBy('date')
+          : []
+
+        return {
+          template: template
+            ? {
+              ...template,
+              template_name: template.name || 'Template',
+              usage_count: Number(template.usage_count || 0),
+              clone_count: Number(template.clone_count || 0)
+            }
+            : null,
+          ratings: {
+            average: Number(ratings?.avg_rating || 0),
+            total: Number(ratings?.total_ratings || 0),
+            satisfaction: Number(ratings?.total_ratings || 0) > 0
+              ? Math.round((Number(ratings?.positive_ratings || 0) / Number(ratings.total_ratings)) * 100)
+              : 0
+          },
+          usage_trend: usageTrend
+        }
+      }
+
+      const [hasUserId, hasUsageCount, hasCloneCount, hasCategory, hasIsPublic] = await Promise.all([
+        this.hasColumn('email_templates', 'user_id'),
+        this.hasColumn('email_templates', 'usage_count'),
+        this.hasColumn('email_templates', 'clone_count'),
+        this.hasColumn('email_templates', 'category'),
+        this.hasColumn('email_templates', 'is_public')
+      ])
+
+      if (!hasUserId) {
+        return this.buildEmptyGeneralAnalytics()
+      }
+
+      const userStatsRow = await db('email_templates')
+        .where('user_id', userId || 0)
+        .select(
+          db.raw('COUNT(*) as total_templates'),
+          hasUsageCount ? db.raw('COALESCE(SUM(usage_count), 0) as total_usage') : db.raw('0 as total_usage'),
+          hasCloneCount ? db.raw('COALESCE(SUM(clone_count), 0) as total_clones') : db.raw('0 as total_clones')
+        )
+        .first() as any
+
+      const hasRatingsTable = await this.hasTable('template_ratings')
+      const [hasRatingsTemplateId, hasRatingsValue] = hasRatingsTable
+        ? await Promise.all([
+          this.hasColumn('template_ratings', 'template_id'),
+          this.hasColumn('template_ratings', 'rating')
+        ])
+        : [false, false]
+      const canUseRatings = hasRatingsTable && hasRatingsTemplateId && hasRatingsValue
+
+      const publicTemplatesRow = hasIsPublic
+        ? await db('email_templates')
+          .where('user_id', userId || 0)
+          .where('is_public', true)
+          .count('* as total')
+          .first() as any
+        : { total: 0 }
+
+      const ratingsRow = canUseRatings && hasIsPublic
+        ? await db('email_templates as et')
+          .leftJoin('template_ratings as tr', 'et.id', 'tr.template_id')
+          .where('et.user_id', userId || 0)
+          .where('et.is_public', true)
+          .select(
+            db.raw('COALESCE(AVG(tr.rating), 0) as avg_rating'),
+            db.raw('COUNT(tr.template_id) as total_ratings')
+          )
+          .first() as any
+        : { avg_rating: 0, total_ratings: 0 }
+
+      const topCategories = hasCategory
+        ? await db('email_templates')
+          .where('user_id', userId || 0)
+          .select('category', db.raw('COUNT(*) as count'))
+          .groupBy('category')
+          .orderBy('count', 'desc')
+          .limit(5)
+        : []
+
+      return {
+        user_stats: {
+          total_templates: Number(userStatsRow?.total_templates || 0),
+          total_usage: Number(userStatsRow?.total_usage || 0),
+          total_clones: Number(userStatsRow?.total_clones || 0),
+          public_templates: Number(publicTemplatesRow?.total || 0),
+          avg_rating: Number(ratingsRow?.avg_rating || 0),
+          total_ratings: Number(ratingsRow?.total_ratings || 0)
+        },
+        top_categories: topCategories.map((item: any) => ({
+          category: item.category || 'general',
+          count: Number(item.count || 0)
+        }))
+      }
+    } catch (error) {
+      logger.error('Erro ao buscar analytics (V2):', error)
+      return templateId ? this.buildEmptyTemplateAnalytics() : this.buildEmptyGeneralAnalytics()
+    }
   }
 
   exportTemplates(...args: any[]) {
