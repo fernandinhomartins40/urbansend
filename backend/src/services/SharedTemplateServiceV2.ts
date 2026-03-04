@@ -29,6 +29,30 @@ interface TemplateFilters {
   limit?: number
 }
 
+interface PublicTemplateColumnSupport {
+  user_id: boolean
+  name: boolean
+  subject: boolean
+  html_content: boolean
+  text_content: boolean
+  description: boolean
+  category: boolean
+  template_type: boolean
+  tags: boolean
+  usage_count: boolean
+  clone_count: boolean
+  rating: boolean
+  total_ratings: boolean
+  is_public: boolean
+  is_active: boolean
+  industry: boolean
+  difficulty_level: boolean
+  estimated_time_minutes: boolean
+  preview_image_url: boolean
+  created_at: boolean
+  updated_at: boolean
+}
+
 class SharedTemplateServiceV2 {
   private readonly cache = new Map<string, { data: any; timestamp: number }>()
   private readonly supportCache = new Map<string, { value: boolean; timestamp: number }>()
@@ -86,6 +110,92 @@ class SharedTemplateServiceV2 {
     }
   }
 
+  private buildEmptyPublicTemplatesResult(page: number, limit: number) {
+    return {
+      templates: [],
+      pagination: {
+        current_page: page,
+        per_page: limit,
+        total_count: 0,
+        total_pages: 0,
+        has_next: false,
+        has_prev: false
+      }
+    }
+  }
+
+  private async getPublicTemplateColumnSupport(): Promise<PublicTemplateColumnSupport> {
+    const [
+      userId,
+      name,
+      subject,
+      htmlContent,
+      textContent,
+      description,
+      category,
+      templateType,
+      tags,
+      usageCount,
+      cloneCount,
+      rating,
+      totalRatings,
+      isPublic,
+      isActive,
+      industry,
+      difficultyLevel,
+      estimatedTimeMinutes,
+      previewImageUrl,
+      createdAt,
+      updatedAt
+    ] = await Promise.all([
+      this.hasColumn('email_templates', 'user_id'),
+      this.hasColumn('email_templates', 'name'),
+      this.hasColumn('email_templates', 'subject'),
+      this.hasColumn('email_templates', 'html_content'),
+      this.hasColumn('email_templates', 'text_content'),
+      this.hasColumn('email_templates', 'description'),
+      this.hasColumn('email_templates', 'category'),
+      this.hasColumn('email_templates', 'template_type'),
+      this.hasColumn('email_templates', 'tags'),
+      this.hasColumn('email_templates', 'usage_count'),
+      this.hasColumn('email_templates', 'clone_count'),
+      this.hasColumn('email_templates', 'rating'),
+      this.hasColumn('email_templates', 'total_ratings'),
+      this.hasColumn('email_templates', 'is_public'),
+      this.hasColumn('email_templates', 'is_active'),
+      this.hasColumn('email_templates', 'industry'),
+      this.hasColumn('email_templates', 'difficulty_level'),
+      this.hasColumn('email_templates', 'estimated_time_minutes'),
+      this.hasColumn('email_templates', 'preview_image_url'),
+      this.hasColumn('email_templates', 'created_at'),
+      this.hasColumn('email_templates', 'updated_at')
+    ])
+
+    return {
+      user_id: userId,
+      name,
+      subject,
+      html_content: htmlContent,
+      text_content: textContent,
+      description,
+      category,
+      template_type: templateType,
+      tags,
+      usage_count: usageCount,
+      clone_count: cloneCount,
+      rating,
+      total_ratings: totalRatings,
+      is_public: isPublic,
+      is_active: isActive,
+      industry,
+      difficulty_level: difficultyLevel,
+      estimated_time_minutes: estimatedTimeMinutes,
+      preview_image_url: previewImageUrl,
+      created_at: createdAt,
+      updated_at: updatedAt
+    }
+  }
+
   async getPublicTemplates(filters: TemplateFilters = {}, userId?: number) {
     try {
       const normalizedFilters = { ...filters }
@@ -96,52 +206,84 @@ class SharedTemplateServiceV2 {
       }
 
       const hasPublicView = await this.hasView('view_public_templates')
+      const hasTemplatesTable = await this.hasTable('email_templates')
       const hasCategoryTable = await this.hasTable('template_categories')
       const hasFavoritesTable = await this.hasTable('user_favorite_templates')
+      const templateColumns = !hasPublicView && hasTemplatesTable
+        ? await this.getPublicTemplateColumnSupport()
+        : null
+
+      const page = Math.max(1, normalizedFilters.page || 1)
+      const limit = Math.min(Math.max(1, normalizedFilters.limit || 20), 50)
+
+      if (!hasPublicView && !hasTemplatesTable) {
+        logger.warn('email_templates table not found; returning empty public templates list')
+        return this.buildEmptyPublicTemplatesResult(page, limit)
+      }
+
+      const hasCategoryName = hasCategoryTable ? await this.hasColumn('template_categories', 'name') : false
+      const hasCategoryIcon = hasCategoryTable ? await this.hasColumn('template_categories', 'icon') : false
+      const hasCategoryColor = hasCategoryTable ? await this.hasColumn('template_categories', 'color') : false
+      const canJoinCategories = Boolean(!hasPublicView && hasCategoryTable && hasCategoryName)
+      const hasPublicViewIsActive = hasPublicView ? await this.hasColumn('view_public_templates', 'is_active') : false
 
       let baseQuery: any = hasPublicView
-        ? db('view_public_templates').where('is_active', true)
+        ? db('view_public_templates')
         : db('email_templates as t')
           .select(
             't.id',
-            't.user_id',
-            't.name',
-            't.subject',
-            't.html_content',
-            't.text_content',
-            't.description',
-            't.category',
-            't.template_type',
-            't.tags',
-            't.usage_count',
-            't.clone_count',
-            't.rating',
-            't.total_ratings',
-            't.is_public',
-            't.is_active',
-            't.industry',
-            't.difficulty_level',
-            't.estimated_time_minutes',
-            't.preview_image_url',
-            't.created_at',
-            't.updated_at',
-            db.raw('COALESCE(t.rating, 0) as avg_rating'),
-            db.raw('COALESCE(t.total_ratings, 0) as total_reviews'),
+            templateColumns?.user_id ? 't.user_id' : db.raw('NULL as user_id'),
+            templateColumns?.name ? 't.name' : db.raw("'Template' as name"),
+            templateColumns?.subject ? 't.subject' : db.raw("'' as subject"),
+            templateColumns?.html_content ? 't.html_content' : db.raw("'' as html_content"),
+            templateColumns?.text_content ? 't.text_content' : db.raw("'' as text_content"),
+            templateColumns?.description ? 't.description' : db.raw('NULL as description'),
+            templateColumns?.category ? 't.category' : db.raw("'general' as category"),
+            templateColumns?.template_type ? 't.template_type' : db.raw("'system' as template_type"),
+            templateColumns?.tags ? 't.tags' : db.raw('NULL as tags'),
+            templateColumns?.usage_count ? 't.usage_count' : db.raw('0 as usage_count'),
+            templateColumns?.clone_count ? 't.clone_count' : db.raw('0 as clone_count'),
+            templateColumns?.rating ? 't.rating' : db.raw('0 as rating'),
+            templateColumns?.total_ratings ? 't.total_ratings' : db.raw('0 as total_ratings'),
+            templateColumns?.is_public ? 't.is_public' : db.raw('0 as is_public'),
+            templateColumns?.is_active ? 't.is_active' : db.raw('1 as is_active'),
+            templateColumns?.industry ? 't.industry' : db.raw('NULL as industry'),
+            templateColumns?.difficulty_level ? 't.difficulty_level' : db.raw("'easy' as difficulty_level"),
+            templateColumns?.estimated_time_minutes ? 't.estimated_time_minutes' : db.raw('5 as estimated_time_minutes'),
+            templateColumns?.preview_image_url ? 't.preview_image_url' : db.raw('NULL as preview_image_url'),
+            templateColumns?.created_at ? 't.created_at' : db.raw('CURRENT_TIMESTAMP as created_at'),
+            templateColumns?.updated_at ? 't.updated_at' : db.raw('CURRENT_TIMESTAMP as updated_at'),
+            templateColumns?.rating ? db.raw('COALESCE(t.rating, 0) as avg_rating') : db.raw('0 as avg_rating'),
+            templateColumns?.total_ratings ? db.raw('COALESCE(t.total_ratings, 0) as total_reviews') : db.raw('0 as total_reviews'),
             db.raw('0 as favorite_count')
           )
-          .where('t.is_active', true)
-          .where(function() {
-            this.where('t.template_type', 'system')
-              .orWhere('t.is_public', true)
-          })
 
-      if (!hasPublicView && hasCategoryTable) {
+      if (hasPublicView && hasPublicViewIsActive) {
+        baseQuery = baseQuery.where('is_active', true)
+      }
+
+      if (!hasPublicView && templateColumns?.is_active) {
+        baseQuery = baseQuery.where('t.is_active', true)
+      }
+
+      if (!hasPublicView && templateColumns?.template_type && templateColumns?.is_public) {
+        baseQuery = baseQuery.where(function() {
+          this.where('t.template_type', 'system')
+            .orWhere('t.is_public', true)
+        })
+      } else if (!hasPublicView && templateColumns?.template_type) {
+        baseQuery = baseQuery.where('t.template_type', 'system')
+      } else if (!hasPublicView && templateColumns?.is_public) {
+        baseQuery = baseQuery.where('t.is_public', true)
+      }
+
+      if (canJoinCategories) {
         baseQuery = baseQuery
           .leftJoin('template_categories as c', 'c.name', 't.category')
           .select(
             'c.name as category_name',
-            'c.icon as category_icon',
-            'c.color as category_color'
+            hasCategoryIcon ? 'c.icon as category_icon' : db.raw('NULL as category_icon'),
+            hasCategoryColor ? 'c.color as category_color' : db.raw('NULL as category_color')
           )
       } else if (!hasPublicView) {
         baseQuery = baseQuery.select(
@@ -154,49 +296,73 @@ class SharedTemplateServiceV2 {
       if (normalizedFilters.category) {
         baseQuery = hasPublicView
           ? baseQuery.where('category', normalizedFilters.category)
-          : baseQuery.where('t.category', normalizedFilters.category)
+          : templateColumns?.category
+            ? baseQuery.where('t.category', normalizedFilters.category)
+            : baseQuery
       }
 
       if (normalizedFilters.industry) {
         baseQuery = hasPublicView
           ? baseQuery.where('industry', normalizedFilters.industry)
-          : baseQuery.where('t.industry', normalizedFilters.industry)
+          : templateColumns?.industry
+            ? baseQuery.where('t.industry', normalizedFilters.industry)
+            : baseQuery
       }
 
       if (normalizedFilters.difficulty) {
         baseQuery = hasPublicView
           ? baseQuery.where('difficulty_level', normalizedFilters.difficulty)
-          : baseQuery.where('t.difficulty_level', normalizedFilters.difficulty)
+          : templateColumns?.difficulty_level
+            ? baseQuery.where('t.difficulty_level', normalizedFilters.difficulty)
+            : baseQuery
       }
 
       if (normalizedFilters.template_type) {
         baseQuery = hasPublicView
           ? baseQuery.where('template_type', normalizedFilters.template_type)
-          : baseQuery.where('t.template_type', normalizedFilters.template_type)
+          : templateColumns?.template_type
+            ? baseQuery.where('t.template_type', normalizedFilters.template_type)
+            : baseQuery
       }
 
       if (normalizedFilters.min_rating) {
         baseQuery = hasPublicView
           ? baseQuery.where('avg_rating', '>=', normalizedFilters.min_rating)
-          : baseQuery.where('t.rating', '>=', normalizedFilters.min_rating)
+          : templateColumns?.rating
+            ? baseQuery.where('t.rating', '>=', normalizedFilters.min_rating)
+            : baseQuery
       }
 
       if (normalizedFilters.search) {
         const searchTerm = `%${normalizedFilters.search}%`
-        baseQuery = hasPublicView
-          ? baseQuery.where(function() {
+        if (hasPublicView) {
+          baseQuery = baseQuery.where(function() {
             this.where('name', 'like', searchTerm)
               .orWhere('description', 'like', searchTerm)
               .orWhere('tags', 'like', searchTerm)
           })
-          : baseQuery.where(function() {
-            this.where('t.name', 'like', searchTerm)
-              .orWhere('t.description', 'like', searchTerm)
-              .orWhere('t.tags', 'like', searchTerm)
-          })
+        } else {
+          const searchableColumns = [
+            templateColumns?.name ? 't.name' : null,
+            templateColumns?.description ? 't.description' : null,
+            templateColumns?.tags ? 't.tags' : null
+          ].filter(Boolean) as string[]
+
+          if (searchableColumns.length > 0) {
+            baseQuery = baseQuery.where(function() {
+              searchableColumns.forEach((column, index) => {
+                if (index === 0) {
+                  this.where(column, 'like', searchTerm)
+                } else {
+                  this.orWhere(column, 'like', searchTerm)
+                }
+              })
+            })
+          }
+        }
       }
 
-      if (normalizedFilters.tags && normalizedFilters.tags.length > 0) {
+      if (normalizedFilters.tags && normalizedFilters.tags.length > 0 && (hasPublicView || templateColumns?.tags)) {
         normalizedFilters.tags.forEach((tag) => {
           baseQuery = hasPublicView
             ? baseQuery.where('tags', 'like', `%${tag}%`)
@@ -210,23 +376,58 @@ class SharedTemplateServiceV2 {
 
       switch (sortBy) {
         case 'rating':
-          query = query.orderBy('avg_rating', sortOrder).orderBy('total_reviews', 'desc')
+          if (hasPublicView || templateColumns?.rating) {
+            query = query.orderBy('avg_rating', sortOrder)
+            if (hasPublicView || templateColumns?.total_ratings) {
+              query = query.orderBy('total_reviews', 'desc')
+            }
+          } else if (templateColumns?.created_at) {
+            query = query.orderBy('t.created_at', 'desc')
+          } else {
+            query = query.orderBy('t.id', 'desc')
+          }
           break
         case 'usage':
-          query = hasPublicView ? query.orderBy('usage_count', sortOrder) : query.orderBy('t.usage_count', sortOrder)
+          if (hasPublicView) {
+            query = query.orderBy('usage_count', sortOrder)
+          } else if (templateColumns?.usage_count) {
+            query = query.orderBy('t.usage_count', sortOrder)
+          } else if (templateColumns?.created_at) {
+            query = query.orderBy('t.created_at', 'desc')
+          } else {
+            query = query.orderBy('t.id', 'desc')
+          }
           break
         case 'date':
-          query = hasPublicView ? query.orderBy('created_at', sortOrder) : query.orderBy('t.created_at', sortOrder)
+          if (hasPublicView) {
+            query = query.orderBy('created_at', sortOrder)
+          } else if (templateColumns?.created_at) {
+            query = query.orderBy('t.created_at', sortOrder)
+          } else {
+            query = query.orderBy('t.id', 'desc')
+          }
           break
         case 'name':
-          query = hasPublicView ? query.orderBy('name', sortOrder) : query.orderBy('t.name', sortOrder)
+          if (hasPublicView) {
+            query = query.orderBy('name', sortOrder)
+          } else if (templateColumns?.name) {
+            query = query.orderBy('t.name', sortOrder)
+          } else if (templateColumns?.created_at) {
+            query = query.orderBy('t.created_at', 'desc')
+          } else {
+            query = query.orderBy('t.id', 'desc')
+          }
           break
         default:
-          query = query.orderBy('avg_rating', 'desc')
+          if (hasPublicView || templateColumns?.rating) {
+            query = query.orderBy('avg_rating', 'desc')
+          } else if (templateColumns?.created_at) {
+            query = query.orderBy('t.created_at', 'desc')
+          } else {
+            query = query.orderBy('t.id', 'desc')
+          }
       }
 
-      const page = Math.max(1, normalizedFilters.page || 1)
-      const limit = Math.min(Math.max(1, normalizedFilters.limit || 20), 50)
       const offset = (page - 1) * limit
 
       const [templates, totalCount] = await Promise.all([
