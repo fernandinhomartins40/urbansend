@@ -15,7 +15,7 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { validateRequest, paginationSchema, idParamSchema, singleSendEmailSchema, sendBatchEmailSchema } from '../middleware/validation';
-import { authenticateJWT, requirePermission } from '../middleware/auth';
+import { authenticateJWT, authenticateJwtOrApiKey, requirePermission } from '../middleware/auth';
 import { emailStatsMiddleware } from '../middleware/emailArchitectureMiddleware';
 import { MultiTenantEmailService, EmailRequest, AuthUser } from '../services/MultiTenantEmailService';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -113,7 +113,7 @@ const emailRateLimit = async (req: AuthenticatedRequest, res: Response, next: an
  */
 router.post('/send',
   // Middleware 1: Autenticação JWT (essencial)
-  authenticateJWT,
+  authenticateJwtOrApiKey,
 
   // Middleware 2: Permissão de envio (essencial multi-tenancy)
   requirePermission('email:send'),
@@ -130,7 +130,8 @@ router.post('/send',
       id: req.user!.id,
       email: req.user!.email,
       name: req.user!.name,
-      tenant_id: req.user!.id // Simplificado: user.id como tenant_id
+      tenant_id: req.user!.id, // Simplificado: user.id como tenant_id
+      api_key_id: req.apiKey?.id || null
     };
 
     const emailData: EmailRequest = {
@@ -216,7 +217,7 @@ router.post('/send',
  * SUBSTITUI /emails-v2/send-batch-v2 COMPLETAMENTE
  */
 router.post('/send-batch',
-  authenticateJWT,
+  authenticateJwtOrApiKey,
   requirePermission('email:send'), 
   validateRequest({ body: sendBatchEmailSchema }),
   emailRateLimit,
@@ -249,7 +250,8 @@ router.post('/send-batch',
         id: req.user!.id,
         email: req.user!.email,
         name: req.user!.name,
-        tenant_id: req.user!.id
+        tenant_id: req.user!.id,
+        api_key_id: req.apiKey?.id || null
       };
 
       try {

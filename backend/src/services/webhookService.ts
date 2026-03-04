@@ -38,13 +38,15 @@ interface TenantWebhookStats {
 
 export class WebhookService {
   private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
+  private tablesValidated: boolean | null = null;
+  private tableValidationPromise: Promise<boolean> | null = null;
 
   constructor() {
     this.tenantContextService = new TenantContextService(); // 🔥 NOVO: Inicializar tenant context
-    this.validateRequiredTables();
+    this.tableValidationPromise = this.validateRequiredTables();
   }
 
-  private async validateRequiredTables() {
+  private async validateRequiredTables(): Promise<boolean> {
     try {
       const requiredTables = [
         'webhook_logs',
@@ -54,20 +56,46 @@ export class WebhookService {
       for (const tableName of requiredTables) {
         const hasTable = await db.schema.hasTable(tableName);
         if (!hasTable) {
-          throw new Error(`Tabela obrigatória '${tableName}' não encontrada. Execute as migrations primeiro.`);
+          logger.error(`WebhookService: tabela obrigatória '${tableName}' não encontrada`);
+          this.tablesValidated = false;
+          return false;
         }
       }
 
+      this.tablesValidated = true;
       logger.info('WebhookService: Todas as tabelas obrigatórias validadas com sucesso');
+      return true;
     } catch (error) {
+      this.tablesValidated = false;
       logger.error('Erro ao validar tabelas do WebhookService:', error);
-      throw error;
+      return false;
     }
+  }
+
+  private async ensureTablesReady(): Promise<boolean> {
+    if (this.tablesValidated !== null) {
+      return this.tablesValidated;
+    }
+
+    if (!this.tableValidationPromise) {
+      this.tableValidationPromise = this.validateRequiredTables();
+    }
+
+    return this.tableValidationPromise;
   }
 
   // 🔥 MÉTODO MODIFICADO: Enviar webhook com validação de tenant
   async sendWebhook(event: string, payload: any, tenantId: number, webhookId?: number): Promise<void> {
     try {
+      if (!(await this.ensureTablesReady())) {
+        logger.warn('Skipping webhook delivery because the required tables are unavailable', {
+          event,
+          tenantId,
+          webhookId
+        });
+        return;
+      }
+
       // 🔥 CRÍTICO: Validar contexto do tenant primeiro
       if (!tenantId) {
         throw new Error('Missing tenant ID for webhook sending');

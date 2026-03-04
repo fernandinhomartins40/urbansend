@@ -12,6 +12,7 @@ import { logger } from '../config/logger';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import db from '../config/database';
 import { emailTrackingService } from './EmailTrackingService';
+import { emailWebhookEventService } from './EmailWebhookEventService';
 import {
   buildHtmlFromText,
   buildTextFromHtml,
@@ -39,6 +40,7 @@ export interface AuthUser {
   email: string;
   name: string;
   tenant_id?: number;
+  api_key_id?: number | null;
 }
 
 export interface EmailResult {
@@ -54,6 +56,7 @@ export interface EmailResult {
 export interface EmailLogData {
   user_id: number;
   tenant_id?: number;
+  api_key_id?: number | null;
   from: string;
   to: string;
   subject: string;
@@ -79,6 +82,7 @@ export interface EmailLogData {
 export class MultiTenantEmailService {
   private readonly smtpDelivery: SMTPDeliveryService;
   private readonly emailValidator: SimpleEmailValidator;
+  private emailTableSupportsApiKeyId: boolean | null = null;
 
   constructor() {
     this.smtpDelivery = new SMTPDeliveryService();
@@ -153,6 +157,7 @@ export class MultiTenantEmailService {
       const processingLog: EmailLogData = {
         user_id: user.id,
         tenant_id: user.tenant_id || null,
+        api_key_id: user.api_key_id || null,
         from: preparedEmailData.from,
         to: Array.isArray(preparedEmailData.to) ? preparedEmailData.to.join(', ') : preparedEmailData.to,
         subject: preparedEmailData.subject,
@@ -166,6 +171,12 @@ export class MultiTenantEmailService {
       };
 
       await this.saveEmailLog(processingLog);
+      void emailWebhookEventService.emitByMessageId('email.sent', messageId, {
+        accepted_by_server: false,
+        domain,
+        source: 'send_request_accepted',
+        triggered_by: user.api_key_id ? 'api_key' : 'jwt'
+      });
 
       // 5. Processamento SMTP assíncrono (não bloquear UI)
       setImmediate(async () => {
@@ -316,6 +327,12 @@ export class MultiTenantEmailService {
 
       if (delivered) {
         await emailTrackingService.recordDeliveredEventForMessage(messageId, trackingId, smtpEmailData.to, user.id);
+        void emailWebhookEventService.emitByMessageId('email.delivered', messageId, {
+          accepted_by_server: true,
+          domain,
+          source: 'smtp_acceptance',
+          triggered_by: user.api_key_id ? 'api_key' : 'jwt'
+        });
       }
 
       if (delivered) {
@@ -326,6 +343,13 @@ export class MultiTenantEmailService {
           to: smtpEmailData.to
         });
       } else {
+        void emailWebhookEventService.emitByMessageId('email.failed', messageId, {
+          accepted_by_server: false,
+          domain,
+          error_message: 'SMTP delivery failed',
+          source: 'smtp_failure',
+          triggered_by: user.api_key_id ? 'api_key' : 'jwt'
+        });
         logger.error('❌ MultiTenant: SMTP delivery failed', {
           userId: user.id,
           messageId,
@@ -346,6 +370,13 @@ export class MultiTenantEmailService {
         status: 'failed',
         error_message: error instanceof Error ? error.message : 'Processing failed',
         html_content: finalHtml || emailData.html // 🔧 Salvar HTML mesmo em caso de falha
+      });
+      void emailWebhookEventService.emitByMessageId('email.failed', messageId, {
+        accepted_by_server: false,
+        domain,
+        error_message: error instanceof Error ? error.message : 'Processing failed',
+        source: 'async_processing_failure',
+        triggered_by: user.api_key_id ? 'api_key' : 'jwt'
       });
     }
   }
@@ -510,7 +541,7 @@ export class MultiTenantEmailService {
    */
   private async saveEmailLog(logData: EmailLogData): Promise<void> {
     try {
-      await db('emails').insert({
+      const insertData: Record<string, unknown> = {
         user_id: logData.user_id,
         tenant_id: logData.tenant_id,
         from_email: logData.from,
@@ -525,7 +556,13 @@ export class MultiTenantEmailService {
         sent_at: logData.status === 'sent' ? logData.timestamp : null,
         created_at: logData.timestamp,
         updated_at: logData.timestamp
-      });
+      };
+
+      if (await this.supportsApiKeyIdColumn()) {
+        insertData.api_key_id = logData.api_key_id || null;
+      }
+
+      await db('emails').insert(insertData);
 
       logger.debug('📝 Email log saved', {
         userId: logData.user_id,
@@ -568,5 +605,14 @@ export class MultiTenantEmailService {
       });
       return false;
     }
+  }
+
+  private async supportsApiKeyIdColumn(): Promise<boolean> {
+    if (this.emailTableSupportsApiKeyId !== null) {
+      return this.emailTableSupportsApiKeyId;
+    }
+
+    this.emailTableSupportsApiKeyId = await db.schema.hasColumn('emails', 'api_key_id');
+    return this.emailTableSupportsApiKeyId;
   }
 }

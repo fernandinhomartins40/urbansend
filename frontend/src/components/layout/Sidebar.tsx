@@ -7,6 +7,7 @@ import {
   BarChart3,
   Webhook,
   Key,
+  BookOpen,
   Settings,
   X
 } from 'lucide-react'
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Analytics', href: '/app/analytics', icon: BarChart3 },
   { name: 'Webhooks', href: '/app/webhooks', icon: Webhook },
   { name: 'API Keys', href: '/app/api-keys', icon: Key },
+  { name: 'Developers', href: '/app/developers', icon: BookOpen },
   { name: 'Configurações', href: '/app/settings', icon: Settings },
 ]
 

@@ -3,10 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Activity, CheckCircle, Clock, Code, Copy, Eye, Pause, Play, Plus, RefreshCw, Send, Trash2, Webhook, XCircle } from 'lucide-react'
+import { Activity, CheckCircle, Clock, Code, ExternalLink, Eye, Pause, Play, Plus, RefreshCw, Send, ShieldCheck, Trash2, Webhook, XCircle, Zap } from 'lucide-react'
 import { webhookApi } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/utils'
+import { CodeSnippetCard } from '@/components/developer/CodeSnippetCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,18 +19,16 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  buildWebhookPayloadExample,
+  buildWebhookVerificationExample,
+  getSwaggerDocsUrl,
+  webhookEventCatalog,
+} from '@/lib/developerPortal'
 
-const webhookEvents = [
-  { value: 'email.sent', label: 'Email enviado' },
-  { value: 'email.delivered', label: 'Email entregue' },
-  { value: 'email.bounced', label: 'Email bounce' },
-  { value: 'email.opened', label: 'Email aberto' },
-  { value: 'email.clicked', label: 'Link clicado' },
-  { value: 'email.unsubscribed', label: 'Descadastro' },
-  { value: 'email.spam_complaint', label: 'Spam complaint' },
-] as const
+const webhookEvents = webhookEventCatalog
 
-type WebhookEvent = typeof webhookEvents[number]['value']
+type WebhookEvent = typeof webhookEventCatalog[number]['value']
 
 const webhookSchema = z.object({
   webhook_url: z.string().url('URL invalida').refine((url) => url.startsWith('https://'), 'Webhook deve usar HTTPS'),
@@ -116,6 +116,11 @@ export function Webhooks() {
   })
 
   const webhookList: WebhookConfig[] = webhooksResponse?.data?.webhooks || []
+  const liveWebhookEvents = webhookEvents.filter((event) => event.availability === 'live')
+  const activeWebhookCount = webhookList.filter((item) => item.is_active).length
+  const averageSuccessRate = webhookList.length > 0
+    ? webhookList.reduce((total, webhook) => total + webhook.delivery_success_rate, 0) / webhookList.length
+    : 0
 
   const { data: logsResponse } = useQuery({
     queryKey: ['webhook-logs', selectedWebhook?.id, logFilters],
@@ -193,16 +198,7 @@ export function Webhooks() {
   const selectedEvents = form.watch('events') || []
 
   const docsPayload = useMemo(
-    () => `{
-  "event": "email.delivered",
-  "timestamp": "2026-03-01T12:00:00Z",
-  "data": {
-    "email_id": "abc123",
-    "to": "cliente@empresa.com",
-    "subject": "Bem-vindo",
-    "status": "delivered"
-  }
-}`,
+    () => buildWebhookPayloadExample(),
     []
   )
 
@@ -247,6 +243,11 @@ export function Webhooks() {
   }
 
   const handleEventToggle = (eventValue: WebhookEvent) => {
+    const eventDefinition = webhookEvents.find((event) => event.value === eventValue)
+    if (eventDefinition?.availability === 'planned') {
+      return
+    }
+
     const currentEvents = form.getValues('events') || []
     form.setValue(
       'events',
@@ -256,22 +257,145 @@ export function Webhooks() {
     )
   }
 
-  const copyToClipboard = async (value: string) => {
-    await navigator.clipboard.writeText(value)
-    toast.success('Copiado')
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Webhooks</h1>
-          <p className="text-muted-foreground">Configure endpoints reais para receber eventos da plataforma.</p>
+          <p className="text-muted-foreground">Configure endpoints reais, valide a assinatura e acompanhe a entrega evento por evento.</p>
         </div>
-        <Button onClick={handleNewWebhook}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo webhook
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild variant="outline">
+            <Link to="/app/developers">Tutorial</Link>
+          </Button>
+          <Button onClick={handleNewWebhook}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo webhook
+          </Button>
+        </div>
+      </div>
+
+      <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_45%),linear-gradient(135deg,#ecfdf5,_#f8fafc_55%,#eff6ff)] p-8 shadow-sm">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl space-y-4">
+            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Automacao orientada por eventos</Badge>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Receba o que a plataforma realmente sabe hoje</h2>
+              <p className="text-sm leading-6 text-slate-600">
+                O catalogo abaixo esta alinhado ao caminho ativo da UltraZend: aceite na API, aceite SMTP, abertura,
+                clique e falha imediata. Eventos planejados continuam visiveis, mas nao entram como selecao ativa.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button asChild>
+              <Link to="/app/developers">Portal de integração</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={getSwaggerDocsUrl()} target="_blank" rel="noreferrer">
+                OpenAPI
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-4">
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Endpoints</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{webhookList.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Ativos</div>
+              <div className="mt-2 text-3xl font-bold text-emerald-700">{activeWebhookCount}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Eventos live</div>
+              <div className="mt-2 text-3xl font-bold text-sky-700">{liveWebhookEvents.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Sucesso medio</div>
+              <div className="mt-2 text-3xl font-bold text-amber-600">{averageSuccessRate.toFixed(1)}%</div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Setup guiado</CardTitle>
+            <CardDescription>O fluxo mais seguro para ligar um endpoint externo.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Webhook className="h-4 w-4 text-emerald-600" />
+                1. Endpoint HTTPS
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Use uma URL publica com resposta 2xx rapida e processamento assicrono no seu backend.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <ShieldCheck className="h-4 w-4 text-sky-600" />
+                2. Valide a assinatura
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Guarde o secret por endpoint e valide `X-Webhook-Signature` sobre o corpo bruto.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Zap className="h-4 w-4 text-amber-600" />
+                3. Teste e monitore
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Envie `webhook.test`, confira logs, tempo de resposta e trate retries sem duplicidade.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Catalogo de eventos</CardTitle>
+            <CardDescription>Selecione apenas eventos live; os planejados ficam identificados como futuros.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {webhookEvents.map((event) => (
+              <div
+                key={event.value}
+                className={`rounded-2xl border p-4 ${
+                  event.availability === 'live'
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : 'border-amber-200 bg-amber-50'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-slate-900">{event.label}</div>
+                    <div className="text-xs font-mono text-slate-500">{event.value}</div>
+                  </div>
+                  <Badge variant={event.availability === 'live' ? 'default' : 'outline'}>
+                    {event.availability === 'live' ? 'Live' : 'Planejado'}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{event.description}</p>
+                <p className="mt-2 text-xs text-slate-500">{event.deliveryMeaning}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -386,18 +510,30 @@ export function Webhooks() {
                           <button
                             key={event.value}
                             type="button"
+                            disabled={event.availability === 'planned'}
                             className={`rounded-lg border p-3 text-left transition-colors ${
                               selectedEvents.includes(event.value) ? 'border-primary bg-primary/5' : 'hover:border-gray-300'
-                            }`}
+                            } ${event.availability === 'planned' ? 'cursor-not-allowed opacity-60' : ''}`}
                             onClick={() => handleEventToggle(event.value)}
                           >
-                            <div className="font-medium">{event.label}</div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium">{event.label}</div>
+                              <Badge variant={event.availability === 'live' ? 'default' : 'outline'}>
+                                {event.availability === 'live' ? 'Live' : 'Em breve'}
+                              </Badge>
+                            </div>
                             <div className="text-xs text-muted-foreground">{event.value}</div>
                           </button>
                         ))}
                       </div>
                       {form.formState.errors.events && (
                         <p className="mt-1 text-sm text-destructive">{form.formState.errors.events.message}</p>
+                      )}
+                      {selectedWebhook?.events.some((eventValue) => webhookEvents.find((event) => event.value === eventValue)?.availability === 'planned') && (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                          Este endpoint possui eventos planejados salvos. Eles continuam visiveis, mas so os eventos
+                          marcados como <span className="font-medium">Live</span> serao emitidos pelo fluxo atual.
+                        </div>
                       )}
                     </div>
 
@@ -557,33 +693,59 @@ export function Webhooks() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="docs" className="mt-6 grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Boas praticas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>Use HTTPS e responda com status 2xx quando o evento for processado.</p>
-              <p>Valide a assinatura do header `X-Webhook-Signature` usando seu secret.</p>
-              <p>Implemente idempotencia para suportar retries sem duplicar efeitos colaterais.</p>
-              <p>Monitore falhas de entrega para revisar endpoints degradados.</p>
-              <p>Eventos de teste aparecem nos logs como `webhook.test` e nao precisam ser cadastrados na lista de eventos.</p>
-            </CardContent>
-          </Card>
+        <TabsContent value="docs" className="mt-6 space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle>Checklist de implementacao</CardTitle>
+                <CardDescription>O minimo para um consumidor de webhook robusto.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm text-muted-foreground">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="font-medium text-slate-900">HTTPS + resposta rapida</div>
+                  <p className="mt-2 leading-6">Responda 2xx rapidamente e delegue processamento pesado para fila interna.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="font-medium text-slate-900">Assinatura HMAC</div>
+                  <p className="mt-2 leading-6">Valide `X-Webhook-Signature` com o corpo bruto usando o secret do endpoint.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="font-medium text-slate-900">Idempotencia</div>
+                  <p className="mt-2 leading-6">Use `webhook_id + event + data.message_id + timestamp` para evitar duplicidade em retries.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="font-medium text-slate-900">Teste interno</div>
+                  <p className="mt-2 leading-6">`webhook.test` aparece nos logs e nao depende da lista de eventos selecionados.</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/app/developers">Portal de integração</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <a href={getSwaggerDocsUrl()} target="_blank" rel="noreferrer">
+                      OpenAPI
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Payload exemplo</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative">
-                <pre className="overflow-x-auto rounded bg-gray-50 p-4 text-xs">{docsPayload}</pre>
-                <Button variant="outline" size="sm" className="absolute right-2 top-2" onClick={() => copyToClipboard(docsPayload)}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="space-y-6">
+              <CodeSnippetCard
+                title="Payload de exemplo"
+                description="Formato padrao entregue pelos eventos live da UltraZend."
+                code={docsPayload}
+                language="json"
+              />
+              <CodeSnippetCard
+                title="Validacao de assinatura"
+                description="Exemplo Node para validar o header X-Webhook-Signature."
+                code={buildWebhookVerificationExample()}
+                language="ts"
+              />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

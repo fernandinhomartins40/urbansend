@@ -3,6 +3,12 @@ import db from '../../../config/database';
 import { EmailTrackingService, resolveTrackingClientIp } from '../../../services/EmailTrackingService';
 
 jest.mock('../../../config/database');
+jest.mock('../../../services/EmailWebhookEventService', () => ({
+  emailWebhookEventService: {
+    emitForEmail: jest.fn(),
+    emitByMessageId: jest.fn()
+  }
+}));
 jest.mock('../../../config/logger', () => ({
   logger: {
     error: jest.fn(),

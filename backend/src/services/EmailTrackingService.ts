@@ -1,5 +1,6 @@
 import db from '../config/database';
 import { logger } from '../config/logger';
+import { emailWebhookEventService } from './EmailWebhookEventService';
 
 interface TrackingContext {
   userAgent?: string;
@@ -21,7 +22,10 @@ interface TrackingEventPayload {
 interface EmailRow {
   id: number;
   user_id: number;
+  from_email: string;
   to_email: string;
+  subject: string;
+  tracking_id?: string | null;
   status: string;
 }
 
@@ -66,6 +70,7 @@ export class EmailTrackingService {
       }
 
       const ipAddress = context.ipAddress || 'unknown';
+      let insertedOpenEvent = false;
 
       await db.transaction(async (trx) => {
         const existingOpen = await trx('email_analytics')
@@ -101,7 +106,23 @@ export class EmailTrackingService {
             acceptedByServer: ['delivered', 'opened', 'clicked'].includes(email.status)
           }
         });
+        insertedOpenEvent = true;
       });
+
+      if (insertedOpenEvent) {
+        await emailWebhookEventService.emitForEmail('email.opened', {
+          id: email.id,
+          user_id: email.user_id,
+          from_email: email.from_email,
+          to_email: email.to_email,
+          subject: email.subject,
+          status: 'opened',
+          tracking_id: email.tracking_id || trackingId
+        }, {
+          accepted_by_server: ['delivered', 'opened', 'clicked'].includes(email.status),
+          source: 'tracking_pixel'
+        });
+      }
 
       return true;
     } catch (error) {
@@ -129,6 +150,7 @@ export class EmailTrackingService {
 
       const ipAddress = context.ipAddress || 'unknown';
       const normalizedUrl = typeof linkUrl === 'string' ? linkUrl : null;
+      let insertedClickEvent = false;
 
       await db.transaction(async (trx) => {
         const existingOpen = await trx('email_analytics')
@@ -192,7 +214,24 @@ export class EmailTrackingService {
             acceptedByServer: ['delivered', 'opened', 'clicked'].includes(email.status)
           }
         });
+        insertedClickEvent = true;
       });
+
+      if (insertedClickEvent) {
+        await emailWebhookEventService.emitForEmail('email.clicked', {
+          id: email.id,
+          user_id: email.user_id,
+          from_email: email.from_email,
+          to_email: email.to_email,
+          subject: email.subject,
+          status: 'clicked',
+          tracking_id: email.tracking_id || trackingId
+        }, {
+          link_url: normalizedUrl,
+          accepted_by_server: ['delivered', 'opened', 'clicked'].includes(email.status),
+          source: 'tracked_link'
+        });
+      }
 
       return true;
     } catch (error) {

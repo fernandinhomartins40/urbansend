@@ -4,6 +4,7 @@ import { logger } from '../config/logger';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { generateApiKey, hashApiKey } from '../utils/crypto';
+import { resolveInsertedId } from '../utils/insertedId';
 
 const formatApiKey = (key: any) => ({
   id: key.id,
@@ -60,8 +61,22 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     created_at: new Date(),
     is_active: true
   });
-  
-  const keyId = insertResult[0];
+
+  const keyId = resolveInsertedId(insertResult)
+    ?? Number(
+      (
+        await db('api_keys')
+          .select('id')
+          .where('user_id', userId)
+          .where('name', name)
+          .orderBy('id', 'desc')
+          .first()
+      )?.id
+    );
+
+  if (!keyId) {
+    throw createError('Failed to resolve API key after creation', 500);
+  }
 
   logger.info('API key created successfully', { 
     userId, 
@@ -248,6 +263,31 @@ export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res
   // Get usage statistics for the last 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const hasApiKeyIdColumn = await db.schema.hasColumn('emails', 'api_key_id');
+
+  if (!hasApiKeyIdColumn) {
+    return res.json({
+      api_key: {
+        id: apiKey.id,
+        key_name: apiKey.name,
+        last_used_at: apiKey.last_used,
+        is_active: apiKey.is_active,
+        api_key_preview: apiKey.key_preview || `re_${String(apiKey.id).padStart(7, '0')}`
+      },
+      usage_stats: {
+        period: '30 days',
+        total_emails: 0,
+        sent_emails: 0,
+        delivered_emails: 0,
+        opened_emails: 0,
+        clicked_emails: 0,
+        bounced_emails: 0,
+        failed_emails: 0,
+        daily_usage: []
+      }
+    });
+  }
 
   const emailStats = await db('emails')
     .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')

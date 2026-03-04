@@ -238,3 +238,22 @@ export const optionalAuth = async (
     next();
   }
 };
+
+export const authenticateJwtOrApiKey = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+  const apiKeyHeader = req.headers['x-api-key'] as string | undefined;
+
+  if (apiKeyHeader) {
+    return authenticateApiKey(req, res, next);
+  }
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authenticateJWT(req, res, next);
+  }
+
+  return next(createError('Access token or API key required', 401));
+};

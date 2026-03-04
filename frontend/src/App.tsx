@@ -34,6 +34,7 @@ const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Dom
 const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.Webhooks })));
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const DeveloperDocs = lazy(() => import('./pages/DeveloperDocs').then(m => ({ default: m.DeveloperDocs })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -201,6 +202,14 @@ function AppRoutes() {
                   element={
                     <Suspense fallback={<LoadingSpinner />}>
                       <ApiKeys />
+                    </Suspense>
+                  } 
+                />
+                <Route 
+                  path="developers" 
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <DeveloperDocs />
                     </Suspense>
                   } 
                 />

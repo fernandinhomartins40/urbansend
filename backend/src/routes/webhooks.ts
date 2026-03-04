@@ -10,6 +10,7 @@ import {
 } from '../middleware/validation';
 import { generateSecretKey, createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
+import { resolveInsertedId } from '../utils/insertedId';
 
 const router = Router();
 
@@ -164,7 +165,23 @@ router.post('/',
     updated_at: new Date()
   });
 
-  const webhookId = insertResult[0];
+  const webhookId = resolveInsertedId(insertResult)
+    ?? Number(
+      (
+        await db('webhooks')
+          .select('id')
+          .where('user_id', req.user!.id)
+          .where('url', webhookUrl)
+          .where('name', name)
+          .orderBy('id', 'desc')
+          .first()
+      )?.id
+    );
+
+  if (!webhookId) {
+    return res.status(500).json({ error: 'Falha ao resolver o webhook criado' });
+  }
+
   const webhook = await db('webhooks').where('id', webhookId).first();
 
   res.status(201).json({ webhook: normalizeWebhook(webhook) });

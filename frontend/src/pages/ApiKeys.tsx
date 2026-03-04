@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { AlertTriangle, BarChart3, Copy, Key, MoreVertical, Pencil, Plus, RotateCcw, Settings, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, BarChart3, BookOpen, Copy, ExternalLink, Key, MoreVertical, Pencil, Plus, RotateCcw, Settings, ShieldCheck, Trash2, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiKeyApi } from '@/lib/api'
+import { CodeSnippetCard } from '@/components/developer/CodeSnippetCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,6 +16,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { copyToClipboard, formatRelativeTime } from '@/lib/utils'
+import {
+  apiKeyPresets,
+  apiPermissionCatalog,
+  buildSendEmailCurlExample,
+  buildSendEmailFetchExample,
+  getSwaggerDocsUrl,
+} from '@/lib/developerPortal'
 
 const createApiKeySchema = z.object({
   key_name: z.string().min(1, 'Nome e obrigatorio').max(100),
@@ -53,16 +62,7 @@ interface ApiKeyUsage {
   }
 }
 
-const availablePermissions = [
-  { id: 'email:send', label: 'Enviar emails', description: 'Permite enviar emails individuais e em lote' },
-  { id: 'email:read', label: 'Ler emails', description: 'Permite visualizar historico e detalhes dos emails' },
-  { id: 'template:read', label: 'Ler templates', description: 'Permite visualizar templates de email' },
-  { id: 'template:write', label: 'Gerenciar templates', description: 'Permite criar, editar e deletar templates' },
-  { id: 'domain:read', label: 'Ler dominios', description: 'Permite visualizar dominios configurados' },
-  { id: 'analytics:read', label: 'Ler analytics', description: 'Permite acessar metricas e relatorios' },
-  { id: 'webhook:read', label: 'Ler webhooks', description: 'Permite visualizar webhooks configurados' },
-  { id: 'webhook:write', label: 'Gerenciar webhooks', description: 'Permite criar, editar e deletar webhooks' },
-]
+const availablePermissions = apiPermissionCatalog
 
 export function ApiKeys() {
   const queryClient = useQueryClient()
@@ -104,6 +104,9 @@ export function ApiKeys() {
   })
 
   const keys: ApiKey[] = apiKeysResponse?.data?.api_keys || []
+  const activeKeyCount = useMemo(() => keys.filter((item) => item.is_active).length, [keys])
+  const neverUsedCount = useMemo(() => keys.filter((item) => !item.last_used_at).length, [keys])
+  const latestCreatedAt = useMemo(() => keys[0]?.created_at || null, [keys])
 
   useEffect(() => {
     if (!editingKey) {
@@ -204,6 +207,19 @@ export function ApiKeys() {
     setValue('permissions', updated)
   }
 
+  const applyPreset = (presetId: string) => {
+    const preset = apiKeyPresets.find((item) => item.id === presetId)
+    if (!preset) {
+      return
+    }
+
+    setValue('permissions', [...preset.permissions])
+    if (!watch('key_name')) {
+      setValue('key_name', preset.label)
+    }
+    setShowCreateCard(true)
+  }
+
   const handleCopyLatestKey = async () => {
     if (!latestKey) {
       return
@@ -232,13 +248,163 @@ export function ApiKeys() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">API Keys</h1>
-          <p className="text-muted-foreground">Gerencie as chaves usadas pelas integracoes externas.</p>
+          <p className="text-muted-foreground">Gerencie autenticacao, escopos e o onboarding tecnico das integracoes externas.</p>
         </div>
 
-        <Button onClick={() => setShowCreateCard(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova API Key
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild variant="outline">
+            <Link to="/app/developers">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Tutorial
+            </Link>
+          </Button>
+          <Button onClick={() => setShowCreateCard(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova API Key
+          </Button>
+        </div>
+      </div>
+
+      <section className="overflow-hidden rounded-[2rem] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_42%),linear-gradient(135deg,#eff6ff,_#f8fafc_55%,#ecfeff)] p-8 shadow-sm">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl space-y-4">
+            <Badge className="bg-sky-600 text-white hover:bg-sky-600">Integração por API</Badge>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Fluxo recomendado para colocar uma integração em produção</h2>
+              <p className="text-sm leading-6 text-slate-600">
+                Gere uma chave com o menor escopo possível, autentique seu domínio, faça o primeiro envio com `x-api-key`
+                e acompanhe a execução por analytics e webhooks. Esta tela agora concentra o quickstart e os snippets mínimos.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button asChild>
+              <Link to="/app/developers">Abrir portal de integração</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={getSwaggerDocsUrl()} target="_blank" rel="noreferrer">
+                OpenAPI
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-4">
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Total de chaves</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{keys.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Ativas</div>
+              <div className="mt-2 text-3xl font-bold text-emerald-700">{activeKeyCount}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Sem uso ainda</div>
+              <div className="mt-2 text-3xl font-bold text-amber-600">{neverUsedCount}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">Ultima criacao</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {latestCreatedAt ? formatRelativeTime(latestCreatedAt) : 'Ainda nao criada'}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Quickstart</CardTitle>
+            <CardDescription>Trilha minima para integrar sua aplicacao sem improviso.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Key className="h-4 w-4 text-sky-600" />
+                1. Gere a chave
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Use um preset, copie a chave uma vez e guarde em segredo do ambiente.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                2. Restrinja o escopo
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Liberte apenas envio, leitura e analytics quando o sistema nao precisa alterar templates ou webhooks.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Zap className="h-4 w-4 text-amber-600" />
+                3. Teste o primeiro request
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Faça o primeiro `POST /api/emails/send`, confirme o retorno e monitore no analytics.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Presets recomendados</CardTitle>
+            <CardDescription>Use um perfil pronto e ajuste apenas se houver necessidade real.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {apiKeyPresets.map((preset) => (
+              <div key={preset.id} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-slate-900">{preset.label}</div>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">{preset.description}</p>
+                    {preset.recommendation ? <p className="mt-2 text-xs text-slate-500">{preset.recommendation}</p> : null}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(preset.id)}>
+                    Usar preset
+                  </Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {preset.permissions.map((permission) => {
+                    const permissionInfo = availablePermissions.find((item) => item.id === permission)
+                    return (
+                      <Badge key={`${preset.id}-${permission}`} variant="outline">
+                        {permissionInfo?.label || permission}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <CodeSnippetCard
+          title="Primeiro envio com cURL"
+          description="O caminho ativo suporta autenticacao por x-api-key para envio transacional."
+          code={buildSendEmailCurlExample()}
+          language="bash"
+        />
+        <CodeSnippetCard
+          title="Primeiro envio com fetch"
+          description="Use em backend Node, serverless function ou worker."
+          code={buildSendEmailFetchExample()}
+          language="ts"
+        />
       </div>
 
       <Card className="border-yellow-200 bg-yellow-50">
