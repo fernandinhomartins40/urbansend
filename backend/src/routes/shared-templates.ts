@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
-import SharedTemplateService from '../services/SharedTemplateService';
+import SharedTemplateService from '../services/SharedTemplateServiceV2';
 import { getAccountUserId } from '../utils/accountContext';
 
 const router = Router();

@@ -131,6 +131,14 @@ export const createTemplateSchema = z.object({
     .max(1024 * 1024, 'Conteúdo texto deve ter no máximo 1MB')
     .optional(),
   variables: z.array(z.string().max(50)).max(20, 'Máximo de 20 variáveis').optional()
+  ,
+  description: z.string().max(2000, 'Description must be at most 2000 characters').optional(),
+  category: z.string().max(50, 'Category must be at most 50 characters').optional(),
+  tags: z.array(z.string().max(50)).max(20, 'Maximum 20 tags').optional(),
+  is_public: z.boolean().optional(),
+  industry: z.string().max(80, 'Industry must be at most 80 characters').optional(),
+  difficulty_level: z.enum(['easy', 'medium', 'advanced']).optional(),
+  estimated_time_minutes: z.coerce.number().int().min(1).max(240).optional()
 }).refine(data => data.html_content || data.text_content, {
   message: "Either 'html_content' or 'text_content' must be provided"
 });

@@ -127,6 +127,9 @@ export const apiEndpointCatalog = [
   { method: 'POST', path: '/api/emails/send', description: 'Envia um email transacional com autenticacao por API key.' },
   { method: 'GET', path: '/api/emails/:id', description: 'Recupera detalhes de uma mensagem enviada.' },
   { method: 'GET', path: '/api/emails/:id/analytics', description: 'Lista eventos de entrega, abertura e clique da mensagem.' },
+  { method: 'GET', path: '/api/templates', description: 'Lista templates privados da conta autenticada.' },
+  { method: 'POST', path: '/api/templates', description: 'Cria um template privado editável para envio transacional.' },
+  { method: 'GET', path: '/api/shared-templates/public', description: 'Consulta biblioteca compartilhada com filtros e paginação.' },
   { method: 'GET', path: '/api/keys', description: 'Lista as API keys da conta autenticada via painel.' },
   { method: 'GET', path: '/api/webhooks', description: 'Lista endpoints e metricas de entrega dos webhooks.' },
 ]
@@ -149,7 +152,12 @@ export const buildSendEmailCurlExample = () => `curl --request POST '${getApiBas
     "from": "no-reply@seu-dominio.com",
     "to": "cliente@empresa.com",
     "subject": "Pedido confirmado",
-    "html": "<h1>Pedido confirmado</h1><p>Seu pedido #1048 foi recebido.</p>",
+    "template_id": 42,
+    "variables": {
+      "customer_name": "Ana",
+      "order_id": "1048"
+    },
+    "html": "<h1>Pedido confirmado</h1><p>Seu pedido #{{order_id}} foi recebido.</p>",
     "text": "Pedido confirmado\\n\\nSeu pedido #1048 foi recebido.",
     "tracking_enabled": true
   }'`
@@ -164,6 +172,11 @@ export const buildSendEmailFetchExample = () => `const response = await fetch('$
     from: 'no-reply@seu-dominio.com',
     to: 'cliente@empresa.com',
     subject: 'Pedido confirmado',
+    template_id: 42,
+    variables: {
+      customer_name: 'Ana',
+      order_id: '1048'
+    },
     html: '<h1>Pedido confirmado</h1><p>Seu pedido #1048 foi recebido.</p>',
     text: 'Pedido confirmado\\n\\nSeu pedido #1048 foi recebido.',
     tracking_enabled: true,
@@ -181,6 +194,11 @@ export const buildWebhookPayloadExample = (event = 'email.delivered') => `{
     "email_id": 152,
     "message_id": "<uz-01JQ-example@ultrazend.com.br>",
     "tracking_id": "trk_01JQEXAMPLE",
+    "template_id": 42,
+    "template_data": {
+      "customer_name": "Ana",
+      "order_id": "1048"
+    },
     "from": "no-reply@seu-dominio.com",
     "to": "cliente@empresa.com",
     "subject": "Pedido confirmado",

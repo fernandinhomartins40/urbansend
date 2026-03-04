@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -63,6 +63,7 @@ const parseTemplateVariables = (value: unknown): Record<string, string> => {
 
 export function SendEmail() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [customVariables, setCustomVariables] = useState<Record<string, string>>({})
   const [newVarKey, setNewVarKey] = useState('')
   const [newVarValue, setNewVarValue] = useState('')
@@ -167,6 +168,25 @@ export function SendEmail() {
     form.setValue('text', template.text_content || '')
     setCustomVariables(parseTemplateVariables(template.variables))
   }
+
+  useEffect(() => {
+    const templateIdFromUrl = searchParams.get('templateId')
+    if (!templateIdFromUrl || templates.length === 0) {
+      return
+    }
+
+    const currentTemplateId = form.getValues('template_id')
+    if (currentTemplateId === templateIdFromUrl) {
+      return
+    }
+
+    const templateExists = templates.some((item: any) => String(item.id) === templateIdFromUrl)
+    if (!templateExists) {
+      return
+    }
+
+    loadTemplate(templateIdFromUrl)
+  }, [form, searchParams, templates])
 
   const htmlPreview = form.watch('html')
   const textPreview = form.watch('text')

@@ -15,9 +15,11 @@ interface EmailWebhookRow {
   to_email: string;
   subject: string;
   status: string;
+  template_id?: number | null;
   message_id?: string | null;
   tracking_id?: string | null;
   error_message?: string | null;
+  metadata?: unknown;
   created_at?: Date | string | null;
   sent_at?: Date | string | null;
   delivered_at?: Date | string | null;
@@ -51,9 +53,11 @@ class EmailWebhookEventService {
         'to_email',
         'subject',
         'status',
+        'template_id',
         'message_id',
         'tracking_id',
         'error_message',
+        'metadata',
         'created_at',
         'sent_at',
         'delivered_at'
@@ -79,6 +83,9 @@ class EmailWebhookEventService {
   ): Promise<void> {
     try {
       const webhookService = await this.getWebhookService();
+      const metadata = typeof email.metadata === 'string'
+        ? this.parseJsonField<Record<string, any>>(email.metadata, {})
+        : (email.metadata as Record<string, any> | null) || {};
 
       await webhookService.sendWebhook(
         event,
@@ -90,6 +97,8 @@ class EmailWebhookEventService {
           to: email.to_email,
           subject: email.subject,
           status: email.status,
+          template_id: email.template_id || null,
+          template_data: metadata.template_data || null,
           error_message: overrides.error_message ?? email.error_message ?? null,
           link_url: overrides.link_url ?? null,
           accepted_by_server: overrides.accepted_by_server ?? ['delivered', 'opened', 'clicked'].includes(email.status),
@@ -111,6 +120,26 @@ class EmailWebhookEventService {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  private parseJsonField<T>(value: unknown, fallback: T): T {
+    if (!value) {
+      return fallback;
+    }
+
+    if (typeof value === 'object') {
+      return value as T;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        return fallback;
+      }
+    }
+
+    return fallback;
   }
 
   private extractDomain(emailAddress: string): string | null {

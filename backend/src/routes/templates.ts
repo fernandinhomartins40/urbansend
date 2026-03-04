@@ -25,9 +25,27 @@ const parseTemplateVariables = (variables: unknown): string[] => {
   return [];
 };
 
+const parseTemplateTags = (tags: unknown): string[] => {
+  if (Array.isArray(tags)) {
+    return tags.filter((value): value is string => typeof value === 'string');
+  }
+
+  if (typeof tags === 'string') {
+    try {
+      const parsed = JSON.parse(tags);
+      return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+};
+
 const normalizeTemplate = (template: any) => ({
   ...template,
-  variables: parseTemplateVariables(template?.variables)
+  variables: parseTemplateVariables(template?.variables),
+  tags: parseTemplateTags(template?.tags)
 });
 
 // Get templates
@@ -52,9 +70,21 @@ router.post('/',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const accountUserId = getAccountUserId(req);
     const templateData = {
-      ...req.body,
       user_id: accountUserId,
+      name: req.body.name,
+      subject: req.body.subject,
+      html_content: req.body.html_content || null,
+      text_content: req.body.text_content || null,
+      description: req.body.description || null,
+      category: req.body.category || 'general',
+      tags: JSON.stringify(req.body.tags || []),
       variables: JSON.stringify(req.body.variables || []),
+      template_type: 'user',
+      is_public: Boolean(req.body.is_public),
+      is_active: true,
+      industry: req.body.industry || null,
+      difficulty_level: req.body.difficulty_level || 'easy',
+      estimated_time_minutes: req.body.estimated_time_minutes || 5,
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -109,8 +139,18 @@ router.put('/:id',
     }
 
     const updateData = {
-      ...req.body,
+      name: req.body.name,
+      subject: req.body.subject,
+      html_content: req.body.html_content || null,
+      text_content: req.body.text_content || null,
+      description: req.body.description || null,
+      category: req.body.category || existingTemplate.category || 'general',
+      tags: JSON.stringify(req.body.tags || []),
       variables: JSON.stringify(req.body.variables || []),
+      is_public: typeof req.body.is_public === 'boolean' ? req.body.is_public : Boolean(existingTemplate.is_public),
+      industry: req.body.industry || existingTemplate.industry || null,
+      difficulty_level: req.body.difficulty_level || existingTemplate.difficulty_level || 'easy',
+      estimated_time_minutes: req.body.estimated_time_minutes || existingTemplate.estimated_time_minutes || 5,
       updated_at: new Date()
     };
 

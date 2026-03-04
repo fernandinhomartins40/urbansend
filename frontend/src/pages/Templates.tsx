@@ -1,40 +1,52 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import {
+  BookOpen,
+  Copy,
+  Download,
+  Eye,
+  FileCode2,
+  Layers3,
+  Plus,
+  Rocket,
+  Save,
+  Search,
+  Sparkles,
+  Trash2,
+  Upload
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { SafeHTML } from '@/components/ui/SafeHTML'
 import { templateApi } from '@/lib/api'
 import { formatRelativeTime, generateRandomId } from '@/lib/utils'
 import { TemplateLibrary } from '@/components/templates/TemplateLibrary'
-import {
-  FileText, Plus, Edit3, Eye, Trash2, Save, Code,
-  Download, Upload, Copy, Play, Palette, Type,
-  Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
-  Link, Image, List, Hash, X, BookOpen
-} from 'lucide-react'
-import toast from 'react-hot-toast'
+import { TemplateCollections } from '@/components/templates/TemplateCollections'
+import { TemplateAnalytics } from '@/components/templates/TemplateAnalytics'
+import { RichTemplateEditor } from '@/components/templates/RichTemplateEditor'
 
 const createTemplateSchema = z.object({
   name: z.string()
     .min(1, 'Nome é obrigatório')
     .max(100, 'Nome deve ter no máximo 100 caracteres')
-    .refine(name => /^[\p{L}\p{N}\s\-_.()]+$/u.test(name), 'Nome contém caracteres inválidos'),
+    .refine((name) => /^[\p{L}\p{N}\s\-_.()]+$/u.test(name), 'Nome contém caracteres inválidos'),
   subject: z.string().min(1, 'Assunto é obrigatório').max(255),
   html_content: z.string().optional(),
   text_content: z.string().optional(),
-  variables: z.array(z.string()).optional(),
-}).refine(data => data.html_content || data.text_content, {
-  message: "HTML ou texto deve ser fornecido"
+  variables: z.array(z.string()).optional()
+}).refine((data) => data.html_content || data.text_content, {
+  message: 'HTML ou texto deve ser fornecido'
 })
 
 type CreateTemplateForm = z.infer<typeof createTemplateSchema>
@@ -46,78 +58,203 @@ interface Template {
   html_content?: string
   text_content?: string
   variables: string[]
+  category?: string
   created_at: string
   updated_at: string
 }
 
+const BUILTIN_MODELS = [
+  {
+    id: 'welcome-pro',
+    label: 'Boas-vindas SaaS',
+    category: 'welcome',
+    subject: 'Bem-vindo(a), {{user_name}}!',
+    html_content: `
+<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden">
+  <header style="padding:28px;background:#0f172a;color:#ffffff">
+    <h1 style="margin:0;font-size:24px">Seja bem-vindo(a), {{user_name}}</h1>
+    <p style="margin:10px 0 0;opacity:.9">Sua conta na {{company_name}} está pronta.</p>
+  </header>
+  <main style="padding:28px;color:#0f172a">
+    <p>Ative seu workspace e configure seu primeiro domínio para começar os envios.</p>
+    <a href="{{cta_url}}" style="display:inline-block;background:#0ea5e9;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">Começar agora</a>
+  </main>
+</div>`.trim(),
+    text_content: 'Olá {{user_name}}, sua conta na {{company_name}} está pronta. Acesse {{cta_url}}.',
+    variables: ['user_name', 'company_name', 'cta_url']
+  },
+  {
+    id: 'invoice',
+    label: 'Recibo transacional',
+    category: 'transactional',
+    subject: 'Recibo #{{invoice_id}} disponível',
+    html_content: `
+<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px">
+  <div style="padding:24px;background:#16a34a;color:#fff;border-radius:14px 14px 0 0">
+    <h2 style="margin:0">Pagamento confirmado</h2>
+  </div>
+  <div style="padding:24px;color:#0f172a">
+    <p>Olá {{customer_name}}, recebemos seu pagamento.</p>
+    <p><strong>Recibo:</strong> #{{invoice_id}}</p>
+    <p><strong>Valor:</strong> {{total_amount}}</p>
+    <p style="font-size:13px;color:#64748b">Suporte: {{support_email}}</p>
+  </div>
+</div>`.trim(),
+    text_content: 'Pagamento confirmado. Recibo #{{invoice_id}} no valor de {{total_amount}}.',
+    variables: ['customer_name', 'invoice_id', 'total_amount', 'support_email']
+  },
+  {
+    id: 'newsletter',
+    label: 'Newsletter mensal',
+    category: 'newsletter',
+    subject: '{{month}} em {{company_name}}',
+    html_content: `
+<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden">
+  <header style="background:#1d4ed8;color:#fff;padding:24px">
+    <h1 style="margin:0">{{headline}}</h1>
+    <p style="margin-top:10px">Resumo do mês {{month}}</p>
+  </header>
+  <main style="padding:24px;color:#0f172a">
+    <p>{{summary}}</p>
+    <a href="{{cta_url}}" style="display:inline-block;background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Ler atualização completa</a>
+  </main>
+</div>`.trim(),
+    text_content: '{{headline}} - {{summary}}. Leia mais em {{cta_url}}.',
+    variables: ['month', 'company_name', 'headline', 'summary', 'cta_url']
+  }
+]
+
+const extractVariables = (content: string): string[] => {
+  const regex = /{{\s*([^}\s]+)\s*}}/g
+  const variables: string[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match[1] && !variables.includes(match[1])) {
+      variables.push(match[1])
+    }
+  }
+
+  return variables
+}
+
+const processTemplate = (content: string, variables: Record<string, string>) => {
+  let processed = content
+  Object.keys(variables).forEach((key) => {
+    const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+    processed = processed.replace(regex, variables[key] || `{{${key}}}`)
+  })
+  return processed
+}
+
 export function Templates() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [activeMainTab, setActiveMainTab] = useState('editor')
+  const [activeEditorTab, setActiveEditorTab] = useState('rich')
+  const [search, setSearch] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [isCreating, setIsCreating] = useState(false)
-  const [activeTab, setActiveTab] = useState('visual')
   const [previewData, setPreviewData] = useState<Record<string, string>>({})
   const [deleteTarget, setDeleteTarget] = useState<Template | null>(null)
-  const [isVariableDialogOpen, setIsVariableDialogOpen] = useState(false)
-  const [variableName, setVariableName] = useState('')
-  const queryClient = useQueryClient()
 
-  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm<CreateTemplateForm>({
+  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<CreateTemplateForm>({
     resolver: zodResolver(createTemplateSchema),
     defaultValues: {
       name: '',
       subject: '',
       html_content: '',
       text_content: '',
-      variables: [],
-    },
+      variables: []
+    }
   })
 
-  const { data: templates, isLoading } = useQuery({
+  const { data: templatesResponse, isLoading } = useQuery({
     queryKey: ['templates'],
-    queryFn: () => templateApi.getTemplates(),
+    queryFn: templateApi.getTemplates
   })
 
   const createMutation = useMutation({
     mutationFn: (data: CreateTemplateForm) => templateApi.createTemplate(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] })
+      toast.success('Template criado com sucesso')
       setIsCreating(false)
-      reset()
-      toast.success('Template criado com sucesso!')
     },
-    onError: () => toast.error('Erro ao criar template'),
+    onError: () => toast.error('Erro ao criar template')
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CreateTemplateForm }) => 
-      templateApi.updateTemplate(id.toString(), data),
+    mutationFn: ({ id, data }: { id: number; data: CreateTemplateForm }) => templateApi.updateTemplate(String(id), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] })
-      toast.success('Template atualizado com sucesso!')
+      toast.success('Template atualizado com sucesso')
     },
-    onError: () => toast.error('Erro ao atualizar template'),
+    onError: () => toast.error('Erro ao atualizar template')
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => templateApi.deleteTemplate(id.toString()),
+    mutationFn: (id: number) => templateApi.deleteTemplate(String(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] })
-      setSelectedTemplate(null)
-      toast.success('Template deletado com sucesso!')
+      if (selectedTemplate && deleteTarget?.id === selectedTemplate.id) {
+        setSelectedTemplate(null)
+        setIsCreating(false)
+        reset({
+          name: '',
+          subject: '',
+          html_content: '',
+          text_content: '',
+          variables: []
+        })
+      }
+      toast.success('Template removido')
     },
-    onError: () => toast.error('Erro ao deletar template'),
+    onError: () => toast.error('Erro ao remover template')
   })
 
-  const templateList = templates?.data?.templates || []
+  const templates: Template[] = templatesResponse?.data?.templates || []
+
+  const filteredTemplates = useMemo(
+    () => templates.filter((template) => {
+      const needle = search.toLowerCase()
+      return template.name.toLowerCase().includes(needle)
+        || template.subject.toLowerCase().includes(needle)
+        || (template.category || '').toLowerCase().includes(needle)
+    }),
+    [search, templates]
+  )
+
+  const htmlContent = watch('html_content') || ''
+  const textContent = watch('text_content') || ''
+  const subject = watch('subject') || ''
+  const variables = watch('variables') || []
+
+  useEffect(() => {
+    const htmlVars = extractVariables(htmlContent)
+    const textVars = extractVariables(textContent)
+    const subjectVars = extractVariables(subject)
+    const allVars = Array.from(new Set([...htmlVars, ...textVars, ...subjectVars]))
+    setValue('variables', allVars)
+  }, [htmlContent, textContent, subject, setValue])
 
   const onSubmit = (data: CreateTemplateForm) => {
-    if (selectedTemplate) {
-      updateMutation.mutate({ id: selectedTemplate.id, data })
-    } else {
-      createMutation.mutate(data)
+    const payload: CreateTemplateForm = {
+      ...data,
+      html_content: data.html_content || undefined,
+      text_content: data.text_content || undefined,
+      variables: data.variables || []
     }
+
+    if (selectedTemplate && !isCreating) {
+      updateMutation.mutate({ id: selectedTemplate.id, data: payload })
+      return
+    }
+
+    createMutation.mutate(payload)
   }
 
-  const handleTemplateSelect = (template: Template) => {
+  const handleSelectTemplate = (template: Template) => {
     setSelectedTemplate(template)
     setIsCreating(false)
     setValue('name', template.name)
@@ -127,770 +264,435 @@ export function Templates() {
     setValue('variables', template.variables || [])
   }
 
-  const handleNewTemplate = () => {
+  const handleCreateNew = () => {
     setIsCreating(true)
     setSelectedTemplate(null)
-    reset()
+    reset({
+      name: `Novo template ${generateRandomId()}`,
+      subject: '',
+      html_content: '',
+      text_content: '',
+      variables: []
+    })
   }
 
-  const handleTemplateFromLibrary = (libraryTemplate: any) => {
+  const loadFromModel = (model: typeof BUILTIN_MODELS[number]) => {
+    setIsCreating(true)
+    setSelectedTemplate(null)
+    setValue('name', `${model.label} ${generateRandomId()}`)
+    setValue('subject', model.subject)
+    setValue('html_content', model.html_content)
+    setValue('text_content', model.text_content)
+    setValue('variables', model.variables)
+    setActiveEditorTab('rich')
+    toast.success(`Modelo "${model.label}" carregado`)
+  }
+
+  const loadFromLibrary = (libraryTemplate: any) => {
     setIsCreating(true)
     setSelectedTemplate(null)
     setValue('name', `${libraryTemplate.name} (Cópia)`)
     setValue('subject', libraryTemplate.subject || '')
     setValue('html_content', libraryTemplate.html_content || '')
     setValue('text_content', libraryTemplate.text_content || '')
-    setValue('variables', libraryTemplate.variables || [])
-    setActiveTab('html')
-    toast.success('Template carregado da biblioteca!')
+    setValue('variables', Array.isArray(libraryTemplate.variables) ? libraryTemplate.variables : [])
+    setActiveEditorTab('rich')
+    setActiveMainTab('editor')
+    toast.success('Template carregado da biblioteca')
   }
 
-  const handleCreateFromExample = (templateType: string) => {
-    const templateId = generateRandomId()
-    let exampleTemplate = {
-      name: '',
-      subject: '',
-      html_content: '',
-      text_content: '',
-      variables: [] as string[]
-    }
-
-    switch (templateType) {
-      case 'welcome':
-        exampleTemplate = {
-          name: `Template de Boas-vindas ${templateId}`,
-          subject: 'Bem-vindo(a) {{nome}}!',
-          html_content: `<h1>Olá {{nome}}!</h1><p>Bem-vindo(a) à nossa plataforma. Estamos felizes em tê-lo(a) conosco!</p>`,
-          text_content: 'Olá {{nome}}! Bem-vindo(a) à nossa plataforma.',
-          variables: ['nome']
-        }
-        break
-      case 'newsletter':
-        exampleTemplate = {
-          name: `Newsletter ${templateId}`,
-          subject: '📧 Newsletter {{mes}} - {{titulo}}',
-          html_content: `<h1>{{titulo}}</h1><p>Confira as novidades de {{mes}}!</p>`,
-          text_content: '{{titulo}} - Novidades de {{mes}}',
-          variables: ['titulo', 'mes']
-        }
-        break
-      case 'promotion':
-        exampleTemplate = {
-          name: `Template Promocional ${templateId}`,
-          subject: '🎉 {{oferta}} - Oferta Especial!',
-          html_content: `<h1>{{oferta}}</h1><p>Não perca! Válido até {{validade}}</p>`,
-          text_content: '{{oferta}} - Válido até {{validade}}',
-          variables: ['oferta', 'validade']
-        }
-        break
+  const duplicateSelected = () => {
+    if (!selectedTemplate) {
+      return
     }
 
     setIsCreating(true)
     setSelectedTemplate(null)
-    setValue('name', exampleTemplate.name)
-    setValue('subject', exampleTemplate.subject)
-    setValue('html_content', exampleTemplate.html_content)
-    setValue('text_content', exampleTemplate.text_content)
-    setValue('variables', exampleTemplate.variables)
-    toast.success(`Template ${templateType} criado!`)
+    setValue('name', `${selectedTemplate.name} (Cópia)`)
+    toast.success('Template duplicado em modo de criação')
   }
 
-  const handleDeleteTemplate = (template: Template) => {
-    setDeleteTarget(template)
+  const fillPreviewData = () => {
+    const values: Record<string, string> = {}
+    variables.forEach((variable) => {
+      values[variable] = values[variable] || `[${variable}]`
+    })
+    setPreviewData(values)
+    setActiveEditorTab('preview')
   }
 
-  const extractVariables = (content: string) => {
-    const regex = /{{\s*([^}\s]+)\s*}}/g
-    const variables: string[] = []
-    let match
-    while ((match = regex.exec(content)) !== null) {
-      if (match[1] && !variables.includes(match[1])) {
-        variables.push(match[1])
+  const exportSelected = () => {
+    if (!selectedTemplate) {
+      return
+    }
+
+    const data = JSON.stringify(selectedTemplate, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `template-${selectedTemplate.name.toLowerCase().replace(/\s+/g, '-')}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    toast.success('Template exportado')
+  }
+
+  const importFromFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (loadEvent) => {
+      try {
+        const parsed = JSON.parse(String(loadEvent.target?.result || '{}'))
+        const validated = createTemplateSchema.safeParse({
+          name: parsed.name || '',
+          subject: parsed.subject || '',
+          html_content: parsed.html_content || '',
+          text_content: parsed.text_content || '',
+          variables: Array.isArray(parsed.variables) ? parsed.variables : []
+        })
+
+        if (!validated.success) {
+          toast.error(validated.error.errors[0]?.message || 'Arquivo inválido')
+          return
+        }
+
+        setIsCreating(true)
+        setSelectedTemplate(null)
+        setValue('name', validated.data.name)
+        setValue('subject', validated.data.subject)
+        setValue('html_content', validated.data.html_content || '')
+        setValue('text_content', validated.data.text_content || '')
+        setValue('variables', validated.data.variables || [])
+        setActiveEditorTab('rich')
+        toast.success('Template importado com sucesso')
+      } catch {
+        toast.error('Falha ao ler arquivo de template')
       }
     }
-    return variables
+    reader.readAsText(file)
+    event.target.value = ''
   }
 
-  const processTemplate = (content: string, variables: Record<string, string>) => {
-    let processed = content
-    Object.keys(variables).forEach(key => {
-      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-      processed = processed.replace(regex, variables[key] || `{{${key}}}`)
-    })
-    return processed
-  }
-
-  const htmlContent = watch('html_content') || ''
-  const textContent = watch('text_content') || ''
-  const subject = watch('subject') || ''
-
-  // Extract variables from content
-  useEffect(() => {
-    const htmlVars = extractVariables(htmlContent)
-    const textVars = extractVariables(textContent)
-    const subjectVars = extractVariables(subject)
-    const allVars = Array.from(new Set([...htmlVars, ...textVars, ...subjectVars]))
-    setValue('variables', allVars)
-  }, [htmlContent, textContent, subject, setValue])
-
-  const insertAtCursor = (textarea: HTMLTextAreaElement, text: string) => {
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const content = textarea.value
-    const newContent = content.substring(0, start) + text + content.substring(end)
-    
-    textarea.value = newContent
-    textarea.setSelectionRange(start + text.length, start + text.length)
-    textarea.focus()
-  }
-
-  const toolbar = (
-    <div className="flex items-center space-x-2 p-2 border-b">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<strong></strong>')
-        }}
-      >
-        <Bold className="h-4 w-4" />
-      </Button>
-      
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<em></em>')
-        }}
-      >
-        <Italic className="h-4 w-4" />
-      </Button>
-      
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<u></u>')
-        }}
-      >
-        <Underline className="h-4 w-4" />
-      </Button>
-
-      <div className="border-l h-6 mx-2" />
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<div style="text-align: left;"></div>')
-        }}
-      >
-        <AlignLeft className="h-4 w-4" />
-      </Button>
-      
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<div style="text-align: center;"></div>')
-        }}
-      >
-        <AlignCenter className="h-4 w-4" />
-      </Button>
-      
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<div style="text-align: right;"></div>')
-        }}
-      >
-        <AlignRight className="h-4 w-4" />
-      </Button>
-
-      <div className="border-l h-6 mx-2" />
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<ul><li></li></ul>')
-        }}
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<a href=""></a>')
-        }}
-      >
-        <Link className="h-4 w-4" />
-      </Button>
-      
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          const textarea = document.getElementById('html-editor') as HTMLTextAreaElement
-          insertAtCursor(textarea, '<img src="" alt="" />')
-        }}
-      >
-        <Image className="h-4 w-4" />
-      </Button>
-
-      <div className="border-l h-6 mx-2" />
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsVariableDialogOpen(true)}
-      >
-        <Hash className="h-4 w-4" />
-      </Button>
-    </div>
-  )
+  const processedHtml = processTemplate(htmlContent, previewData)
+  const processedText = processTemplate(textContent, previewData)
+  const processedSubject = processTemplate(subject, previewData)
 
   return (
-    <div className="h-screen flex">
-      {/* Sidebar - Template List */}
-      <div className="w-80 border-r bg-background flex flex-col">
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold">Templates</h2>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleNewTemplate}>
-                <Plus className="h-4 w-4 mr-1" />
-                Novo
-              </Button>
-              <div className="relative group">
-                <Button size="sm" variant="outline">
-                  <Download className="h-4 w-4 mr-1" />
-                  Exemplos
-                </Button>
-                <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                  <div className="p-2 space-y-1">
-                    <button
-                      onClick={() => handleCreateFromExample('welcome')}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                    >
-                      <Type className="h-4 w-4" />
-                      Boas-vindas
-                    </button>
-                    <button
-                      onClick={() => handleCreateFromExample('newsletter')}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Newsletter
-                    </button>
-                    <button
-                      onClick={() => handleCreateFromExample('promotion')}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                    >
-                      <Palette className="h-4 w-4" />
-                      Promocional
-                    </button>
+    <div className="space-y-6">
+      <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="editor">
+            <FileCode2 className="mr-2 h-4 w-4" />
+            Editor
+          </TabsTrigger>
+          <TabsTrigger value="library">
+            <BookOpen className="mr-2 h-4 w-4" />
+            Biblioteca
+          </TabsTrigger>
+          <TabsTrigger value="collections">
+            <Layers3 className="mr-2 h-4 w-4" />
+            Coleções
+          </TabsTrigger>
+          <TabsTrigger value="analytics">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Analytics
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="editor" className="mt-4">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_1fr]">
+            <Card className="h-[calc(100vh-220px)] overflow-hidden">
+              <CardHeader className="border-b pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Meus templates</CardTitle>
+                    <CardDescription>Gerencie sua biblioteca privada</CardDescription>
+                  </div>
+                  <Button size="sm" onClick={handleCreateNew}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Novo
+                  </Button>
+                </div>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="pl-9"
+                    placeholder="Buscar template..."
+                  />
+                </div>
+              </CardHeader>
+
+              <CardContent className="h-full space-y-4 overflow-y-auto p-4">
+                <input
+                  id="template-import"
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={importFromFile}
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById('template-import')?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Importar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportSelected}
+                    disabled={!selectedTemplate}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase tracking-wide text-slate-500">Modelos padrão editáveis</Label>
+                  <div className="space-y-2">
+                    {BUILTIN_MODELS.map((model) => (
+                      <button
+                        type="button"
+                        key={model.id}
+                        onClick={() => loadFromModel(model)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-sky-300 hover:bg-sky-50"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="font-medium text-slate-900">{model.label}</div>
+                          <Badge variant="outline">{model.category}</Badge>
+                        </div>
+                        <p className="mt-1 line-clamp-1 text-xs text-slate-500">{model.subject}</p>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="p-4">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="mb-3 p-3 border rounded animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              ))}
-            </div>
-          ) : templateList.length === 0 ? (
-            <div className="p-4 text-center">
-              <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Nenhum template encontrado</p>
-            </div>
-          ) : (
-            <div className="p-2">
-              {isCreating && (
-                <div className="mb-2 p-3 border-2 border-primary rounded-lg bg-primary/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-primary">Novo Template</div>
-                      <div className="text-sm text-muted-foreground">Em criação</div>
+                <div className="space-y-2 pb-20">
+                  <Label className="text-xs uppercase tracking-wide text-slate-500">Templates salvos</Label>
+                  {isLoading ? (
+                    <div className="text-sm text-slate-500">Carregando...</div>
+                  ) : filteredTemplates.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-4 text-sm text-slate-500">
+                      Nenhum template encontrado.
                     </div>
+                  ) : (
+                    filteredTemplates.map((template) => (
+                      <button
+                        type="button"
+                        key={template.id}
+                        onClick={() => handleSelectTemplate(template)}
+                        className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                          selectedTemplate?.id === template.id && !isCreating
+                            ? 'border-sky-400 bg-sky-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-medium text-slate-900">{template.name}</div>
+                            <div className="line-clamp-1 text-xs text-slate-500">{template.subject}</div>
+                          </div>
+                          {template.variables?.length ? (
+                            <Badge variant="outline">{template.variables.length}</Badge>
+                          ) : null}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-400">{formatRelativeTime(template.updated_at)}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="border-b pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-xl">
+                      {isCreating ? 'Novo template' : selectedTemplate?.name || 'Editor de template'}
+                    </CardTitle>
+                    <CardDescription>
+                      Editor rico + código fonte + preview em tempo real.
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={fillPreviewData}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      Preview
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={duplicateSelected} disabled={!selectedTemplate || isCreating}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Duplicar
+                    </Button>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setIsCreating(false)
-                        reset()
-                      }}
+                      disabled={!selectedTemplate}
+                      onClick={() => selectedTemplate && navigate(`/app/emails/send?templateId=${selectedTemplate.id}`)}
                     >
-                      <X className="h-4 w-4" />
+                      <Rocket className="mr-2 h-4 w-4" />
+                      Usar no envio
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => selectedTemplate && setDeleteTarget(selectedTemplate)}
+                      disabled={!selectedTemplate || isCreating}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir
+                    </Button>
+                    <Button onClick={handleSubmit(onSubmit)} size="sm" disabled={createMutation.isPending || updateMutation.isPending}>
+                      <Save className="mr-2 h-4 w-4" />
+                      {createMutation.isPending || updateMutation.isPending ? 'Salvando...' : 'Salvar'}
                     </Button>
                   </div>
                 </div>
-              )}
-              
-              {templateList.map((template: Template) => (
-                <div
-                  key={template.id}
-                  className={`mb-2 p-3 border rounded-lg cursor-pointer transition-colors ${
-                    selectedTemplate?.id === template.id
-                      ? 'border-primary bg-primary/5'
-                      : 'hover:border-gray-300'
-                  }`}
-                  onClick={() => handleTemplateSelect(template)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-medium">{template.name}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {template.subject}
-                      </div>
-                      <div className="flex items-center mt-1 space-x-2">
-                        <span className="text-xs text-muted-foreground">
-                          {formatRelativeTime(template.updated_at)}
-                        </span>
-                        {template.variables && template.variables.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            {template.variables.length} variável{template.variables.length !== 1 ? 'is' : ''}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigator.clipboard.writeText(JSON.stringify(template, null, 2))
-                          toast.success('Template copiado para a área de transferência!')
-                        }}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const dataStr = JSON.stringify(template, null, 2)
-                          const blob = new Blob([dataStr], { type: 'application/json' })
-                          const url = URL.createObjectURL(blob)
-                          const link = document.createElement('a')
-                          link.href = url
-                          link.download = `template-${template.name.toLowerCase().replace(/\s+/g, '-')}.json`
-                          link.click()
-                          URL.revokeObjectURL(url)
-                          toast.success('Template exportado!')
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteTemplate(template)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+              </CardHeader>
 
-      {/* Main Editor */}
-      <div className="flex-1 flex flex-col">
-        {selectedTemplate || isCreating ? (
-          <>
-            {/* Editor Header */}
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold">
-                    {isCreating ? 'Novo Template' : selectedTemplate?.name}
-                  </h1>
-                  <p className="text-muted-foreground">
-                    {isCreating ? 'Criar um novo template de email' : 'Editar template existente'}
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    id="template-upload"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onload = (event) => {
-                          try {
-                            const template = JSON.parse(event.target?.result as string)
-                            const parsedTemplate = createTemplateSchema.safeParse({
-                              name: template.name || '',
-                              subject: template.subject || '',
-                              html_content: template.html_content || '',
-                              text_content: template.text_content || '',
-                              variables: Array.isArray(template.variables) ? template.variables : [],
-                            })
-
-                            if (!parsedTemplate.success) {
-                              toast.error(parsedTemplate.error.errors[0]?.message || 'Arquivo de template invalido')
-                              return
-                            }
-
-                            setValue('name', parsedTemplate.data.name)
-                            setValue('subject', parsedTemplate.data.subject)
-                            setValue('html_content', parsedTemplate.data.html_content || '')
-                            setValue('text_content', parsedTemplate.data.text_content || '')
-                            setValue('variables', parsedTemplate.data.variables || [])
-                            toast.success('Template importado com sucesso!')
-                          } catch (error) {
-                            toast.error('Erro ao importar template')
-                          }
-                        }
-                        reader.readAsText(file)
-                      }
-                    }}
-                  />
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => document.getElementById('template-upload')?.click()}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Importar
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const variables = extractVariables(htmlContent + textContent + subject)
-                      const sampleData: Record<string, string> = {}
-                      variables.forEach(v => {
-                        sampleData[v] = `Teste ${v}`
-                      })
-                      setPreviewData(sampleData)
-                      setActiveTab('preview')
-                      toast.success('Preview preenchido com dados de teste')
-                    }}
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Dados de teste
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const variables = extractVariables(htmlContent + textContent + subject)
-                      const sampleData: Record<string, string> = {}
-                      variables.forEach(v => {
-                        sampleData[v] = `[${v}]`
-                      })
-                      setPreviewData(sampleData)
-                      setActiveTab('preview')
-                    }}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Preview
-                  </Button>
-                  
-                  <Button onClick={handleSubmit(onSubmit)} disabled={createMutation.isPending || updateMutation.isPending}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {createMutation.isPending || updateMutation.isPending
-                      ? 'Salvando...'
-                      : isCreating
-                      ? 'Criar Template'
-                      : 'Salvar Alterações'
-                    }
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Template Form */}
-            <div className="flex-1 p-4">
-              <form onSubmit={handleSubmit(onSubmit)} className="h-full flex flex-col">
-                {/* Template Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <CardContent className="space-y-6 p-6">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div>
-                    <Label htmlFor="name">Nome do Template</Label>
-                    <Input
-                      id="name"
-                      placeholder="Ex: Boas-vindas"
-                      {...register('name')}
-                    />
-                    {errors.name && (
-                      <p className="text-sm text-destructive mt-1">{errors.name.message}</p>
-                    )}
+                    <Label htmlFor="template-name">Nome</Label>
+                    <Input id="template-name" placeholder="Ex: Confirmação de pedido" {...register('name')} />
+                    {errors.name ? <p className="mt-1 text-xs text-red-600">{errors.name.message}</p> : null}
                   </div>
-                  
                   <div>
-                    <Label htmlFor="subject">Assunto do Email</Label>
-                    <Input
-                      id="subject"
-                      placeholder="Ex: Bem-vindo ao {{company_name}}!"
-                      {...register('subject')}
-                    />
-                    {errors.subject && (
-                      <p className="text-sm text-destructive mt-1">{errors.subject.message}</p>
-                    )}
+                    <Label htmlFor="template-subject">Assunto</Label>
+                    <Input id="template-subject" placeholder="Ex: Pedido #{{order_id}} confirmado" {...register('subject')} />
+                    {errors.subject ? <p className="mt-1 text-xs text-red-600">{errors.subject.message}</p> : null}
                   </div>
                 </div>
 
-                {/* Editor Tabs */}
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                  <TabsList>
-                    <TabsTrigger value="library">
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      Biblioteca
-                    </TabsTrigger>
-                    <TabsTrigger value="visual">
-                      <Edit3 className="h-4 w-4 mr-2" />
-                      Editor simples
-                    </TabsTrigger>
-                    <TabsTrigger value="html">
-                      <Code className="h-4 w-4 mr-2" />
-                      HTML
-                    </TabsTrigger>
-                    <TabsTrigger value="text">
-                      <Type className="h-4 w-4 mr-2" />
-                      Texto
-                    </TabsTrigger>
-                    <TabsTrigger value="preview">
-                      <Eye className="h-4 w-4 mr-2" />
-                      Preview
-                    </TabsTrigger>
+                <Tabs value={activeEditorTab} onValueChange={setActiveEditorTab}>
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="rich">Editor rico</TabsTrigger>
+                    <TabsTrigger value="html">HTML</TabsTrigger>
+                    <TabsTrigger value="text">Texto</TabsTrigger>
+                    <TabsTrigger value="preview">Preview</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="library" className="flex-1 mt-4">
-                    <TemplateLibrary
-                      onTemplateSelect={handleTemplateFromLibrary}
-                      showCloneButton={false}
-                      showFavoriteButton={true}
-                      className="h-full"
+                  <TabsContent value="rich" className="mt-4">
+                    <RichTemplateEditor
+                      value={htmlContent}
+                      onChange={(value) => setValue('html_content', value, { shouldDirty: true, shouldValidate: true })}
+                      placeholder="Monte seu email com formatação, links, CTA e variáveis dinâmicas..."
                     />
                   </TabsContent>
 
-                  <TabsContent value="visual" className="flex-1 mt-4">
-                    <Card className="h-full">
-                      <CardHeader>
-                        <CardTitle>Editor simples</CardTitle>
-                        <CardDescription>
-                          Campo rapido para editar o HTML bruto antes de ir para o editor completo
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Textarea
-                          placeholder="Digite o conteúdo do seu email aqui..."
-                          className="min-h-[400px] font-mono"
-                          {...register('html_content')}
-                        />
-                      </CardContent>
-                    </Card>
+                  <TabsContent value="html" className="mt-4">
+                    <Textarea
+                      rows={18}
+                      className="font-mono text-sm"
+                      placeholder="<h1>Olá {{user_name}}</h1>"
+                      value={htmlContent}
+                      onChange={(event) => setValue('html_content', event.target.value, { shouldDirty: true, shouldValidate: true })}
+                    />
                   </TabsContent>
 
-                  <TabsContent value="html" className="flex-1 mt-4">
-                    <Card className="h-full flex flex-col">
-                      {toolbar}
-                      <CardContent className="flex-1 p-0">
-                        <Textarea
-                          id="html-editor"
-                          placeholder="<h1>Olá {{name}}!</h1>
-<p>Bem-vindo ao {{company_name}}.</p>
-<a href='{{confirmation_url}}'>Confirme sua conta</a>"
-                          className="min-h-[400px] border-0 font-mono text-sm resize-none"
-                          {...register('html_content')}
-                        />
-                      </CardContent>
-                    </Card>
+                  <TabsContent value="text" className="mt-4">
+                    <Textarea
+                      rows={18}
+                      className="font-mono text-sm"
+                      placeholder="Versão de texto puro"
+                      {...register('text_content')}
+                    />
                   </TabsContent>
 
-                  <TabsContent value="text" className="flex-1 mt-4">
-                    <Card className="h-full">
-                      <CardHeader>
-                        <CardTitle>Versão em Texto</CardTitle>
-                        <CardDescription>
-                          Versão alternativa em texto puro (opcional)
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Textarea
-                          placeholder="Olá {{name}}!
-
-Bem-vindo ao {{company_name}}.
-
-Confirme sua conta em: {{confirmation_url}}"
-                          className="min-h-[400px] font-mono"
-                          {...register('text_content')}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-
-                  <TabsContent value="preview" className="flex-1 mt-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
-                      {/* Variables Panel */}
-                      <div className="lg:col-span-1">
-                        <Card className="h-full">
-                          <CardHeader>
-                            <CardTitle>Variáveis de Teste</CardTitle>
-                            <CardDescription>
-                              Defina valores para visualizar o preview
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {watch('variables')?.map((variable) => (
+                  <TabsContent value="preview" className="mt-4">
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Variáveis</CardTitle>
+                          <CardDescription>Preencha dados para validar a renderização</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {variables.length === 0 ? (
+                            <p className="text-sm text-slate-500">Nenhuma variável detectada.</p>
+                          ) : (
+                            variables.map((variable) => (
                               <div key={variable}>
                                 <Label htmlFor={`var-${variable}`}>{variable}</Label>
                                 <Input
                                   id={`var-${variable}`}
-                                  placeholder={`Valor para ${variable}`}
                                   value={previewData[variable] || ''}
-                                  onChange={(e) =>
-                                    setPreviewData(prev => ({
-                                      ...prev,
-                                      [variable]: e.target.value
-                                    }))
-                                  }
+                                  onChange={(event) => setPreviewData((prev) => ({ ...prev, [variable]: event.target.value }))}
+                                  placeholder={`Valor para ${variable}`}
                                 />
                               </div>
-                            ))}
-                            
-                            {(!watch('variables') || watch('variables')?.length === 0) && (
-                              <p className="text-sm text-muted-foreground">
-                                Nenhuma variável encontrada. Use a sintaxe {"{{variavel}}"} no seu template.
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
+                            ))
+                          )}
+                        </CardContent>
+                      </Card>
 
-                      {/* Preview Panel */}
-                      <div className="lg:col-span-2">
-                        <Card className="h-full">
-                          <CardHeader>
-                            <CardTitle>Preview do Email</CardTitle>
-                            <CardDescription>
-                              Assunto: {processTemplate(subject, previewData)}
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <SafeHTML 
-                              className="border rounded p-4 bg-white min-h-[400px]"
-                              html={processTemplate(htmlContent, previewData) || processTemplate(textContent, previewData).replace(/\n/g, '<br>')}
-                              strict={true}
-                            />
-                          </CardContent>
-                        </Card>
-                      </div>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Preview final</CardTitle>
+                          <CardDescription>Assunto: {processedSubject || '(sem assunto)'}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <SafeHTML
+                            strict
+                            className="min-h-[420px] rounded-xl border bg-white p-4"
+                            html={processedHtml || processedText.replace(/\n/g, '<br />')}
+                          />
+                        </CardContent>
+                      </Card>
                     </div>
                   </TabsContent>
                 </Tabs>
-              </form>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-medium mb-2">Selecione um template</h3>
-              <p className="text-muted-foreground mb-4">
-                Escolha um template existente para editar ou crie um novo
-              </p>
-              <Button onClick={handleNewTemplate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Primeiro Template
-              </Button>
-            </div>
+
+                <Card className="border-sky-100 bg-sky-50/60">
+                  <CardHeader>
+                    <CardTitle className="text-base">Integração API e Webhooks</CardTitle>
+                    <CardDescription>
+                      O envio por API agora persiste `template_id` e os webhooks recebem `template_id` + `template_data`.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-slate-700">
+                    <div className="rounded-lg border bg-white p-3 font-mono text-xs">
+                      POST /api/emails/send {'{'} from, to, subject, template_id, variables {'}'}
+                    </div>
+                    <div className="rounded-lg border bg-white p-3 font-mono text-xs">
+                      webhook.data {'{'} message_id, template_id, template_data, status {'}'}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setActiveMainTab('library')}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Abrir biblioteca compartilhada
+                    </Button>
+                  </CardContent>
+                </Card>
+              </CardContent>
+            </Card>
           </div>
-        )}
-      </div>
+        </TabsContent>
 
-      <Dialog open={isVariableDialogOpen} onOpenChange={setIsVariableDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Inserir variavel</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="template-variable-name">Nome da variavel</Label>
-              <Input
-                id="template-variable-name"
-                value={variableName}
-                onChange={(event) => setVariableName(event.target.value)}
-                placeholder="nome_cliente"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsVariableDialogOpen(false)
-                  setVariableName('')
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!variableName.trim()) {
-                    return
-                  }
+        <TabsContent value="library" className="mt-4">
+          <TemplateLibrary
+            onTemplateSelect={loadFromLibrary}
+            showFavoriteButton
+            showCloneButton
+          />
+        </TabsContent>
 
-                  const textarea = document.getElementById('html-editor') as HTMLTextAreaElement | null
-                  if (textarea) {
-                    insertAtCursor(textarea, `{{${variableName.trim()}}}`)
-                  }
+        <TabsContent value="collections" className="mt-4">
+          <TemplateCollections />
+        </TabsContent>
 
-                  setIsVariableDialogOpen(false)
-                  setVariableName('')
-                }}
-              >
-                Inserir
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        <TabsContent value="analytics" className="mt-4">
+          <TemplateAnalytics templateId={selectedTemplate?.id} />
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}
@@ -900,8 +702,8 @@ Confirme sua conta em: {{confirmation_url}}"
             deleteMutation.mutate(deleteTarget.id)
           }
         }}
-        title="Remover template"
-        description={deleteTarget ? `Deseja remover o template "${deleteTarget.name}"?` : ''}
+        title="Excluir template"
+        description={deleteTarget ? `Deseja excluir "${deleteTarget.name}"?` : ''}
         variant="danger"
       />
     </div>

@@ -21,6 +21,7 @@ import {
   processLinksForTracking,
   processTemplate
 } from '../utils/email';
+import SharedTemplateService from './SharedTemplateServiceV2';
 
 // Interfaces específicas para multi-tenancy
 export interface EmailRequest {
@@ -29,7 +30,7 @@ export interface EmailRequest {
   subject: string;
   html?: string;
   text?: string;
-  template_id?: string;
+  template_id?: string | number;
   template_data?: Record<string, any>;
   variables?: Record<string, any>;
   tracking_enabled?: boolean;
@@ -69,6 +70,8 @@ export interface EmailLogData {
   timestamp: Date;
   message_id?: string;
   tracking_id?: string;
+  template_id?: number | null;
+  metadata?: Record<string, any> | null;
 }
 
 /**
@@ -85,6 +88,8 @@ export class MultiTenantEmailService {
   private readonly smtpDelivery: SMTPDeliveryService;
   private readonly emailValidator: SimpleEmailValidator;
   private emailTableSupportsApiKeyId: boolean | null = null;
+  private emailTableSupportsTemplateId: boolean | null = null;
+  private emailTableSupportsMetadata: boolean | null = null;
 
   private parseJsonField<T>(value: unknown, fallback: T): T {
     if (!value) {
@@ -189,7 +194,15 @@ export class MultiTenantEmailService {
         timestamp: new Date(),
         message_id: messageId,
         tracking_id: trackingId,
-        error_message: null
+        error_message: null,
+        template_id: preparedEmailData.template_id ? Number(preparedEmailData.template_id) : null,
+        metadata: {
+          template_data: preparedEmailData.template_data || {},
+          tracking_enabled: Boolean(preparedEmailData.tracking_enabled),
+          open_tracking_enabled: Boolean(preparedEmailData.open_tracking_enabled),
+          click_tracking_enabled: Boolean(preparedEmailData.click_tracking_enabled),
+          source: user.api_key_id ? 'api_key' : 'jwt'
+        }
       };
 
       await this.saveEmailLog(processingLog);
@@ -256,10 +269,11 @@ export class MultiTenantEmailService {
     let html = normalizeOptionalEmailContent(emailData.html);
     let text = normalizeOptionalEmailContent(emailData.text);
     const footerText = normalizeOptionalEmailContent(brandingSettings.footer_text);
+    const parsedTemplateId = emailData.template_id ? Number(emailData.template_id) : undefined;
 
-    if (emailData.template_id) {
+    if (parsedTemplateId && Number.isFinite(parsedTemplateId)) {
       const template = await db('email_templates')
-        .where('id', emailData.template_id)
+        .where('id', parsedTemplateId)
         .where('user_id', userId)
         .first();
 
@@ -313,6 +327,7 @@ export class MultiTenantEmailService {
       subject,
       html,
       text,
+      template_id: parsedTemplateId && Number.isFinite(parsedTemplateId) ? parsedTemplateId : emailData.template_id,
       template_data: variables,
       variables,
       tracking_enabled: openTrackingEnabled || clickTrackingEnabled,
@@ -394,6 +409,12 @@ export class MultiTenantEmailService {
 
       if (delivered) {
         await emailTrackingService.recordDeliveredEventForMessage(messageId, trackingId, smtpEmailData.to, user.id);
+        if (emailData.template_id) {
+          const templateId = Number(emailData.template_id);
+          if (Number.isFinite(templateId)) {
+            await SharedTemplateService.recordUsage(templateId, user.id);
+          }
+        }
         void emailWebhookEventService.emitByMessageId('email.delivered', messageId, {
           accepted_by_server: true,
           domain,
@@ -639,6 +660,14 @@ export class MultiTenantEmailService {
         insertData.api_key_id = logData.api_key_id || null;
       }
 
+      if (await this.supportsTemplateIdColumn()) {
+        insertData.template_id = logData.template_id || null;
+      }
+
+      if (await this.supportsMetadataColumn()) {
+        insertData.metadata = logData.metadata ? JSON.stringify(logData.metadata) : null;
+      }
+
       await db('emails').insert(insertData);
 
       logger.debug('📝 Email log saved', {
@@ -691,5 +720,23 @@ export class MultiTenantEmailService {
 
     this.emailTableSupportsApiKeyId = await db.schema.hasColumn('emails', 'api_key_id');
     return this.emailTableSupportsApiKeyId;
+  }
+
+  private async supportsTemplateIdColumn(): Promise<boolean> {
+    if (this.emailTableSupportsTemplateId !== null) {
+      return this.emailTableSupportsTemplateId;
+    }
+
+    this.emailTableSupportsTemplateId = await db.schema.hasColumn('emails', 'template_id');
+    return this.emailTableSupportsTemplateId;
+  }
+
+  private async supportsMetadataColumn(): Promise<boolean> {
+    if (this.emailTableSupportsMetadata !== null) {
+      return this.emailTableSupportsMetadata;
+    }
+
+    this.emailTableSupportsMetadata = await db.schema.hasColumn('emails', 'metadata');
+    return this.emailTableSupportsMetadata;
   }
 }
