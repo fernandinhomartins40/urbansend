@@ -61,6 +61,28 @@ export class Env {
   }
 
   /**
+   * Internal routes are reserved for diagnostics, migration tooling and admin-only
+   * surfaces that should not be exposed in the default application runtime.
+   */
+  static get enableInternalRoutes(): boolean {
+    return Env.getBoolean('ENABLE_INTERNAL_ROUTES', false);
+  }
+
+  /**
+   * Legacy routes stay opt-in so the product can run against a single public contract.
+   */
+  static get enableLegacyDomainRoutes(): boolean {
+    return Env.getBoolean('ENABLE_LEGACY_DOMAIN_ROUTES', false);
+  }
+
+  /**
+   * Debug endpoints that expose sensitive operational data must be explicitly enabled.
+   */
+  static get enableDebugRoutes(): boolean {
+    return Env.getBoolean('ENABLE_DEBUG_ROUTES', false);
+  }
+
+  /**
    * Get JWT Secret (required for security)
    */
   static get jwtSecret(): string {
