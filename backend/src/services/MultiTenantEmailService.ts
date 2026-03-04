@@ -11,6 +11,7 @@ import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import { SimpleEmailValidator } from '../email/EmailValidator';
 import db from '../config/database';
+import { emailTrackingService } from './EmailTrackingService';
 import { generateTrackingPixel, processLinksForTracking, processTemplate } from '../utils/email';
 
 // Interfaces específicas para multi-tenancy
@@ -294,6 +295,10 @@ export class MultiTenantEmailService {
         error_message: delivered ? null : 'SMTP delivery failed',
         html_content: finalHtml // 🔧 Salvar HTML com pixel de tracking
       });
+
+      if (delivered) {
+        await emailTrackingService.recordDeliveredEventForMessage(messageId, trackingId, smtpEmailData.to, user.id);
+      }
 
       if (delivered) {
         logger.info('✅ MultiTenant: Email sent successfully', {

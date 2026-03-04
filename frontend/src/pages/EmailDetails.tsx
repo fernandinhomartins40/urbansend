@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SafeHTML } from '@/components/ui/SafeHTML'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
+import { getClickedAtFromAnalytics, getEmailStatusLabel, getOpenedAtFromAnalytics, isEmailClicked, isEmailOpened } from '@/lib/emailEngagement'
 import { emailApi } from '@/lib/api'
 import { formatDate, formatRelativeTime, getStatusColor } from '@/lib/utils'
 import { 
@@ -37,8 +38,6 @@ interface Email {
   tracking_enabled: boolean
   sent_at: string
   delivered_at?: string
-  opened_at?: string
-  clicked_at?: string
   bounce_reason?: string
   created_at: string
   updated_at: string
@@ -131,12 +130,14 @@ export function EmailDetails() {
 
   const email: Email = data.data.email
   const analytics: Analytics[] = analyticsData?.data?.analytics || []
+  const openedAt = getOpenedAtFromAnalytics(analytics, email.status)
+  const clickedAt = getClickedAtFromAnalytics(analytics)
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return <Activity className="h-4 w-4 text-amber-500" />
       case 'sent': return <Send className="h-4 w-4 text-blue-500" />
-      case 'delivered': return <Eye className="h-4 w-4 text-green-500" />
+      case 'delivered': return <Send className="h-4 w-4 text-green-500" />
       case 'opened': return <Eye className="h-4 w-4 text-blue-600" />
       case 'clicked': return <MousePointer className="h-4 w-4 text-purple-500" />
       case 'bounced': return <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -146,10 +147,10 @@ export function EmailDetails() {
   }
 
   const getStatusBadge = (email: Email) => {
-    if (email.clicked_at) {
+    if (isEmailClicked(email.status)) {
       return <Badge variant="default" className="bg-purple-100 text-purple-800">Clicado</Badge>
     }
-    if (email.opened_at) {
+    if (isEmailOpened(email.status)) {
       return <Badge variant="default" className="bg-blue-100 text-blue-800">Aberto</Badge>
     }
     if (email.bounce_reason) {
@@ -162,12 +163,7 @@ export function EmailDetails() {
         variant="secondary" 
         className={color}
       >
-        {email.status === 'pending' ? 'Processando' :
-         email.status === 'sent' ? 'Enviado' :
-         email.status === 'delivered' ? 'Entregue' :
-         email.status === 'queued' ? 'Na fila' :
-         email.status === 'failed' ? 'Falhou' :
-         email.status}
+        {getEmailStatusLabel(email.status)}
       </Badge>
     )
   }
@@ -182,8 +178,8 @@ export function EmailDetails() {
       case 'open': return 'Abertura'
       case 'click': return 'Clique'
       case 'bounce': return 'Bounce'
-      case 'delivered': return 'Entrega'
-      case 'delivery': return 'Entrega'
+      case 'delivered': return 'Aceite SMTP'
+      case 'delivery': return 'Aceite SMTP'
       case 'unsubscribe': return 'Descadastro'
       default: return eventType
     }
@@ -286,22 +282,32 @@ export function EmailDetails() {
               </div>
             )}
             
-            {email.opened_at && (
+            {email.delivered_at && (
+              <div className="flex items-center gap-2">
+                <Send className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Aceito pelo servidor</p>
+                  <p className="text-sm font-medium">{formatDate(email.delivered_at)}</p>
+                </div>
+              </div>
+            )}
+
+            {openedAt && (
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Aberto</p>
-                  <p className="text-sm font-medium">{formatDate(email.opened_at)}</p>
+                  <p className="text-sm font-medium">{formatDate(openedAt)}</p>
                 </div>
               </div>
             )}
             
-            {email.clicked_at && (
+            {clickedAt && (
               <div className="flex items-center gap-2">
                 <MousePointer className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Clicado</p>
-                  <p className="text-sm font-medium">{formatDate(email.clicked_at)}</p>
+                  <p className="text-sm font-medium">{formatDate(clickedAt)}</p>
                 </div>
               </div>
             )}

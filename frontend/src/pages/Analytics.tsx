@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, Eye, Globe, Mail, MousePointer, RefreshCw, TrendingUp, XCircle } from 'lucide-react'
 import { analyticsApi } from '@/lib/api'
+import { getEmailStatusLabel } from '@/lib/emailEngagement'
 import { useSettingsStore } from '@/lib/store'
 import { formatRelativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +70,7 @@ export function Analytics() {
   const topEmails = topEmailsResponse?.data?.emails || []
   const topDomains = domainsResponse?.data?.domains || []
   const activities = activityResponse?.data?.activities || []
+  const formatActivityLabel = (activity: any) => getEmailStatusLabel(activity.status || activity.event_type)
 
   const cards = [
     {
@@ -78,9 +80,9 @@ export function Analytics() {
       icon: Mail,
     },
     {
-      title: 'Entrega',
+      title: 'Aceite SMTP',
       value: `${Number(overview.delivery_rate || 0).toFixed(1)}%`,
-      description: `${overview.delivered_count || 0} entregues`,
+      description: `${overview.delivered_count || 0} aceitos pelo servidor`,
       icon: TrendingUp,
     },
     {
@@ -108,7 +110,7 @@ export function Analytics() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Analytics</h1>
-          <p className="text-muted-foreground">Painel consolidado de envio, entrega e engajamento.</p>
+          <p className="text-muted-foreground">Painel consolidado de envio, aceite SMTP e engajamento.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -171,7 +173,7 @@ export function Analytics() {
                   labelFormatter={(value) => new Date(value).toLocaleDateString('pt-BR')}
                   formatter={(value: any, name: string) => [
                     value,
-                    name === 'sent' ? 'Enviados' : name === 'delivered' ? 'Entregues' : name === 'opened' ? 'Abertos' : 'Cliques',
+                    name === 'sent' ? 'Enviados' : name === 'delivered' ? 'Aceitos SMTP' : name === 'opened' ? 'Abertos' : 'Cliques',
                   ]}
                 />
                 <Area type="monotone" dataKey="sent" stroke={chartColors.sent} fill={chartColors.sent} fillOpacity={0.18} />
@@ -199,7 +201,7 @@ export function Analytics() {
                 <div key={activity.id || `${activity.event_type}-${activity.created_at || activity.timestamp}-${index}`} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="font-medium">{activity.event_type}</div>
+                      <div className="font-medium">{formatActivityLabel(activity)}</div>
                       <div className="text-sm text-muted-foreground">{activity.email_subject || activity.subject || activity.email_to || activity.email}</div>
                     </div>
                     <Badge variant="outline">{formatRelativeTime(activity.created_at || activity.timestamp)}</Badge>
@@ -252,7 +254,7 @@ export function Analytics() {
                 <div key={domain.domain_id || `${domain.domain}-${index}`} className="rounded-lg border p-4">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="font-medium">{domain.domain}</div>
-                    <Badge variant="outline">{Number(domain.delivery_rate || 0).toFixed(1)}% entrega</Badge>
+                    <Badge variant="outline">{Number(domain.delivery_rate || 0).toFixed(1)}% aceite SMTP</Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground md:grid-cols-4">
                     <div>{domain.sent_count || domain.total_emails || 0} enviados</div>

@@ -18,8 +18,6 @@ export interface Email {
   created_at: string
   sent_at?: string
   delivered_at?: string
-  opened_at?: string
-  clicked_at?: string
   bounce_reason?: string
   variables?: Record<string, string> | string
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
+import { isEmailClicked, isEmailOpened } from '@/lib/emailEngagement'
 import { cn } from '@/lib/utils'
 import { type Email } from '@/hooks/useEmails'
 import { type InfiniteEmailsResult } from '@/hooks/useInfiniteEmails'
@@ -53,7 +54,7 @@ const StatusBadge = ({ status }: { status: Email['status'] }) => {
     queued: 'Na fila',
     pending: 'Processando',
     sent: 'Enviado',
-    delivered: 'Entregue',
+    delivered: 'Aceito pelo servidor',
     bounced: 'Rejeitado',
     failed: 'Falhou',
     opened: 'Aberto',
@@ -239,13 +240,13 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
 
                     {showAnalytics && (
                       <div className="flex items-center gap-3">
-                        {(email.opened_at || email.status === 'opened' || email.status === 'clicked') && (
+                        {isEmailOpened(email.status) && (
                           <div className="flex items-center gap-1 text-blue-600">
                             <Eye className="h-3 w-3" />
                             <span>Aberto</span>
                           </div>
                         )}
-                        {(email.clicked_at || email.status === 'clicked') && (
+                        {isEmailClicked(email.status) && (
                           <div className="flex items-center gap-1 text-green-600">
                             <MousePointer className="h-3 w-3" />
                             <span>Clicado</span>

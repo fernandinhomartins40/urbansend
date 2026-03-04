@@ -250,49 +250,50 @@ export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const emailStats = await db('emails')
+    .leftJoin('email_analytics', 'email_analytics.email_id', '=', 'emails.id')
     .select(
-      db.raw('COUNT(*) as total_emails'),
+      db.raw('COUNT(DISTINCT emails.id) as total_emails'),
       db.raw(`
         COUNT(
-          CASE
-            WHEN status IN ('sent', 'delivered', 'opened', 'clicked')
-              OR sent_at IS NOT NULL
-            THEN 1
+          DISTINCT CASE
+            WHEN emails.status IN ('sent', 'delivered', 'opened', 'clicked')
+              OR emails.sent_at IS NOT NULL
+            THEN emails.id
           END
         ) as sent_emails
       `),
       db.raw(`
         COUNT(
-          CASE
-            WHEN status IN ('sent', 'delivered', 'opened', 'clicked')
-              OR delivered_at IS NOT NULL
-            THEN 1
+          DISTINCT CASE
+            WHEN emails.status IN ('delivered', 'opened', 'clicked')
+              OR emails.delivered_at IS NOT NULL
+            THEN emails.id
           END
         ) as delivered_emails
       `),
       db.raw(`
         COUNT(
-          CASE
-            WHEN status IN ('opened', 'clicked')
-              OR opened_at IS NOT NULL
-            THEN 1
+          DISTINCT CASE
+            WHEN emails.status IN ('opened', 'clicked')
+              OR email_analytics.event_type IN ('open', 'opened')
+            THEN emails.id
           END
         ) as opened_emails
       `),
       db.raw(`
         COUNT(
-          CASE
-            WHEN status = 'clicked'
-              OR clicked_at IS NOT NULL
-            THEN 1
+          DISTINCT CASE
+            WHEN emails.status = 'clicked'
+              OR email_analytics.event_type IN ('click', 'clicked')
+            THEN emails.id
           END
         ) as clicked_emails
       `),
-      db.raw("COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced_emails"),
-      db.raw("COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_emails")
+      db.raw("COUNT(DISTINCT CASE WHEN emails.status = 'bounced' THEN emails.id END) as bounced_emails"),
+      db.raw("COUNT(DISTINCT CASE WHEN emails.status = 'failed' THEN emails.id END) as failed_emails")
     )
-    .where('api_key_id', id)
-    .where('created_at', '>=', thirtyDaysAgo)
+    .where('emails.api_key_id', id)
+    .where('emails.created_at', '>=', thirtyDaysAgo)
     .first();
 
   // Get daily usage for the last 30 days

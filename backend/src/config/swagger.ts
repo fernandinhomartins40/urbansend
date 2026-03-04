@@ -67,11 +67,10 @@ const options = {
             subject: { type: 'string' },
             html_content: { type: 'string' },
             text_content: { type: 'string' },
-            status: { type: 'string', enum: ['queued', 'sent', 'delivered', 'bounced', 'failed'] },
+            status: { type: 'string', enum: ['queued', 'pending', 'sent', 'delivered', 'opened', 'clicked', 'bounced', 'failed'] },
             sent_at: { type: 'string', format: 'date-time' },
             delivered_at: { type: 'string', format: 'date-time' },
-            opened_at: { type: 'string', format: 'date-time' },
-            clicked_at: { type: 'string', format: 'date-time' }
+            tracking_id: { type: 'string' }
           }
         },
         Template: {

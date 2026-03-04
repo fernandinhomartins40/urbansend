@@ -585,7 +585,7 @@ export function ApiKeys() {
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <div className="text-sm text-muted-foreground">Entregues</div>
+                    <div className="text-sm text-muted-foreground">Aceitos SMTP</div>
                     <div className="text-2xl font-bold">{usageResponse.usage_stats.delivered_emails}</div>
                   </CardContent>
                 </Card>

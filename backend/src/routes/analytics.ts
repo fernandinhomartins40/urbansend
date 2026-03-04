@@ -213,7 +213,7 @@ router.get('/recent-activity', asyncHandler(async (req: AuthenticatedRequest, re
     } else if (['bounce', 'bounced'].includes(activity.event_type)) {
       status = 'Rejeitado';
     } else if (activity.event_type === 'delivered') {
-      status = 'Entregue';
+      status = 'Aceito pelo servidor';
     }
 
     return {

@@ -18,7 +18,7 @@ import { sqlJsonExtract } from '../utils/sqlDialect'
 
 export interface EmailAnalyticsEvent {
   email_id: string;
-  event_type: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced';
+  event_type: 'sent' | 'delivered' | 'open' | 'opened' | 'click' | 'clicked' | 'bounce' | 'bounced';
   recipient_email: string;
   campaign_id?: string;
   ip_address?: string;
@@ -114,6 +114,22 @@ interface DeviceData {
   percentage: number
 }
 
+const parseJsonColumn = <T>(value: T | string | null | undefined): T | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  return value as T;
+};
+
 export class EmailAnalyticsService {
   private static instance: EmailAnalyticsService
   private cache = new Map<string, { data: any; expires: number }>()
@@ -152,24 +168,23 @@ export class EmailAnalyticsService {
           SELECT 
             id,
             status,
-            created_at,
-            tracking_enabled
+            created_at
           FROM emails 
           WHERE user_id = ? 
             AND created_at >= ?
         ),
         email_counts AS (
           SELECT
-            COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_count,
-            COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_count,
+            COUNT(CASE WHEN status IN ('sent', 'delivered', 'opened', 'clicked') THEN 1 END) as sent_count,
+            COUNT(CASE WHEN status IN ('delivered', 'opened', 'clicked') THEN 1 END) as delivered_count,
             COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced_count,
             COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count
           FROM email_base
         ),
         analytics_counts AS (
           SELECT
-            COUNT(CASE WHEN ea.event_type = 'open' THEN 1 END) as opened_count,
-            COUNT(CASE WHEN ea.event_type = 'click' THEN 1 END) as clicked_count
+            COUNT(DISTINCT CASE WHEN ea.event_type IN ('open', 'opened') THEN e.id END) as opened_count,
+            COUNT(DISTINCT CASE WHEN ea.event_type IN ('click', 'clicked') THEN e.id END) as clicked_count
           FROM email_base e
           LEFT JOIN email_analytics ea ON e.id = ea.email_id 
             AND ea.user_id = ?
@@ -207,7 +222,11 @@ export class EmailAnalyticsService {
         CROSS JOIN analytics_counts ac
       `, [userId, startDate, userId, startDate])
 
-      const result = stats[0] || {
+      const rawResult = Array.isArray(stats)
+        ? stats[0]
+        : ((stats as any)?.rows?.[0] || (stats as any)?.[0]);
+
+      const result = rawResult || {
         sent_count: 0,
         delivered_count: 0,
         opened_count: 0,
@@ -262,7 +281,7 @@ export class EmailAnalyticsService {
    */
   async recordEmailEvent(
     emailId: string, 
-    eventType: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced', 
+    eventType: 'sent' | 'delivered' | 'open' | 'opened' | 'click' | 'clicked' | 'bounce' | 'bounced', 
     recipientEmail: string,
     userId: number,
     metadata?: any,
@@ -322,10 +341,10 @@ export class EmailAnalyticsService {
       }
 
       const stats = await query.select(
-        db.raw('COUNT(*) as total_emails'),
+        db.raw('COUNT(DISTINCT email_id) as total_emails'),
         db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered"),
-        db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened"),
-        db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked"),
+        db.raw("COUNT(CASE WHEN event_type IN ('open', 'opened') THEN 1 END) as opened"),
+        db.raw("COUNT(CASE WHEN event_type IN ('click', 'clicked') THEN 1 END) as clicked"),
         db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced")
       ).first();
 
@@ -365,7 +384,7 @@ export class EmailAnalyticsService {
 
       return activities.map(activity => ({
         ...activity,
-        metadata: activity.metadata ? JSON.parse(activity.metadata) : null
+        metadata: parseJsonColumn(activity.metadata)
       }));
     } catch (error) {
       logger.error('Failed to get recent activities', { error, userId, limit });
@@ -400,7 +419,7 @@ export class EmailAnalyticsService {
 
       return results.map(result => ({
         ...result,
-        metadata: result.metadata ? JSON.parse(result.metadata) : null
+        metadata: parseJsonColumn(result.metadata)
       }));
     } catch (error) {
       logger.error('Failed to get analytics by event type', { 
@@ -461,8 +480,8 @@ export class EmailAnalyticsService {
         .select(
           db.raw('COUNT(DISTINCT email_id) as emails_sent'),
           db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered"),
-          db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened"),
-          db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked"),
+          db.raw("COUNT(CASE WHEN event_type IN ('open', 'opened') THEN 1 END) as opened"),
+          db.raw("COUNT(CASE WHEN event_type IN ('click', 'clicked') THEN 1 END) as clicked"),
           db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced")
         ).first() as any;
 
@@ -535,8 +554,8 @@ export class EmailAnalyticsService {
         .select(
           db.raw('DATE(created_at) as date'),
           db.raw("COUNT(CASE WHEN event_type = 'delivered' THEN 1 END) as delivered"),
-          db.raw("COUNT(CASE WHEN event_type = 'opened' THEN 1 END) as opened"),
-          db.raw("COUNT(CASE WHEN event_type = 'clicked' THEN 1 END) as clicked"),
+          db.raw("COUNT(CASE WHEN event_type IN ('open', 'opened') THEN 1 END) as opened"),
+          db.raw("COUNT(CASE WHEN event_type IN ('click', 'clicked') THEN 1 END) as clicked"),
           db.raw("COUNT(CASE WHEN event_type = 'bounced' THEN 1 END) as bounced")
         )
         .groupBy(db.raw('DATE(created_at)'))
@@ -574,8 +593,8 @@ export class EmailAnalyticsService {
         ${sqlJsonExtract('geographic_data', 'country')} as country,
         ${sqlJsonExtract('geographic_data', 'region')} as region,
         ${sqlJsonExtract('geographic_data', 'city')} as city,
-        COUNT(CASE WHEN event_type = 'open' THEN 1 END) as opens,
-        COUNT(CASE WHEN event_type = 'click' THEN 1 END) as clicks,
+        COUNT(CASE WHEN event_type IN ('open', 'opened') THEN 1 END) as opens,
+        COUNT(CASE WHEN event_type IN ('click', 'clicked') THEN 1 END) as clicks,
         COUNT(DISTINCT email_id) as unique_recipients
       FROM email_analytics
       WHERE user_id = ?
@@ -621,12 +640,12 @@ export class EmailAnalyticsService {
         SELECT
           COALESCE(${sqlJsonExtract('device_data', 'device_type')}, 'Desktop') as device_type,
           COALESCE(${sqlJsonExtract('device_data', 'user_agent_family')}, 'Unknown') as user_agent_family,
-          COUNT(CASE WHEN event_type = 'open' THEN 1 END) as opens,
-          COUNT(CASE WHEN event_type = 'click' THEN 1 END) as clicks
+          COUNT(CASE WHEN event_type IN ('open', 'opened') THEN 1 END) as opens,
+          COUNT(CASE WHEN event_type IN ('click', 'clicked') THEN 1 END) as clicks
         FROM email_analytics
         WHERE user_id = ?
           AND created_at >= ?
-          AND event_type IN ('open', 'click')
+          AND event_type IN ('open', 'opened', 'click', 'clicked')
         GROUP BY device_type, user_agent_family
       ),
       total_events AS (

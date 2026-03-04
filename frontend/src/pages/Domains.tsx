@@ -345,7 +345,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Entregues</div>
+                <div className="text-sm text-muted-foreground">Aceitos SMTP</div>
                 <div className="text-2xl font-bold">{summary.delivered}</div>
               </CardContent>
             </Card>
@@ -366,7 +366,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
           <Card>
             <CardHeader>
               <CardTitle>Detalhamento</CardTitle>
-              <CardDescription>Entregabilidade e engajamento consolidados por dominio.</CardDescription>
+              <CardDescription>Aceite SMTP e engajamento consolidados por dominio.</CardDescription>
             </CardHeader>
             <CardContent>
               {analyticsLoading ? (
@@ -378,16 +378,16 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
                   {domainAnalytics.map((domain) => (
                     <div key={domain.domain_id} className="rounded-lg border p-4">
                       <div className="mb-3 flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{domain.domain}</div>
-                          <div className="text-sm text-muted-foreground">{domain.sent_count} emails enviados</div>
-                        </div>
-                        <Badge variant="outline">{domain.delivery_rate.toFixed(1)}% entrega</Badge>
+                          <div>
+                            <div className="font-medium">{domain.domain}</div>
+                            <div className="text-sm text-muted-foreground">{domain.sent_count} emails enviados</div>
+                          </div>
+                        <Badge variant="outline">{domain.delivery_rate.toFixed(1)}% aceite SMTP</Badge>
                       </div>
 
                       <div className="grid gap-3 md:grid-cols-4">
                         <div className="rounded-md bg-gray-50 p-3">
-                          <div className="text-sm text-muted-foreground">Entregues</div>
+                          <div className="text-sm text-muted-foreground">Aceitos SMTP</div>
                           <div className="text-lg font-semibold">{domain.delivered_count}</div>
                         </div>
                         <div className="rounded-md bg-gray-50 p-3">

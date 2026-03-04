@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Mail, CheckCircle, AlertTriangle, TrendingUp, FileText, Globe, Loader2 } from 'lucide-react'
 import { analyticsApi, api } from '@/lib/api'
+import { getEmailStatusLabel } from '@/lib/emailEngagement'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useSmartPolling } from '@/hooks/useSmartPolling'
@@ -94,7 +95,7 @@ export function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
-            Visão geral dos seus emails e métricas
+            Visão geral dos seus emails, aceite SMTP e engajamento
           </p>
         </div>
         <Button onClick={() => navigate('/app/emails/send')}>Enviar Email</Button>
@@ -117,7 +118,7 @@ export function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Entrega</CardTitle>
+            <CardTitle className="text-sm font-medium">Taxa de Aceite SMTP</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -168,7 +169,7 @@ export function Dashboard() {
                   <div key={i} className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">{item.email}</div>
-                      <div className="text-sm text-muted-foreground">{item.status}</div>
+                      <div className="text-sm text-muted-foreground">{getEmailStatusLabel(item.status)}</div>
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {formatDistanceToNow(new Date(item.timestamp), { 

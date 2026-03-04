@@ -21,6 +21,7 @@ import { MultiTenantEmailService, EmailRequest, AuthUser } from '../services/Mul
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { logger } from '../config/logger';
+import { emailTrackingService, resolveTrackingClientIp } from '../services/EmailTrackingService';
 import { sqlExtractDomain } from '../utils/sqlDialect';
 import { applyEmailListFilters, buildEmailListStatsQuery, EmailListFilters } from './emailListQueryBuilders';
 
@@ -529,59 +530,10 @@ router.get('/track/open/:trackingId',
   asyncHandler(async (req: any, res: Response) => {
     const { trackingId } = req.params;
 
-    try {
-      // Find email by tracking_id
-      const email = await db('emails')
-        .where('tracking_id', trackingId)
-        .first();
-
-      if (email) {
-        const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
-
-        // Check if this email was already opened by this user
-        const existingOpen = await db('email_analytics')
-          .where('email_id', email.id)
-          .where('event_type', 'open')
-          .where('ip_address', clientIp)
-          .first();
-
-        if (!existingOpen) {
-          const openedAt = new Date();
-
-          // Update status to opened if not already a higher status
-          const openUpdate: Record<string, any> = {
-            updated_at: openedAt
-          };
-
-          if (!email.opened_at) {
-            openUpdate['opened_at'] = openedAt;
-          }
-
-          if (!['clicked', 'opened'].includes(email.status)) {
-            openUpdate['status'] = 'opened';
-          }
-
-          await db('emails')
-            .where('id', email.id)
-            .update(openUpdate);
-
-          // Log analytics event ONLY if not already opened
-          await db('email_analytics').insert({
-            user_id: email.user_id,
-            email_id: email.id,
-            event_type: 'open',
-            recipient_email: email.to_email,
-            tracking_id: trackingId,
-            user_agent: req.headers['user-agent'] || 'unknown',
-            ip_address: clientIp,
-            created_at: new Date()
-          });
-        }
-      }
-    } catch (error) {
-      // Log error but still return pixel
-      console.error('Tracking error:', error);
-    }
+    await emailTrackingService.trackOpenByTrackingId(trackingId, {
+      userAgent: req.headers['user-agent'] || 'unknown',
+      ipAddress: resolveTrackingClientIp(req)
+    });
 
     // Always return 1x1 transparent pixel regardless of errors
     const pixel = Buffer.from(
@@ -605,47 +557,15 @@ router.get('/track/click/:trackingId',
   asyncHandler(async (req: any, res: Response) => {
     const { trackingId } = req.params;
     const { url } = req.query;
-    
-    // Find email by tracking_id
-    const email = await db('emails')
-      .where('tracking_id', trackingId)
-      .first();
 
-    if (email) {
-      // Check if this email was already clicked by this user
-      const existingClick = await db('email_analytics')
-        .where('email_id', email.id)
-        .where('event_type', 'click')
-        .where('ip_address', req.ip)
-        .first();
-      
-      if (!existingClick) {
-        const clickedAt = new Date();
-
-        // Update status to clicked (highest engagement level)
-        await db('emails')
-          .where('id', email.id)
-          .update({
-            status: 'clicked',
-            clicked_at: email.clicked_at || clickedAt,
-            opened_at: email.opened_at || clickedAt,
-            updated_at: clickedAt
-          });
+    await emailTrackingService.trackClickByTrackingId(
+      trackingId,
+      typeof url === 'string' ? url : null,
+      {
+        userAgent: req.headers['user-agent'] || '',
+        ipAddress: resolveTrackingClientIp(req)
       }
-
-      // Log analytics event ONLY if not already clicked by this IP
-      await db('email_analytics').insert({
-        user_id: email.user_id,
-        email_id: email.id,
-        event_type: 'click',
-        recipient_email: email.to_email,
-        tracking_id: trackingId,
-        link_url: url as string,
-        user_agent: req.headers['user-agent'] || '',
-        ip_address: req.ip,
-        created_at: db.fn.now()
-      });
-    }
+    );
 
     // Redirect to original URL
     if (url) {

@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { getEmailStatusLabel, isEmailClicked, isEmailOpened } from '@/lib/emailEngagement'
 import { emailApi } from '@/lib/api'
 import { formatDate, formatRelativeTime, getStatusColor } from '@/lib/utils'
-import { Search, Filter, RefreshCw, Send, Eye, MousePointer, AlertTriangle } from 'lucide-react'
+import { Search, Filter, RefreshCw, Send, Eye, MousePointer, AlertTriangle, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSmartPolling } from '@/hooks/useSmartPolling'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -26,8 +27,6 @@ interface Email {
   variables?: Record<string, string> | string
   sent_at: string
   delivered_at?: string
-  opened_at?: string
-  clicked_at?: string
   bounce_reason?: string
   created_at: string
   tracking_enabled: boolean
@@ -212,7 +211,7 @@ export function EmailList() {
     switch (status) {
       case 'pending': return <RefreshCw className="h-4 w-4 text-amber-500" />
       case 'sent': return <Send className="h-4 w-4 text-blue-500" />
-      case 'delivered': return <Eye className="h-4 w-4 text-green-500" />
+      case 'delivered': return <CheckCircle className="h-4 w-4 text-green-500" />
       case 'opened': return <Eye className="h-4 w-4 text-blue-600" />
       case 'clicked': return <MousePointer className="h-4 w-4 text-purple-500" />
       case 'bounced': return <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -222,10 +221,10 @@ export function EmailList() {
   }
 
   const getStatusBadge = (email: Email) => {
-    if (email.clicked_at) {
+    if (isEmailClicked(email.status)) {
       return <Badge variant="default" className="bg-purple-100 text-purple-800">Clicado</Badge>
     }
-    if (email.opened_at) {
+    if (isEmailOpened(email.status)) {
       return <Badge variant="default" className="bg-blue-100 text-blue-800">Aberto</Badge>
     }
     if (email.bounce_reason) {
@@ -238,12 +237,7 @@ export function EmailList() {
         variant="secondary" 
         className={color}
       >
-        {email.status === 'pending' ? 'Processando' :
-         email.status === 'sent' ? 'Enviado' :
-         email.status === 'delivered' ? 'Entregue' :
-         email.status === 'queued' ? 'Na fila' :
-         email.status === 'failed' ? 'Falhou' :
-         email.status}
+        {getEmailStatusLabel(email.status)}
       </Badge>
     )
   }
@@ -284,7 +278,7 @@ export function EmailList() {
         <div>
           <h1 className="text-3xl font-bold">Emails</h1>
           <p className="text-muted-foreground">
-            {stats.total} emails • {stats.delivered} entregues
+            {stats.total} emails • {stats.delivered} aceitos pelo servidor
           </p>
         </div>
         
@@ -319,7 +313,7 @@ export function EmailList() {
             <div className="flex items-center space-x-2">
               <Eye className="h-5 w-5 text-green-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Entregues</p>
+                <p className="text-sm text-muted-foreground">Aceitos SMTP</p>
                 <p className="text-2xl font-bold">{stats.delivered}</p>
               </div>
             </div>
@@ -441,7 +435,7 @@ export function EmailList() {
                 >
                   {status === 'all' ? 'Todos' :
                    status === 'sent' ? 'Enviados' :
-                   status === 'delivered' ? 'Entregues' :
+                   status === 'delivered' ? 'Aceitos SMTP' :
                    status === 'opened' ? 'Abertos' :
                    status === 'clicked' ? 'Clicados' :
                    status === 'bounced' ? 'Bounces' :
@@ -589,14 +583,14 @@ export function EmailList() {
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      {email.opened_at ? (
+                      {isEmailOpened(email.status) ? (
                         <span className="text-green-600">✓ Aberto</span>
-                      ) : email.sent_at ? (
+                      ) : email.sent_at || email.delivered_at ? (
                         <span className="text-gray-500">Não aberto</span>
                       ) : (
                         <span className="text-yellow-600">Pendente</span>
                       )}
-                      {email.clicked_at && (
+                      {isEmailClicked(email.status) && (
                         <div className="text-purple-600">✓ Clicado</div>
                       )}
                     </div>

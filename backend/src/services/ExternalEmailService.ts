@@ -6,6 +6,7 @@ import { logger } from '../config/logger';
 import { generateTrackingId } from '../utils/crypto';
 import { sanitizeEmailHtml } from '../middleware/validation';
 import { validateEmailAddress } from '../utils/email';
+import { generateTrackingPixel, processLinksForTracking } from '../utils/email';
 import db from '../config/database';
 import { UserEmailStats, parseCount } from '../types/database';
 import { sqlDaysAgo } from '../utils/sqlDialect';
@@ -398,15 +399,15 @@ export class ExternalEmailService implements IEmailService {
    * @returns HTML com tracking
    */
   private addTrackingToHtml(html: string, emailId: string): string {
-    const trackingPixel = `<img src="https://ultrazend.com.br/track/open/${emailId}" width="1" height="1" style="display:none;" alt="">`;
-    
-    // Adicionar antes da tag de fechamento do body se existir
-    if (html.includes('</body>')) {
-      return html.replace('</body>', `${trackingPixel}</body>`);
+    const trackingDomain = 'www.ultrazend.com.br';
+    const processedHtml = processLinksForTracking(html, emailId, trackingDomain);
+    const trackingPixel = generateTrackingPixel(emailId, trackingDomain);
+
+    if (processedHtml.includes('</body>')) {
+      return processedHtml.replace('</body>', `${trackingPixel}</body>`);
     }
-    
-    // Caso contrário, adicionar no final
-    return html + trackingPixel;
+
+    return processedHtml + trackingPixel;
   }
 
   /**
