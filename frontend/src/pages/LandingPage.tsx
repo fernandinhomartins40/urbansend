@@ -135,15 +135,15 @@ export function LandingPage() {
           <div className="space-y-6">
             <Badge className="border-cyan-300/40 bg-cyan-500/15 text-cyan-200">
               <Sparkles className="mr-2 h-3.5 w-3.5" />
-              Plataforma alinhada ao produto real
+              Infraestrutura pronta para escalar envios
             </Badge>
             <h1 className="text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-              Email transacional com
-              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 bg-clip-text text-transparent"> API, dominio, templates e observabilidade</span>
+              Envie emails transacionais com
+              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 bg-clip-text text-transparent"> velocidade, controle e alta confianca</span>
             </h1>
             <p className="max-w-3xl text-lg text-slate-200">
-              UltraZend entrega um fluxo completo para SaaS: envio por API key, autenticacao de dominio,
-              biblioteca de templates, analytics e webhooks assinados.
+              UltraZend centraliza tudo que seu SaaS precisa para operacao de email: API de envio,
+              autenticacao de dominio, templates profissionais, analytics e webhooks em tempo real.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
@@ -163,9 +163,9 @@ export function LandingPage() {
 
           <Card className="border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Pronto hoje na aplicacao</CardTitle>
+              <CardTitle className="text-lg">Capacidades ativas na plataforma</CardTitle>
               <CardDescription className="text-slate-300">
-                Dados puxados da configuracao atual do produto.
+                Recursos disponiveis para sua operacao de envio hoje.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -190,9 +190,9 @@ export function LandingPage() {
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 max-w-3xl">
             <Badge className="border-slate-200 bg-white text-slate-700">Plataforma</Badge>
-            <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Design e narrativa alinhados ao produto real</h2>
+            <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Tudo que seu SaaS precisa para email transacional</h2>
             <p className="mt-3 text-slate-600">
-              A landing agora reflete os mesmos blocos funcionais ja presentes nas telas autenticadas.
+              Concentre envio, autenticacao, conteudo e observabilidade em um unico fluxo operacional.
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
@@ -216,9 +216,9 @@ export function LandingPage() {
           <div className="mb-10 flex items-center gap-3">
             <Badge className="border-blue-200 bg-blue-50 text-blue-700">
               <Globe2 className="mr-2 h-3.5 w-3.5" />
-              Fluxo recomendado
+              Time-to-value rapido
             </Badge>
-            <p className="text-sm text-slate-500">Mesmo fluxo pratico usado no painel /app</p>
+            <p className="text-sm text-slate-500">Do cadastro ao envio em producao em poucos passos</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {onboardingSteps.map((step) => (
@@ -247,7 +247,7 @@ export function LandingPage() {
                 Eventos de webhook
               </CardTitle>
               <CardDescription>
-                Eventos live e roadmap exibidos de forma consistente com /app/webhooks.
+                Receba eventos de entrega e engajamento para automatizar seu backend.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -286,7 +286,7 @@ export function LandingPage() {
                 Endpoints principais
               </CardTitle>
               <CardDescription>
-                Rotas operacionais para envio, leitura, templates e automacao.
+                API objetiva para envio, rastreamento, templates e integracoes.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -310,18 +310,18 @@ export function LandingPage() {
         <div className="mx-auto w-full max-w-5xl px-4 text-center sm:px-6 lg:px-8">
           <Badge className="border-slate-200 bg-slate-100 text-slate-700">
             <BadgeCheck className="mr-2 h-3.5 w-3.5" />
-            Integracao robusta e objetiva
+            Pronto para crescer com seu volume
           </Badge>
-          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Suba rapido sem perder controle tecnico</h2>
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Comece rapido e evolua com seguranca</h2>
           <p className="mx-auto mt-3 max-w-3xl text-slate-600">
-            O produto combina UI operacional e API para ciclo completo: envio, autenticacao de dominio,
-            observabilidade e automacao por eventos.
+            Estruture sua operacao de email em uma plataforma pensada para times de produto,
+            engenharia e growth que precisam entregar com previsibilidade.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
               <Link to="/login">
-                Entrar no painel
+                Comecar agora
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
