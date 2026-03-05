@@ -159,7 +159,7 @@ export function DeveloperDocs() {
           <CardContent className="space-y-3">
             {apiPermissionCatalog.map((permission) => (
               <div key={permission.id} className="rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="font-medium text-slate-900">{permission.label}</div>
                     <div className="text-xs font-mono text-slate-500">{permission.id}</div>
@@ -189,7 +189,7 @@ export function DeveloperDocs() {
               <div className="grid gap-3">
                 {liveEvents.map((event) => (
                   <div key={event.value} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="font-medium text-slate-900">{event.label}</div>
                         <div className="text-xs font-mono text-slate-500">{event.value}</div>

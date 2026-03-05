@@ -129,8 +129,8 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
 
   const renderConfigStatus = (config: any, title: string, icon: React.ReactNode) => (
     <Card className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
           {icon}
           <h3 className="font-medium">{title}</h3>
         </div>
@@ -143,15 +143,15 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
       </div>
       
       <div className="space-y-2 text-sm">
-        <div className="flex justify-between">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-gray-600">Habilitado:</span>
           <span>{config.enabled ? '✅ Sim' : '❌ Não'}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-gray-600">Configurado:</span>
           <span>{config.configured ? '✅ Sim' : '❌ Não'}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-gray-600">DNS Válido:</span>
           <span>{config.dns_valid ? '✅ Sim' : '❌ Não'}</span>
         </div>
@@ -162,7 +162,7 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
   if (loading) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="w-6 h-6 animate-spin mr-2" />
             <span>Carregando detalhes do domínio...</span>
@@ -192,9 +192,9 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
             <Globe className="w-5 h-5" />
             <span>Detalhes do Domínio: {domain.name}</span>
           </DialogTitle>
@@ -203,8 +203,8 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
         <div className="space-y-6">
           {/* Status Geral */}
           <Card className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
                 {getStatusIcon(domain.status)}
                 <div>
                   <h3 className="font-medium text-lg">{domain.name}</h3>
@@ -213,7 +213,7 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge className={getStatusColor(domain.status)}>
                   {domain.status === 'verified' ? 'Verificado' : 
                    domain.status === 'partial' ? 'Parcial' : 
@@ -246,12 +246,12 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
 
           {/* Configurações DNS */}
           <div>
-            <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+            <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
               <Shield className="w-5 h-5" />
               <span>Configurações de Autenticação</span>
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {renderConfigStatus(
                 domainDetails.configuration.mail_from,
                 'MAIL FROM',
@@ -279,8 +279,8 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
           </div>
 
           <Card className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h4 className="font-medium flex items-center space-x-2">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h4 className="flex items-center gap-2 font-medium">
                 <Mail className="w-4 h-4" />
                 <span>Subdominio tecnico</span>
               </h4>
@@ -289,13 +289,13 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
               </Badge>
             </div>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-gray-600">MAIL FROM:</span>
-                <span className="font-mono">{config.mail_from.domain}</span>
+                <span className="break-all font-mono">{config.mail_from.domain}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-gray-600">MX tecnico:</span>
-                <span className="font-mono">{config.mail_from.mx_target}</span>
+                <span className="break-all font-mono">{config.mail_from.mx_target}</span>
               </div>
             </div>
           </Card>
@@ -303,8 +303,8 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
           {/* DKIM Details */}
           {config.dkim.enabled && (
             <Card className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium flex items-center space-x-2">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h4 className="flex items-center gap-2 font-medium">
                   <Key className="w-4 h-4" />
                   <span>Detalhes DKIM</span>
                 </h4>
@@ -317,9 +317,9 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
                 </Button>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-gray-600">Selector:</span>
-                  <span className="font-mono">{config.dkim.selector}</span>
+                  <span className="break-all font-mono">{config.dkim.selector}</span>
                 </div>
                 {config.dkim.public_key && (
                   <div>
@@ -336,13 +336,13 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
           <Separator />
 
           {/* Ações */}
-          <div className="flex justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button variant="outline" onClick={onClose}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Fechar
             </Button>
             
-            <div className="space-x-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={handleVerifyDomain}

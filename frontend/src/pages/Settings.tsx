@@ -825,7 +825,7 @@ export function Settings() {
                   {sendingToggleItems.map(({ key, label, Icon }) => {
                     const typedKey = key
                     return (
-                      <div key={key} className="flex items-center justify-between rounded-2xl border p-4">
+                      <div key={key} className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-3">
                           <Icon className="h-4 w-4 text-muted-foreground" />
                           <div>
@@ -893,7 +893,7 @@ export function Settings() {
                     ].map(([key, label]) => {
                       const typedKey = key as keyof SettingsResponse['account_preferences']['analytics_settings']
                       return (
-                        <div key={key} className="flex items-center justify-between">
+                        <div key={key} className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-sm font-medium">{label}</span>
                           <Switch
                             checked={Boolean(settingsForm.account_preferences.analytics_settings[typedKey])}
@@ -941,7 +941,7 @@ export function Settings() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="font-medium">Usar relay SMTP da conta</div>
                       <div className="text-sm text-muted-foreground">
@@ -1045,7 +1045,7 @@ export function Settings() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="font-medium">Usar TLS</div>
                       <div className="text-sm text-muted-foreground">
@@ -1235,7 +1235,7 @@ export function Settings() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="font-medium">Ativar webhook padrao</div>
                       <div className="text-sm text-muted-foreground">Configuracao central da conta compartilhada.</div>
@@ -1497,7 +1497,7 @@ export function Settings() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between rounded-2xl border p-4">
+                <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="font-medium">Atualizacao automatica</div>
                     <div className="text-sm text-muted-foreground">Controla polling das listas e dashboards pessoais.</div>
@@ -1539,7 +1539,7 @@ export function Settings() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {Object.entries(notificationLabels).map(([key, label]) => (
-                    <div key={key} className="flex items-center justify-between rounded-2xl border p-4">
+                    <div key={key} className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="font-medium">{label}</div>
                         <div className="text-sm text-muted-foreground">Preferencia individual, sem impacto em outros membros.</div>
@@ -1602,7 +1602,7 @@ export function Settings() {
                       }
                     />
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl border p-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="font-medium">Confirmacao adicional em acoes sensiveis</div>
                       <div className="text-sm text-muted-foreground">Aplica uma politica pessoal para operacoes destrutivas.</div>

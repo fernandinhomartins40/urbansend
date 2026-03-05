@@ -312,8 +312,8 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1">
                 <Star className="h-3 w-3" />
                 <span>{template.rating.toFixed(1)}</span>
@@ -365,14 +365,14 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     <div className={cn('space-y-6', className)}>
       {/* Header com busca e filtros */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold">Biblioteca de Templates</h2>
             <p className="text-muted-foreground">
               Descubra templates profissionais para seus emails
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               size="sm"
@@ -400,12 +400,12 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
               onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Select
               value={filters.category || 'all'}
               onValueChange={(value) => handleFilterChange({ category: value === 'all' ? undefined : value })}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -422,7 +422,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
               value={filters.sort_by || 'rating'}
               onValueChange={(value) => handleFilterChange({ sort_by: value as any })}
             >
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

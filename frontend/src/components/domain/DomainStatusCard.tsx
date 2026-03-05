@@ -166,7 +166,7 @@ export const DomainStatusCard = ({
     <Card className={`${className} hover:shadow-md transition-shadow`}>
       <CardContent className="p-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-base">{domain.domain_name}</h3>
@@ -186,7 +186,7 @@ export const DomainStatusCard = ({
             </Badge>
           </div>
           
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <div className="text-sm text-muted-foreground">Configuração</div>
             <div className="font-semibold text-lg">{configScore}/3</div>
           </div>
@@ -274,7 +274,7 @@ export const DomainStatusCard = ({
         )}
 
         {/* Action buttons */}
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button 
             variant="outline" 
             size="sm" 

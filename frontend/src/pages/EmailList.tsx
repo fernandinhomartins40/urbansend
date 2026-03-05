@@ -245,7 +245,7 @@ export function EmailList() {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Emails</h1>
             <p className="text-muted-foreground">Gerencie seus emails enviados</p>
@@ -274,7 +274,7 @@ export function EmailList() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Emails</h1>
           <p className="text-muted-foreground">
@@ -282,7 +282,7 @@ export function EmailList() {
           </p>
         </div>
         
-        <div className="flex items-center space-x-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
@@ -348,12 +348,12 @@ export function EmailList() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Filtros
             </CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isFiltered && (
                 <Button variant="ghost" size="sm" onClick={handleClearFilters}>
                   <Filter className="h-4 w-4 mr-1" />
@@ -392,9 +392,9 @@ export function EmailList() {
                 )}
               </div>
               
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <select 
-                  className="px-3 py-2 border border-gray-200 rounded-md text-sm"
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
                 >
@@ -406,7 +406,7 @@ export function EmailList() {
                 </select>
                 
                 <select
-                  className="px-3 py-2 border border-gray-200 rounded-md text-sm min-w-[140px]"
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm sm:min-w-[140px]"
                   value={domainFilter}
                   onChange={(e) => setDomainFilter(e.target.value)}
                 >
@@ -447,11 +447,11 @@ export function EmailList() {
             
             {/* Ações em lote */}
             {selectedEmails.length > 0 && (
-              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm font-medium text-blue-700">
                   {selectedEmails.length} email(s) selecionado(s)
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => resendEmails(selectedEmails)}>
                     Reenviar falhados
                   </Button>
@@ -514,7 +514,7 @@ export function EmailList() {
               ))
             ) : emails.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={8} className="py-12 text-center">
                   <div className="flex flex-col items-center">
                     <Send className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">Nenhum email encontrado</h3>
@@ -596,7 +596,7 @@ export function EmailList() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -624,15 +624,15 @@ export function EmailList() {
 
         {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t">
-            <div className="text-sm text-muted-foreground flex items-center gap-4">
+          <div className="flex flex-col gap-4 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground sm:gap-4">
               <span>Página {pagination.page} de {pagination.pages} • {pagination.total} emails</span>
               {selectedEmails.length > 0 && (
                 <span className="text-blue-600">{selectedEmails.length} selecionados</span>
               )}
             </div>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

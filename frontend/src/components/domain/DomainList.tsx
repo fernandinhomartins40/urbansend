@@ -153,7 +153,7 @@ export const DomainList: React.FC<DomainListProps> = ({
     ];
 
     return (
-      <div className="flex space-x-2">
+      <div className="flex flex-wrap gap-2">
         {checks.map(({ name, status }) => (
           <Badge
             key={name}
@@ -188,11 +188,11 @@ export const DomainList: React.FC<DomainListProps> = ({
   );
 
   const renderDomainCard = (domain: DomainStatus) => (
-    <Card key={domain.id} className="p-6">
-      <div className="flex items-start justify-between mb-4">
+    <Card key={domain.id} className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1">
-          <div className="flex items-center space-x-3 mb-2">
-            <h3 className="text-lg font-semibold">{domain.name}</h3>
+          <div className="mb-2 flex items-center gap-2 sm:gap-3">
+            <h3 className="break-all text-lg font-semibold">{domain.name}</h3>
             <Button
               size="sm"
               variant="ghost"
@@ -203,7 +203,7 @@ export const DomainList: React.FC<DomainListProps> = ({
             </Button>
           </div>
           
-          <div className="flex items-center space-x-2 mb-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge className={getStatusColor(domain.status)}>
               {getStatusIcon(domain.status)}
               <span className="ml-1">{getStatusLabel(domain.status)}</span>
@@ -224,7 +224,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           </div>
         </div>
 
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -266,7 +266,7 @@ export const DomainList: React.FC<DomainListProps> = ({
 
       {/* Progress Bar */}
       <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-sm font-medium">Progresso da Configuração</span>
           <span className="text-sm text-gray-600">{domain.completion_percentage}%</span>
         </div>
@@ -347,7 +347,7 @@ export const DomainList: React.FC<DomainListProps> = ({
         <p className="text-gray-600 mb-4">
           {isAuthError ? 'Faça login para visualizar e gerenciar seus domínios.' : error}
         </p>
-        <div className="flex justify-center space-x-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <Button onClick={onReload} variant="outline">
             <RefreshCw className="w-4 h-4 mr-2" />
             Tentar Novamente
@@ -366,7 +366,7 @@ export const DomainList: React.FC<DomainListProps> = ({
   return (
     <div className="space-y-6">
       {/* Header - Always visible */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Seus Domínios</h2>
           <p className="text-gray-600">
@@ -386,7 +386,7 @@ export const DomainList: React.FC<DomainListProps> = ({
         <>
           {/* Summary Stats */}
           {domains.length > 0 && (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Card className="p-4 text-center">
                 <div className="text-2xl font-bold text-blue-600">{domains.length}</div>
                 <div className="text-sm text-gray-600">Total</div>

@@ -533,7 +533,7 @@ export function Analytics() {
               ) : (
                 topEmails.slice(0, 5).map((email: any) => (
                   <div key={email.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                    <div className="mb-3 flex items-start justify-between gap-4">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="font-medium text-slate-900">{email.subject}</div>
                         <div className="text-xs text-slate-500">{formatRelativeTime(email.sent_at)}</div>
@@ -542,7 +542,7 @@ export function Analytics() {
                         {Number(email.open_rate || 0).toFixed(1)}% abertura
                       </Badge>
                     </div>
-                    <div className="mb-3 grid grid-cols-3 gap-2 text-xs text-slate-500">
+                    <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-500 sm:grid-cols-3">
                       <div>{formatNumber(toNumber(email.sent_count))} enviados</div>
                       <div>{Number(email.click_rate || 0).toFixed(1)}% clique</div>
                       <div>{Number(email.bounce_rate || 0).toFixed(1)}% bounce</div>
@@ -568,7 +568,7 @@ export function Analytics() {
               ) : (
                 topDomains.slice(0, 5).map((domain: any, index: number) => (
                   <div key={domain.domain_id || `${domain.domain}-${index}`} className="rounded-2xl border border-slate-100 bg-white p-4">
-                    <div className="mb-3 flex items-start justify-between gap-4">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="font-medium text-slate-900">{domain.domain}</div>
                         <div className="text-xs text-slate-500">{formatNumber(toNumber(domain.sent_count || domain.total_emails))} envios</div>
@@ -577,7 +577,7 @@ export function Analytics() {
                         {Number(domain.delivery_rate || 0).toFixed(1)}% aceite SMTP
                       </Badge>
                     </div>
-                    <div className="mb-3 grid grid-cols-3 gap-2 text-xs text-slate-500">
+                    <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-500 sm:grid-cols-3">
                       <div>{Number(domain.open_rate || 0).toFixed(1)}% abertura</div>
                       <div>{Number(domain.click_rate || 0).toFixed(1)}% clique</div>
                       <div>{Number(domain.bounce_rate || 0).toFixed(1)}% bounce</div>

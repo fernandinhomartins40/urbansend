@@ -13,12 +13,12 @@ interface CodeSnippetCardProps {
 export function CodeSnippetCard({ title, description, code, language }: CodeSnippetCardProps) {
   return (
     <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader className="flex flex-col items-start justify-between gap-3 space-y-0 sm:flex-row">
         <div>
           <CardTitle className="text-base">{title}</CardTitle>
           {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {language ? (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-600">
               {language}

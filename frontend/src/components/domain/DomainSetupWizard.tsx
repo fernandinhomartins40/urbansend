@@ -190,7 +190,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
   const renderStepIndicator = () => (
     <div className="mb-8">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Assistente de dominio</h2>
           <p className="text-sm text-muted-foreground">
@@ -204,7 +204,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
       <Progress value={calculateProgress()} className="mb-4" />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {steps.map((step, index) => {
           const isCompleted = index < currentStep
           const isCurrent = index === currentStep
@@ -236,7 +236,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
   const renderDNSRecord = (type: string, record: any) => (
     <div key={type} className="space-y-3 rounded-lg border bg-gray-50 p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h4 className="font-medium uppercase">{type}</h4>
         {record.priority ? <Badge variant="outline">Prioridade {record.priority}</Badge> : null}
       </div>
@@ -246,7 +246,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
       <div className="space-y-2">
         <div>
           <Label className="text-xs text-muted-foreground">Host</Label>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
             <code className="flex-1 rounded border bg-white p-2 text-sm">{record.record}</code>
             <Button size="sm" variant="outline" onClick={() => copyToClipboard(record.record, `${type} host`)}>
               <Copy className="h-3 w-3" />
@@ -256,7 +256,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
         <div>
           <Label className="text-xs text-muted-foreground">Valor</Label>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
             <code className="flex-1 rounded border bg-white p-2 text-sm break-all">{record.value}</code>
             <Button size="sm" variant="outline" onClick={() => copyToClipboard(record.value, `${type} valor`)}>
               <Copy className="h-3 w-3" />
@@ -300,7 +300,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           </Alert>
         )}
 
-        <div className="flex justify-between pt-4">
+        <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
@@ -420,7 +420,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             </div>
           </Alert>
 
-          <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <div className="mb-6 grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border bg-white p-4">
               <div className="text-sm font-medium text-muted-foreground">Dominio de envio</div>
               <div className="mt-2 text-lg font-semibold">{setupResult.dns_instructions.sending_domain}</div>
@@ -491,7 +491,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             </ol>
           </div>
 
-          <div className="flex justify-between pt-6">
+          <div className="flex flex-col gap-2 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <Button type="button" variant="outline" onClick={() => setCurrentStep(0)}>
               Voltar
             </Button>
@@ -510,7 +510,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     }
 
     return (
-      <div className="flex items-center justify-between rounded-lg border bg-gray-50 p-3">
+      <div className="flex flex-col gap-3 rounded-lg border bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           {result.valid ? (
             <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -563,11 +563,11 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
         </div>
       )}
 
-      <div className="flex justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Button type="button" variant="outline" onClick={() => setCurrentStep(1)}>
           Voltar para DNS
         </Button>
-        <div className="space-x-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={handleVerification} disabled={isVerifying}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isVerifying ? 'animate-spin' : ''}`} />
             Verificar novamente

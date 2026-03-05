@@ -259,7 +259,7 @@ export function Webhooks() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Webhooks</h1>
           <p className="text-muted-foreground">Configure endpoints reais, valide a assinatura e acompanhe a entrega evento por evento.</p>
@@ -275,7 +275,7 @@ export function Webhooks() {
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_45%),linear-gradient(135deg,#ecfdf5,_#f8fafc_55%,#eff6ff)] p-8 shadow-sm">
+      <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_45%),linear-gradient(135deg,#ecfdf5,_#f8fafc_55%,#eff6ff)] p-4 shadow-sm sm:p-6 lg:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-4">
             <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Automacao orientada por eventos</Badge>
@@ -381,7 +381,7 @@ export function Webhooks() {
                     : 'border-amber-200 bg-amber-50'
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="font-medium text-slate-900">{event.label}</div>
                     <div className="text-xs font-mono text-slate-500">{event.value}</div>
@@ -399,7 +399,7 @@ export function Webhooks() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="webhooks">
             <Webhook className="mr-2 h-4 w-4" />
             Webhooks
@@ -443,7 +443,7 @@ export function Webhooks() {
                       }`}
                       onClick={() => handleSelectWebhook(webhook)}
                     >
-                      <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <div className="truncate font-medium">{webhook.name}</div>
                           <div className="truncate text-xs text-muted-foreground">{webhook.webhook_url}</div>
@@ -466,7 +466,7 @@ export function Webhooks() {
 
             <Card className="lg:col-span-2">
               <CardHeader>
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>{isCreating ? 'Novo webhook' : selectedWebhook ? 'Editar webhook' : 'Selecione um webhook'}</CardTitle>
                     <CardDescription>
@@ -476,7 +476,7 @@ export function Webhooks() {
                     </CardDescription>
                   </div>
                   {selectedWebhook && !isCreating && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => testMutation.mutate(selectedWebhook.id)}>
                         <Send className="mr-2 h-4 w-4" />
                         Testar
@@ -516,7 +516,7 @@ export function Webhooks() {
                             } ${event.availability === 'planned' ? 'cursor-not-allowed opacity-60' : ''}`}
                             onClick={() => handleEventToggle(event.value)}
                           >
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <div className="font-medium">{event.label}</div>
                               <Badge variant={event.availability === 'live' ? 'default' : 'outline'}>
                                 {event.availability === 'live' ? 'Live' : 'Em breve'}
@@ -550,7 +550,7 @@ export function Webhooks() {
                       )}
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
                         {createMutation.isPending || updateMutation.isPending ? 'Salvando...' : isCreating ? 'Criar webhook' : 'Salvar alteracoes'}
                       </Button>
@@ -642,7 +642,7 @@ export function Webhooks() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle>Historico de entrega</CardTitle>
                   <CardDescription>Execucoes reais dos webhooks configurados.</CardDescription>
@@ -666,7 +666,7 @@ export function Webhooks() {
                     className="w-full rounded-lg border p-4 text-left transition-colors hover:border-gray-300"
                     onClick={() => setSelectedLog(log)}
                   >
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
                         {getStatusIcon(log.status)}
                         <div>

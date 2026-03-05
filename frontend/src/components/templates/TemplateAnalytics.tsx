@@ -157,7 +157,7 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="trending">Em Tendência</TabsTrigger>
           {templateId && <TabsTrigger value="usage">Histórico de Uso</TabsTrigger>}
@@ -293,10 +293,10 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
         </TabsContent>
 
         <TabsContent value="trending" className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold">Templates em Tendência</h2>
             <Select value={trendingPeriod} onValueChange={(value: any) => setTrendingPeriod(value)}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -319,8 +319,8 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
               trending.map((template: any, index: number) => (
                 <Card key={template.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex items-start gap-4">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold">
                           #{index + 1}
                         </div>
@@ -330,7 +330,7 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-6">
+                      <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                         <div className="text-center">
                           <div className="flex items-center gap-1 text-sm text-gray-600">
                             <Eye className="h-4 w-4" />

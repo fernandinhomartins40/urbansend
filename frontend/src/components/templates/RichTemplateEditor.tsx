@@ -99,7 +99,7 @@ export function RichTemplateEditor({
 
   return (
     <div className={cn('overflow-hidden rounded-xl border bg-white', className)}>
-      <div className="flex flex-wrap items-center gap-1 border-b bg-slate-50/70 p-2">
+      <div className="flex items-center gap-1 overflow-x-auto border-b bg-slate-50/70 p-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('undo')}>
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -175,7 +175,7 @@ export function RichTemplateEditor({
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
-          className="min-h-[420px] p-4 text-sm leading-6 text-slate-800 outline-none"
+          className="min-h-[320px] p-4 text-sm leading-6 text-slate-800 outline-none sm:min-h-[420px]"
           onInput={emitValue}
           onFocus={() => setIsFocused(true)}
           onBlur={() => {

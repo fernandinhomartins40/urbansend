@@ -80,6 +80,17 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
   }
 
   /* Typography System */

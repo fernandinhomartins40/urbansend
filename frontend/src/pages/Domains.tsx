@@ -130,7 +130,7 @@ const DomainMonitoring: React.FC<{ domains: ReturnType<typeof useDomainSetup>['d
       <CardContent className="space-y-3">
         {domains.map((domain) => (
           <div key={domain.id} className="rounded-lg border p-4">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="font-medium">{domain.name}</div>
                 <div className="text-sm text-muted-foreground">{domain.completion_percentage}% concluido</div>
@@ -148,7 +148,7 @@ const DomainMonitoring: React.FC<{ domains: ReturnType<typeof useDomainSetup>['d
                 { label: 'DMARC', state: domain.dns_status.dmarc },
               ].map((item) => (
                 <div key={item.label} className="rounded-md bg-gray-50 p-3">
-                  <div className="mb-1 flex items-center justify-between">
+                  <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <span className="font-medium">{item.label}</span>
                     <Badge variant={item.state.valid ? 'default' : 'destructive'}>
                       {item.state.valid ? 'Valido' : 'Ajustar'}
@@ -266,7 +266,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Dominios</h1>
           <p className="text-muted-foreground">Feche a autenticacao do dominio antes de abrir o envio em producao.</p>
@@ -280,7 +280,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
       <DomainStats domains={domains} />
 
       <Tabs defaultValue="domains" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid h-auto w-full grid-cols-1 sm:grid-cols-3">
           <TabsTrigger value="domains" className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             <span>Meus dominios</span>
@@ -313,12 +313,12 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">Performance por dominio</h2>
               <p className="text-sm text-muted-foreground">Metricas reais consolidadas a partir do historico de envio.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {analyticsRanges.map((range) => (
                 <Button
                   key={range}
@@ -377,7 +377,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
                 <div className="space-y-3">
                   {domainAnalytics.map((domain) => (
                     <div key={domain.domain_id} className="rounded-lg border p-4">
-                      <div className="mb-3 flex items-center justify-between">
+                      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <div className="font-medium">{domain.domain}</div>
                             <div className="text-sm text-muted-foreground">{domain.sent_count} emails enviados</div>

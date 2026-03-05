@@ -200,8 +200,8 @@ export function EmailDetails() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <Button variant="ghost" onClick={() => navigate('/app/emails')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
@@ -231,7 +231,7 @@ export function EmailDetails() {
             <div>
               <label className="text-sm font-medium text-muted-foreground">De</label>
               <div className="flex items-center gap-2">
-                <span className="font-mono">{email.from_email}</span>
+                <span className="break-all font-mono">{email.from_email}</span>
                 <Button variant="ghost" size="sm" onClick={() => copyToClipboard(email.from_email)}>
                   <Copy className="h-3 w-3" />
                 </Button>
@@ -241,7 +241,7 @@ export function EmailDetails() {
             <div>
               <label className="text-sm font-medium text-muted-foreground">Para</label>
               <div className="flex items-center gap-2">
-                <span className="font-mono">{email.to_email}</span>
+                <span className="break-all font-mono">{email.to_email}</span>
                 <Button variant="ghost" size="sm" onClick={() => copyToClipboard(email.to_email)}>
                   <Copy className="h-3 w-3" />
                 </Button>
@@ -318,9 +318,9 @@ export function EmailDetails() {
       {/* Content */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Conteúdo do Email</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant={!showHtmlContent ? 'default' : 'outline'}
                 size="sm"

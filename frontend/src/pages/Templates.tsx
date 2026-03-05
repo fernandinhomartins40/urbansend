@@ -384,7 +384,7 @@ export function Templates() {
   return (
     <div className="space-y-6">
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="editor">
             <FileCode2 className="mr-2 h-4 w-4" />
             Editor
@@ -405,9 +405,9 @@ export function Templates() {
 
         <TabsContent value="editor" className="mt-4">
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_1fr]">
-            <Card className="h-[calc(100vh-220px)] overflow-hidden">
+            <Card className="overflow-hidden xl:h-[calc(100vh-220px)]">
               <CardHeader className="border-b pb-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="text-lg">Meus templates</CardTitle>
                     <CardDescription>Gerencie sua biblioteca privada</CardDescription>
@@ -428,7 +428,7 @@ export function Templates() {
                 </div>
               </CardHeader>
 
-              <CardContent className="h-full space-y-4 overflow-y-auto p-4">
+              <CardContent className="space-y-4 overflow-y-auto p-4 xl:h-full">
                 <input
                   id="template-import"
                   type="file"
@@ -437,7 +437,7 @@ export function Templates() {
                   onChange={importFromFile}
                 />
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -467,7 +467,7 @@ export function Templates() {
                         onClick={() => loadFromModel(model)}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-sky-300 hover:bg-sky-50"
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="font-medium text-slate-900">{model.label}</div>
                           <Badge variant="outline">{model.category}</Badge>
                         </div>
@@ -560,7 +560,7 @@ export function Templates() {
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-6 p-6">
+              <CardContent className="space-y-6 p-4 sm:p-6">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div>
                     <Label htmlFor="template-name">Nome</Label>
@@ -575,7 +575,7 @@ export function Templates() {
                 </div>
 
                 <Tabs value={activeEditorTab} onValueChange={setActiveEditorTab}>
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
                     <TabsTrigger value="rich">Editor rico</TabsTrigger>
                     <TabsTrigger value="html">HTML</TabsTrigger>
                     <TabsTrigger value="text">Texto</TabsTrigger>

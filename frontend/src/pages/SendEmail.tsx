@@ -193,8 +193,8 @@ export function SendEmail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <Button variant="ghost" onClick={() => navigate('/app/emails')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
@@ -371,7 +371,7 @@ export function SendEmail() {
                     control={form.control}
                     name="tracking_enabled"
                       render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                        <FormItem className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <FormLabel>Tracking</FormLabel>
                             <FormDescription>
@@ -392,10 +392,10 @@ export function SendEmail() {
                   <CardTitle>Variaveis personalizadas</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
                     <Input placeholder="chave" value={newVarKey} onChange={(event) => setNewVarKey(event.target.value)} />
                     <Input placeholder="valor" value={newVarValue} onChange={(event) => setNewVarValue(event.target.value)} />
-                    <Button type="button" onClick={addCustomVariable}>
+                    <Button type="button" onClick={addCustomVariable} className="w-full sm:w-auto">
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -403,8 +403,8 @@ export function SendEmail() {
                   {Object.entries(customVariables).length > 0 && (
                     <div className="space-y-2">
                       {Object.entries(customVariables).map(([key, value]) => (
-                        <div key={key} className="flex items-center gap-2 rounded bg-gray-50 p-2">
-                          <div className="min-w-[120px] font-mono text-sm">{key}</div>
+                        <div key={key} className="flex flex-col gap-2 rounded bg-gray-50 p-2 sm:flex-row sm:items-center">
+                          <div className="font-mono text-sm sm:min-w-[120px]">{key}</div>
                           <Input
                             value={value}
                             onChange={(event) => updateCustomVariable(key, event.target.value)}

@@ -177,7 +177,7 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
   return (
     <div className={cn('overflow-hidden rounded-lg border bg-background', className)} style={{ width }}>
       {showSelection && (
-        <div className="flex items-center justify-between border-b bg-muted/20 p-4">
+        <div className="flex flex-col gap-2 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm text-muted-foreground">
             {localSelectedEmails.size > 0 ? `${localSelectedEmails.size} selecionado(s)` : `${visibleEmails.length} email(s)`}
           </span>
@@ -213,12 +213,12 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
                 <StatusIcon status={email.status} />
 
                 <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-center justify-between gap-3">
+                  <div className="mb-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium">{email.to_email}</div>
                       <div className="truncate text-sm text-muted-foreground">{email.subject}</div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={email.status} />
                       <span className="text-xs text-muted-foreground">
                         {formatDistance(new Date(email.created_at), new Date(), { addSuffix: true, locale: ptBR })}
@@ -226,8 +226,8 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
                       <User className="h-3 w-3" />
                       <span className="truncate">{email.from_email}</span>
                       {email.sent_at && (
@@ -239,7 +239,7 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
                     </div>
 
                     {showAnalytics && (
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         {isEmailOpened(email.status) && (
                           <div className="flex items-center gap-1 text-blue-600">
                             <Eye className="h-3 w-3" />

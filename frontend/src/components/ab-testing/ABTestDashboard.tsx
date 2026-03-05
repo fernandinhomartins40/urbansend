@@ -116,7 +116,7 @@ export const ABTestDashboard: React.FC = () => {
     return (
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="text-lg">{test.name}</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -131,7 +131,7 @@ export const ABTestDashboard: React.FC = () => {
         
         <CardContent className="space-y-4">
           {test.status === 'running' || test.status === 'completed' ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Variante A</span>
@@ -166,7 +166,7 @@ export const ABTestDashboard: React.FC = () => {
             </p>
           )}
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {test.status === 'draft' && (
               <Button 
                 size="sm" 
@@ -199,7 +199,7 @@ export const ABTestDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">A/B Testing</h2>
           <p className="text-muted-foreground">
@@ -245,7 +245,7 @@ export const ABTestDashboard: React.FC = () => {
                 </Select>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Variante A - {newTest.test_type === 'subject' ? 'Assunto' : 'Valor'}</Label>
                   <Input 
@@ -270,7 +270,7 @@ export const ABTestDashboard: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancelar
                 </Button>

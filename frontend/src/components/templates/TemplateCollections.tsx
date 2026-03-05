@@ -109,13 +109,13 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
 
   return (
     <div className={className}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Coleções de Templates</h2>
           <p className="text-gray-600">Organize seus templates favoritos em coleções</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             <span className="text-sm">Apenas públicas</span>
@@ -160,7 +160,7 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <Label htmlFor="is-public">Coleção Pública</Label>
                     <p className="text-sm text-gray-600">
@@ -174,7 +174,7 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
                   />
                 </div>
 
-                <div className="flex justify-end gap-3">
+                <div className="flex flex-wrap justify-end gap-3">
                   <Button
                     variant="outline"
                     onClick={() => setIsCreateOpen(false)}
@@ -314,8 +314,8 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
             </DialogHeader>
 
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:gap-4">
                   <span>{selectedCollection.templates?.length || 0} templates</span>
                   {selectedCollection.creator_name && (
                     <span>Por {selectedCollection.creator_name}</span>

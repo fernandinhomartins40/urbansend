@@ -245,7 +245,7 @@ export function ApiKeys() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">API Keys</h1>
           <p className="text-muted-foreground">Gerencie autenticacao, escopos e o onboarding tecnico das integracoes externas.</p>
@@ -265,7 +265,7 @@ export function ApiKeys() {
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-[2rem] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_42%),linear-gradient(135deg,#eff6ff,_#f8fafc_55%,#ecfeff)] p-8 shadow-sm">
+      <section className="overflow-hidden rounded-[2rem] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_42%),linear-gradient(135deg,#eff6ff,_#f8fafc_55%,#ecfeff)] p-4 shadow-sm sm:p-6 lg:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-4">
             <Badge className="bg-sky-600 text-white hover:bg-sky-600">Integração por API</Badge>
@@ -422,7 +422,7 @@ export function ApiKeys() {
       {latestKey && (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <h3 className="mb-2 font-medium text-green-800">Chave pronta para copia</h3>
                 <p className="mb-3 text-sm text-green-700">Guarde esta chave agora. Ela nao sera exibida novamente.</p>
@@ -434,7 +434,7 @@ export function ApiKeys() {
                 </div>
               </div>
 
-              <Button variant="ghost" size="sm" onClick={() => setLatestKey(null)}>
+              <Button variant="ghost" size="sm" onClick={() => setLatestKey(null)} className="self-start sm:self-auto">
                 Fechar
               </Button>
             </div>
@@ -478,7 +478,7 @@ export function ApiKeys() {
                 {errors.permissions && <p className="text-sm text-destructive">{errors.permissions.message}</p>}
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -529,10 +529,10 @@ export function ApiKeys() {
           keys.map((apiKey) => (
             <Card key={apiKey.id} className={!apiKey.is_active ? 'opacity-70' : ''}>
               <CardHeader>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
                     <Key className="h-5 w-5 text-primary" />
-                    <div>
+                    <div className="min-w-0">
                       <CardTitle className="text-lg">{apiKey.key_name}</CardTitle>
                       <CardDescription>
                         Criada {formatRelativeTime(apiKey.created_at)}
@@ -541,7 +541,7 @@ export function ApiKeys() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={apiKey.is_active ? 'default' : 'secondary'}>
                       {apiKey.is_active ? 'Ativa' : 'Inativa'}
                     </Badge>
@@ -561,7 +561,7 @@ export function ApiKeys() {
                       <Button variant="ghost" size="sm">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
-                      <div className="invisible absolute right-0 z-10 mt-2 w-48 rounded-lg border bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100">
+                      <div className="invisible absolute right-0 z-10 mt-2 w-[min(12rem,calc(100vw-1rem))] rounded-lg border bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100">
                         <div className="space-y-1 p-2">
                           <button
                             onClick={() => setUsageTarget(apiKey)}
@@ -711,7 +711,7 @@ export function ApiKeys() {
               {editForm.formState.errors.permissions && <p className="text-sm text-destructive">{editForm.formState.errors.permissions.message}</p>}
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setEditingKey(null)}>
                 Cancelar
               </Button>
@@ -771,11 +771,11 @@ export function ApiKeys() {
                     <CardTitle className="text-base">Falhas</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span>Bounces</span>
                       <span className="font-medium">{usageResponse.usage_stats.bounced_emails}</span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span>Falhas</span>
                       <span className="font-medium">{usageResponse.usage_stats.failed_emails}</span>
                     </div>
@@ -791,7 +791,7 @@ export function ApiKeys() {
                       <div className="text-muted-foreground">Nenhum envio no periodo.</div>
                     ) : (
                       usageResponse.usage_stats.daily_usage.slice(-7).map((entry) => (
-                        <div key={entry.date} className="flex items-center justify-between">
+                        <div key={entry.date} className="flex items-center justify-between gap-2">
                           <span>{entry.date}</span>
                           <span className="font-medium">{entry.count}</span>
                         </div>
