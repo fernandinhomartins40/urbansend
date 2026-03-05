@@ -36,6 +36,7 @@ const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.W
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const DeveloperDocs = lazy(() => import('./pages/DeveloperDocs').then(m => ({ default: m.DeveloperDocs })));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin').then(m => ({ default: m.SuperAdmin })));
+const SuperAdminLogin = lazy(() => import('./pages/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -53,7 +54,13 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   
   // Allow access to login page if user is specifically on login route or if user data is missing
   // This prevents redirect loops when session expires but localStorage still shows authenticated
-  if (isAuthenticated && user && location.pathname !== '/login' && location.pathname !== '/admin/login') {
+  if (
+    isAuthenticated
+    && user
+    && location.pathname !== '/login'
+    && location.pathname !== '/admin/login'
+    && location.pathname !== '/super-admin/login'
+  ) {
     // Only redirect to app if we're sure the user is properly authenticated
     // and not trying to access the login page specifically
     return <Navigate to="/app" replace />
@@ -66,11 +73,15 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore()
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/super-admin/login" replace />
   }
 
-  if (!user?.is_admin) {
+  if (!user?.is_superadmin) {
     return <Navigate to="/app" replace />
+  }
+
+  if (user.session_scope !== 'super_admin') {
+    return <Navigate to="/super-admin/login" replace />
   }
 
   return <>{children}</>
@@ -98,13 +109,15 @@ function AppRoutes() {
               {/* Admin login redirect to regular login */}
               <Route 
                 path="/admin/login" 
+                element={<Navigate to="/super-admin/login" replace />}
+              />
+              <Route
+                path="/super-admin/login"
                 element={
-                  <PublicRoute>
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Login />
-                    </Suspense>
-                  </PublicRoute>
-                } 
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <SuperAdminLogin />
+                  </Suspense>
+                }
               />
               <Route 
                 path="/verify-email" 

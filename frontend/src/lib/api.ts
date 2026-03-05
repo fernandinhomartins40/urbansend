@@ -93,7 +93,7 @@ api.interceptors.response.use(
         return Promise.reject(error)
       }
 
-      const isPublicPage = ['/', '/login', '/admin/login', '/verify-email', '/forgot-password', '/reset-password'].includes(window.location.pathname)
+      const isPublicPage = ['/', '/login', '/admin/login', '/super-admin/login', '/verify-email', '/forgot-password', '/reset-password'].includes(window.location.pathname)
 
       if (isPublicPage) {
         return Promise.reject(error)
@@ -146,6 +146,9 @@ api.interceptors.response.use(
 export const authApi = {
   login: (credentials: { email: string; password: string }) =>
     api.post('/auth/login', credentials),
+
+  superAdminLogin: (credentials: { email: string; password: string }) =>
+    api.post('/auth/super-admin/login', credentials),
 
   logout: () =>
     api.post('/auth/logout'),

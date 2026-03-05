@@ -346,6 +346,9 @@ export function LandingPage() {
             <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
             <a href="#integracao" className="transition hover:text-white">Integração</a>
             <a href="#api" className="transition hover:text-white">API</a>
+            <Button asChild size="sm" variant="outline" className="border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100">
+              <Link to="/super-admin/login">Painel Super Admin</Link>
+            </Button>
           </div>
           <div>(c) 2026 UltraZend. Todos os direitos reservados.</div>
         </div>

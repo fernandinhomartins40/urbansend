@@ -121,7 +121,7 @@ export function Header({ className }: HeaderProps) {
                   API Keys
                 </Link>
 
-                {user?.is_admin && (
+                {user?.is_superadmin && (
                   <Link
                     to="/app/super-admin"
                     className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"

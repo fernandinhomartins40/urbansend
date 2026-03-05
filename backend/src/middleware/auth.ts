@@ -16,6 +16,8 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     name: string;
     is_admin?: boolean;
+    is_superadmin?: boolean;
+    session_scope?: 'app' | 'super_admin';
     permissions?: string[];
     account_id?: number;
     organization_id?: number | null;
@@ -76,7 +78,7 @@ export const authenticateJWT = async (
     const requestedOrganizationId = Number(req.headers['x-organization-id'] || 0) || undefined;
 
     const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified', 'is_active', 'permissions', 'is_admin')
+      .select('id', 'email', 'name', 'is_verified', 'is_active', 'permissions', 'is_admin', 'is_superadmin')
       .where('id', decoded.userId)
       .first();
 
@@ -99,6 +101,8 @@ export const authenticateJWT = async (
       email: user.email,
       name: user.name,
       is_admin: Boolean(user.is_admin),
+      is_superadmin: Boolean(user.is_superadmin),
+      session_scope: decoded?.session_scope === 'super_admin' ? 'super_admin' : 'app',
       permissions: permissionsFromJson(user.permissions),
       account_id: workspaceContext.accountUserId,
       organization_id: workspaceContext.organizationId,
@@ -151,6 +155,7 @@ export const authenticateApiKey = async (
         'users.email',
         'users.name',
         'users.is_admin as user_is_admin',
+        'users.is_superadmin as user_is_superadmin',
         'users.is_verified as user_is_verified',
         'users.is_active as user_is_active'
       )
@@ -223,6 +228,8 @@ export const authenticateApiKey = async (
       email: apiKey.email,
       name: apiKey.name,
       is_admin: Boolean(apiKey.user_is_admin),
+      is_superadmin: Boolean(apiKey.user_is_superadmin),
+      session_scope: 'app',
       permissions,
       account_id: workspaceContext.accountUserId,
       organization_id: workspaceContext.organizationId,
@@ -290,14 +297,12 @@ export const requireSuperAdmin = () => {
       throw createError('Authentication required', 401);
     }
 
-    const hasPlatformPermission = hasPermission(req.user.permissions, 'platform:super_admin');
-    const hasAdminPermission = hasPermission(req.user.permissions, 'admin');
-
-    if (req.user.is_admin || hasPlatformPermission || hasAdminPermission) {
+    const hasDedicatedSession = req.user.session_scope === 'super_admin';
+    if (req.user.is_superadmin === true && hasDedicatedSession) {
       return next();
     }
 
-    throw createError('Super admin access required', 403);
+    throw createError('Dedicated super admin login required', 403);
   };
 };
 

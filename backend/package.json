@@ -16,6 +16,7 @@
     "build:swagger": "swagger-jsdoc -d swaggerDef.js src/**/*.ts -o swagger.json",
     "start": "node dist/index.js",
     "migrate:latest": "node scripts/run-db-migrations.js",
+    "seed:super-admin": "node scripts/seed-super-admin.js",
     "migrate:rollback": "node -r dotenv/config ./node_modules/knex/bin/cli.js migrate:rollback",
     "migrate:make": "node -r dotenv/config ./node_modules/knex/bin/cli.js migrate:make",
     "migrate:legacy": "node -r dotenv/config ./node_modules/knex/bin/cli.js migrate:latest",

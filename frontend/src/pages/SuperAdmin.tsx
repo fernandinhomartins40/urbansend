@@ -215,7 +215,7 @@ export function SuperAdmin() {
     ])
   }
 
-  if (!currentUser?.is_admin) {
+  if (!currentUser?.is_superadmin) {
     return (
       <Card className="border-red-200 bg-red-50">
         <CardHeader>

@@ -39,6 +39,7 @@ const getCsrfCookieOptions = () => ({
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const generateCsrfToken = () => crypto.randomBytes(24).toString('hex');
+type SessionScope = 'app' | 'super_admin';
 
 let refreshTokenTableAvailable: boolean | null = null;
 
@@ -108,6 +109,52 @@ const validateStoredRefreshToken = async (userId: number, tokenId?: string): Pro
     .first();
 
   return Boolean(token);
+};
+
+const issueAuthSession = async (
+  req: Request,
+  res: Response,
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    is_verified: boolean;
+    is_admin?: boolean | null;
+    is_superadmin?: boolean | null;
+  },
+  sessionScope: SessionScope
+) => {
+  const accessToken = generateJWT({
+    userId: user.id,
+    email: user.email,
+    session_scope: sessionScope
+  });
+  const refreshTokenId = crypto.randomUUID();
+  const refreshToken = generateRefreshToken({
+    userId: user.id,
+    email: user.email,
+    tokenId: refreshTokenId,
+    session_scope: sessionScope
+  });
+  const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const csrfToken = generateCsrfToken();
+
+  await db('users').where('id', user.id).update({ updated_at: new Date() });
+
+  res.cookie('access_token', accessToken, getCookieOptions());
+  res.cookie('refresh_token', refreshToken, getRefreshCookieOptions());
+  res.cookie('csrf_token', csrfToken, getCsrfCookieOptions());
+  await persistRefreshToken(user.id, refreshTokenId, refreshTokenExpiresAt, req);
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    is_verified: user.is_verified,
+    is_admin: Boolean(user.is_admin),
+    is_superadmin: Boolean(user.is_superadmin),
+    session_scope: sessionScope
+  };
 };
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -267,34 +314,53 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     throw createError('Account is inactive', 403);
   }
 
-  // Generate tokens
-  const accessToken = generateJWT({ userId: user.id, email: user.email });
-  const refreshTokenId = crypto.randomUUID();
-  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email, tokenId: refreshTokenId });
-  const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  const csrfToken = generateCsrfToken();
+  if (Boolean(user.is_superadmin)) {
+    throw createError('Use dedicated super admin login', 403);
+  }
 
-  // Update last login
-  await db('users').where('id', user.id).update({ updated_at: new Date() });
-
-  // Set secure HTTP-only cookies instead of returning tokens in body
-  res.cookie('access_token', accessToken, getCookieOptions());
-  res.cookie('refresh_token', refreshToken, getRefreshCookieOptions());
-  res.cookie('csrf_token', csrfToken, getCsrfCookieOptions());
-
-  await persistRefreshToken(user.id, refreshTokenId, refreshTokenExpiresAt, req);
+  const sessionUser = await issueAuthSession(req, res, user, 'app');
 
   logger.info('User logged in successfully', { userId: user.id, email });
 
   res.json({
     message: 'Login successful',
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      is_verified: user.is_verified,
-      is_admin: Boolean(user.is_admin)
-    }
+    user: sessionUser
+  });
+});
+
+export const superAdminLogin = asyncHandler(async (req: Request, res: Response) => {
+  const { password } = req.body;
+  const email = normalizeEmail(req.body.email);
+
+  const user = await db('users').whereRaw('LOWER(email) = ?', [email]).first();
+  if (!user) {
+    throw createError('Invalid credentials', 401);
+  }
+
+  const isValidPassword = await verifyPassword(password, user.password_hash);
+  if (!isValidPassword) {
+    throw createError('Invalid credentials', 401);
+  }
+
+  if (!Boolean(user.is_superadmin)) {
+    throw createError('This account is not authorized for super admin access', 403);
+  }
+
+  if (!user.is_verified) {
+    throw createError('Super admin email must be verified', 403);
+  }
+
+  if (user.is_active === false) {
+    throw createError('Super admin account is inactive', 403);
+  }
+
+  const sessionUser = await issueAuthSession(req, res, user, 'super_admin');
+
+  logger.warn('Super admin logged in', { userId: user.id, email });
+
+  res.json({
+    message: 'Super admin login successful',
+    user: sessionUser
   });
 });
 
@@ -533,10 +599,11 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
   try {
     const decoded = jwt.verify(refreshTokenCookie, Env.jwtRefreshSecret) as any;
+    const sessionScope: SessionScope = decoded?.session_scope === 'super_admin' ? 'super_admin' : 'app';
     
     // Find user
   const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified', 'is_active', 'is_admin')
+      .select('id', 'email', 'name', 'is_verified', 'is_active', 'is_admin', 'is_superadmin')
       .where('id', decoded.userId)
       .first();
 
@@ -552,6 +619,10 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
       throw createError('Account is inactive', 403);
     }
 
+    if (sessionScope === 'super_admin' && !Boolean(user.is_superadmin)) {
+      throw createError('Super admin access revoked', 403);
+    }
+
     const refreshTokenId = decoded?.tokenId as string | undefined;
     const isStoredTokenValid = await validateStoredRefreshToken(user.id, refreshTokenId);
     if (!isStoredTokenValid) {
@@ -564,13 +635,14 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     const nextRefreshToken = generateRefreshToken({
       userId: user.id,
       email: user.email,
-      tokenId: nextRefreshTokenId
+      tokenId: nextRefreshTokenId,
+      session_scope: sessionScope
     });
     const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await persistRefreshToken(user.id, nextRefreshTokenId, refreshTokenExpiresAt, req);
 
     // Generate new access token
-    const newAccessToken = generateJWT({ userId: user.id, email: user.email });
+    const newAccessToken = generateJWT({ userId: user.id, email: user.email, session_scope: sessionScope });
     const csrfToken = generateCsrfToken();
     
     // Set refreshed cookie set
@@ -585,7 +657,9 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
         name: user.name,
         email: user.email,
         is_verified: user.is_verified,
-        is_admin: Boolean(user.is_admin)
+        is_admin: Boolean(user.is_admin),
+        is_superadmin: Boolean(user.is_superadmin),
+        session_scope: sessionScope
       }
     });
   } catch (error) {
@@ -617,7 +691,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const user = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'is_active', 'is_admin', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'is_verified', 'is_active', 'is_admin', 'is_superadmin', 'created_at', 'updated_at')
     .where('id', req.user!.id)
     .first();
 
@@ -630,6 +704,7 @@ export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Re
   res.json({
     user: {
       ...user,
+      session_scope: req.user?.session_scope || 'app',
       active_organization: {
         id: workspace.organizationId,
         name: workspace.organizationName,

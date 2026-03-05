@@ -20,6 +20,7 @@ import {
 import {
   register,
   login,
+  superAdminLogin,
   verifyEmail,
   forgotPassword,
   resetPassword,
@@ -102,6 +103,8 @@ router.post('/register', advancedRegistrationRateLimit, validateRequest({ body: 
  *         description: Email not verified
  */
 router.post('/login', advancedLoginRateLimit, validateRequest({ body: loginSchema }), login);
+
+router.post('/super-admin/login', advancedLoginRateLimit, validateRequest({ body: loginSchema }), superAdminLogin);
 
 /**
  * @swagger

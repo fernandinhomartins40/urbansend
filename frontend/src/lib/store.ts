@@ -9,6 +9,8 @@ interface User {
   is_verified: boolean
   is_active?: boolean
   is_admin?: boolean
+  is_superadmin?: boolean
+  session_scope?: 'app' | 'super_admin'
   active_organization?: {
     id: number | null
     name: string

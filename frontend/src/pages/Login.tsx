@@ -114,6 +114,9 @@ export function Login() {
       
       if (errorMessage.includes('Invalid credentials') || errorMessage.includes('credentials')) {
         toast.auth.loginError('credentials')
+      } else if (errorMessage.includes('dedicated super admin')) {
+        toast.error('Use o login dedicado de Super Admin.')
+        navigate('/super-admin/login')
       } else if (errorMessage.includes('verify') || errorMessage.includes('verification')) {
         toast.auth.loginError('verification')
       } else {

@@ -36,7 +36,7 @@ export function Sidebar({ className }: SidebarProps) {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
   const { isOpen, close } = useSidebarStore()
-  const navigation = user?.is_admin
+  const navigation = user?.is_superadmin
     ? [...baseNavigation, { name: 'Super Admin', href: '/app/super-admin', icon: ShieldCheck }]
     : baseNavigation
 

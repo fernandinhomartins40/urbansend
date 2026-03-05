@@ -48,11 +48,11 @@ class SuperAdminService {
 
   private async assertPlatformAdmin(userId: number): Promise<void> {
     const user = await db('users')
-      .select('id', 'is_admin', 'is_active')
+      .select('id', 'is_admin', 'is_superadmin', 'is_active')
       .where('id', userId)
       .first();
 
-    if (!user || user.is_active === false || !user.is_admin) {
+    if (!user || user.is_active === false || !user.is_superadmin) {
       throw new Error('Admin account is not authorized for platform operations');
     }
 

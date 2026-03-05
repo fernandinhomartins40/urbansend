@@ -97,6 +97,13 @@ ensure_secret_if_invalid "JWT_SECRET"
 ensure_secret_if_invalid "JWT_REFRESH_SECRET"
 ensure_secret_if_invalid "COOKIE_SECRET"
 ensure_secret_if_invalid "APP_ENCRYPTION_KEY"
+if [ -z "$(read_env_value "SUPER_ADMIN_EMAIL")" ]; then
+  ensure_env_value "SUPER_ADMIN_EMAIL" "superadmin@ultrazend.com.br"
+fi
+if [ -z "$(read_env_value "SUPER_ADMIN_NAME")" ]; then
+  ensure_env_value "SUPER_ADMIN_NAME" "UltraZend Super Admin"
+fi
+ensure_secret_if_invalid "SUPER_ADMIN_PASSWORD"
 ensure_env_value "ENABLE_CSRF_PROTECTION" "true"
 
 mkdir -p "$CONFIG_DIR/dkim-keys"
@@ -316,7 +323,7 @@ docker run -d \
   -v "$CONFIG_DIR":/app/configs \
   -v ${STORAGE_VOLUME}:/app/storage \
   ultrazend-api:latest \
-  sh -c "npm run migrate:latest && node dist/index.js"
+  sh -c "npm run migrate:latest && npm run seed:super-admin && node dist/index.js"
 
 echo "Aguardando container inicializar..."
 sleep 15
