@@ -16,7 +16,7 @@ export function SuperAdminIntegrationsPage() {
     <div className="space-y-4">
       <Card className="border-indigo-200">
         <CardHeader>
-          <CardTitle>Integrations</CardTitle>
+          <CardTitle>Integracoes</CardTitle>
           <CardDescription>Saúde operacional de webhooks e API keys.</CardDescription>
         </CardHeader>
       </Card>
@@ -46,7 +46,7 @@ export function SuperAdminIntegrationsPage() {
 
         <Card className="border-amber-200 bg-amber-50/80">
           <CardHeader className="pb-2">
-            <CardDescription>API Keys ativas</CardDescription>
+            <CardDescription>Chaves de API ativas</CardDescription>
             <CardTitle>{data?.active_api_keys || 0}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-amber-700">

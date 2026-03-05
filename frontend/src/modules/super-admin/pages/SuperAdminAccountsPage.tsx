@@ -81,7 +81,7 @@ export function SuperAdminAccountsPage() {
     <div className="space-y-4">
       <Card className="border-indigo-200">
         <CardHeader>
-          <CardTitle>Accounts</CardTitle>
+          <CardTitle>Contas</CardTitle>
           <CardDescription>Gestão de contas do SaaS, planos e bloqueios operacionais.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
@@ -116,9 +116,9 @@ export function SuperAdminAccountsPage() {
               onChange={(event) => setPlanName(event.target.value)}
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="free">free</option>
-              <option value="professional">professional</option>
-              <option value="enterprise">enterprise</option>
+              <option value="free">gratuito</option>
+              <option value="professional">profissional</option>
+              <option value="enterprise">empresarial</option>
             </select>
             <Input
               type="number"

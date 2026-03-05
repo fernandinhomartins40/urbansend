@@ -27,7 +27,7 @@ export function SuperAdminAuditPage() {
     <div className="space-y-4">
       <Card className="border-violet-200">
         <CardHeader>
-          <CardTitle>Audit Logs</CardTitle>
+          <CardTitle>Logs de Auditoria</CardTitle>
           <CardDescription>Rastreabilidade completa de ações super admin.</CardDescription>
         </CardHeader>
       </Card>

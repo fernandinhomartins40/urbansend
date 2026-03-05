@@ -17,12 +17,12 @@ interface SuperAdminSidebarProps {
 }
 
 const navigation = [
-  { label: 'Overview', to: '/super-admin/overview', icon: BarChart3 },
-  { label: 'Accounts', to: '/super-admin/accounts', icon: ShieldCheck },
-  { label: 'Users', to: '/super-admin/users', icon: Users },
-  { label: 'Deliverability', to: '/super-admin/deliverability', icon: Activity },
-  { label: 'Integrations', to: '/super-admin/integrations', icon: Link2 },
-  { label: 'Audit Logs', to: '/super-admin/audit', icon: Search }
+  { label: 'Visao Geral', to: '/super-admin/overview', icon: BarChart3 },
+  { label: 'Contas', to: '/super-admin/accounts', icon: ShieldCheck },
+  { label: 'Usuarios', to: '/super-admin/users', icon: Users },
+  { label: 'Entregabilidade', to: '/super-admin/deliverability', icon: Activity },
+  { label: 'Integracoes', to: '/super-admin/integrations', icon: Link2 },
+  { label: 'Auditoria', to: '/super-admin/audit', icon: Search }
 ]
 
 export function SuperAdminSidebar({ isOpen, onClose }: SuperAdminSidebarProps) {
@@ -94,7 +94,7 @@ export function SuperAdminSidebar({ isOpen, onClose }: SuperAdminSidebarProps) {
 
           <footer className="border-t border-indigo-200 p-4">
             <div className="rounded-lg border border-indigo-200 bg-white/80 p-3 text-xs text-indigo-700">
-              Session scope: <span className="font-semibold">super_admin</span>
+              Sessao: <span className="font-semibold">super_admin</span>
             </div>
           </footer>
         </div>

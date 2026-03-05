@@ -71,7 +71,7 @@ export function SuperAdminLogin() {
             <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/10 text-indigo-700">
               <ShieldCheck className="h-6 w-6" />
             </div>
-            <CardTitle className="text-2xl">Super Admin Login</CardTitle>
+            <CardTitle className="text-2xl">Login Super Admin</CardTitle>
             <CardDescription>
               Acesso exclusivo para a conta superadmin da plataforma.
             </CardDescription>

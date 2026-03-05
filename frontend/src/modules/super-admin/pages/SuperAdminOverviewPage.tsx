@@ -98,7 +98,7 @@ export function SuperAdminOverviewPage() {
 
         <Card className="border-cyan-200 bg-cyan-50/70">
           <CardHeader className="pb-2">
-            <CardDescription>API Keys ativas</CardDescription>
+            <CardDescription>Chaves de API ativas</CardDescription>
             <CardTitle>{integrations?.active_api_keys || 0}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-cyan-700">

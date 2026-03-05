@@ -22,7 +22,7 @@ export function SuperAdminDeliverabilityPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-emerald-700" />
-            Deliverability
+            Entregabilidade
           </CardTitle>
           <CardDescription>Análise de entrega por domínio de envio.</CardDescription>
         </CardHeader>

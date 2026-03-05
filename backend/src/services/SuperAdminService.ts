@@ -23,12 +23,17 @@ class SuperAdminService {
   private tableAvailabilityCache = new Map<string, boolean>();
 
   private async hasTable(tableName: string): Promise<boolean> {
-    if (this.tableAvailabilityCache.has(tableName)) {
-      return Boolean(this.tableAvailabilityCache.get(tableName));
+    if (this.tableAvailabilityCache.get(tableName) === true) {
+      return true;
     }
 
     const exists = await db.schema.hasTable(tableName);
-    this.tableAvailabilityCache.set(tableName, exists);
+    // Cache only positive lookups so newly-created tables are detected without process restart.
+    if (exists) {
+      this.tableAvailabilityCache.set(tableName, true);
+    } else {
+      this.tableAvailabilityCache.delete(tableName);
+    }
     return exists;
   }
 

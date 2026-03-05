@@ -57,7 +57,7 @@ export function SuperAdminUsersPage() {
     <div className="space-y-4">
       <Card className="border-cyan-200">
         <CardHeader>
-          <CardTitle>Users</CardTitle>
+          <CardTitle>Usuarios</CardTitle>
           <CardDescription>Gestão de status e privilégios administrativos.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -108,7 +108,7 @@ export function SuperAdminUsersPage() {
                   <td className="px-2 py-3">{boolBadge(row.is_verified, 'Verificado', 'Pendente')}</td>
                   <td className="px-2 py-3">{boolBadge(row.is_active, 'Ativo', 'Inativo')}</td>
                   <td className="px-2 py-3">
-                    {row.is_admin ? <Badge>Admin</Badge> : <Badge variant="outline">Cliente</Badge>}
+                    {row.is_admin ? <Badge>Administrador</Badge> : <Badge variant="outline">Cliente</Badge>}
                   </td>
                   <td className="px-2 py-3">
                     <div className="flex flex-wrap gap-2">

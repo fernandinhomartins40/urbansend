@@ -6,12 +6,12 @@ import { useAuthStore } from '@/lib/store'
 import { SuperAdminSidebar } from './SuperAdminSidebar'
 
 const pageTitleByPath: Record<string, string> = {
-  '/super-admin/overview': 'Overview',
-  '/super-admin/accounts': 'Accounts',
-  '/super-admin/users': 'Users',
-  '/super-admin/deliverability': 'Deliverability',
-  '/super-admin/integrations': 'Integrations',
-  '/super-admin/audit': 'Audit Logs'
+  '/super-admin/overview': 'Visao Geral',
+  '/super-admin/accounts': 'Contas',
+  '/super-admin/users': 'Usuarios',
+  '/super-admin/deliverability': 'Entregabilidade',
+  '/super-admin/integrations': 'Integracoes',
+  '/super-admin/audit': 'Logs de Auditoria'
 }
 
 export function SuperAdminLayout() {

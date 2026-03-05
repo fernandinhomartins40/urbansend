@@ -60,6 +60,158 @@ const ensurePlatformAdminProfilesTable = async () => {
   });
 };
 
+const ensurePlatformAdminAuditLogsTable = async () => {
+  const hasTable = await db.schema.hasTable('platform_admin_audit_logs');
+  if (hasTable) {
+    return;
+  }
+
+  await db.schema.createTable('platform_admin_audit_logs', (table) => {
+    table.increments('id').primary();
+    table.integer('admin_user_id').unsigned().notNullable();
+    table.string('action', 120).notNullable();
+    table.string('target_type', 120).notNullable();
+    table.string('target_id', 120).nullable();
+    table.text('reason').nullable();
+    table.text('before_payload').nullable();
+    table.text('after_payload').nullable();
+    table.string('request_id', 100).nullable();
+    table.string('ip_address', 100).nullable();
+    table.string('user_agent', 1000).nullable();
+    table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
+
+    table.foreign('admin_user_id').references('id').inTable('users').onDelete('CASCADE');
+    table.index(['admin_user_id', 'created_at']);
+    table.index(['target_type', 'target_id']);
+    table.index(['action', 'created_at']);
+  });
+};
+
+const ensurePlatformImpersonationSessionsTable = async () => {
+  const hasTable = await db.schema.hasTable('platform_impersonation_sessions');
+  if (hasTable) {
+    return;
+  }
+
+  await db.schema.createTable('platform_impersonation_sessions', (table) => {
+    table.increments('id').primary();
+    table.string('session_token', 120).notNullable().unique();
+    table.integer('admin_user_id').unsigned().notNullable();
+    table.integer('account_user_id').unsigned().notNullable();
+    table.string('status', 40).notNullable().defaultTo('active');
+    table.text('reason').notNullable();
+    table.timestamp('expires_at').notNullable();
+    table.timestamp('ended_at').nullable();
+    table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
+
+    table.foreign('admin_user_id').references('id').inTable('users').onDelete('CASCADE');
+    table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');
+    table.index(['admin_user_id', 'status', 'created_at']);
+    table.index(['account_user_id', 'status']);
+    table.index(['expires_at', 'status']);
+  });
+};
+
+const ensureAccountSubscriptionsTable = async () => {
+  const hasTable = await db.schema.hasTable('account_subscriptions');
+  if (hasTable) {
+    return;
+  }
+
+  await db.schema.createTable('account_subscriptions', (table) => {
+    table.increments('id').primary();
+    table.integer('account_user_id').unsigned().notNullable().unique();
+    table.string('plan_name', 80).notNullable().defaultTo('free');
+    table.string('status', 40).notNullable().defaultTo('active');
+    table.integer('monthly_email_limit').notNullable().defaultTo(1000);
+    table.integer('api_rate_limit_per_minute').notNullable().defaultTo(120);
+    table.timestamp('started_at').nullable();
+    table.timestamp('expires_at').nullable();
+    table.string('payment_provider', 80).nullable();
+    table.string('external_subscription_id', 255).nullable();
+    table.text('features').nullable();
+    table.timestamps(true, true);
+
+    table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');
+    table.index(['status', 'plan_name']);
+  });
+};
+
+const ensureAccountSecurityFlagsTable = async () => {
+  const hasTable = await db.schema.hasTable('account_security_flags');
+  if (hasTable) {
+    return;
+  }
+
+  await db.schema.createTable('account_security_flags', (table) => {
+    table.increments('id').primary();
+    table.integer('account_user_id').unsigned().notNullable().unique();
+    table.boolean('is_suspended').notNullable().defaultTo(false);
+    table.boolean('is_under_review').notNullable().defaultTo(false);
+    table.boolean('email_sending_blocked').notNullable().defaultTo(false);
+    table.text('suspension_reason').nullable();
+    table.timestamp('suspended_at').nullable();
+    table.timestamp('suspension_ends_at').nullable();
+    table.integer('updated_by').unsigned().nullable();
+    table.timestamps(true, true);
+
+    table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');
+    table.foreign('updated_by').references('id').inTable('users').onDelete('SET NULL');
+    table.index(['is_suspended', 'is_under_review']);
+  });
+};
+
+const ensureAccountFoundationRows = async () => {
+  const hasUserPlans = await db.schema.hasTable('user_plans');
+  const users = await db('users').select('id');
+
+  for (const user of users) {
+    const hasSubscription = await db('account_subscriptions').where('account_user_id', user.id).first();
+    if (!hasSubscription) {
+      const userPlan = hasUserPlans
+        ? await db('user_plans')
+          .where('user_id', user.id)
+          .where('is_active', true)
+          .orderBy('created_at', 'desc')
+          .first()
+        : null;
+
+      await db('account_subscriptions').insert({
+        account_user_id: user.id,
+        plan_name: userPlan?.plan_name || 'free',
+        status: userPlan?.is_active === false ? 'inactive' : 'active',
+        monthly_email_limit: userPlan?.plan_name === 'enterprise'
+          ? 1000000
+          : userPlan?.plan_name === 'professional'
+            ? 200000
+            : 1000,
+        api_rate_limit_per_minute: userPlan?.plan_name === 'enterprise'
+          ? 5000
+          : userPlan?.plan_name === 'professional'
+            ? 1500
+            : 120,
+        started_at: userPlan?.started_at || new Date(),
+        expires_at: userPlan?.expires_at || null,
+        features: userPlan?.features ? JSON.stringify(userPlan.features) : null,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+    }
+
+    const hasFlags = await db('account_security_flags').where('account_user_id', user.id).first();
+    if (!hasFlags) {
+      await db('account_security_flags').insert({
+        account_user_id: user.id,
+        is_suspended: false,
+        is_under_review: false,
+        email_sending_blocked: false,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+    }
+  }
+};
+
 const run = async () => {
   const password = resolvePassword();
   const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || 12);
@@ -75,6 +227,11 @@ const run = async () => {
 
   await ensureUsersSuperAdminColumn();
   await ensurePlatformAdminProfilesTable();
+  await ensurePlatformAdminAuditLogsTable();
+  await ensurePlatformImpersonationSessionsTable();
+  await ensureAccountSubscriptionsTable();
+  await ensureAccountSecurityFlagsTable();
+  await ensureAccountFoundationRows();
 
   await db.transaction(async (trx) => {
     await trx('users').update({ is_superadmin: false, updated_at: now });
