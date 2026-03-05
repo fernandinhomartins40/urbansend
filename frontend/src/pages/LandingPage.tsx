@@ -26,15 +26,15 @@ const pillars = [
   {
     title: 'Envio transacional por API',
     description:
-      'Dispare emails via API key com permissoes granulares, observando cada mensagem no painel.',
+      'Dispare emails via API key com permissões granulares, observando cada mensagem no painel.',
     icon: Mail,
     surface: 'border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50',
     iconTone: 'bg-teal-500/15 text-teal-700',
   },
   {
-    title: 'Autenticacao de dominio guiada',
+    title: 'Autenticação de domínio guiada',
     description:
-      'Fluxo em 4 etapas com MAIL FROM tecnico, SPF, DKIM e DMARC para melhorar entregabilidade.',
+      'Fluxo em 4 etapas com MAIL FROM técnico, SPF, DKIM e DMARC para melhorar entregabilidade.',
     icon: ShieldCheck,
     surface: 'border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50',
     iconTone: 'bg-blue-500/15 text-blue-700',
@@ -42,7 +42,7 @@ const pillars = [
   {
     title: 'Templates e biblioteca',
     description:
-      'Editor rico, colecoes, biblioteca compartilhada e modelos reutilizaveis para escalar operacao.',
+      'Editor rico, coleções, biblioteca compartilhada e modelos reutilizáveis para escalar operação.',
     icon: Workflow,
     surface: 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50',
     iconTone: 'bg-amber-500/15 text-amber-700',
@@ -50,7 +50,7 @@ const pillars = [
   {
     title: 'Analytics e eventos',
     description:
-      'Painel de aceite SMTP, abertura, clique e falhas, com webhooks assinados para automacao.',
+      'Painel de aceite SMTP, abertura, clique e falhas, com webhooks assinados para automação.',
     icon: Webhook,
     surface: 'border-pink-100 bg-gradient-to-br from-pink-50 via-white to-rose-50',
     iconTone: 'bg-pink-500/15 text-pink-700',
@@ -60,13 +60,13 @@ const pillars = [
 const onboardingSteps = [
   {
     title: '1. Gere API key com escopo',
-    description: 'Use presets prontos e habilite apenas as permissoes necessarias para seu backend.',
+    description: 'Use presets prontos e habilite apenas as permissões necessárias para seu backend.',
     icon: KeyRound,
     tone: 'border-emerald-100 bg-emerald-50 text-emerald-700',
   },
   {
-    title: '2. Autentique dominio',
-    description: 'Publique MAIL FROM, SPF, DKIM e DMARC com o assistente de dominio da plataforma.',
+    title: '2. Autentique domínio',
+    description: 'Publique MAIL FROM, SPF, DKIM e DMARC com o assistente de domínio da plataforma.',
     icon: Globe2,
     tone: 'border-blue-100 bg-blue-50 text-blue-700',
   },
@@ -114,7 +114,7 @@ export function LandingPage() {
           <nav className="hidden items-center gap-8 text-sm text-slate-300 lg:flex">
             <a href="#plataforma" className="transition hover:text-white">Plataforma</a>
             <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
-            <a href="#integracao" className="transition hover:text-white">Integracao</a>
+            <a href="#integracao" className="transition hover:text-white">Integração</a>
             <a href="#api" className="transition hover:text-white">API</a>
           </nav>
 
@@ -139,16 +139,16 @@ export function LandingPage() {
             </Badge>
             <h1 className="text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
               Envie emails transacionais com
-              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 bg-clip-text text-transparent"> velocidade, controle e alta confianca</span>
+              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 bg-clip-text text-transparent"> velocidade, controle e alta confiança</span>
             </h1>
             <p className="max-w-3xl text-lg text-slate-200">
-              UltraZend centraliza tudo que seu SaaS precisa para operacao de email: API de envio,
-              autenticacao de dominio, templates profissionais, analytics e webhooks em tempo real.
+              UltraZend centraliza tudo que seu SaaS precisa para operação de email: API de envio,
+              autenticação de domínio, templates profissionais, analytics e webhooks em tempo real.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
                 <Link to="/login">
-                  Comecar no painel
+                  Começar no painel
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -165,13 +165,13 @@ export function LandingPage() {
             <CardHeader className="pb-4">
               <CardTitle className="text-lg">Capacidades ativas na plataforma</CardTitle>
               <CardDescription className="text-slate-300">
-                Recursos disponiveis para sua operacao de envio hoje.
+                Recursos disponíveis para sua operação de envio hoje.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 p-4">
                 <div className="text-2xl font-semibold">{liveEvents.length}</div>
-                <div className="text-sm text-cyan-100">eventos de webhook em producao</div>
+                <div className="text-sm text-cyan-100">eventos de webhook em produção</div>
               </div>
               <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
                 <div className="text-2xl font-semibold">{apiKeyPresets.length}</div>
@@ -179,7 +179,7 @@ export function LandingPage() {
               </div>
               <div className="rounded-xl border border-blue-300/30 bg-blue-500/10 p-4">
                 <div className="text-2xl font-semibold">{apiEndpointCatalog.length}</div>
-                <div className="text-sm text-blue-100">rotas-chave mapeadas na documentacao</div>
+                <div className="text-sm text-blue-100">rotas-chave mapeadas na documentação</div>
               </div>
             </CardContent>
           </Card>
@@ -192,7 +192,7 @@ export function LandingPage() {
             <Badge className="border-slate-200 bg-white text-slate-700">Plataforma</Badge>
             <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Tudo que seu SaaS precisa para email transacional</h2>
             <p className="mt-3 text-slate-600">
-              Concentre envio, autenticacao, conteudo e observabilidade em um unico fluxo operacional.
+              Concentre envio, autenticação, conteúdo e observabilidade em um único fluxo operacional.
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
@@ -216,9 +216,9 @@ export function LandingPage() {
           <div className="mb-10 flex items-center gap-3">
             <Badge className="border-blue-200 bg-blue-50 text-blue-700">
               <Globe2 className="mr-2 h-3.5 w-3.5" />
-              Time-to-value rapido
+              Time-to-value rápido
             </Badge>
-            <p className="text-sm text-slate-500">Do cadastro ao envio em producao em poucos passos</p>
+            <p className="text-sm text-slate-500">Do cadastro ao envio em produção em poucos passos</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {onboardingSteps.map((step) => (
@@ -286,7 +286,7 @@ export function LandingPage() {
                 Endpoints principais
               </CardTitle>
               <CardDescription>
-                API objetiva para envio, rastreamento, templates e integracoes.
+                API objetiva para envio, rastreamento, templates e integrações.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -312,16 +312,16 @@ export function LandingPage() {
             <BadgeCheck className="mr-2 h-3.5 w-3.5" />
             Pronto para crescer com seu volume
           </Badge>
-          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Comece rapido e evolua com seguranca</h2>
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Comece rápido e evolua com segurança</h2>
           <p className="mx-auto mt-3 max-w-3xl text-slate-600">
-            Estruture sua operacao de email em uma plataforma pensada para times de produto,
+            Estruture sua operação de email em uma plataforma pensada para times de produto,
             engenharia e growth que precisam entregar com previsibilidade.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
               <Link to="/login">
-                Comecar agora
+                Começar agora
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -344,7 +344,7 @@ export function LandingPage() {
           <div className="flex flex-wrap items-center gap-4">
             <a href="#plataforma" className="transition hover:text-white">Plataforma</a>
             <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
-            <a href="#integracao" className="transition hover:text-white">Integracao</a>
+            <a href="#integracao" className="transition hover:text-white">Integração</a>
             <a href="#api" className="transition hover:text-white">API</a>
           </div>
           <div>(c) 2026 UltraZend. Todos os direitos reservados.</div>
