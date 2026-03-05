@@ -3,11 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { AlertTriangle, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react'
 import { authApi } from '@/lib/api'
+import { getLoginPreferences, saveLoginPreferences } from '@/lib/authPreferences'
 import { useAuthStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/useToast'
@@ -24,6 +26,9 @@ export function SuperAdminLogin() {
   const { login, isAuthenticated, user } = useAuthStore()
   const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberCredentials, setRememberCredentials] = useState(false)
+  const [keepConnected, setKeepConnected] = useState(true)
 
   const form = useForm<SuperAdminLoginForm>({
     resolver: zodResolver(loginSchema),
@@ -44,12 +49,41 @@ export function SuperAdminLogin() {
     }
   }, [isAuthenticated, user?.is_superadmin, user?.session_scope, navigate])
 
+  useEffect(() => {
+    const preferences = getLoginPreferences('super_admin')
+    setRememberCredentials(preferences.rememberCredentials)
+    setKeepConnected(preferences.keepConnected)
+
+    if (preferences.email) {
+      form.setValue('email', preferences.email)
+    }
+
+    if (preferences.password) {
+      form.setValue('password', preferences.password)
+    }
+  }, [form])
+
   const handleSubmit = async (values: SuperAdminLoginForm) => {
     setIsLoading(true)
     const loadingToast = toast.loading('Validando credenciais de super admin...')
 
     try {
-      const response = await authApi.superAdminLogin(values)
+      const email = values.email?.trim() || ''
+      const password = values.password || ''
+
+      if (!email || !password) {
+        throw new Error('Email e senha são obrigatórios')
+      }
+
+      const response = await authApi.superAdminLogin({ email, password })
+
+      saveLoginPreferences('super_admin', {
+        rememberCredentials,
+        keepConnected,
+        email,
+        password
+      })
+
       login(response.data.user)
       toast.dismiss(loadingToast)
       toast.success('Login de super admin realizado com sucesso')
@@ -102,15 +136,42 @@ export function SuperAdminLogin() {
                   <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="super-admin-password"
-                    type="password"
-                    className="pl-9"
-                    placeholder="••••••••••"
+                    type={showPassword ? 'text' : 'password'}
+                    className="pl-9 pr-9"
+                    placeholder="**********"
                     {...form.register('password')}
                   />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setShowPassword((current) => !current)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 {form.formState.errors.password && (
                   <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
                 )}
+              </div>
+
+              <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+                <label htmlFor="remember-super-admin-credentials" className="flex cursor-pointer items-center gap-2">
+                  <Checkbox
+                    id="remember-super-admin-credentials"
+                    checked={rememberCredentials}
+                    onCheckedChange={(checked) => setRememberCredentials(Boolean(checked))}
+                  />
+                  <span>Salvar email e senha</span>
+                </label>
+                <label htmlFor="keep-connected-super-admin" className="flex cursor-pointer items-center gap-2">
+                  <Checkbox
+                    id="keep-connected-super-admin"
+                    checked={keepConnected}
+                    onCheckedChange={(checked) => setKeepConnected(Boolean(checked))}
+                  />
+                  <span>Manter conectado</span>
+                </label>
               </div>
 
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">

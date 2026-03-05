@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware'
 import { buildApiUrl } from './apiBase'
+import { shouldKeepConnected } from './authPreferences'
 
 interface User {
   id: number
@@ -90,7 +91,30 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(
+        (): StateStorage => ({
+          getItem: (name) => {
+            if (shouldKeepConnected()) {
+              return localStorage.getItem(name)
+            }
+            return sessionStorage.getItem(name)
+          },
+          setItem: (name, value) => {
+            if (shouldKeepConnected()) {
+              localStorage.setItem(name, value)
+              sessionStorage.removeItem(name)
+              return
+            }
+
+            sessionStorage.setItem(name, value)
+            localStorage.removeItem(name)
+          },
+          removeItem: (name) => {
+            localStorage.removeItem(name)
+            sessionStorage.removeItem(name)
+          }
+        })
+      ),
     }
   )
 )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -6,8 +6,10 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { authApi } from '@/lib/api'
+import { getLoginPreferences, saveLoginPreferences } from '@/lib/authPreferences'
 import { useAuthStore } from '@/lib/store'
 import { useToast } from '@/hooks/useToast'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
@@ -59,6 +61,8 @@ export function Login() {
   const [isLogin, setIsLogin] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [rememberCredentials, setRememberCredentials] = useState(false)
+  const [keepConnected, setKeepConnected] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [showResendOption, setShowResendOption] = useState(false)
   const [resendEmail, setResendEmail] = useState('')
@@ -86,6 +90,20 @@ export function Login() {
     },
   })
 
+  useEffect(() => {
+    const preferences = getLoginPreferences('app')
+    setRememberCredentials(preferences.rememberCredentials)
+    setKeepConnected(preferences.keepConnected)
+
+    if (preferences.email) {
+      loginForm.setValue('email', preferences.email)
+    }
+
+    if (preferences.password) {
+      loginForm.setValue('password', preferences.password)
+    }
+  }, [loginForm])
+
   const onLogin = async (data: LoginForm) => {
     setIsLoading(true)
     
@@ -99,6 +117,13 @@ export function Login() {
       }
       const response = await authApi.login({ email: data.email, password: data.password })
       const { user } = response.data
+
+      saveLoginPreferences('app', {
+        rememberCredentials,
+        keepConnected,
+        email: data.email.trim(),
+        password: data.password
+      })
       
       // Dismiss loading toast
       toast.dismiss(loadingToast)
@@ -375,6 +400,25 @@ export function Login() {
                       {loginForm.formState.errors.password.message}
                     </p>
                   )}
+                </div>
+
+                <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <label htmlFor="remember-app-credentials" className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      id="remember-app-credentials"
+                      checked={rememberCredentials}
+                      onCheckedChange={(checked) => setRememberCredentials(Boolean(checked))}
+                    />
+                    <span>Salvar email e senha</span>
+                  </label>
+                  <label htmlFor="keep-connected-app" className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      id="keep-connected-app"
+                      checked={keepConnected}
+                      onCheckedChange={(checked) => setKeepConnected(Boolean(checked))}
+                    />
+                    <span>Manter conectado</span>
+                  </label>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
