@@ -627,9 +627,9 @@ router.put('/domains/:domainId',
       await db('domains')
         .where('id', domainId)
         .update({
-          dkim_enabled: true,
-          spf_enabled: true,
-          dmarc_enabled: true,
+          dkim_enabled: typeof dkim_enabled === 'boolean' ? dkim_enabled : domain.dkim_enabled,
+          spf_enabled: typeof spf_enabled === 'boolean' ? spf_enabled : domain.spf_enabled,
+          dmarc_enabled: typeof dmarc_enabled === 'boolean' ? dmarc_enabled : domain.dmarc_enabled,
           dmarc_policy: dmarc_policy ?? domain.dmarc_policy,
           updated_at: new Date()
         });
@@ -638,7 +638,7 @@ router.put('/domains/:domainId',
         userId,
         domainId,
         domainName: domain.domain_name,
-        updates: { dmarc_policy }
+        updates: { dkim_enabled, spf_enabled, dmarc_enabled, dmarc_policy }
       });
 
       res.json({

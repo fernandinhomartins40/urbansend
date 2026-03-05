@@ -1,11 +1,12 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { authenticateJWT } from '../middleware/auth';
+import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { DKIMManager } from '../services/dkimManager';
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requirePermission('admin:dkim'));
 
 // DKIM Manager instance
 const dkimManager = new DKIMManager();

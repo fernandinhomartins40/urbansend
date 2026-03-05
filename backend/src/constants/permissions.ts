@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   WORKSPACE_READ: 'workspace:read',
   WORKSPACE_WRITE: 'workspace:write',
   ADMIN: 'admin',
+  PLATFORM_SUPER_ADMIN: 'platform:super_admin',
   ADMIN_DKIM: 'admin:dkim',
   ADMIN_SCHEDULER: 'admin:scheduler',
   ADMIN_MONITORING: 'admin:monitoring',
@@ -58,6 +59,7 @@ export const ADMIN_PERMISSIONS = [
 
 const PERMISSION_IMPLICATIONS: Record<string, string[]> = {
   [PERMISSIONS.ADMIN]: [
+    PERMISSIONS.PLATFORM_SUPER_ADMIN,
     PERMISSIONS.ADMIN_DKIM,
     PERMISSIONS.ADMIN_SCHEDULER,
     PERMISSIONS.ADMIN_MONITORING,

@@ -83,6 +83,15 @@ export class Env {
   }
 
   /**
+   * CSRF token validation for cookie-based auth writes.
+   * Enabled by default in production, optional elsewhere.
+   */
+  static get enableCsrfProtection(): boolean {
+    const defaultValue = Env.isProduction;
+    return Env.getBoolean('ENABLE_CSRF_PROTECTION', defaultValue);
+  }
+
+  /**
    * Get JWT Secret (required for security)
    */
   static get jwtSecret(): string {

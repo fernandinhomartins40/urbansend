@@ -4,7 +4,7 @@ import { EmailAuditService } from './EmailAuditService';
 
 export interface Alert {
   type: string;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'low' | 'warning' | 'info' | 'critical';
   message: string;
   data: any;
   actions: string[];
@@ -435,9 +435,13 @@ export class AlertingService {
   private async sendAlert(alert: Alert): Promise<void> {
     try {
       // Verificar se já existe alerta similar recente
+      const normalizedSeverity = this.normalizeSeverity(alert.severity);
+      const resolvedUserId = this.resolveAlertOwner(alert.userId);
+
       const recentAlert = await db('system_alerts')
         .where('alert_type', alert.type)
         .where('status', 'active')
+        .where('user_id', resolvedUserId)
         .where('created_at', '>', new Date(Date.now() - 60 * 60 * 1000)) // 1 hora
         .first();
 
@@ -450,12 +454,12 @@ export class AlertingService {
       await db('system_alerts').insert({
         alert_type: alert.type,
         title: alert.type,
-        severity: alert.severity,
-        severity_order: alert.severity === 'CRITICAL' ? 1 : alert.severity === 'HIGH' ? 2 : alert.severity === 'MEDIUM' ? 3 : 4,
+        severity: normalizedSeverity,
+        severity_order: this.resolveSeverityOrder(normalizedSeverity),
         message: alert.message,
         metadata: JSON.stringify(alert.data),
         status: 'active',
-        user_id: alert.userId || 1,
+        user_id: resolvedUserId,
         created_at: new Date(),
         updated_at: new Date()
       });
@@ -531,17 +535,51 @@ export class AlertingService {
   /**
    * Obter alertas ativos
    */
-  async getActiveAlerts(limit: number = 50): Promise<any[]> {
+  async getActiveAlerts(limit: number = 50, userId?: number): Promise<any[]> {
     try {
-      return await db('system_alerts')
+      let query = db('system_alerts')
         .where('status', 'active')
         .orderBy('created_at', 'desc')
         .limit(limit);
+
+      if (typeof userId === 'number') {
+        query = query.where('user_id', userId);
+      }
+
+      return await query;
     } catch (error) {
       logger.error('Failed to get active alerts', {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       return [];
     }
+  }
+
+  private normalizeSeverity(severity: Alert['severity']): 'critical' | 'warning' | 'info' | 'low' {
+    const normalized = String(severity || '').toLowerCase();
+
+    if (normalized === 'critical') return 'critical';
+    if (normalized === 'high') return 'warning';
+    if (normalized === 'medium') return 'info';
+    if (normalized === 'warning') return 'warning';
+    if (normalized === 'info') return 'info';
+
+    return 'low';
+  }
+
+  private resolveSeverityOrder(severity: 'critical' | 'warning' | 'info' | 'low'): number {
+    if (severity === 'critical') return 4;
+    if (severity === 'warning') return 3;
+    if (severity === 'info') return 2;
+    return 1;
+  }
+
+  private resolveAlertOwner(userId?: number): number {
+    if (typeof userId === 'number' && userId > 0) {
+      return userId;
+    }
+
+    const fallback = Number(process.env.SYSTEM_ALERT_USER_ID || 1);
+    return Number.isFinite(fallback) && fallback > 0 ? fallback : 1;
   }
 }

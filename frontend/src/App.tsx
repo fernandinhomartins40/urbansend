@@ -35,6 +35,7 @@ const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m
 const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.Webhooks })));
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const DeveloperDocs = lazy(() => import('./pages/DeveloperDocs').then(m => ({ default: m.DeveloperDocs })));
+const SuperAdmin = lazy(() => import('./pages/SuperAdmin').then(m => ({ default: m.SuperAdmin })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -55,6 +56,20 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   if (isAuthenticated && user && location.pathname !== '/login' && location.pathname !== '/admin/login') {
     // Only redirect to app if we're sure the user is properly authenticated
     // and not trying to access the login page specifically
+    return <Navigate to="/app" replace />
+  }
+
+  return <>{children}</>
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!user?.is_admin) {
     return <Navigate to="/app" replace />
   }
 
@@ -220,6 +235,16 @@ function AppRoutes() {
                       <SettingsPage />
                     </Suspense>
                   } 
+                />
+                <Route
+                  path="super-admin"
+                  element={
+                    <SuperAdminRoute>
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <SuperAdmin />
+                      </Suspense>
+                    </SuperAdminRoute>
+                  }
                 />
               </Route>
 

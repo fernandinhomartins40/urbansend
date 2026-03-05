@@ -600,11 +600,11 @@ router.get('/domains', requirePermission('analytics:read'), asyncHandler(async (
 }));
 
 // Enhanced routes mantidas por compatibilidade.
-router.get('/v2/overview', AnalyticsController.getOverview);
-router.get('/v2/campaigns/:campaignId/metrics', AnalyticsController.getCampaignMetrics);
-router.get('/v2/engagement', AnalyticsController.getEngagementData);
-router.get('/v2/delivery-stats', AnalyticsController.getDeliveryStats);
-router.get('/v2/events/:eventType', AnalyticsController.getEventAnalytics);
-router.get('/v2/recent-activity', AnalyticsController.getRecentActivity);
+router.get('/v2/overview', requirePermission('analytics:read'), AnalyticsController.getOverview);
+router.get('/v2/campaigns/:campaignId/metrics', requirePermission('analytics:read'), AnalyticsController.getCampaignMetrics);
+router.get('/v2/engagement', requirePermission('analytics:read'), AnalyticsController.getEngagementData);
+router.get('/v2/delivery-stats', requirePermission('analytics:read'), AnalyticsController.getDeliveryStats);
+router.get('/v2/events/:eventType', requirePermission('analytics:read'), AnalyticsController.getEventAnalytics);
+router.get('/v2/recent-activity', requirePermission('analytics:read'), AnalyticsController.getRecentActivity);
 
 export default router;

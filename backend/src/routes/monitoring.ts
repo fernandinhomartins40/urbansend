@@ -29,7 +29,7 @@ const auditFiltersSchema = z.object({
  * GET /api/monitoring/health
  * Obter saúde geral do sistema de email do usuário
  */
-router.get('/health', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/health', requirePermission('admin:monitoring'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   
   logger.debug('Email health request received', { userId });
@@ -219,7 +219,7 @@ router.get('/system-metrics',
  * GET /api/monitoring/alerts
  * Obter alertas do sistema
  */
-router.get('/alerts', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/alerts', requirePermission('admin:monitoring'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const limit = parseInt(req.query.limit as string) || 50;
   
@@ -296,7 +296,7 @@ router.post('/alerts/:id/resolve', asyncHandler(async (req: AuthenticatedRequest
  * POST /api/monitoring/run-health-checks
  * Executar verificações de saúde manuais
  */
-router.post('/run-health-checks', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/run-health-checks', requirePermission('admin:monitoring'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   
   logger.debug('Manual health check request received', { userId });

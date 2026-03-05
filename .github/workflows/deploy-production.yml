@@ -13,7 +13,8 @@ on:
   workflow_dispatch:
 
 env:
-  SERVER_HOST: root@72.60.10.108
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER }}
   DOMAIN: www.ultrazend.com.br
 
 jobs:
@@ -32,10 +33,11 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
+          SERVER_IP="${VPS_HOST:-72.60.10.108}"
           install -m 700 -d "$HOME/.ssh"
           sudo apt-get update
           sudo apt-get install -y sshpass
-          ssh-keyscan -H 72.60.10.108 >> "$HOME/.ssh/known_hosts"
+          ssh-keyscan -H "$SERVER_IP" >> "$HOME/.ssh/known_hosts"
 
       - name: Test SSH connection
         shell: bash
@@ -43,6 +45,9 @@ jobs:
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
         run: |
           set -eo pipefail
+          SERVER_IP="${VPS_HOST:-72.60.10.108}"
+          SERVER_USER="${VPS_USER:-root}"
+          SERVER_HOST="${SERVER_USER}@${SERVER_IP}"
           if [ -z "$SSHPASS" ]; then
             echo "ERROR: secret VPS_PASSWORD is empty or not configured."
             exit 1
@@ -52,7 +57,7 @@ jobs:
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
-            "${{ env.SERVER_HOST }}" \
+            "$SERVER_HOST" \
             "echo SSH_OK"
 
       - name: Deploy via SSH
@@ -61,16 +66,21 @@ jobs:
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
         run: |
           set -eo pipefail
+          SERVER_IP="${VPS_HOST:-72.60.10.108}"
+          SERVER_USER="${VPS_USER:-root}"
+          SERVER_HOST="${SERVER_USER}@${SERVER_IP}"
           sshpass -e ssh \
             -o ConnectTimeout=20 \
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
-            "${{ env.SERVER_HOST }}" \
+            "$SERVER_HOST" \
             'bash -s' < .github/scripts/deploy-production-remote.sh
 
       - name: Deploy Complete
         run: |
+          SERVER_IP="${VPS_HOST:-72.60.10.108}"
+          SERVER_USER="${VPS_USER:-root}"
           echo "Deploy completed"
           echo "Site: https://${{ env.DOMAIN }}"
-          echo "Server: ${{ env.SERVER_HOST }}"
+          echo "Server: ${SERVER_USER}@${SERVER_IP}"

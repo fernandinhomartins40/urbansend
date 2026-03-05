@@ -1,25 +1,26 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
-  Home,
-  Mail,
+  BarChart3,
+  BookOpen,
   FileText,
   Globe,
-  BarChart3,
-  Webhook,
+  Home,
   Key,
-  BookOpen,
+  Mail,
   Settings,
+  ShieldCheck,
+  Webhook,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useSidebarStore } from '@/lib/store'
+import { useAuthStore, useSidebarStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
   className?: string
 }
 
-const navigation = [
+const baseNavigation = [
   { name: 'Dashboard', href: '/app', icon: Home },
   { name: 'Emails', href: '/app/emails', icon: Mail },
   { name: 'Templates', href: '/app/templates', icon: FileText },
@@ -28,12 +29,16 @@ const navigation = [
   { name: 'Webhooks', href: '/app/webhooks', icon: Webhook },
   { name: 'API Keys', href: '/app/api-keys', icon: Key },
   { name: 'Developers', href: '/app/developers', icon: BookOpen },
-  { name: 'Configurações', href: '/app/settings', icon: Settings },
+  { name: 'Settings', href: '/app/settings', icon: Settings }
 ]
 
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation()
+  const user = useAuthStore((state) => state.user)
   const { isOpen, close } = useSidebarStore()
+  const navigation = user?.is_admin
+    ? [...baseNavigation, { name: 'Super Admin', href: '/app/super-admin', icon: ShieldCheck }]
+    : baseNavigation
 
   const isRouteActive = (href: string) => {
     if (href === '/app') {
@@ -45,26 +50,23 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <>
-      {/* Backdrop for mobile */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
           onClick={close}
           aria-hidden="true"
         />
       )}
-      
-      {/* Sidebar */}
-      <aside 
+
+      <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-background border-r transition-transform duration-200 ease-in-out md:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          'fixed left-0 top-0 z-50 h-screen w-64 bg-background border-r transition-transform duration-200 ease-in-out md:translate-x-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
           className
         )}
-        aria-label="Menu lateral de navegação"
+        aria-label="Sidebar navigation"
       >
         <div className="flex h-full flex-col">
-          {/* Header */}
           <header className="flex items-center justify-between h-16 px-6 border-b">
             <div className="flex items-center space-x-2">
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center" aria-hidden="true">
@@ -72,24 +74,23 @@ export function Sidebar({ className }: SidebarProps) {
               </div>
               <span className="font-bold">UltraZend</span>
             </div>
-            
+
             <Button
               variant="ghost"
               size="icon"
               className="md:hidden"
               onClick={close}
-              aria-label="Fechar menu lateral"
+              aria-label="Close sidebar"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </Button>
           </header>
 
-          {/* Navigation */}
-          <nav className="flex-1 space-y-2 p-4" aria-label="Menu principal">
+          <nav className="flex-1 space-y-2 p-4" aria-label="Main menu">
             {navigation.map((item) => {
               const isActive = isRouteActive(item.href)
               const Icon = item.icon
-              
+
               return (
                 <Link
                   key={item.name}
@@ -100,13 +101,12 @@ export function Sidebar({ className }: SidebarProps) {
                     }
                   }}
                   className={cn(
-                    "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                    'flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
-                  aria-current={isActive ? "page" : undefined}
-                  aria-label={`Navegar para ${item.name}`}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                   <span>{item.name}</span>
@@ -115,14 +115,13 @@ export function Sidebar({ className }: SidebarProps) {
             })}
           </nav>
 
-          {/* Footer */}
           <footer className="p-4 border-t">
-            <div className="rounded-lg bg-accent p-3" role="complementary" aria-label="Informações do plano">
+            <div className="rounded-lg bg-accent p-3" role="complementary" aria-label="Plan info">
               <div className="text-sm font-medium">Plano Gratuito</div>
               <div className="text-xs text-muted-foreground">
-                100 emails/mês restantes
+                100 emails/mes restantes
               </div>
-              <Button size="sm" className="w-full mt-2" aria-label="Fazer upgrade do plano">
+              <Button size="sm" className="w-full mt-2" aria-label="Upgrade plan">
                 Upgrade
               </Button>
             </div>

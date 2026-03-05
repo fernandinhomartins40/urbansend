@@ -6,6 +6,12 @@ import { createClientRequestId, reportFrontendError } from './errorReporter'
 let sessionExpiredToastShown = false
 let sessionExpiredTimeout: NodeJS.Timeout | null = null
 
+const readCookie = (name: string): string | null => {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 const showSessionExpiredToast = () => {
   if (sessionExpiredToastShown) {
     return
@@ -43,6 +49,12 @@ api.interceptors.request.use(
     if (!headers.get('X-Request-ID')) {
       headers.set('X-Request-ID', createClientRequestId())
     }
+
+    const csrfToken = readCookie('csrf_token')
+    if (csrfToken) {
+      headers.set('X-CSRF-Token', csrfToken)
+    }
+
     config.headers = headers
 
     return config
@@ -389,6 +401,74 @@ export const settingsApi = {
     };
   }) =>
     api.put('/settings', data),
+}
+
+export const superAdminApi = {
+  getOverview: () =>
+    api.get('/super-admin/overview'),
+
+  getAccounts: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: 'active' | 'inactive' | 'suspended';
+    plan?: string;
+  }) =>
+    api.get('/super-admin/accounts', { params }),
+
+  getAccount: (accountId: number) =>
+    api.get(`/super-admin/accounts/${accountId}`),
+
+  updateAccountPlan: (accountId: number, data: {
+    plan_name: string;
+    status?: string;
+    monthly_email_limit?: number;
+    api_rate_limit_per_minute?: number;
+    expires_at?: string | null;
+    reason?: string;
+  }) =>
+    api.patch(`/super-admin/accounts/${accountId}/plan`, data),
+
+  updateAccountSecurity: (accountId: number, data: {
+    is_suspended?: boolean;
+    is_under_review?: boolean;
+    email_sending_blocked?: boolean;
+    suspension_reason?: string | null;
+    suspension_ends_at?: string | null;
+    reason?: string;
+  }) =>
+    api.patch(`/super-admin/accounts/${accountId}/security`, data),
+
+  getUsers: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    isActive?: boolean;
+    isAdmin?: boolean;
+  }) =>
+    api.get('/super-admin/users', {
+      params: {
+        ...params,
+        isActive: typeof params?.isActive === 'boolean' ? String(params.isActive) : undefined,
+        isAdmin: typeof params?.isAdmin === 'boolean' ? String(params.isAdmin) : undefined
+      }
+    }),
+
+  updateUserStatus: (userId: number, data: {
+    is_active?: boolean;
+    is_admin?: boolean;
+    reason?: string;
+  }) =>
+    api.patch(`/super-admin/users/${userId}/status`, data),
+
+  getDeliverability: (days: number = 30) =>
+    api.get('/super-admin/deliverability', { params: { days } }),
+
+  getIntegrations: () =>
+    api.get('/super-admin/integrations'),
+
+  getAuditLogs: (params?: { page?: number; limit?: number }) =>
+    api.get('/super-admin/audit', { params }),
 }
 
 export const organizationsApi = {

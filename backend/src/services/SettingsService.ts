@@ -449,7 +449,11 @@ class SettingsService {
         webhook_enabled: payload.webhook_settings?.enabled ?? tenantSettings?.webhook_enabled ?? false,
         webhook_url: payload.webhook_settings?.webhook_url ?? tenantSettings?.webhook_url ?? null,
         webhook_secret: typeof payload.webhook_settings?.webhook_secret === 'string'
-          ? (payload.webhook_settings.webhook_secret || null)
+          ? (
+            payload.webhook_settings.webhook_secret
+              ? encryptSensitiveValue(payload.webhook_settings.webhook_secret)
+              : null
+          )
           : (tenantSettings?.webhook_secret ?? null),
         custom_headers: JSON.stringify(payload.webhook_settings?.custom_headers ?? parseJsonField(tenantSettings?.custom_headers, {}))
       };

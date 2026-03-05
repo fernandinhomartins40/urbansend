@@ -1,11 +1,12 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { authenticateJWT } from '../middleware/auth';
+import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { SmtpConnectionService } from '../services/SmtpConnectionService';
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requirePermission('admin:monitoring'));
 
 // SMTP Connection Service instance
 const smtpConnectionService = new SmtpConnectionService();

@@ -17,6 +17,7 @@ interface WebhookJobData {
 }
 import { TenantContextService } from './TenantContextService';
 import { sqlJsonContainsLike } from '../utils/sqlDialect';
+import { assertSafeWebhookUrl } from '../utils/urlSecurity';
 
 interface WebhookPayload {
   event: string;
@@ -157,6 +158,18 @@ export class WebhookService {
 
   // 🔥 NOVO MÉTODO: Deliver webhook com tenant context
   private async deliverWebhookWithTenant(webhook: any, event: string, data: any, tenantId: number): Promise<void> {
+    try {
+      await assertSafeWebhookUrl(webhook.url);
+    } catch (error) {
+      logger.warn('Blocked webhook delivery due to unsafe URL', {
+        tenantId,
+        webhookId: webhook.id,
+        url: webhook.url,
+        reason: error instanceof Error ? error.message : 'invalid_url'
+      });
+      return;
+    }
+
     const webhookPayload: WebhookPayload = {
       event,
       data,
@@ -252,6 +265,17 @@ export class WebhookService {
 
   // 🔥 MÉTODO MANTIDO: Deliver webhook sem tenant (para compatibilidade)
   private async deliverWebhook(webhook: any, event: string, data: any): Promise<void> {
+    try {
+      await assertSafeWebhookUrl(webhook.url);
+    } catch (error) {
+      logger.warn('Blocked webhook delivery due to unsafe URL', {
+        webhookId: webhook.id,
+        url: webhook.url,
+        reason: error instanceof Error ? error.message : 'invalid_url'
+      });
+      return;
+    }
+
     const webhookPayload: WebhookPayload = {
       event,
       data,

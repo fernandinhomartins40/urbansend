@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { authenticateJWT, AuthenticatedRequest } from '../middleware/auth';
+import { authenticateJWT, AuthenticatedRequest, requirePermission } from '../middleware/auth';
 import { domainVerificationInitializer } from '../services/domainVerificationInitializer';
 import { domainVerificationLogger } from '../services/DomainVerificationLogger';
 import { domainVerificationJob } from '../jobs/domainVerificationJob';
@@ -12,16 +12,6 @@ const asyncHandler = (fn: AsyncRouteHandler) =>
   (req: AuthenticatedRequest, res: Response, next: Function) => {
     Promise.resolve(fn(req, res, next)).catch((error) => next(error));
   };
-
-// Simple admin auth middleware - check if user has admin privileges
-const adminAuth = (req: AuthenticatedRequest, res: Response, next: Function) => {
-  if (!req.user) {
-    return res.status(401).json({ success: false, error: 'Authentication required' });
-  }
-  // In a real app, you'd check user roles/permissions
-  // For now, just allow authenticated users
-  next();
-};
 
 const router = express.Router();
 
@@ -293,7 +283,7 @@ router.post('/verify', asyncHandler(async (req: AuthenticatedRequest, res: Respo
  *       200:
  *         description: Job statistics retrieved successfully
  */
-router.get('/jobs', adminAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/jobs', requirePermission('admin:monitoring'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   try {
     const jobStats = await domainVerificationJob.getJobStats();
     
@@ -331,7 +321,7 @@ router.get('/jobs', adminAuth, asyncHandler(async (req: AuthenticatedRequest, re
  *       200:
  *         description: Alerts retrieved successfully
  */
-router.get('/alerts', adminAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/alerts', requirePermission('admin:monitoring'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   try {
     const alerts = await domainVerificationLogger.checkForRecurringIssues();
     

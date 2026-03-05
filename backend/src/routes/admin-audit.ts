@@ -1,11 +1,12 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest, authenticateJWT } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
 import db from '../config/database';
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requirePermission('admin'));
 
 /**
  * ENDPOINT ADMINISTRATIVO TEMPORÁRIO

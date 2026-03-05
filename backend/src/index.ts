@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { csrfProtectionMiddleware } from './middleware/csrfProtection';
 import { performanceMiddleware, performanceMonitor } from './middleware/performanceMonitoring';
 import { metricsMiddleware, healthCheckMiddleware, metricsEndpointMiddleware } from './middleware/monitoring';
 import { correlationIdMiddleware } from './middleware/correlationId';
@@ -64,6 +65,7 @@ import testIntegrationRoutes from './routes/test-integration';
 import featureFlagsRoutes from './routes/feature-flags';
 import migrationMonitoringRoutes from './routes/migration-monitoring';
 import autoRollbackRoutes from './routes/auto-rollback';
+import superAdminRoutes from './routes/super-admin';
 // Temporarily commented - JS routes need TS conversion
 // import campaignsRoutes from './routes/campaigns';
 // import schedulerRoutes from './routes/scheduler';
@@ -339,7 +341,15 @@ app.use(metricsMiddleware());
 app.use(performanceMiddleware);
 
 // Cookie parsing
-app.use(cookieParser(Env.get('COOKIE_SECRET', 'fallback-secret')));
+const cookieSecret = Env.isProduction
+  ? Env.required('COOKIE_SECRET')
+  : Env.get('COOKIE_SECRET', 'dev-cookie-secret-change-me');
+app.use(cookieParser(cookieSecret));
+
+if (Env.enableCsrfProtection) {
+  app.use('/api', csrfProtectionMiddleware);
+  logger.info('CSRF protection enabled for cookie-authenticated write requests');
+}
 
 // Logging middleware
 app.use((req, _res, next) => {
@@ -391,6 +401,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/organizations', organizationsRoutes);
+app.use('/api/super-admin', superAdminRoutes);
 // Fase 3 - Domain setup routes
 app.use('/api/domain-setup', domainSetupRoutes);
 

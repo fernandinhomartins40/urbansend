@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { EmailAnalyticsService } from '../services/EmailAnalyticsService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
+import { getAccountUserId } from '../utils/accountContext';
 
 const analyticsService = new EmailAnalyticsService();
 
@@ -12,7 +13,7 @@ export class AnalyticsController {
    */
   static getOverview = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getAccountUserId(req);
       const { days = 30, startDate, endDate } = req.query;
 
       let start: Date | undefined;
@@ -61,7 +62,7 @@ export class AnalyticsController {
    */
   static getCampaignMetrics = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getAccountUserId(req);
       const { campaignId } = req.params;
 
       if (!campaignId) {
@@ -94,7 +95,7 @@ export class AnalyticsController {
    */
   static getEngagementData = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getAccountUserId(req);
       const { days = 30, includeGeo = 'true' } = req.query;
 
       const [trends, geoStats] = await Promise.all([
@@ -126,7 +127,7 @@ export class AnalyticsController {
    */
   static getDeliveryStats = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getAccountUserId(req);
       const { startDate, endDate } = req.query;
 
       let start: Date | undefined;
@@ -154,7 +155,7 @@ export class AnalyticsController {
    */
   static getEventAnalytics = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getAccountUserId(req);
       const { eventType } = req.params;
       const { startDate, endDate, limit = 100 } = req.query;
 
@@ -203,7 +204,7 @@ export class AnalyticsController {
    */
   static getRecentActivity = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = req.user!.id;
+      const userId = getAccountUserId(req);
       const { limit = 50 } = req.query;
 
       const activities = await analyticsService.getRecentActivities(userId, Number(limit));

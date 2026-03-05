@@ -45,7 +45,7 @@ router.get('/public',
       }
     });
 
-    const userId = req.user?.id;
+    const userId = req.user ? getAccountUserId(req) : undefined;
     const result = await SharedTemplateService.getPublicTemplates(filters, userId);
     res.json(result);
   })
@@ -217,7 +217,7 @@ router.get('/:id/reviews',
 router.get('/collections',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user?.id;
+    const userId = getAccountUserId(req);
     const isPublic = req.query.public === 'true';
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
@@ -259,7 +259,7 @@ router.get('/collections/:id',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const collectionId = parseInt(req.params.id, 10);
-    const userId = req.user?.id;
+    const userId = getAccountUserId(req);
 
     if (isNaN(collectionId)) {
       return res.status(400).json({ error: 'ID da coleção inválido' });

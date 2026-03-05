@@ -2,8 +2,11 @@ import { Router, Request, Response } from 'express';
 import DKIMService from '../services/dkimService';
 import { Env } from '../utils/env';
 import { logger } from '../config/logger';
+import { authenticateJWT, requirePermission } from '../middleware/auth';
 
 const router = Router();
+router.use(authenticateJWT);
+router.use(requirePermission('admin:monitoring'));
 
 /**
  * @swagger

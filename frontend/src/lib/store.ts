@@ -8,6 +8,7 @@ interface User {
   email: string
   is_verified: boolean
   is_active?: boolean
+  is_admin?: boolean
   active_organization?: {
     id: number | null
     name: string

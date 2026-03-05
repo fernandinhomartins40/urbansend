@@ -12,6 +12,7 @@ import { generateSecretKey, createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
 import { resolveInsertedId } from '../utils/insertedId';
 import { getAccountUserId } from '../utils/accountContext';
+import { assertSafeWebhookUrl } from '../utils/urlSecurity';
 
 const router = Router();
 
@@ -158,6 +159,14 @@ router.post('/',
     return res.status(400).json({ error: 'Webhook URL and at least one event are required' });
   }
 
+  try {
+    await assertSafeWebhookUrl(webhookUrl);
+  } catch (error) {
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid webhook URL'
+    });
+  }
+
   const insertResult = await db('webhooks').insert({
     url: webhookUrl,
     name,
@@ -209,6 +218,14 @@ router.put('/:id',
 
   const webhookUrl = req.body.webhook_url || currentWebhook.url;
   const events = req.body.events ? parseEvents(req.body.events) : parseEvents(currentWebhook.events);
+
+  try {
+    await assertSafeWebhookUrl(webhookUrl);
+  } catch (error) {
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid webhook URL'
+    });
+  }
 
   await db('webhooks')
     .where('id', id)
@@ -291,6 +308,15 @@ router.post('/:id/test', requirePermission('webhook:write'), validateRequest({ p
 
   if (!webhook) {
     return res.status(404).json({ error: 'Webhook não encontrado' });
+  }
+
+  try {
+    await assertSafeWebhookUrl(webhook.url);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Invalid webhook URL'
+    });
   }
 
   const payload = {

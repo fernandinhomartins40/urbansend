@@ -9,6 +9,7 @@ APP_DIR="/var/www/ultrazend"
 STATIC_DIR="/var/www/ultrazend-static"
 PERSIST_ROOT="/var/lib/ultrazend"
 CONFIG_DIR="$PERSIST_ROOT/configs"
+ENV_FILE="$CONFIG_DIR/.env.production"
 LOGS_DIR="$PERSIST_ROOT/logs"
 STORAGE_VOLUME="ultrazend-storage-data"
 POSTGRES_VOLUME="ultrazend-postgres-data"
@@ -16,6 +17,34 @@ POSTGRES_VOLUME="ultrazend-postgres-data"
 BASE_DOMAIN="ultrazend.com.br"
 WWW_DOMAIN="www.ultrazend.com.br"
 DOMAIN="$WWW_DOMAIN"
+
+ensure_env_value() {
+  local key="$1"
+  local value="$2"
+
+  if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+  else
+    echo "${key}=${value}" >> "$ENV_FILE"
+  fi
+}
+
+read_env_value() {
+  local key="$1"
+  local value
+  value="$(grep "^${key}=" "$ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '\r')"
+  echo "$value"
+}
+
+ensure_secret_if_invalid() {
+  local key="$1"
+  local current
+  current="$(read_env_value "$key")"
+
+  if [ -z "$current" ] || [ "${#current}" -lt 32 ] || [ "$current" = "CHANGE_ME" ] || [ "$current" = "CHANGE_ME_GENERATED_BY_DEPLOY" ]; then
+    ensure_env_value "$key" "$(openssl rand -hex 48)"
+  fi
+}
 
 remove_container_if_exists() {
   local container_name="$1"
@@ -59,6 +88,17 @@ echo "Sincronizando configuracoes versionadas para area persistente..."
 if [ -d "$APP_DIR/configs" ]; then
   cp -a "$APP_DIR/configs/." "$CONFIG_DIR/"
 fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  touch "$ENV_FILE"
+fi
+
+ensure_secret_if_invalid "JWT_SECRET"
+ensure_secret_if_invalid "JWT_REFRESH_SECRET"
+ensure_secret_if_invalid "COOKIE_SECRET"
+ensure_secret_if_invalid "APP_ENCRYPTION_KEY"
+ensure_env_value "ENABLE_CSRF_PROTECTION" "true"
+
 mkdir -p "$CONFIG_DIR/dkim-keys"
 chown -R root:root "$CONFIG_DIR/dkim-keys" || true
 chmod -R 644 "$CONFIG_DIR/dkim-keys" || true
@@ -255,6 +295,7 @@ docker run -d \
   --label com.ultrazend.service=backend \
   --restart unless-stopped \
   --network ultrazend-network \
+  --env-file "$ENV_FILE" \
   -p 3001:3001 \
   -m 512m \
   --memory-swap 512m \

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import db from '../config/database';
 import { logger } from '../config/logger';
@@ -28,7 +29,86 @@ const getRefreshCookieOptions = () => ({
   path: '/'
 });
 
+const getCsrfCookieOptions = () => ({
+  httpOnly: false,
+  secure: Env.isProduction,
+  sameSite: 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/'
+});
+
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
+const generateCsrfToken = () => crypto.randomBytes(24).toString('hex');
+
+let refreshTokenTableAvailable: boolean | null = null;
+
+const hasRefreshTokenTable = async (): Promise<boolean> => {
+  if (refreshTokenTableAvailable !== null) {
+    return refreshTokenTableAvailable;
+  }
+
+  try {
+    refreshTokenTableAvailable = await db.schema.hasTable('refresh_tokens');
+    return refreshTokenTableAvailable;
+  } catch {
+    refreshTokenTableAvailable = false;
+    return false;
+  }
+};
+
+const persistRefreshToken = async (
+  userId: number,
+  tokenId: string,
+  expiresAt: Date,
+  req: Request
+) => {
+  if (!(await hasRefreshTokenTable())) {
+    return;
+  }
+
+  await db('refresh_tokens').insert({
+    user_id: userId,
+    token_id: tokenId,
+    expires_at: expiresAt,
+    created_at: new Date(),
+    created_ip: req.ip,
+    user_agent: req.get('User-Agent') || null,
+    is_revoked: false
+  });
+};
+
+const revokeRefreshTokenById = async (tokenId?: string | null) => {
+  if (!tokenId || !(await hasRefreshTokenTable())) {
+    return;
+  }
+
+  await db('refresh_tokens')
+    .where('token_id', tokenId)
+    .where('is_revoked', false)
+    .update({
+      is_revoked: true,
+      revoked_at: new Date()
+    });
+};
+
+const validateStoredRefreshToken = async (userId: number, tokenId?: string): Promise<boolean> => {
+  if (!(await hasRefreshTokenTable())) {
+    return true;
+  }
+
+  if (!tokenId) {
+    return false;
+  }
+
+  const token = await db('refresh_tokens')
+    .where('token_id', tokenId)
+    .where('user_id', userId)
+    .where('is_revoked', false)
+    .where('expires_at', '>', new Date())
+    .first();
+
+  return Boolean(token);
+};
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, password } = req.body;
@@ -189,7 +269,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   // Generate tokens
   const accessToken = generateJWT({ userId: user.id, email: user.email });
-  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email });
+  const refreshTokenId = crypto.randomUUID();
+  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email, tokenId: refreshTokenId });
+  const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const csrfToken = generateCsrfToken();
 
   // Update last login
   await db('users').where('id', user.id).update({ updated_at: new Date() });
@@ -197,6 +280,9 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // Set secure HTTP-only cookies instead of returning tokens in body
   res.cookie('access_token', accessToken, getCookieOptions());
   res.cookie('refresh_token', refreshToken, getRefreshCookieOptions());
+  res.cookie('csrf_token', csrfToken, getCsrfCookieOptions());
+
+  await persistRefreshToken(user.id, refreshTokenId, refreshTokenExpiresAt, req);
 
   logger.info('User logged in successfully', { userId: user.id, email });
 
@@ -206,7 +292,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      is_verified: user.is_verified
+      is_verified: user.is_verified,
+      is_admin: Boolean(user.is_admin)
     }
   });
 });
@@ -400,6 +487,16 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const logout = asyncHandler(async (_req: Request, res: Response) => {
+  try {
+    const refreshToken = _req.cookies.refresh_token;
+    if (refreshToken) {
+      const decoded = jwt.verify(refreshToken, Env.jwtRefreshSecret) as any;
+      await revokeRefreshTokenById(decoded?.tokenId);
+    }
+  } catch {
+    // Ignore invalid refresh token during logout cleanup.
+  }
+
   // Clear authentication cookies
   res.clearCookie('access_token', {
     httpOnly: true,
@@ -415,24 +512,31 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
     path: '/'
   });
 
+  res.clearCookie('csrf_token', {
+    httpOnly: false,
+    secure: Env.isProduction,
+    sameSite: 'lax',
+    path: '/'
+  });
+
   res.json({
     message: 'Logged out successfully'
   });
 });
 
 export const refreshToken = asyncHandler(async (req: Request, res: Response) => {
-  const refreshToken = req.cookies.refresh_token;
+  const refreshTokenCookie = req.cookies.refresh_token;
   
-  if (!refreshToken) {
+  if (!refreshTokenCookie) {
     throw createError('Refresh token not provided', 401);
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, Env.jwtRefreshSecret) as any;
+    const decoded = jwt.verify(refreshTokenCookie, Env.jwtRefreshSecret) as any;
     
     // Find user
   const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified', 'is_active')
+      .select('id', 'email', 'name', 'is_verified', 'is_active', 'is_admin')
       .where('id', decoded.userId)
       .first();
 
@@ -448,11 +552,31 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
       throw createError('Account is inactive', 403);
     }
 
+    const refreshTokenId = decoded?.tokenId as string | undefined;
+    const isStoredTokenValid = await validateStoredRefreshToken(user.id, refreshTokenId);
+    if (!isStoredTokenValid) {
+      throw createError('Invalid refresh token', 401);
+    }
+
+    // Rotate refresh token
+    await revokeRefreshTokenById(refreshTokenId);
+    const nextRefreshTokenId = crypto.randomUUID();
+    const nextRefreshToken = generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      tokenId: nextRefreshTokenId
+    });
+    const refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await persistRefreshToken(user.id, nextRefreshTokenId, refreshTokenExpiresAt, req);
+
     // Generate new access token
     const newAccessToken = generateJWT({ userId: user.id, email: user.email });
+    const csrfToken = generateCsrfToken();
     
-    // Set new access token cookie
+    // Set refreshed cookie set
     res.cookie('access_token', newAccessToken, getCookieOptions());
+    res.cookie('refresh_token', nextRefreshToken, getRefreshCookieOptions());
+    res.cookie('csrf_token', csrfToken, getCsrfCookieOptions());
 
     res.json({
       message: 'Token refreshed successfully',
@@ -460,13 +584,28 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
         id: user.id,
         name: user.name,
         email: user.email,
-        is_verified: user.is_verified
+        is_verified: user.is_verified,
+        is_admin: Boolean(user.is_admin)
       }
     });
   } catch (error) {
     // Clear invalid refresh token
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: Env.isProduction,
+      sameSite: 'lax',
+      path: '/'
+    });
+
     res.clearCookie('refresh_token', {
       httpOnly: true,
+      secure: Env.isProduction,
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    res.clearCookie('csrf_token', {
+      httpOnly: false,
       secure: Env.isProduction,
       sameSite: 'lax',
       path: '/'
@@ -478,7 +617,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const user = await db('users')
-    .select('id', 'name', 'email', 'is_verified', 'is_active', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'is_verified', 'is_active', 'is_admin', 'created_at', 'updated_at')
     .where('id', req.user!.id)
     .first();
 

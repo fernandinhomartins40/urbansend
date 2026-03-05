@@ -15,6 +15,7 @@ export interface AuthenticatedRequest extends Request {
     id: number;
     email: string;
     name: string;
+    is_admin?: boolean;
     permissions?: string[];
     account_id?: number;
     organization_id?: number | null;
@@ -75,7 +76,7 @@ export const authenticateJWT = async (
     const requestedOrganizationId = Number(req.headers['x-organization-id'] || 0) || undefined;
 
     const user = await db('users')
-      .select('id', 'email', 'name', 'is_verified', 'is_active', 'permissions')
+      .select('id', 'email', 'name', 'is_verified', 'is_active', 'permissions', 'is_admin')
       .where('id', decoded.userId)
       .first();
 
@@ -97,6 +98,7 @@ export const authenticateJWT = async (
       id: user.id,
       email: user.email,
       name: user.name,
+      is_admin: Boolean(user.is_admin),
       permissions: permissionsFromJson(user.permissions),
       account_id: workspaceContext.accountUserId,
       organization_id: workspaceContext.organizationId,
@@ -148,6 +150,7 @@ export const authenticateApiKey = async (
         'users.id as user_id',
         'users.email',
         'users.name',
+        'users.is_admin as user_is_admin',
         'users.is_verified as user_is_verified',
         'users.is_active as user_is_active'
       )
@@ -219,6 +222,7 @@ export const authenticateApiKey = async (
       id: apiKey.user_id,
       email: apiKey.email,
       name: apiKey.name,
+      is_admin: Boolean(apiKey.user_is_admin),
       permissions,
       account_id: workspaceContext.accountUserId,
       organization_id: workspaceContext.organizationId,
@@ -245,6 +249,29 @@ export const authenticateApiKey = async (
 
 export const requirePermission = (permission: string) => {
   return (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+    // Workspace members can read/shared-operate, but account-level write permissions
+    // require owner/admin role to avoid privilege escalation inside shared workspaces.
+    const memberRestrictedPermissions = new Set([
+      'domain:write',
+      'domain:manage',
+      'webhook:write',
+      'api_key:write',
+      'settings:write',
+      'admin',
+      'platform:super_admin',
+      'admin:dkim',
+      'admin:scheduler',
+      'admin:monitoring',
+      'admin:feature_flags'
+    ]);
+
+    if (
+      req.user?.organization_role === 'member'
+      && memberRestrictedPermissions.has(permission)
+    ) {
+      throw createError('Workspace member role cannot perform this action', 403);
+    }
+
     if (req.user && hasPermission(req.user.permissions, permission)) {
       return next();
     }
@@ -254,6 +281,23 @@ export const requirePermission = (permission: string) => {
     }
 
     throw createError('Insufficient permissions', 403);
+  };
+};
+
+export const requireSuperAdmin = () => {
+  return (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const hasPlatformPermission = hasPermission(req.user.permissions, 'platform:super_admin');
+    const hasAdminPermission = hasPermission(req.user.permissions, 'admin');
+
+    if (req.user.is_admin || hasPlatformPermission || hasAdminPermission) {
+      return next();
+    }
+
+    throw createError('Super admin access required', 403);
   };
 };
 
