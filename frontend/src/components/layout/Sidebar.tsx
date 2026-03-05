@@ -8,12 +8,11 @@ import {
   Key,
   Mail,
   Settings,
-  ShieldCheck,
   Webhook,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useAuthStore, useSidebarStore } from '@/lib/store'
+import { useSidebarStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -34,11 +33,8 @@ const baseNavigation = [
 
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation()
-  const user = useAuthStore((state) => state.user)
   const { isOpen, close } = useSidebarStore()
-  const navigation = user?.is_superadmin
-    ? [...baseNavigation, { name: 'Super Admin', href: '/app/super-admin', icon: ShieldCheck }]
-    : baseNavigation
+  const navigation = baseNavigation
 
   const isRouteActive = (href: string) => {
     if (href === '/app') {

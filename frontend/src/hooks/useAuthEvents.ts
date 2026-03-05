@@ -11,14 +11,16 @@ export const useAuthEvents = () => {
 
   useEffect(() => {
     const handleSessionExpired = async () => {
+      const wasInSuperAdmin = window.location.pathname.startsWith('/super-admin');
       // Clear authentication state immediately
       await logout();
       // Then redirect to login
-      secureRedirect('/login');
+      secureRedirect(wasInSuperAdmin ? '/super-admin/login' : '/login');
     };
 
     const handleLogout = () => {
-      secureRedirect('/');
+      const fromSuperAdmin = window.location.pathname.startsWith('/super-admin');
+      secureRedirect(fromSuperAdmin ? '/super-admin/login' : '/');
     };
 
     // Listen for auth events

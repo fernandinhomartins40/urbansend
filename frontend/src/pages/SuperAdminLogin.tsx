@@ -35,7 +35,7 @@ export function SuperAdminLogin() {
 
   useEffect(() => {
     if (isAuthenticated && user?.is_superadmin && user?.session_scope === 'super_admin') {
-      navigate('/app/super-admin', { replace: true })
+      navigate('/super-admin/overview', { replace: true })
       return
     }
 
@@ -53,7 +53,7 @@ export function SuperAdminLogin() {
       login(response.data.user)
       toast.dismiss(loadingToast)
       toast.success('Login de super admin realizado com sucesso')
-      navigate('/app/super-admin', { replace: true })
+      navigate('/super-admin/overview', { replace: true })
     } catch (error: any) {
       toast.dismiss(loadingToast)
       const message = error?.response?.data?.message || 'Falha no login de super admin'

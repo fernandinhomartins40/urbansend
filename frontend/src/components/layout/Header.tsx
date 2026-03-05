@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Menu, Bell, User, LogOut, Settings, ShieldCheck } from 'lucide-react'
+import { Menu, Bell, User, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore, useSidebarStore, useNotificationStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -120,18 +120,6 @@ export function Header({ className }: HeaderProps) {
                 >
                   API Keys
                 </Link>
-
-                {user?.is_superadmin && (
-                  <Link
-                    to="/app/super-admin"
-                    className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
-                    onClick={() => setShowUserMenu(false)}
-                  >
-                    <ShieldCheck className="h-4 w-4 mr-2" />
-                    Super Admin
-                  </Link>
-                )}
-                
                 <button
                   onClick={() => {
                     logout()

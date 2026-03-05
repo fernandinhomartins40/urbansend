@@ -35,14 +35,24 @@ const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m
 const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.Webhooks })));
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const DeveloperDocs = lazy(() => import('./pages/DeveloperDocs').then(m => ({ default: m.DeveloperDocs })));
-const SuperAdmin = lazy(() => import('./pages/SuperAdmin').then(m => ({ default: m.SuperAdmin })));
 const SuperAdminLogin = lazy(() => import('./pages/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
+const SuperAdminLayout = lazy(() => import('./modules/super-admin/SuperAdminLayout').then(m => ({ default: m.SuperAdminLayout })));
+const SuperAdminOverviewPage = lazy(() => import('./modules/super-admin/pages/SuperAdminOverviewPage').then(m => ({ default: m.SuperAdminOverviewPage })));
+const SuperAdminAccountsPage = lazy(() => import('./modules/super-admin/pages/SuperAdminAccountsPage').then(m => ({ default: m.SuperAdminAccountsPage })));
+const SuperAdminUsersPage = lazy(() => import('./modules/super-admin/pages/SuperAdminUsersPage').then(m => ({ default: m.SuperAdminUsersPage })));
+const SuperAdminDeliverabilityPage = lazy(() => import('./modules/super-admin/pages/SuperAdminDeliverabilityPage').then(m => ({ default: m.SuperAdminDeliverabilityPage })));
+const SuperAdminIntegrationsPage = lazy(() => import('./modules/super-admin/pages/SuperAdminIntegrationsPage').then(m => ({ default: m.SuperAdminIntegrationsPage })));
+const SuperAdminAuditPage = lazy(() => import('./modules/super-admin/pages/SuperAdminAuditPage').then(m => ({ default: m.SuperAdminAuditPage })));
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
+function AppRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (user?.session_scope === 'super_admin') {
+    return <Navigate to="/super-admin/overview" replace />
   }
 
   return <>{children}</>
@@ -52,6 +62,10 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore()
   const location = useLocation()
   
+  if (isAuthenticated && user?.session_scope === 'super_admin') {
+    return <Navigate to="/super-admin/overview" replace />
+  }
+
   // Allow access to login page if user is specifically on login route or if user data is missing
   // This prevents redirect loops when session expires but localStorage still shows authenticated
   if (
@@ -76,11 +90,7 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/super-admin/login" replace />
   }
 
-  if (!user?.is_superadmin) {
-    return <Navigate to="/app" replace />
-  }
-
-  if (user.session_scope !== 'super_admin') {
+  if (!user?.is_superadmin || user.session_scope !== 'super_admin') {
     return <Navigate to="/super-admin/login" replace />
   }
 
@@ -119,6 +129,66 @@ function AppRoutes() {
                   </Suspense>
                 }
               />
+              <Route
+                path="/super-admin"
+                element={
+                  <SuperAdminRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminLayout />
+                    </Suspense>
+                  </SuperAdminRoute>
+                }
+              >
+                <Route index element={<Navigate to="/super-admin/overview" replace />} />
+                <Route
+                  path="overview"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminOverviewPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="accounts"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminAccountsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="users"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminUsersPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="deliverability"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminDeliverabilityPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="integrations"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminIntegrationsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="audit"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminAuditPage />
+                    </Suspense>
+                  }
+                />
+              </Route>
               <Route 
                 path="/verify-email" 
                 element={
@@ -152,9 +222,9 @@ function AppRoutes() {
               <Route
                 path="/app"
                 element={
-                  <ProtectedRoute>
+                  <AppRoute>
                     <MainLayout />
-                  </ProtectedRoute>
+                  </AppRoute>
                 }
               >
                 <Route 
@@ -248,16 +318,6 @@ function AppRoutes() {
                       <SettingsPage />
                     </Suspense>
                   } 
-                />
-                <Route
-                  path="super-admin"
-                  element={
-                    <SuperAdminRoute>
-                      <Suspense fallback={<LoadingSpinner />}>
-                        <SuperAdmin />
-                      </Suspense>
-                    </SuperAdminRoute>
-                  }
                 />
               </Route>
 
