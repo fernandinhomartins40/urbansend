@@ -13,6 +13,8 @@ const db = knexFactory(config);
 const SUPER_ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || 'superadmin@ultrazend.com.br').trim().toLowerCase();
 const SUPER_ADMIN_NAME = String(process.env.SUPER_ADMIN_NAME || 'UltraZend Super Admin').trim();
 const DEFAULT_DEV_PASSWORD = 'SuperAdmin@123!';
+const SUPER_ADMIN_FORCE_PASSWORD_RESET = ['1', 'true', 'yes', 'on']
+  .includes(String(process.env.SUPER_ADMIN_FORCE_PASSWORD_RESET || '').trim().toLowerCase());
 
 const resolvePassword = () => {
   const envPassword = String(process.env.SUPER_ADMIN_PASSWORD || '').trim();
@@ -61,8 +63,15 @@ const ensurePlatformAdminProfilesTable = async () => {
 const run = async () => {
   const password = resolvePassword();
   const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || 12);
-  const passwordHash = await bcrypt.hash(password, saltRounds);
+  let passwordHashCache = null;
+  const getPasswordHash = async () => {
+    if (!passwordHashCache) {
+      passwordHashCache = await bcrypt.hash(password, saltRounds);
+    }
+    return passwordHashCache;
+  };
   const now = new Date();
+  let passwordUpdated = false;
 
   await ensureUsersSuperAdminColumn();
   await ensurePlatformAdminProfilesTable();
@@ -75,22 +84,28 @@ const run = async () => {
     let superAdminId;
     if (existing) {
       superAdminId = Number(existing.id);
+      const updatePayload = {
+        name: SUPER_ADMIN_NAME,
+        is_verified: true,
+        is_active: true,
+        is_admin: true,
+        is_superadmin: true,
+        updated_at: now
+      };
+
+      if (SUPER_ADMIN_FORCE_PASSWORD_RESET || !existing.password_hash) {
+        updatePayload.password_hash = await getPasswordHash();
+        passwordUpdated = true;
+      }
+
       await trx('users')
         .where('id', superAdminId)
-        .update({
-          name: SUPER_ADMIN_NAME,
-          password_hash: passwordHash,
-          is_verified: true,
-          is_active: true,
-          is_admin: true,
-          is_superadmin: true,
-          updated_at: now
-        });
+        .update(updatePayload);
     } else {
       const insertPayload = {
         name: SUPER_ADMIN_NAME,
         email: SUPER_ADMIN_EMAIL,
-        password_hash: passwordHash,
+        password_hash: await getPasswordHash(),
         is_verified: true,
         is_active: true,
         is_admin: true,
@@ -108,6 +123,7 @@ const run = async () => {
 
       const first = Array.isArray(inserted) ? inserted[0] : inserted;
       superAdminId = typeof first === 'object' && first !== null ? Number(first.id) : Number(first);
+      passwordUpdated = true;
     }
 
     await trx('platform_admin_profiles')
@@ -136,7 +152,7 @@ const run = async () => {
     }
   });
 
-  console.log(`Super admin seed applied for ${SUPER_ADMIN_EMAIL}`);
+  console.log(`Super admin seed applied for ${SUPER_ADMIN_EMAIL} (password ${passwordUpdated ? 'updated' : 'preserved'})`);
 };
 
 run()

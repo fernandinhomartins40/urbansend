@@ -46,6 +46,16 @@ ensure_secret_if_invalid() {
   fi
 }
 
+ensure_secret_if_missing() {
+  local key="$1"
+  local current
+  current="$(read_env_value "$key")"
+
+  if [ -z "$current" ] || [ "$current" = "CHANGE_ME" ] || [ "$current" = "CHANGE_ME_GENERATED_BY_DEPLOY" ]; then
+    ensure_env_value "$key" "$(openssl rand -hex 48)"
+  fi
+}
+
 remove_container_if_exists() {
   local container_name="$1"
   if docker ps -aq --filter "name=^/${container_name}$" | grep -q .; then
@@ -103,7 +113,7 @@ fi
 if [ -z "$(read_env_value "SUPER_ADMIN_NAME")" ]; then
   ensure_env_value "SUPER_ADMIN_NAME" "UltraZend Super Admin"
 fi
-ensure_secret_if_invalid "SUPER_ADMIN_PASSWORD"
+ensure_secret_if_missing "SUPER_ADMIN_PASSWORD"
 ensure_env_value "ENABLE_CSRF_PROTECTION" "true"
 
 mkdir -p "$CONFIG_DIR/dkim-keys"
