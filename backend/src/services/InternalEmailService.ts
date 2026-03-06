@@ -1,4 +1,4 @@
-import { IEmailService, EmailResult, SystemNotification } from './IEmailService';
+import { IEmailService, EmailResult, PasswordResetEmailOptions, SystemNotification } from './IEmailService';
 import { SMTPDeliveryService } from './smtpDelivery';
 import { logger } from '../config/logger';
 import { Env } from '../utils/env';
@@ -10,6 +10,8 @@ export interface InternalEmailServiceOptions {
   dkimDomain?: string;
   enableTracking?: boolean;
 }
+
+type PasswordResetScope = 'app' | 'super_admin';
 
 /**
  * Serviço de email interno para emails da aplicação
@@ -85,22 +87,31 @@ export class InternalEmailService implements IEmailService {
    * @param name - Nome do usuário
    * @param resetUrl - URL para reset de senha
    */
-  async sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<void> {
+  async sendPasswordResetEmail(
+    email: string,
+    name: string,
+    resetUrl: string,
+    options: PasswordResetEmailOptions = {}
+  ): Promise<void> {
     try {
+      const copy = this.getPasswordResetCopy(options);
+
       logger.info('Sending password reset email', {
         to: email,
-        name: name.substring(0, 3) + '***'
+        name: name.substring(0, 3) + '***',
+        scope: copy.scope
       });
 
       const emailData = {
         from: this.defaultFrom,
         to: email,
-        subject: 'Redefinir sua senha - UltraZend',
-        html: this.generatePasswordResetEmailHTML(name, resetUrl),
-        text: this.generatePasswordResetEmailText(name, resetUrl),
+        subject: copy.subject,
+        html: this.generatePasswordResetEmailHTML(name, resetUrl, copy),
+        text: this.generatePasswordResetEmailText(name, resetUrl, copy),
         headers: {
           'X-Email-Type': 'password_reset',
-          'X-UltraZend-Service': 'internal'
+          'X-UltraZend-Service': 'internal',
+          'X-Reset-Scope': copy.scope
         }
       };
 
@@ -110,11 +121,12 @@ export class InternalEmailService implements IEmailService {
         throw new Error('SMTP delivery failed');
       }
 
-      logger.info('Password reset email sent successfully', { to: email });
+      logger.info('Password reset email sent successfully', { to: email, scope: copy.scope });
     } catch (error) {
       logger.error('Failed to send password reset email', {
         to: email,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        scope: options.scope || 'app'
       });
       throw error;
     }
@@ -211,6 +223,46 @@ export class InternalEmailService implements IEmailService {
     return `${baseUrl}/verify-email?token=${token}`;
   }
 
+  private buildLoginUrl(scope: PasswordResetScope): string {
+    const baseUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+    const loginPath = scope === 'super_admin' ? '/super-admin/login' : '/login';
+    return `${baseUrl}${loginPath}`;
+  }
+
+  private getPasswordResetCopy(options: PasswordResetEmailOptions) {
+    const scope: PasswordResetScope = options.scope === 'super_admin' ? 'super_admin' : 'app';
+    const expiresInLabel = options.expiresInLabel || '1 hora';
+    const loginUrl = options.loginUrl || this.buildLoginUrl(scope);
+
+    if (scope === 'super_admin') {
+      return {
+        scope,
+        subject: 'Recuperacao de acesso Super Admin - UltraZend',
+        headline: 'Recuperar acesso ao Painel Super Admin',
+        intro: 'Recebemos uma solicitacao para redefinir a senha do seu painel Super Admin da UltraZend.',
+        buttonLabel: 'Redefinir senha Super Admin',
+        fallbackLabel: 'Se preferir, abra este link diretamente no navegador:',
+        ignoreMessage: 'Se voce nao solicitou esta redefinicao, ignore este email e revise os acessos administrativos.',
+        expiryMessage: `Este link expira em ${expiresInLabel} e so funciona no modulo dedicado do Super Admin.`,
+        loginLabel: 'Apos redefinir a senha, acesse o login do Super Admin em:',
+        loginUrl
+      };
+    }
+
+    return {
+      scope,
+      subject: 'Redefinir sua senha - UltraZend',
+      headline: 'Redefinir Senha',
+      intro: 'Recebemos uma solicitacao para redefinir a senha da sua conta UltraZend.',
+      buttonLabel: 'Redefinir Senha',
+      fallbackLabel: 'Se voce nao conseguir clicar no botao, copie e cole este link no seu navegador:',
+      ignoreMessage: 'Se voce nao solicitou a redefinicao de senha, pode ignorar este email.',
+      expiryMessage: `Este link expira em ${expiresInLabel} por motivos de seguranca.`,
+      loginLabel: 'Apos redefinir a senha, voce pode entrar novamente em:',
+      loginUrl
+    };
+  }
+
   /**
    * Gera HTML para email de verificação
    * 
@@ -298,7 +350,11 @@ https://ultrazend.com.br
    * @param resetUrl - URL de reset
    * @returns HTML do email
    */
-  private generatePasswordResetEmailHTML(name: string, resetUrl: string): string {
+  private generatePasswordResetEmailHTML(
+    name: string,
+    resetUrl: string,
+    copy: ReturnType<InternalEmailService['getPasswordResetCopy']>
+  ): string {
     const html = `
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -352,7 +408,11 @@ https://ultrazend.com.br
    * @param resetUrl - URL de reset
    * @returns Texto do email
    */
-  private generatePasswordResetEmailText(name: string, resetUrl: string): string {
+  private generatePasswordResetEmailText(
+    name: string,
+    resetUrl: string,
+    copy: ReturnType<InternalEmailService['getPasswordResetCopy']>
+  ): string {
     return `
 UltraZend - Redefinir Senha
 

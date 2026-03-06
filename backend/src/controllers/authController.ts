@@ -40,6 +40,14 @@ const getCsrfCookieOptions = () => ({
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const generateCsrfToken = () => crypto.randomBytes(24).toString('hex');
 type SessionScope = 'app' | 'super_admin';
+type ResetPasswordScope = SessionScope;
+
+const RESET_PASSWORD_TOKEN_PREFIX: Record<ResetPasswordScope, string> = {
+  app: 'app_',
+  super_admin: 'sadm_'
+};
+
+const RESET_PASSWORD_TTL_MS = 60 * 60 * 1000;
 
 let refreshTokenTableAvailable: boolean | null = null;
 
@@ -482,7 +490,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const buildPasswordResetUrl = (token: string, scope: SessionScope = 'app'): string => {
-  const frontendUrl = process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br';
+  const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
   const resetPath = scope === 'super_admin'
     ? '/super-admin/reset-password'
     : '/reset-password';
@@ -490,21 +498,65 @@ const buildPasswordResetUrl = (token: string, scope: SessionScope = 'app'): stri
   return `${frontendUrl}${resetPath}?token=${token}`;
 };
 
+const buildLoginUrl = (scope: SessionScope = 'app') => {
+  const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+  const loginPath = scope === 'super_admin' ? '/super-admin/login' : '/login';
+  return `${frontendUrl}${loginPath}`;
+};
+
+const generateResetPasswordToken = (scope: ResetPasswordScope): string =>
+  `${RESET_PASSWORD_TOKEN_PREFIX[scope]}${generateVerificationToken()}`;
+
+const isLegacyResetPasswordToken = (token: string) => !token.includes('_');
+
+const isResetPasswordTokenValidForScope = (token: string, scope: ResetPasswordScope) =>
+  isLegacyResetPasswordToken(token) || token.startsWith(RESET_PASSWORD_TOKEN_PREFIX[scope]);
+
 const schedulePasswordResetEmail = (
   email: string,
   name: string,
   resetUrl: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown> & {
+    scope?: ResetPasswordScope;
+    expiresInLabel?: string;
+  }
 ) => {
   setImmediate(async () => {
     try {
       const internalEmailService = new InternalEmailService();
-      await internalEmailService.sendPasswordResetEmail(email, name, resetUrl);
+      await internalEmailService.sendPasswordResetEmail(email, name, resetUrl, {
+        scope: metadata?.scope || 'app',
+        loginUrl: buildLoginUrl(metadata?.scope || 'app'),
+        expiresInLabel: metadata?.expiresInLabel || '1 hora'
+      });
       logger.info('Reset password email sent successfully', { email, ...metadata });
     } catch (error) {
       logger.error('Failed to send reset password email', { error, email, ...metadata });
     }
   });
+};
+
+const sendPasswordResetEmailNow = async (
+  email: string,
+  name: string,
+  resetUrl: string,
+  metadata?: Record<string, unknown> & {
+    scope?: ResetPasswordScope;
+    expiresInLabel?: string;
+  }
+) => {
+  try {
+    const internalEmailService = new InternalEmailService();
+    await internalEmailService.sendPasswordResetEmail(email, name, resetUrl, {
+      scope: metadata?.scope || 'app',
+      loginUrl: buildLoginUrl(metadata?.scope || 'app'),
+      expiresInLabel: metadata?.expiresInLabel || '1 hora'
+    });
+    logger.info('Reset password email sent successfully', { email, ...metadata });
+  } catch (error) {
+    logger.error('Failed to send reset password email', { error, email, ...metadata });
+    throw createError('Nao foi possivel enviar o email de recuperacao no momento.', 503);
+  }
 };
 
 const resetPasswordSuccessResponse = (res: Response) => {
@@ -524,18 +576,46 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     });
   }
 
+  if (Boolean(user.is_superadmin)) {
+    const resetToken = generateResetPasswordToken('super_admin');
+
+    await db('users').where('id', user.id).update({
+      reset_password_token: resetToken,
+      reset_password_expires: new Date(Date.now() + RESET_PASSWORD_TTL_MS),
+      updated_at: new Date()
+    });
+
+    const resetUrl = buildPasswordResetUrl(resetToken, 'super_admin');
+    await sendPasswordResetEmailNow(email, user.name, resetUrl, {
+      scope: 'super_admin',
+      userId: user.id,
+      source: 'app_forgot_password_redirect',
+      expiresInLabel: '1 hora'
+    });
+
+    logger.warn('Super admin password reset redirected from app flow', { email, userId: user.id });
+
+    return res.json({
+      message: 'If an account with that email exists, we have sent a password reset link.'
+    });
+  }
+
   // Generate reset token
-  const resetToken = generateVerificationToken();
+  const resetToken = generateResetPasswordToken('app');
 
   // Store reset token in database with expiration
   await db('users').where('id', user.id).update({
     reset_password_token: resetToken,
-    reset_password_expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    reset_password_expires: new Date(Date.now() + RESET_PASSWORD_TTL_MS),
     updated_at: new Date()
   });
 
   const resetUrl = buildPasswordResetUrl(resetToken, 'app');
-  schedulePasswordResetEmail(email, user.name, resetUrl, { scope: 'app', userId: user.id });
+  schedulePasswordResetEmail(email, user.name, resetUrl, {
+    scope: 'app',
+    userId: user.id,
+    expiresInLabel: '1 hora'
+  });
 
   logger.info('Password reset requested', { email });
 
@@ -558,16 +638,20 @@ export const superAdminForgotPassword = asyncHandler(async (req: Request, res: R
     });
   }
 
-  const resetToken = generateVerificationToken();
+  const resetToken = generateResetPasswordToken('super_admin');
 
   await db('users').where('id', user.id).update({
     reset_password_token: resetToken,
-    reset_password_expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    reset_password_expires: new Date(Date.now() + RESET_PASSWORD_TTL_MS),
     updated_at: new Date()
   });
 
   const resetUrl = buildPasswordResetUrl(resetToken, 'super_admin');
-  schedulePasswordResetEmail(email, user.name, resetUrl, { scope: 'super_admin', userId: user.id });
+  await sendPasswordResetEmailNow(email, user.name, resetUrl, {
+    scope: 'super_admin',
+    userId: user.id,
+    expiresInLabel: '1 hora'
+  });
 
   logger.warn('Super admin password reset requested', { email, userId: user.id });
 
@@ -579,6 +663,10 @@ export const superAdminForgotPassword = asyncHandler(async (req: Request, res: R
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   const { token, password } = req.body;
 
+  if (!isResetPasswordTokenValidForScope(token, 'app')) {
+    throw createError('Invalid or expired reset token', 400);
+  }
+
   // Verify token and find user
   const user = await db('users')
     .where('reset_password_token', token)
@@ -587,6 +675,10 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
   if (!user) {
     throw createError('Invalid or expired reset token', 400);
+  }
+
+  if (Boolean(user.is_superadmin)) {
+    throw createError('Use the dedicated super admin reset flow', 400);
   }
 
   // Hash new password
@@ -606,6 +698,10 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
 export const superAdminResetPassword = asyncHandler(async (req: Request, res: Response) => {
   const { token, password } = req.body;
+
+  if (!isResetPasswordTokenValidForScope(token, 'super_admin')) {
+    throw createError('Invalid or expired reset token', 400);
+  }
 
   const user = await db('users')
     .where('reset_password_token', token)

@@ -26,7 +26,8 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
     jest.clearAllMocks();
     
     // Mock do método sendPasswordResetEmail
-    mockSendPasswordReset = jest.fn().mockResolvedValue(undefined);
+    mockSendPasswordReset = jest.fn() as any;
+    mockSendPasswordReset.mockResolvedValue(undefined);
     (InternalEmailService as jest.MockedClass<typeof InternalEmailService>)
       .mockImplementation(() => ({
         sendPasswordResetEmail: mockSendPasswordReset,
@@ -39,13 +40,13 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
     mockDbQuery = jest.fn();
     (db as any).mockImplementation(() => ({
       where: jest.fn().mockReturnThis(),
-      first: jest.fn().mockResolvedValue({
+      first: (jest.fn() as any).mockResolvedValue({
         id: 1,
         email: 'test@example.com',
         name: 'Test User',
         is_verified: true
       }),
-      update: jest.fn().mockResolvedValue(1)
+      update: (jest.fn() as any).mockResolvedValue(1)
     }));
   });
 
@@ -155,7 +156,8 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
   describe('User Registration Email Functionality', () => {
     it('should use InternalEmailService for registration verification', async () => {
       // Verificar se o registro também foi corrigido para usar InternalEmailService
-      const mockSendVerification = jest.fn().mockResolvedValue(undefined);
+      const mockSendVerification = jest.fn() as any;
+      mockSendVerification.mockResolvedValue(undefined);
       (InternalEmailService as jest.MockedClass<typeof InternalEmailService>)
         .mockImplementation(() => ({
           sendPasswordResetEmail: mockSendPasswordReset,
@@ -218,7 +220,7 @@ describe('AuthController - Integration Tests', () => {
         expect(mockCallback).toHaveBeenCalled();
         done();
       } catch (error) {
-        done(error);
+        done(error as Error);
       }
     });
   });

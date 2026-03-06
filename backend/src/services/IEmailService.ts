@@ -47,6 +47,12 @@ export interface EmailStats {
   modificationRate: number;
 }
 
+export interface PasswordResetEmailOptions {
+  scope?: 'app' | 'super_admin';
+  loginUrl?: string;
+  expiresInLabel?: string;
+}
+
 /**
  * Interface comum para todos os serviços de email
  */
@@ -64,7 +70,12 @@ export interface IEmailService {
   /**
    * Envia email de reset de senha (específico para InternalEmailService)
    */
-  sendPasswordResetEmail?(email: string, name: string, resetUrl: string): Promise<void>;
+  sendPasswordResetEmail?(
+    email: string,
+    name: string,
+    resetUrl: string,
+    options?: PasswordResetEmailOptions
+  ): Promise<void>;
   
   /**
    * Envia notificações do sistema (específico para InternalEmailService)

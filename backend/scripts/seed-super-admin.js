@@ -15,6 +15,10 @@ const SUPER_ADMIN_NAME = String(process.env.SUPER_ADMIN_NAME || 'UltraZend Super
 const DEFAULT_DEV_PASSWORD = 'SuperAdmin@123!';
 const SUPER_ADMIN_FORCE_PASSWORD_RESET = ['1', 'true', 'yes', 'on']
   .includes(String(process.env.SUPER_ADMIN_FORCE_PASSWORD_RESET || '').trim().toLowerCase());
+const SUPER_ADMIN_SYNC_EMAIL = ['1', 'true', 'yes', 'on']
+  .includes(String(process.env.SUPER_ADMIN_SYNC_EMAIL || '').trim().toLowerCase());
+const SUPER_ADMIN_SYNC_NAME = ['1', 'true', 'yes', 'on']
+  .includes(String(process.env.SUPER_ADMIN_SYNC_NAME || '').trim().toLowerCase());
 
 const resolvePassword = () => {
   const envPassword = String(process.env.SUPER_ADMIN_PASSWORD || '').trim();
@@ -234,15 +238,27 @@ const run = async () => {
   await ensureAccountFoundationRows();
 
   await db.transaction(async (trx) => {
+    const currentSuperAdmin = await trx('users')
+      .where('is_superadmin', true)
+      .orderBy('updated_at', 'desc')
+      .first();
+
+    const existingByEmail = await trx('users')
+      .whereRaw('LOWER(email) = ?', [SUPER_ADMIN_EMAIL])
+      .first();
+
     await trx('users').update({ is_superadmin: false, updated_at: now });
 
-    const existing = await trx('users').whereRaw('LOWER(email) = ?', [SUPER_ADMIN_EMAIL]).first();
-
     let superAdminId;
+    const existing = existingByEmail || currentSuperAdmin;
+
     if (existing) {
+      const shouldSyncEmail = Boolean(existingByEmail) || SUPER_ADMIN_SYNC_EMAIL;
+      const shouldSyncName = Boolean(existingByEmail) || SUPER_ADMIN_SYNC_NAME;
       superAdminId = Number(existing.id);
       const updatePayload = {
-        name: SUPER_ADMIN_NAME,
+        name: shouldSyncName ? SUPER_ADMIN_NAME : (existing.name || SUPER_ADMIN_NAME),
+        email: shouldSyncEmail ? SUPER_ADMIN_EMAIL : existing.email,
         is_verified: true,
         is_active: true,
         is_admin: true,
@@ -309,7 +325,12 @@ const run = async () => {
     }
   });
 
-  console.log(`Super admin seed applied for ${SUPER_ADMIN_EMAIL} (password ${passwordUpdated ? 'updated' : 'preserved'})`);
+  const activeSuperAdmin = await db('users')
+    .select('email')
+    .where('is_superadmin', true)
+    .first();
+
+  console.log(`Super admin seed applied for ${(activeSuperAdmin && activeSuperAdmin.email) || SUPER_ADMIN_EMAIL} (password ${passwordUpdated ? 'updated' : 'preserved'})`);
 };
 
 run()

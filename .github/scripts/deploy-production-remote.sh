@@ -13,6 +13,8 @@ ENV_FILE="$CONFIG_DIR/.env.production"
 LOGS_DIR="$PERSIST_ROOT/logs"
 STORAGE_VOLUME="ultrazend-storage-data"
 POSTGRES_VOLUME="ultrazend-postgres-data"
+LEGACY_STORAGE_VOLUMES=("ultrazend-storage" "ultrazend_ultrazend-storage")
+LEGACY_POSTGRES_VOLUMES=("postgres-data" "ultrazend_postgres-data")
 
 BASE_DOMAIN="ultrazend.com.br"
 WWW_DOMAIN="www.ultrazend.com.br"
@@ -63,6 +65,45 @@ remove_container_if_exists() {
     docker rm -f "${container_name}" >/dev/null 2>&1 || true
   fi
 }
+
+resolve_existing_volume() {
+  local primary="$1"
+  shift
+  local candidate
+
+  if docker volume inspect "$primary" >/dev/null 2>&1; then
+    echo "$primary"
+    return
+  fi
+
+  for candidate in "$@"; do
+    if docker volume inspect "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return
+    fi
+  done
+
+  echo "$primary"
+}
+
+ensure_persistent_volume() {
+  local volume_name="$1"
+  if docker volume inspect "$volume_name" >/dev/null 2>&1; then
+    echo "Volume persistente encontrado: $volume_name"
+    return
+  fi
+
+  echo "Criando volume persistente: $volume_name"
+  docker volume create \
+    --label com.ultrazend.persistent=true \
+    "$volume_name" >/dev/null
+}
+
+POSTGRES_VOLUME="$(resolve_existing_volume "$POSTGRES_VOLUME" "${LEGACY_POSTGRES_VOLUMES[@]}")"
+STORAGE_VOLUME="$(resolve_existing_volume "$STORAGE_VOLUME" "${LEGACY_STORAGE_VOLUMES[@]}")"
+
+echo "Volume PostgreSQL selecionado: $POSTGRES_VOLUME"
+echo "Volume storage selecionado: $STORAGE_VOLUME"
 
 echo "Limpando containers antigos da aplicacao (preservando banco/volumes)..."
 labelled_app_containers="$(docker ps -aq --filter "label=com.ultrazend.component=application" || true)"
@@ -263,8 +304,8 @@ nginx -t && echo "Nginx configurado com sucesso"
 
 echo "Preparando rede e volumes..."
 docker network create ultrazend-network >/dev/null 2>&1 || true
-docker volume create "$POSTGRES_VOLUME" >/dev/null
-docker volume create "$STORAGE_VOLUME" >/dev/null
+ensure_persistent_volume "$POSTGRES_VOLUME"
+ensure_persistent_volume "$STORAGE_VOLUME"
 
 echo "Garantindo PostgreSQL sem apagar dados..."
 if docker ps -aq --filter "name=^/ultrazend-postgres$" | grep -q .; then

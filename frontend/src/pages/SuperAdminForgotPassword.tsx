@@ -47,7 +47,7 @@ export function SuperAdminForgotPassword() {
             </div>
             <CardTitle className="text-2xl">Recuperar senha Super Admin</CardTitle>
             <CardDescription>
-              Informe seu email para receber o link seguro de redefinicao da conta super admin.
+              Informe o email atual de acesso do Super Admin para receber o link seguro de redefinicao.
             </CardDescription>
           </CardHeader>
 
@@ -66,6 +66,9 @@ export function SuperAdminForgotPassword() {
                     onChange={(event) => setEmail(event.target.value)}
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Este email deve ser o mesmo configurado no perfil do Super Admin.
+                </p>
               </div>
 
               <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={isSubmitting}>
