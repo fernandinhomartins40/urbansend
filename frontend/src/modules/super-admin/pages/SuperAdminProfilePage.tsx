@@ -16,6 +16,7 @@ export function SuperAdminProfilePage() {
   const updateUser = useAuthStore((state) => state.updateUser)
 
   const [profileName, setProfileName] = useState('')
+  const [profileEmail, setProfileEmail] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -29,22 +30,35 @@ export function SuperAdminProfilePage() {
   })
 
   useEffect(() => {
-    if (profileQuery.data?.name) {
-      setProfileName(profileQuery.data.name)
+    if (profileQuery.data) {
+      setProfileName(profileQuery.data.name || '')
+      setProfileEmail(profileQuery.data.email || '')
     }
-  }, [profileQuery.data?.name])
+  }, [profileQuery.data])
 
   const updateProfileMutation = useMutation({
     mutationFn: async () => {
       const trimmedName = profileName.trim()
+      const normalizedEmail = profileEmail.trim().toLowerCase()
       if (!trimmedName || trimmedName.length < 2) {
         throw new Error('Informe um nome valido com no minimo 2 caracteres.')
       }
+      if (!normalizedEmail) {
+        throw new Error('Informe um email valido para o super admin.')
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        throw new Error('Informe um email valido.')
+      }
 
-      return (await superAdminApi.updateProfile({ name: trimmedName })).data.data as SuperAdminProfile
+      return (await superAdminApi.updateProfile({
+        name: trimmedName,
+        email: normalizedEmail
+      })).data.data as SuperAdminProfile
     },
     onSuccess: async (updatedProfile) => {
-      updateUser({ name: updatedProfile.name })
+      setProfileName(updatedProfile.name || '')
+      setProfileEmail(updatedProfile.email || '')
+      updateUser({ name: updatedProfile.name, email: updatedProfile.email })
       toast.success('Perfil do super admin atualizado com sucesso.')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['super-admin', 'profile'] }),
@@ -87,6 +101,10 @@ export function SuperAdminProfilePage() {
   })
 
   const profile = profileQuery.data
+  const hasProfileChanges = Boolean(profile) && (
+    profileName.trim() !== String(profile?.name || '').trim()
+    || profileEmail.trim().toLowerCase() !== String(profile?.email || '').trim().toLowerCase()
+  )
 
   return (
     <div className="space-y-4">
@@ -138,15 +156,17 @@ export function SuperAdminProfilePage() {
                   <Label htmlFor="super-admin-profile-email">Email</Label>
                   <Input
                     id="super-admin-profile-email"
-                    value={profile.email}
-                    disabled
+                    type="email"
+                    value={profileEmail}
+                    onChange={(event) => setProfileEmail(event.target.value)}
+                    placeholder="email@dominio.com"
                   />
                 </div>
               </div>
 
               <Button
                 onClick={() => updateProfileMutation.mutate()}
-                disabled={updateProfileMutation.isPending || !profileName.trim()}
+                disabled={updateProfileMutation.isPending || !profileName.trim() || !profileEmail.trim() || !hasProfileChanges}
               >
                 {updateProfileMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar alteracoes de perfil

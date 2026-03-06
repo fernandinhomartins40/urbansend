@@ -31,7 +31,11 @@ router.get('/profile', asyncHandler(async (req: AuthenticatedRequest, res: Respo
 router.put('/profile',
   validateRequest({
     body: z.object({
-      name: z.string().trim().min(2).max(100)
+      name: z.string().trim().min(2).max(100).optional(),
+      email: z.string().trim().email().max(255).optional()
+    }).refine((data) => data.name !== undefined || data.email !== undefined, {
+      message: 'Informe ao menos nome ou email para atualizar.',
+      path: ['name']
     })
   }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

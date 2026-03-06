@@ -19,6 +19,13 @@ interface UserFilters extends PaginationOptions {
   isAdmin?: boolean;
 }
 
+const createOperationalError = (message: string, statusCode: number) => {
+  const error = new Error(message) as Error & { statusCode: number; isOperational: boolean };
+  error.statusCode = statusCode;
+  error.isOperational = true;
+  return error;
+};
+
 class SuperAdminService {
   private tableAvailabilityCache = new Map<string, boolean>();
 
@@ -223,18 +230,44 @@ class SuperAdminService {
 
   async updateAdminProfile(
     adminUserId: number,
-    payload: { name: string },
+    payload: { name?: string; email?: string },
     requestContext?: { requestId?: string; ipAddress?: string; userAgent?: string; }
   ) {
     await this.assertPlatformAdmin(adminUserId);
 
     const before = await this.getAdminProfile(adminUserId);
+    const nextName = typeof payload.name === 'string' ? payload.name.trim() : undefined;
+    const nextEmail = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : undefined;
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date()
+    };
+
+    if (nextName && nextName !== before.name) {
+      updates.name = nextName;
+    }
+
+    if (nextEmail && nextEmail !== String(before.email || '').toLowerCase()) {
+      const existingUser = await db('users')
+        .select('id')
+        .whereRaw('LOWER(email) = ?', [nextEmail])
+        .whereNot('id', adminUserId)
+        .first();
+
+      if (existingUser) {
+        throw createOperationalError('Este email ja esta em uso por outro usuario.', 409);
+      }
+
+      updates.email = nextEmail;
+    }
+
+    if (Object.keys(updates).length === 1) {
+      return before;
+    }
+
     await db('users')
       .where('id', adminUserId)
-      .update({
-        name: payload.name.trim(),
-        updated_at: new Date()
-      });
+      .update(updates);
 
     const after = await this.getAdminProfile(adminUserId);
     await this.audit(adminUserId, 'admin.profile.update', 'admin_profile', adminUserId, {

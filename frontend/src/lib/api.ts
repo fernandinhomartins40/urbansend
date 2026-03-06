@@ -432,7 +432,7 @@ export const superAdminApi = {
   getProfile: () =>
     api.get('/super-admin/profile'),
 
-  updateProfile: (data: { name: string }) =>
+  updateProfile: (data: { name?: string; email?: string }) =>
     api.put('/super-admin/profile', data),
 
   getAccounts: (params?: {
