@@ -481,6 +481,38 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+const buildPasswordResetUrl = (token: string, scope: SessionScope = 'app'): string => {
+  const frontendUrl = process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br';
+  const resetPath = scope === 'super_admin'
+    ? '/super-admin/reset-password'
+    : '/reset-password';
+
+  return `${frontendUrl}${resetPath}?token=${token}`;
+};
+
+const schedulePasswordResetEmail = (
+  email: string,
+  name: string,
+  resetUrl: string,
+  metadata?: Record<string, unknown>
+) => {
+  setImmediate(async () => {
+    try {
+      const internalEmailService = new InternalEmailService();
+      await internalEmailService.sendPasswordResetEmail(email, name, resetUrl);
+      logger.info('Reset password email sent successfully', { email, ...metadata });
+    } catch (error) {
+      logger.error('Failed to send reset password email', { error, email, ...metadata });
+    }
+  });
+};
+
+const resetPasswordSuccessResponse = (res: Response) => {
+  res.json({
+    message: 'Password reset successfully. You can now login with your new password.'
+  });
+};
+
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const email = normalizeEmail(req.body.email);
 
@@ -502,19 +534,42 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     updated_at: new Date()
   });
 
-  // Send password reset email (async, don't block response)
-  setImmediate(async () => {
-    try {
-      const internalEmailService = new InternalEmailService();
-      const resetUrl = `${process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br'}/reset-password?token=${resetToken}`;
-      await internalEmailService.sendPasswordResetEmail(email, user.name, resetUrl);
-      logger.info('Reset password email sent successfully', { email });
-    } catch (error) {
-      logger.error('Failed to send reset password email', { error, email });
-    }
-  });
+  const resetUrl = buildPasswordResetUrl(resetToken, 'app');
+  schedulePasswordResetEmail(email, user.name, resetUrl, { scope: 'app', userId: user.id });
 
   logger.info('Password reset requested', { email });
+
+  return res.json({
+    message: 'If an account with that email exists, we have sent a password reset link.'
+  });
+});
+
+export const superAdminForgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const email = normalizeEmail(req.body.email);
+
+  const user = await db('users')
+    .whereRaw('LOWER(email) = ?', [email])
+    .where('is_superadmin', true)
+    .first();
+
+  if (!user) {
+    return res.json({
+      message: 'If an account with that email exists, we have sent a password reset link.'
+    });
+  }
+
+  const resetToken = generateVerificationToken();
+
+  await db('users').where('id', user.id).update({
+    reset_password_token: resetToken,
+    reset_password_expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    updated_at: new Date()
+  });
+
+  const resetUrl = buildPasswordResetUrl(resetToken, 'super_admin');
+  schedulePasswordResetEmail(email, user.name, resetUrl, { scope: 'super_admin', userId: user.id });
+
+  logger.warn('Super admin password reset requested', { email, userId: user.id });
 
   return res.json({
     message: 'If an account with that email exists, we have sent a password reset link.'
@@ -546,10 +601,33 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   });
 
   logger.info('Password reset successfully');
+  resetPasswordSuccessResponse(res);
+});
 
-  res.json({
-    message: 'Password reset successfully. You can now login with your new password.'
+export const superAdminResetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { token, password } = req.body;
+
+  const user = await db('users')
+    .where('reset_password_token', token)
+    .where('reset_password_expires', '>', new Date())
+    .where('is_superadmin', true)
+    .first();
+
+  if (!user) {
+    throw createError('Invalid or expired reset token', 400);
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  await db('users').where('id', user.id).update({
+    password_hash: passwordHash,
+    reset_password_token: null,
+    reset_password_expires: null,
+    updated_at: new Date()
   });
+
+  logger.warn('Super admin password reset successfully', { userId: user.id });
+  resetPasswordSuccessResponse(res);
 });
 
 export const logout = asyncHandler(async (_req: Request, res: Response) => {

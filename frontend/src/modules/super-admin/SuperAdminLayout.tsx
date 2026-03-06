@@ -11,7 +11,8 @@ const pageTitleByPath: Record<string, string> = {
   '/super-admin/users': 'Usuarios',
   '/super-admin/deliverability': 'Entregabilidade',
   '/super-admin/integrations': 'Integracoes',
-  '/super-admin/audit': 'Logs de Auditoria'
+  '/super-admin/audit': 'Logs de Auditoria',
+  '/super-admin/profile': 'Meu Perfil'
 }
 
 export function SuperAdminLayout() {

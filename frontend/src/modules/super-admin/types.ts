@@ -12,6 +12,21 @@ export interface OverviewData {
   generated_at: string
 }
 
+export interface SuperAdminProfile {
+  id: number
+  name: string
+  email: string
+  is_active: boolean
+  is_verified: boolean
+  is_superadmin: boolean
+  role: string
+  mfa_required: boolean
+  profile_is_active: boolean
+  created_at: string
+  updated_at: string
+  last_login_at: string | null
+}
+
 export interface AccountRow {
   id: number
   name: string

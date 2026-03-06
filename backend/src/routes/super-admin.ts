@@ -23,6 +23,32 @@ const userIdParamSchema = z.object({
   userId: z.coerce.number().int().positive()
 });
 
+router.get('/profile', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const data = await superAdminService.getAdminProfile(req.user!.id);
+  res.json({ success: true, data });
+}));
+
+router.put('/profile',
+  validateRequest({
+    body: z.object({
+      name: z.string().trim().min(2).max(100)
+    })
+  }),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const data = await superAdminService.updateAdminProfile(
+      req.user!.id,
+      req.body,
+      {
+        requestId: req.requestId,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || undefined
+      }
+    );
+
+    res.json({ success: true, data });
+  })
+);
+
 router.get('/overview', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const data = await superAdminService.getOverview(req.user!.id);
   res.json({ success: true, data });

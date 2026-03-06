@@ -86,6 +86,9 @@ api.interceptors.response.use(
       if (
         error.config.url?.includes('/auth/login') ||
         error.config.url?.includes('/auth/register') ||
+        error.config.url?.includes('/auth/super-admin/login') ||
+        error.config.url?.includes('/auth/super-admin/forgot-password') ||
+        error.config.url?.includes('/auth/super-admin/reset-password') ||
         error.config.url?.includes('/auth/verify-email') ||
         error.config.url?.includes('/auth/forgot-password') ||
         error.config.url?.includes('/auth/reset-password')
@@ -93,7 +96,17 @@ api.interceptors.response.use(
         return Promise.reject(error)
       }
 
-      const isPublicPage = ['/', '/login', '/admin/login', '/super-admin/login', '/verify-email', '/forgot-password', '/reset-password'].includes(window.location.pathname)
+      const isPublicPage = [
+        '/',
+        '/login',
+        '/admin/login',
+        '/super-admin/login',
+        '/super-admin/forgot-password',
+        '/super-admin/reset-password',
+        '/verify-email',
+        '/forgot-password',
+        '/reset-password'
+      ].includes(window.location.pathname)
 
       if (isPublicPage) {
         return Promise.reject(error)
@@ -149,6 +162,12 @@ export const authApi = {
 
   superAdminLogin: (credentials: { email: string; password: string }) =>
     api.post('/auth/super-admin/login', credentials),
+
+  superAdminForgotPassword: (email: string) =>
+    api.post('/auth/super-admin/forgot-password', { email }),
+
+  superAdminResetPassword: (token: string, password: string) =>
+    api.post('/auth/super-admin/reset-password', { token, password }),
 
   logout: () =>
     api.post('/auth/logout'),
@@ -409,6 +428,12 @@ export const settingsApi = {
 export const superAdminApi = {
   getOverview: () =>
     api.get('/super-admin/overview'),
+
+  getProfile: () =>
+    api.get('/super-admin/profile'),
+
+  updateProfile: (data: { name: string }) =>
+    api.put('/super-admin/profile', data),
 
   getAccounts: (params?: {
     page?: number;

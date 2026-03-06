@@ -11,6 +11,8 @@ const EXCLUDED_PATH_PREFIXES = [
   '/api/auth/resend-verification',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/auth/super-admin/forgot-password',
+  '/api/auth/super-admin/reset-password',
   '/api/auth/refresh',
   '/api/health',
   '/api/application-logs/frontend-error'

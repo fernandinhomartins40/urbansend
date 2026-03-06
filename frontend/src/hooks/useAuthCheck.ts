@@ -10,7 +10,17 @@ export const useAuthCheck = () => {
   const location = useLocation()
 
   // Don't check auth status on login/public pages
-  const isPublicPage = ['/login', '/admin/login', '/super-admin/login', '/', '/verify-email', '/forgot-password', '/reset-password'].includes(location.pathname)
+  const isPublicPage = [
+    '/login',
+    '/admin/login',
+    '/super-admin/login',
+    '/super-admin/forgot-password',
+    '/super-admin/reset-password',
+    '/',
+    '/verify-email',
+    '/forgot-password',
+    '/reset-password'
+  ].includes(location.pathname)
 
   useEffect(() => {
     // Only check auth status if user is authenticated and not on a public page

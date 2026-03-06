@@ -170,6 +170,84 @@ class SuperAdminService {
     };
   }
 
+  async getAdminProfile(adminUserId: number) {
+    await this.assertPlatformAdmin(adminUserId);
+
+    const hasProfileTable = await this.hasTable('platform_admin_profiles');
+
+    const baseQuery = db('users as u')
+      .where('u.id', adminUserId)
+      .select(
+        'u.id',
+        'u.name',
+        'u.email',
+        'u.is_active',
+        'u.is_verified',
+        'u.is_superadmin',
+        'u.created_at',
+        'u.updated_at'
+      );
+
+    const row = hasProfileTable
+      ? await baseQuery
+        .clone()
+        .leftJoin('platform_admin_profiles as p', 'p.user_id', 'u.id')
+        .select(
+          'p.role',
+          'p.mfa_required',
+          'p.last_login_at',
+          'p.is_active as profile_is_active'
+        )
+        .first()
+      : await baseQuery.first();
+
+    if (!row) {
+      throw new Error('Super admin profile not found');
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      is_active: Boolean(row.is_active),
+      is_verified: Boolean(row.is_verified),
+      is_superadmin: Boolean(row.is_superadmin),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      role: row.role || 'super_admin',
+      mfa_required: row.mfa_required === undefined ? true : Boolean(row.mfa_required),
+      profile_is_active: row.profile_is_active === undefined ? true : Boolean(row.profile_is_active),
+      last_login_at: row.last_login_at || null
+    };
+  }
+
+  async updateAdminProfile(
+    adminUserId: number,
+    payload: { name: string },
+    requestContext?: { requestId?: string; ipAddress?: string; userAgent?: string; }
+  ) {
+    await this.assertPlatformAdmin(adminUserId);
+
+    const before = await this.getAdminProfile(adminUserId);
+    await db('users')
+      .where('id', adminUserId)
+      .update({
+        name: payload.name.trim(),
+        updated_at: new Date()
+      });
+
+    const after = await this.getAdminProfile(adminUserId);
+    await this.audit(adminUserId, 'admin.profile.update', 'admin_profile', adminUserId, {
+      before,
+      after,
+      requestId: requestContext?.requestId,
+      ipAddress: requestContext?.ipAddress,
+      userAgent: requestContext?.userAgent
+    });
+
+    return after;
+  }
+
   async listAccounts(adminUserId: number, filters: AccountFilters = {}) {
     await this.assertPlatformAdmin(adminUserId);
     await this.ensureTables(['account_subscriptions', 'account_security_flags']);

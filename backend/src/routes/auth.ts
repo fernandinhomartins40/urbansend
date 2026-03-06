@@ -23,7 +23,9 @@ import {
   superAdminLogin,
   verifyEmail,
   forgotPassword,
+  superAdminForgotPassword,
   resetPassword,
+  superAdminResetPassword,
   refreshToken,
   logout,
   getProfile,
@@ -105,6 +107,10 @@ router.post('/register', advancedRegistrationRateLimit, validateRequest({ body: 
 router.post('/login', advancedLoginRateLimit, validateRequest({ body: loginSchema }), login);
 
 router.post('/super-admin/login', advancedLoginRateLimit, validateRequest({ body: loginSchema }), superAdminLogin);
+router.post('/super-admin/forgot-password', advancedPasswordResetRateLimit, validateRequest({
+  body: z.object({ email: emailSchema })
+}), superAdminForgotPassword);
+router.post('/super-admin/reset-password', validateRequest({ body: resetPasswordSchema }), superAdminResetPassword);
 
 /**
  * @swagger

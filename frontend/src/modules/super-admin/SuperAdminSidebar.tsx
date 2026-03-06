@@ -5,6 +5,7 @@ import {
   Link2,
   Search,
   ShieldCheck,
+  UserCircle2,
   Users,
   X
 } from 'lucide-react'
@@ -22,7 +23,8 @@ const navigation = [
   { label: 'Usuarios', to: '/super-admin/users', icon: Users },
   { label: 'Entregabilidade', to: '/super-admin/deliverability', icon: Activity },
   { label: 'Integracoes', to: '/super-admin/integrations', icon: Link2 },
-  { label: 'Auditoria', to: '/super-admin/audit', icon: Search }
+  { label: 'Auditoria', to: '/super-admin/audit', icon: Search },
+  { label: 'Meu Perfil', to: '/super-admin/profile', icon: UserCircle2 }
 ]
 
 export function SuperAdminSidebar({ isOpen, onClose }: SuperAdminSidebarProps) {

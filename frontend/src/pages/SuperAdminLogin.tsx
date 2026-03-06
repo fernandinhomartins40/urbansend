@@ -188,6 +188,12 @@ export function SuperAdminLogin() {
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Entrar como Super Admin
               </Button>
+
+              <div className="text-center">
+                <Link to="/super-admin/forgot-password" className="text-sm text-indigo-700 hover:text-indigo-800">
+                  Esqueceu sua senha?
+                </Link>
+              </div>
             </form>
 
             <div className="mt-4 text-center text-sm text-muted-foreground">

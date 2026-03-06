@@ -36,6 +36,8 @@ const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.W
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const DeveloperDocs = lazy(() => import('./pages/DeveloperDocs').then(m => ({ default: m.DeveloperDocs })));
 const SuperAdminLogin = lazy(() => import('./pages/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
+const SuperAdminForgotPassword = lazy(() => import('./pages/SuperAdminForgotPassword').then(m => ({ default: m.SuperAdminForgotPassword })));
+const SuperAdminResetPassword = lazy(() => import('./pages/SuperAdminResetPassword').then(m => ({ default: m.SuperAdminResetPassword })));
 const SuperAdminLayout = lazy(() => import('./modules/super-admin/SuperAdminLayout').then(m => ({ default: m.SuperAdminLayout })));
 const SuperAdminOverviewPage = lazy(() => import('./modules/super-admin/pages/SuperAdminOverviewPage').then(m => ({ default: m.SuperAdminOverviewPage })));
 const SuperAdminAccountsPage = lazy(() => import('./modules/super-admin/pages/SuperAdminAccountsPage').then(m => ({ default: m.SuperAdminAccountsPage })));
@@ -43,6 +45,7 @@ const SuperAdminUsersPage = lazy(() => import('./modules/super-admin/pages/Super
 const SuperAdminDeliverabilityPage = lazy(() => import('./modules/super-admin/pages/SuperAdminDeliverabilityPage').then(m => ({ default: m.SuperAdminDeliverabilityPage })));
 const SuperAdminIntegrationsPage = lazy(() => import('./modules/super-admin/pages/SuperAdminIntegrationsPage').then(m => ({ default: m.SuperAdminIntegrationsPage })));
 const SuperAdminAuditPage = lazy(() => import('./modules/super-admin/pages/SuperAdminAuditPage').then(m => ({ default: m.SuperAdminAuditPage })));
+const SuperAdminProfilePage = lazy(() => import('./modules/super-admin/pages/SuperAdminProfilePage').then(m => ({ default: m.SuperAdminProfilePage })));
 
 function AppRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -130,6 +133,26 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/super-admin/forgot-password"
+                element={
+                  <PublicRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminForgotPassword />
+                    </Suspense>
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/super-admin/reset-password"
+                element={
+                  <PublicRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminResetPassword />
+                    </Suspense>
+                  </PublicRoute>
+                }
+              />
+              <Route
                 path="/super-admin"
                 element={
                   <SuperAdminRoute>
@@ -185,6 +208,14 @@ function AppRoutes() {
                   element={
                     <Suspense fallback={<LoadingSpinner />}>
                       <SuperAdminAuditPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="profile"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SuperAdminProfilePage />
                     </Suspense>
                   }
                 />
