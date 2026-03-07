@@ -344,7 +344,7 @@ done
 
 echo "Construindo imagem Docker do backend..."
 cd "$APP_DIR"
-docker build -t ultrazend-api:latest -f backend/Dockerfile backend/
+DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --progress=plain -t ultrazend-api:latest -f backend/Dockerfile backend/
 
 echo "Subindo novo container backend..."
 docker run -d \

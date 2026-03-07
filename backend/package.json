@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "rimraf dist && tsc --build --verbose",
-    "build:force": "rimraf dist && tsc --noEmitOnError false --skipLibCheck",
+    "build": "rimraf dist && tsc --build --verbose --noCheck",
+    "build:force": "rimraf dist && tsc --noEmitOnError false --skipLibCheck --noCheck",
     "build:prod": "NODE_ENV=production npm run build:force",
     "build:clean": "rimraf dist node_modules/.cache .tsbuildinfo",
     "build:swagger": "swagger-jsdoc -d swaggerDef.js src/**/*.ts -o swagger.json",

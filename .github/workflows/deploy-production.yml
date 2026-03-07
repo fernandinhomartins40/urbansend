@@ -54,6 +54,9 @@ jobs:
           fi
           sshpass -e ssh \
             -o ConnectTimeout=20 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            -o TCPKeepAlive=yes \
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
@@ -71,6 +74,9 @@ jobs:
           SERVER_HOST="${SERVER_USER}@${SERVER_IP}"
           sshpass -e ssh \
             -o ConnectTimeout=20 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            -o TCPKeepAlive=yes \
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
