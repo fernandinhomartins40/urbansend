@@ -324,7 +324,7 @@ export const apiKeyApi = {
   getApiKeys: () =>
     api.get('/keys'),
 
-  createApiKey: (data: { key_name: string; permissions: string[] }) =>
+  createApiKey: (data: { key_name: string; permissions: string[]; description?: string; key_type?: 'standard' | 'ai_agent' }) =>
     api.post('/keys', data),
 
   updateApiKey: (id: string, data: any) =>
@@ -341,6 +341,17 @@ export const apiKeyApi = {
 
   getApiKeyUsage: (id: string) =>
     api.get(`/keys/${id}/usage`),
+}
+
+export const aiApi = {
+  getOverview: () =>
+    api.get('/ai/overview'),
+
+  getAgentKeys: () =>
+    api.get('/ai/agent-keys'),
+
+  createAgentKey: (data: { key_name: string; description?: string; permissions?: string[] }) =>
+    api.post('/ai/agent-keys', data),
 }
 
 export const domainApi = {

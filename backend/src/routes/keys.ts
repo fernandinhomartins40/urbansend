@@ -12,6 +12,7 @@ import {
   getApiKeyUsage
 } from '../controllers/keysController';
 import { z } from 'zod';
+import { API_KEY_GRANTABLE_PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 
@@ -131,16 +132,9 @@ router.put('/:id', validateRequest({
   params: idParamSchema,
   body: z.object({
     key_name: z.string().min(1).max(100).optional(),
-    permissions: z.array(z.enum([
-      'email:send',
-      'email:read',
-      'template:read',
-      'template:write',
-      'domain:read',
-      'analytics:read',
-      'webhook:read',
-      'webhook:write'
-    ])).min(1).optional()
+    description: z.string().max(300).optional(),
+    key_type: z.enum(['standard', 'ai_agent']).optional(),
+    permissions: z.array(z.enum(API_KEY_GRANTABLE_PERMISSIONS)).min(1).optional()
   })
 }), requirePermission('api_key:write'), updateApiKey);
 

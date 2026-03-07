@@ -9,6 +9,7 @@ import { logger } from '../config/logger';
 import { hasPermission, permissionsFromJson } from '../constants/permissions';
 import { requestContextService } from '../services/RequestContextService';
 import { workspaceService } from '../services/WorkspaceService';
+import { deriveApiKeyType } from '../utils/apiKeyTable';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -28,6 +29,7 @@ export interface AuthenticatedRequest extends Request {
     id: number;
     user_id: number;
     permissions: string[];
+    key_type?: string;
   };
 }
 
@@ -142,8 +144,8 @@ export const authenticateApiKey = async (
       throw createError('API key required', 401);
     }
 
-    // API keys should start with 're_'
-    if (!apiKeyHeader.startsWith('re_')) {
+    // API keys should start with 're_' (standard) or 'uai_' (AI agent)
+    if (!apiKeyHeader.startsWith('re_') && !apiKeyHeader.startsWith('uai_')) {
       throw createError('Invalid API key format', 401);
     }
 
@@ -241,7 +243,11 @@ export const authenticateApiKey = async (
     req.apiKey = {
       id: apiKey.id,
       user_id: apiKey.user_id,
-      permissions
+      permissions,
+      key_type: deriveApiKeyType({
+        key_type: apiKey.key_type,
+        key_preview: apiKey.key_preview || apiKeyHeader.slice(0, 10)
+      })
     };
     requestContextService.update({
       userId: String(apiKey.user_id),

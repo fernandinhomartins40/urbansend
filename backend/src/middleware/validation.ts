@@ -3,6 +3,7 @@ import { z, ZodSchema } from 'zod';
 import validator from 'validator';
 import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
+import { API_KEY_GRANTABLE_PERMISSIONS } from '../constants/permissions';
 
 export const validateRequest = (schema: {
   body?: ZodSchema;
@@ -156,7 +157,7 @@ export const addDomainSchema = z.object({
 });
 
 // API Key validation schemas
-export const createApiKeySchema = z.object({
+const legacyCreateApiKeySchema = z.object({
   key_name: z.string()
     .min(1, 'Nome da chave é obrigatório')
     .max(100, 'Nome deve ter no máximo 100 caracteres')
@@ -171,6 +172,20 @@ export const createApiKeySchema = z.object({
     'webhook:read',
     'webhook:write'
   ])).min(1, 'Pelo menos uma permissão é obrigatória').max(8, 'Máximo de 8 permissões')
+});
+
+const apiKeyPermissionSchema = z.enum(API_KEY_GRANTABLE_PERMISSIONS);
+
+export const createApiKeySchema = z.object({
+  key_name: z.string()
+    .min(1, 'Nome da chave Ã© obrigatÃ³rio')
+    .max(100, 'Nome deve ter no mÃ¡ximo 100 caracteres')
+    .refine(name => /^[a-zA-Z0-9\s\-_]+$/.test(name), 'Nome contÃ©m caracteres invÃ¡lidos'),
+  description: z.string().max(300, 'Descricao deve ter no maximo 300 caracteres').optional(),
+  key_type: z.enum(['standard', 'ai_agent']).optional(),
+  permissions: z.array(apiKeyPermissionSchema)
+    .min(1, 'Pelo menos uma permissÃ£o Ã© obrigatÃ³ria')
+    .max(API_KEY_GRANTABLE_PERMISSIONS.length, `Maximo de ${API_KEY_GRANTABLE_PERMISSIONS.length} permissoes`)
 });
 
 // Webhook validation schemas

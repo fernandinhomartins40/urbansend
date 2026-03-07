@@ -1,18 +1,27 @@
 export type ApiPermissionId =
   | 'email:send'
   | 'email:read'
+  | 'email:manage'
+  | 'domain:read'
+  | 'domain:write'
+  | 'domain:manage'
   | 'template:read'
   | 'template:write'
-  | 'domain:read'
+  | 'template:manage'
   | 'analytics:read'
   | 'webhook:read'
   | 'webhook:write'
+  | 'api_key:read'
+  | 'api_key:write'
+  | 'settings:read'
+  | 'settings:write'
+  | 'workspace:read'
 
 export interface ApiPermissionDefinition {
   id: ApiPermissionId
   label: string
   description: string
-  category: 'envio' | 'leitura' | 'conteudo' | 'observabilidade' | 'automacao'
+  category: 'envio' | 'leitura' | 'conteudo' | 'observabilidade' | 'automacao' | 'configuracao' | 'seguranca'
 }
 
 export interface ApiKeyPreset {
@@ -34,12 +43,21 @@ export interface WebhookEventDefinition {
 export const apiPermissionCatalog: ApiPermissionDefinition[] = [
   { id: 'email:send', label: 'Enviar emails', description: 'Autoriza chamadas para envio transacional.', category: 'envio' },
   { id: 'email:read', label: 'Ler emails', description: 'Permite listar mensagens e abrir detalhes.', category: 'leitura' },
+  { id: 'email:manage', label: 'Gerenciar emails', description: 'Agrupa leitura e envio para fluxos completos de entrega.', category: 'envio' },
+  { id: 'domain:read', label: 'Ler dominios', description: 'Consulta status de dominios autenticados.', category: 'leitura' },
+  { id: 'domain:write', label: 'Editar dominios', description: 'Cria, verifica e remove dominios da conta.', category: 'configuracao' },
+  { id: 'domain:manage', label: 'Gerenciar dominios', description: 'Agrupa leitura e escrita para autenticacao DNS completa.', category: 'configuracao' },
   { id: 'template:read', label: 'Ler templates', description: 'Consulta templates salvos da conta.', category: 'conteudo' },
   { id: 'template:write', label: 'Gerenciar templates', description: 'Cria, atualiza e remove templates.', category: 'conteudo' },
-  { id: 'domain:read', label: 'Ler dominios', description: 'Consulta status de dominios autenticados.', category: 'leitura' },
+  { id: 'template:manage', label: 'Controle total de templates', description: 'Agrupa leitura e escrita para a biblioteca privada.', category: 'conteudo' },
   { id: 'analytics:read', label: 'Ler analytics', description: 'Acessa metricas e eventos de engajamento.', category: 'observabilidade' },
   { id: 'webhook:read', label: 'Ler webhooks', description: 'Visualiza endpoints, logs e estatisticas.', category: 'automacao' },
   { id: 'webhook:write', label: 'Gerenciar webhooks', description: 'Cria, atualiza, testa e desativa endpoints.', category: 'automacao' },
+  { id: 'api_key:read', label: 'Ler API keys', description: 'Lista chaves tecnicas da conta e seus previews.', category: 'seguranca' },
+  { id: 'api_key:write', label: 'Gerenciar API keys', description: 'Cria, regenera, ativa ou revoga credenciais tecnicas.', category: 'seguranca' },
+  { id: 'settings:read', label: 'Ler configuracoes', description: 'Consulta defaults de envio, webhook, SMTP e branding.', category: 'configuracao' },
+  { id: 'settings:write', label: 'Gerenciar configuracoes', description: 'Atualiza defaults operacionais da conta.', category: 'configuracao' },
+  { id: 'workspace:read', label: 'Ler workspace', description: 'Consulta contexto organizacional ativo da conta.', category: 'leitura' },
 ]
 
 export const apiKeyPresets: ApiKeyPreset[] = [
@@ -61,6 +79,13 @@ export const apiKeyPresets: ApiKeyPreset[] = [
     label: 'Integracao completa',
     description: 'Cobre envio, leitura, analytics e automacao via webhooks.',
     permissions: ['email:send', 'email:read', 'template:read', 'template:write', 'domain:read', 'analytics:read', 'webhook:read', 'webhook:write']
+  },
+  {
+    id: 'ai-agent',
+    label: 'AI Agent',
+    description: 'Preset para Cursor, VS Code e agentes que precisam configurar a conta ponta a ponta.',
+    permissions: ['email:send', 'email:read', 'domain:manage', 'template:manage', 'analytics:read', 'webhook:write', 'api_key:write', 'settings:write', 'workspace:read'],
+    recommendation: 'Use apenas em uma chave dedicada de onboarding tecnico e revogue quando nao for mais necessaria.'
   }
 ]
 

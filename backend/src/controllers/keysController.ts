@@ -6,10 +6,13 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { generateApiKey, hashApiKey } from '../utils/crypto';
 import { resolveInsertedId } from '../utils/insertedId';
 import { getAccountUserId, getActorUserId } from '../utils/accountContext';
+import { applyApiKeyMetadataForWrite, deriveApiKeyType, getApiKeySelectColumns } from '../utils/apiKeyTable';
 
 const formatApiKey = (key: any) => ({
   id: key.id,
   key_name: key.name,
+  description: key.description || null,
+  key_type: deriveApiKeyType(key),
   permissions: typeof key.permissions === 'string' ? JSON.parse(key.permissions) : key.permissions,
   created_at: key.created_at,
   last_used_at: key.last_used ?? null,
@@ -19,9 +22,10 @@ const formatApiKey = (key: any) => ({
 
 export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = getAccountUserId(req);
+  const selectColumns = await getApiKeySelectColumns();
 
   const apiKeys = await db('api_keys')
-    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active', 'key_preview')
+    .select(selectColumns)
     .where('user_id', userId)
     .orderBy('created_at', 'desc');
 
@@ -35,6 +39,8 @@ export const getApiKeys = asyncHandler(async (req: AuthenticatedRequest, res: Re
 
 export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const name = req.body.key_name || req.body.name;
+  const description = typeof req.body.description === 'string' ? req.body.description.trim() : null;
+  const keyType = req.body.key_type === 'ai_agent' ? 'ai_agent' : 'standard';
   const { permissions } = req.body;
   const userId = getAccountUserId(req);
   const actorUserId = getActorUserId(req);
@@ -50,19 +56,23 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   }
 
   // Generate API key
-  const apiKey = generateApiKey();
+  const apiKey = generateApiKey(keyType === 'ai_agent' ? 'uai' : 're');
   const hashedApiKey = await hashApiKey(apiKey);
 
   // Create API key record
-  const insertResult = await db('api_keys').insert({
+  const insertPayload = await applyApiKeyMetadataForWrite({
     user_id: userId,
     name,
+    description,
+    key_type: keyType,
     key_hash: hashedApiKey,
     key_preview: apiKey.slice(0, 10),
     permissions: JSON.stringify(permissions),
     created_at: new Date(),
     is_active: true
   });
+
+  const insertResult = await db('api_keys').insert(insertPayload);
 
   const keyId = resolveInsertedId(insertResult)
     ?? Number(
@@ -93,6 +103,8 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     api_key: {
       id: keyId,
       key_name: name,
+      description,
+      key_type: keyType,
       permissions,
       created_at: new Date().toISOString(),
       is_active: true,
@@ -123,6 +135,10 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
   }
 
   const name = req.body.key_name ?? req.body.name ?? apiKey.name;
+  const description = typeof req.body.description === 'string'
+    ? req.body.description.trim()
+    : (apiKey.description ?? null);
+  const keyType = req.body.key_type === 'ai_agent' ? 'ai_agent' : (apiKey.key_type || 'standard');
   const permissions = req.body.permissions ?? (typeof apiKey.permissions === 'string' ? JSON.parse(apiKey.permissions) : apiKey.permissions);
 
   // Check if new key name conflicts with existing keys (excluding current key)
@@ -138,16 +154,22 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     }
   }
 
+  const updatePayload = await applyApiKeyMetadataForWrite({
+    name,
+    description,
+    key_type: keyType,
+    permissions: JSON.stringify(permissions)
+  });
+
   await db('api_keys')
     .where('id', id)
     .where('user_id', userId)
-    .update({
-      name,
-      permissions: JSON.stringify(permissions)
-    });
+    .update(updatePayload);
+
+  const selectColumns = await getApiKeySelectColumns();
 
   const updatedKey = await db('api_keys')
-    .select('id', 'name', 'permissions', 'created_at', 'last_used', 'is_active', 'key_preview')
+    .select(selectColumns)
     .where('id', id)
     .first();
 
@@ -198,7 +220,8 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
   }
 
   // Generate new API key
-  const newApiKey = generateApiKey();
+  const currentKeyType = deriveApiKeyType(existingKey);
+  const newApiKey = generateApiKey(currentKeyType === 'ai_agent' ? 'uai' : 're');
   const hashedApiKey = await hashApiKey(newApiKey);
 
   // Update the API key

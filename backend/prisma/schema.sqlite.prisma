@@ -135,6 +135,8 @@ model api_keys {
   id          Int       @id @default(autoincrement())
   user_id     Int
   name        String
+  description String?
+  key_type    String    @default("standard")
   key_hash    String
   key_preview String
   permissions String?
@@ -148,6 +150,7 @@ model api_keys {
   @@index([expires_at], map: "api_keys_expires_at_index")
   @@index([key_hash], map: "api_keys_key_hash_index")
   @@index([user_id, is_active], map: "api_keys_user_id_is_active_index")
+  @@index([user_id, key_type], map: "idx_api_keys_user_key_type")
 }
 
 model audit_logs {

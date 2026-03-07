@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
   BarChart3,
+  Bot,
   BookOpen,
   FileText,
   Globe,
@@ -27,6 +28,7 @@ const baseNavigation = [
   { name: 'Analytics', href: '/app/analytics', icon: BarChart3 },
   { name: 'Webhooks', href: '/app/webhooks', icon: Webhook },
   { name: 'API Keys', href: '/app/api-keys', icon: Key },
+  { name: 'Integracao IA', href: '/app/ai', icon: Bot },
   { name: 'Developers', href: '/app/developers', icon: BookOpen },
   { name: 'Settings', href: '/app/settings', icon: Settings }
 ]

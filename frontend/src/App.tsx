@@ -29,6 +29,7 @@ const EmailList = lazy(() => import('./pages/EmailList').then(m => ({ default: m
 const EmailDetails = lazy(() => import('./pages/EmailDetails').then(m => ({ default: m.EmailDetails })));
 const SendEmail = lazy(() => import('./pages/SendEmail').then(m => ({ default: m.SendEmail })));
 const ApiKeys = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m.ApiKeys })));
+const AiIntegration = lazy(() => import('./pages/AiIntegration').then(m => ({ default: m.AiIntegration })));
 const Templates = lazy(() => import('./pages/Templates').then(m => ({ default: m.Templates })));
 const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Domains })));
 const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
@@ -333,6 +334,14 @@ function AppRoutes() {
                       <ApiKeys />
                     </Suspense>
                   } 
+                />
+                <Route
+                  path="ai"
+                  element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <AiIntegration />
+                    </Suspense>
+                  }
                 />
                 <Route 
                   path="developers" 

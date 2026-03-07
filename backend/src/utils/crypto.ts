@@ -3,9 +3,9 @@ import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { Env } from './env';
 
-export const generateApiKey = (): string => {
+export const generateApiKey = (prefix: 're' | 'uai' = 're'): string => {
   const randomBytes = crypto.randomBytes(32);
-  const apiKey = 're_' + randomBytes.toString('hex');
+  const apiKey = `${prefix}_` + randomBytes.toString('hex');
   return apiKey;
 };
 
