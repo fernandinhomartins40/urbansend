@@ -194,8 +194,6 @@ const planTone = (plan: string) => {
   return 'bg-slate-500/10 text-slate-700 border-slate-200'
 }
 
-const formatJson = (value: Record<string, string>) => JSON.stringify(value || {}, null, 2)
-
 export function Settings() {
   const queryClient = useQueryClient()
   const updateUser = useAuthStore((state) => state.updateUser)
@@ -211,8 +209,6 @@ export function Settings() {
     confirm_password: '',
   })
   const [smtpPassword, setSmtpPassword] = useState('')
-  const [webhookSecret, setWebhookSecret] = useState('')
-  const [webhookHeadersDraft, setWebhookHeadersDraft] = useState('{}')
   const sendingToggleItems: ToggleSettingItem[] = [
     { key: 'open_tracking', label: 'Open tracking', Icon: Mail },
     { key: 'click_tracking', label: 'Click tracking', Icon: Send },
@@ -239,8 +235,6 @@ export function Settings() {
     setProfileForm({ name: settings.profile.name || '' })
     setWorkspaceName(settings.workspace.organization_name || '')
     setSmtpPassword('')
-    setWebhookSecret('')
-    setWebhookHeadersDraft(formatJson(settings.account_preferences.webhook_settings.custom_headers || {}))
     updateAppSettings({
       emailsPerPage: settings.personal_preferences.system_preferences.items_per_page,
       autoRefresh: settings.personal_preferences.system_preferences.auto_refresh,
@@ -1231,99 +1225,49 @@ export function Settings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Webhook className="h-5 w-5" />
-                    Default webhook da conta
+                    Webhooks da conta
                   </CardTitle>
+                  <CardDescription>
+                    O pipeline ativo envia apenas para endpoints criados na pagina de Webhooks.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                    O bloco antigo de "default webhook" foi removido desta tela porque nao participava do fluxo real
+                    de entrega. Para producao, crie endpoints explicitos em <span className="font-medium">Webhooks</span>,
+                    onde o secret e gerado/exibido no momento da criacao e os logs acompanham o envio.
+                  </div>
+                  <div className="rounded-2xl border p-4">
+                    <div className="text-sm text-muted-foreground">Status legado encontrado</div>
+                    <div className="mt-2 font-medium text-slate-900">
+                      {settingsForm.account_preferences.webhook_settings.enabled ? 'Configuracao antiga habilitada' : 'Nenhuma configuracao antiga habilitada'}
+                    </div>
+                    {settingsForm.account_preferences.webhook_settings.webhook_url ? (
+                      <div className="mt-2 break-all text-sm text-slate-600">
+                        URL armazenada: {settingsForm.account_preferences.webhook_settings.webhook_url}
+                      </div>
+                    ) : null}
+                    <div className="mt-2 text-sm text-slate-600">
+                      Secret configurado: {settingsForm.account_preferences.webhook_settings.webhook_secret_configured ? 'sim' : 'nao'}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Button asChild>
+                      <Link to="/app/webhooks">Abrir Webhooks</Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link to="/app/developers">Ver docs de integracao</Link>
+                    </Button>
+                  </div>
                   <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="font-medium">Ativar webhook padrao</div>
-                      <div className="text-sm text-muted-foreground">Configuracao central da conta compartilhada.</div>
+                      <div className="font-medium">Motivo da mudanca</div>
+                      <div className="text-sm text-muted-foreground">
+                        Agora a superficie do produto reflete apenas os endpoints que o backend realmente processa.
+                      </div>
                     </div>
-                    <Switch
-                      checked={settingsForm.account_preferences.webhook_settings.enabled}
-                      onCheckedChange={(value) =>
-                        setSettingsForm((current) => current ? ({
-                          ...current,
-                          account_preferences: {
-                            ...current.account_preferences,
-                            webhook_settings: {
-                              ...current.account_preferences.webhook_settings,
-                              enabled: value,
-                            },
-                          },
-                        }) : current)
-                      }
-                      disabled={!canManageWorkspace}
-                    />
+                    <Badge variant="outline">Fluxo explicito por endpoint</Badge>
                   </div>
-                  <div>
-                    <Label htmlFor="default-webhook-url">Webhook URL</Label>
-                    <Input
-                      id="default-webhook-url"
-                      value={settingsForm.account_preferences.webhook_settings.webhook_url}
-                      onChange={(event) =>
-                        setSettingsForm((current) => current ? ({
-                          ...current,
-                          account_preferences: {
-                            ...current.account_preferences,
-                            webhook_settings: {
-                              ...current.account_preferences.webhook_settings,
-                              webhook_url: event.target.value,
-                            },
-                          },
-                        }) : current)
-                      }
-                      disabled={!canManageWorkspace}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="default-webhook-secret">
-                      Webhook secret {settingsForm.account_preferences.webhook_settings.webhook_secret_configured ? '(ja configurado)' : ''}
-                    </Label>
-                    <Input
-                      id="default-webhook-secret"
-                      type="password"
-                      value={webhookSecret}
-                      placeholder={settingsForm.account_preferences.webhook_settings.webhook_secret_configured ? 'Digite para substituir' : 'Digite o secret'}
-                      onChange={(event) => setWebhookSecret(event.target.value)}
-                      disabled={!canManageWorkspace}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="default-webhook-headers">Headers customizados (JSON)</Label>
-                    <Textarea
-                      id="default-webhook-headers"
-                      rows={6}
-                      className="font-mono text-sm"
-                      value={webhookHeadersDraft}
-                      onChange={(event) => setWebhookHeadersDraft(event.target.value)}
-                      disabled={!canManageWorkspace}
-                    />
-                  </div>
-                  <Button
-                    onClick={() => {
-                      try {
-                        const customHeaders = webhookHeadersDraft.trim()
-                          ? JSON.parse(webhookHeadersDraft)
-                          : {}
-
-                        saveSettingsMutation.mutate({
-                          webhook_settings: {
-                            ...settingsForm.account_preferences.webhook_settings,
-                            webhook_secret: webhookSecret || undefined,
-                            custom_headers: customHeaders,
-                          },
-                        })
-                      } catch {
-                        toast.error('Headers do webhook precisam estar em JSON valido')
-                      }
-                    }}
-                    disabled={!canManageWorkspace || saveSettingsMutation.isPending}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Salvar webhook padrao
-                  </Button>
                 </CardContent>
               </Card>
             </div>

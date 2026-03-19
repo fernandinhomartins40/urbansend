@@ -771,7 +771,7 @@ router.post('/agent-keys',
         organizationId: req.user?.organization_id || null,
         organizationName: req.user?.organization_name || null
       }),
-      warning: 'Guarde a chave com seguranca. Ela nao sera exibida novamente.'
+      warning: 'Guarde a chave com seguranca. Ela nao sera exibida novamente. Use esta credencial apenas no MCP; a aplicacao cliente deve usar uma API key padrao re_...'
     });
   })
 );

@@ -20,7 +20,7 @@ import {
 const setupSteps = [
   {
     title: '1. Gere uma API key',
-    description: 'Use o preset de envio transacional para liberar apenas o que sua aplicacao precisa.',
+    description: 'Use uma API key padrao `re_...` para a aplicacao cliente e libere apenas o que ela precisa.',
     to: '/app/api-keys',
     icon: KeyRound,
   },
@@ -94,6 +94,14 @@ export function DeveloperDocs() {
           })}
         </div>
       </section>
+
+      <Card className="border-sky-200 bg-sky-50 shadow-sm">
+        <CardContent className="pt-6 text-sm leading-6 text-sky-950">
+          <span className="font-medium">Separacao de credenciais:</span> use <code>ULTRAZEND_API_KEY</code> com uma
+          chave padrao <code>re_...</code> para <code>/api/emails/send</code>. A <code>ULTRAZEND_AI_AGENT_KEY</code>
+          com prefixo <code>uai_</code> e reservada ao MCP em Cursor/VS Code e nao deve ser usada pela aplicacao cliente.
+        </CardContent>
+      </Card>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="border-slate-200 shadow-sm">

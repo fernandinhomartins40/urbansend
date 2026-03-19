@@ -561,8 +561,8 @@ export class WebhookService {
       const stats = await db('webhook_logs')
         .select(
           db.raw('COUNT(*) as total_attempts'),
-          db.raw('SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_deliveries'),
-          db.raw('SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_deliveries')
+          db.raw('SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful_deliveries'),
+          db.raw('SUM(CASE WHEN NOT success THEN 1 ELSE 0 END) as failed_deliveries')
         )
         .where('webhook_id', webhookId)
         .where('tenant_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
@@ -572,7 +572,7 @@ export class WebhookService {
       const eventStats = await db('webhook_logs')
         .select('event')
         .count('* as count')
-        .sum(db.raw('CASE WHEN success = 1 THEN 1 ELSE 0 END as successful'))
+        .sum(db.raw('CASE WHEN success THEN 1 ELSE 0 END as successful'))
         .where('webhook_id', webhookId)
         .where('tenant_id', tenantId) // 🔒 ISOLAMENTO POR TENANT!
         .where('created_at', '>=', sinceDate)
@@ -809,15 +809,15 @@ export class WebhookService {
       const stats = await query
         .select(
           db.raw('COUNT(*) as total_attempts'),
-          db.raw('SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_deliveries'),
-          db.raw('SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_deliveries')
+          db.raw('SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful_deliveries'),
+          db.raw('SUM(CASE WHEN NOT success THEN 1 ELSE 0 END) as failed_deliveries')
         )
         .first();
 
       const eventStats = await query.clone()
         .select('event_type')
         .count('* as count')
-        .sum(db.raw('CASE WHEN success = 1 THEN 1 ELSE 0 END as successful'))
+        .sum(db.raw('CASE WHEN success THEN 1 ELSE 0 END as successful'))
         .groupBy('event_type');
 
       const events = eventStats.reduce((acc: any, stat: any) => {

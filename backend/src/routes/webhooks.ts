@@ -86,15 +86,25 @@ const getWebhookStatsMap = async (webhookIds: number[]) => {
     return new Map<number, { total_attempts: number; successful_attempts: number; last_delivery_at?: string | null }>();
   }
 
-  const stats = await db('webhook_logs')
-    .select(
-      'webhook_id',
-      db.raw('COUNT(*) as total_attempts'),
-      db.raw('SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_attempts'),
-      db.raw('MAX(created_at) as last_delivery_at')
-    )
-    .whereIn('webhook_id', webhookIds)
-    .groupBy('webhook_id');
+  const hasWebhookLogsTable = await db.schema.hasTable('webhook_logs');
+  if (!hasWebhookLogsTable) {
+    return new Map<number, { total_attempts: number; successful_attempts: number; last_delivery_at?: string | null }>();
+  }
+
+  let stats: any[] = [];
+  try {
+    stats = await db('webhook_logs')
+      .select(
+        'webhook_id',
+        db.raw('COUNT(*) as total_attempts'),
+        db.raw('SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful_attempts'),
+        db.raw('MAX(created_at) as last_delivery_at')
+      )
+      .whereIn('webhook_id', webhookIds)
+      .groupBy('webhook_id');
+  } catch {
+    return new Map<number, { total_attempts: number; successful_attempts: number; last_delivery_at?: string | null }>();
+  }
 
   return new Map(
     stats.map((row: any) => [
@@ -197,7 +207,11 @@ router.post('/',
 
   const webhook = await db('webhooks').where('id', webhookId).first();
 
-  res.status(201).json({ webhook: normalizeWebhook(webhook) });
+  res.status(201).json({
+    webhook: normalizeWebhook(webhook),
+    secret,
+    warning: 'Guarde este secret agora. Ele nao sera exibido novamente depois da criacao.'
+  });
 }));
 
 router.put('/:id',

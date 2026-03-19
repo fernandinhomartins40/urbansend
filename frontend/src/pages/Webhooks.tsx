@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Activity, CheckCircle, Clock, Code, ExternalLink, Eye, Pause, Play, Plus, RefreshCw, Send, ShieldCheck, Trash2, Webhook, XCircle, Zap } from 'lucide-react'
 import { webhookApi } from '@/lib/api'
-import { formatRelativeTime } from '@/lib/utils'
+import { copyToClipboard, formatRelativeTime } from '@/lib/utils'
 import { CodeSnippetCard } from '@/components/developer/CodeSnippetCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -97,6 +97,11 @@ export function Webhooks() {
   const [activeTab, setActiveTab] = useState('webhooks')
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookConfig | null>(null)
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null)
+  const [latestSecret, setLatestSecret] = useState<{
+    secret: string
+    webhookName: string
+    webhookUrl: string
+  } | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WebhookConfig | null>(null)
   const [logFilters, setLogFilters] = useState({ status: 'all', event_type: 'all' })
@@ -137,9 +142,24 @@ export function Webhooks() {
         events: data.events,
         secret: data.secret?.trim() || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const payload = response.data as {
+        webhook?: WebhookConfig
+        secret?: string
+      }
+
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       setIsCreating(false)
+      if (payload.webhook) {
+        setSelectedWebhook(payload.webhook)
+      }
+      if (payload.secret) {
+        setLatestSecret({
+          secret: payload.secret,
+          webhookName: payload.webhook?.name || 'Webhook',
+          webhookUrl: payload.webhook?.webhook_url || '',
+        })
+      }
       form.reset()
       toast.success('Webhook criado')
     },
@@ -328,6 +348,41 @@ export function Webhooks() {
           </Card>
         </div>
       </section>
+
+      {latestSecret ? (
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-emerald-900">Secret do webhook criado agora</h3>
+                <p className="mt-1 text-sm text-emerald-800">
+                  Guarde este secret agora para validar `X-Webhook-Signature`. Ele nao sera exibido novamente.
+                </p>
+                <div className="mt-3 text-xs text-emerald-900">
+                  {latestSecret.webhookName}
+                  {latestSecret.webhookUrl ? ` - ${latestSecret.webhookUrl}` : ''}
+                </div>
+                <div className="mt-3 rounded-lg border bg-white p-3">
+                  <code className="block overflow-x-auto text-sm font-mono">{latestSecret.secret}</code>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard(latestSecret.secret).then(() => toast.success('Secret copiado'))}
+                  >
+                    Copiar secret
+                  </Button>
+                </div>
+              </div>
+
+              <Button variant="ghost" size="sm" onClick={() => setLatestSecret(null)}>
+                Fechar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="border-slate-200 shadow-sm">

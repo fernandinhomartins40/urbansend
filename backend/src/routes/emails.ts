@@ -30,6 +30,23 @@ import { TenantContextService } from '../services/TenantContextService';
 const router = Router();
 const tenantContextService = TenantContextService.getInstance();
 
+const rejectAiAgentKeysForTransactionalApi = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: any
+) => {
+  if (req.apiKey?.key_type === 'ai_agent') {
+    return res.status(403).json({
+      success: false,
+      error: 'AI Agent Keys sao exclusivas para o MCP da UltraZend. Gere uma API key padrao `re_...` em /app/api-keys para envio transacional.',
+      code: 'AI_AGENT_KEY_NOT_ALLOWED',
+      version: '3.0'
+    });
+  }
+
+  next();
+};
+
 /**
  * Rate limiting middleware simplificado para emails
  * Baseado no middleware existente mas adaptado para a nova arquitetura
@@ -118,6 +135,7 @@ const emailRateLimit = async (req: AuthenticatedRequest, res: Response, next: an
 router.post('/send',
   // Middleware 1: Autenticação JWT (essencial)
   authenticateJwtOrApiKey,
+  rejectAiAgentKeysForTransactionalApi,
 
   // Middleware 2: Permissão de envio (essencial multi-tenancy)
   requirePermission('email:send'),
@@ -244,6 +262,7 @@ router.post('/send',
  */
 router.post('/send-batch',
   authenticateJwtOrApiKey,
+  rejectAiAgentKeysForTransactionalApi,
   requirePermission('email:send'), 
   validateRequest({ body: sendBatchEmailSchema }),
   emailRateLimit,

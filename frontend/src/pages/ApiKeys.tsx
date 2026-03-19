@@ -321,6 +321,20 @@ export function ApiKeys() {
         </div>
       </section>
 
+      <Card className="border-sky-200 bg-sky-50">
+        <CardContent className="flex items-start gap-3 pt-6">
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-sky-700" />
+          <div>
+            <h3 className="font-medium text-sky-900">Credencial correta para a aplicacao cliente</h3>
+            <p className="mt-1 text-sm text-sky-800">
+              Use uma API key padrao com prefixo <code>re_</code> em <code>ULTRAZEND_API_KEY</code>. A
+              <code> ULTRAZEND_AI_AGENT_KEY</code> com prefixo <code>uai_</code> e exclusiva do MCP/IDE e nao deve ser
+              usada no envio transacional direto.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
@@ -395,13 +409,13 @@ export function ApiKeys() {
       <div className="grid gap-6 xl:grid-cols-2">
         <CodeSnippetCard
           title="Primeiro envio com cURL"
-          description="O caminho ativo suporta autenticacao por x-api-key para envio transacional."
+          description="Use a API key padrao `re_...` em `x-api-key` para envio transacional."
           code={buildSendEmailCurlExample()}
           language="bash"
         />
         <CodeSnippetCard
           title="Primeiro envio com fetch"
-          description="Use em backend Node, serverless function ou worker."
+          description="Use `process.env.ULTRAZEND_API_KEY` com uma chave padrao `re_...`."
           code={buildSendEmailFetchExample()}
           language="ts"
         />
@@ -425,7 +439,7 @@ export function ApiKeys() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <h3 className="mb-2 font-medium text-green-800">Chave pronta para copia</h3>
-                <p className="mb-3 text-sm text-green-700">Guarde esta chave agora. Ela nao sera exibida novamente.</p>
+                <p className="mb-3 text-sm text-green-700">Guarde esta chave agora e salve como `ULTRAZEND_API_KEY`. Ela nao sera exibida novamente.</p>
                 <div className="flex items-center gap-2 rounded border bg-white p-3">
                   <code className="min-w-0 flex-1 overflow-x-auto text-sm font-mono">{latestKey}</code>
                   <Button size="sm" onClick={handleCopyLatestKey}>

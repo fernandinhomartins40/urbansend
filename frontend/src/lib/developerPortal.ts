@@ -85,7 +85,7 @@ export const apiKeyPresets: ApiKeyPreset[] = [
     label: 'AI Agent',
     description: 'Preset para Cursor, VS Code e agentes que precisam configurar a conta ponta a ponta.',
     permissions: ['email:send', 'email:read', 'domain:manage', 'template:manage', 'analytics:read', 'webhook:write', 'api_key:write', 'settings:write', 'workspace:read'],
-    recommendation: 'Use apenas em uma chave dedicada de onboarding tecnico e revogue quando nao for mais necessaria.'
+    recommendation: 'Use apenas em uma chave dedicada de onboarding tecnico via MCP. Nao reutilize esta credencial como ULTRAZEND_API_KEY da aplicacao.'
   }
 ]
 
@@ -170,7 +170,8 @@ export const getPublicSiteOrigin = () => {
 export const getApiBaseForDocs = () => `${getPublicSiteOrigin()}/api`
 export const getSwaggerDocsUrl = () => `${getPublicSiteOrigin()}/api-docs`
 
-export const buildSendEmailCurlExample = () => `curl --request POST '${getApiBaseForDocs()}/emails/send' \\
+export const buildSendEmailCurlExample = () => `# Use uma API key padrao re_... como ULTRAZEND_API_KEY da aplicacao
+curl --request POST '${getApiBaseForDocs()}/emails/send' \\
   --header 'Content-Type: application/json' \\
   --header 'x-api-key: re_xxxxxxxxxxxxxxxxx' \\
   --data '{
@@ -187,11 +188,13 @@ export const buildSendEmailCurlExample = () => `curl --request POST '${getApiBas
     "tracking_enabled": true
   }'`
 
-export const buildSendEmailFetchExample = () => `const response = await fetch('${getApiBaseForDocs()}/emails/send', {
+export const buildSendEmailFetchExample = () => `const ultrazendApiKey = process.env.ULTRAZEND_API_KEY! // chave padrao re_..., nao use a AI Agent Key
+
+const response = await fetch('${getApiBaseForDocs()}/emails/send', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'x-api-key': process.env.ULTRAZEND_API_KEY!,
+    'x-api-key': ultrazendApiKey,
   },
   body: JSON.stringify({
     from: 'no-reply@seu-dominio.com',

@@ -231,6 +231,15 @@ export function AiIntegration() {
         </div>
       </section>
 
+      <Card className="border-cyan-200 bg-cyan-50/80 shadow-sm">
+        <CardContent className="pt-6 text-sm leading-6 text-cyan-950">
+          <span className="font-medium">Escopo da credencial:</span> a <code>ULTRAZEND_AI_AGENT_KEY</code> com prefixo
+          <code> uai_</code> e exclusiva para o MCP da IDE. Para chamadas da aplicacao cliente em
+          <code> /api/emails/send</code>, gere uma API key padrao <code>re_...</code> em <Link to="/app/api-keys" className="font-medium underline">API Keys</Link>
+          {' '}e salve como <code>ULTRAZEND_API_KEY</code>.
+        </CardContent>
+      </Card>
+
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
@@ -547,7 +556,7 @@ export function AiIntegration() {
               </div>
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                Use esta chave apenas para agentes de IDE. O ideal e revogar ou rotacionar a credencial depois que o onboarding tecnico terminar.
+                Use esta chave apenas para agentes de IDE via MCP. Ela nao substitui a `ULTRAZEND_API_KEY` transacional da aplicacao cliente. O ideal e revogar ou rotacionar a credencial depois que o onboarding tecnico terminar.
               </div>
             </div>
 

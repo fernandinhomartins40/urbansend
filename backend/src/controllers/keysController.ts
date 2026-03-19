@@ -112,7 +112,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
     },
     // Return the actual API key only once during creation
     key: apiKey,
-    warning: 'Please save this API key securely. It will not be shown again.'
+    warning: 'Please save this API key securely as ULTRAZEND_API_KEY. It will not be shown again.'
   });
 });
 
@@ -239,7 +239,7 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
   res.json({
     message: 'API key regenerated successfully',
     key: newApiKey,
-    warning: 'Please save this new API key securely. It will not be shown again.'
+    warning: 'Please save this new API key securely as ULTRAZEND_API_KEY. It will not be shown again.'
   });
 });
 
