@@ -10,7 +10,8 @@ const features = [
   [BarChart3, 'Analytics em tempo real', 'Acompanhe entregas, aberturas, cliques e falhas.'],
 ] as const
 const steps = [['Gere sua API key', 'Crie sua conta e habilite as permissões necessárias.'], ['Autentique seu domínio', 'Publique os registros SPF, DKIM e DMARC.'], ['Configure seus templates', 'Crie e personalize seus modelos de e-mail.'], ['Envie e acompanhe', 'Dispare os e-mails e monitore os resultados em tempo real.']]
-const code = `curl -X POST https://api.velomail.com/emails/send \\
+const codeSamples = {
+  cURL: `curl -X POST https://api.velomail.com/emails/send \\
   -H "Authorization: Bearer sua_api_key" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -18,10 +19,68 @@ const code = `curl -X POST https://api.velomail.com/emails/send \\
     "subject": "Seu código de acesso",
     "template_id": "tmpl_123",
     "variables": { "nome": "João", "codigo": "996472" }
-  }'`
+  }'`,
+  JavaScript: `import { VeloMail } from '@velomail/sdk'
+
+const velomail = new VeloMail({
+  apiKey: process.env.VELOMAIL_API_KEY,
+})
+
+await velomail.emails.send({
+  from: 'cliente@exemplo.com',
+  to: 'usuario@exemplo.com',
+  subject: 'Seu código de acesso',
+  templateId: 'tmpl_123',
+  variables: { nome: 'João', codigo: '996472' },
+})`,
+  Python: `from velomail import VeloMail
+
+velomail = VeloMail(
+    api_key=os.environ['VELOMAIL_API_KEY']
+)
+
+velomail.emails.send(
+    from_='cliente@exemplo.com',
+    to='usuario@exemplo.com',
+    subject='Seu código de acesso',
+    template_id='tmpl_123',
+    variables={'nome': 'João', 'codigo': '996472'},
+)`,
+  PHP: `<?php
+$velomail = new VeloMail\Client([
+  'api_key' => getenv('VELOMAIL_API_KEY'),
+]);
+
+$velomail->emails->send([
+  'from' => 'cliente@exemplo.com',
+  'to' => 'usuario@exemplo.com',
+  'subject' => 'Seu código de acesso',
+  'template_id' => 'tmpl_123',
+  'variables' => ['nome' => 'João', 'codigo' => '996472'],
+]);`,
+} as const
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [codeLanguage, setCodeLanguage] = useState<keyof typeof codeSamples>('cURL')
+  const [copied, setCopied] = useState(false)
+  const copyCode = async () => {
+    const snippet = codeSamples[codeLanguage]
+    try {
+      await navigator.clipboard.writeText(snippet)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = snippet
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      textarea.remove()
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
+  }
   return <main className="velo-page">
     <section className="velo-hero" id="inicio">
       <header className="velo-nav">
@@ -37,7 +96,7 @@ export function LandingPage() {
       <img className="velo-hero-mascot" src="/landing/mascot-hero.png" alt="Mascote robô da VeloMail segurando um envelope" />
     </section>
     <section id="produto" className="velo-section velo-features"><p className="velo-section-kicker">◉ &nbsp; POR QUE VELOMAIL?</p><h2>Tudo o que seu SaaS precisa para<br />e-mail transacional, em um só lugar</h2><p className="velo-section-lead">Da API ao analytics, você tem total controle sobre sua operação de e-mails.</p><div className="velo-feature-grid" id="recursos">{features.map(([Icon, title, text]) => <article className="velo-feature" key={title}><span className="feature-icon"><Icon /></span><h3>{title}</h3><p>{text}</p><a href="#integracoes">Saiba mais <ArrowRight /></a></article>)}</div></section>
-    <section id="integracoes" className="velo-code-section"><div className="velo-code-layout"><div className="velo-code-copy"><p className="velo-section-kicker">◉ &nbsp; DEVELOPER FIRST</p><h2>Integre em minutos<br />com uma API simples<br />e poderosa</h2><p>Envie e-mails transacionais com poucas linhas de código. Nossa API é segura e fácil de implementar.</p><Link className="velo-button velo-button-ghost" to="/developers">Ver documentação <BookOpen /></Link></div><div className="velo-code-card"><div className="code-tabs"><b>cURL</b><span>JavaScript</span><span>Python</span><span>PHP</span></div><button type="button" aria-label="Copiar código"><Copy /></button><pre><code>{code}</code></pre><div className="code-card-footer"><span><Zap /> Resposta em milissegundos</span><span><LockKeyhole /> Conexão segura (HTTPS)</span><span><Braces /> SDKs e exemplos</span></div></div></div></section>
+    <section id="integracoes" className="velo-code-section"><div className="velo-code-layout"><div className="velo-code-copy"><p className="velo-section-kicker">◉ &nbsp; DEVELOPER FIRST</p><h2>Integre em minutos<br />com uma API simples<br />e poderosa</h2><p>Envie e-mails transacionais com poucas linhas de código. Nossa API é segura e fácil de implementar.</p><Link className="velo-button velo-button-ghost" to="/developers">Ver documentação <BookOpen /></Link></div><div className="velo-code-card"><div className="code-tabs" role="tablist" aria-label="Linguagem do exemplo">{(Object.keys(codeSamples) as Array<keyof typeof codeSamples>).map((language) => <button key={language} type="button" role="tab" aria-selected={codeLanguage === language} className={codeLanguage === language ? 'is-active' : ''} onClick={() => { setCodeLanguage(language); setCopied(false) }}>{language}</button>)}</div><button type="button" className={`code-copy ${copied ? 'is-copied' : ''}`} onClick={copyCode} aria-label="Copiar código" title={copied ? 'Código copiado' : 'Copiar código'}>{copied ? <Check /> : <Copy />}<span>{copied ? 'Copiado!' : 'Copiar'}</span></button><pre aria-live="polite"><code>{codeSamples[codeLanguage]}</code></pre><div className="code-card-footer"><span><Zap /> Resposta em milissegundos</span><span><LockKeyhole /> Conexão segura (HTTPS)</span><span><Braces /> SDKs e exemplos</span></div></div></div></section>
     <section className="velo-section velo-how"><p className="velo-section-kicker">◉ &nbsp; COMO FUNCIONA</p><h2>Do código ao e-mail enviado<br />em 4 passos</h2><p className="velo-section-lead">Uma experiência simples, rápida e segura.</p><img className="velo-email-flow" src="/landing/email-flow.png" alt="Fluxo de API para e-mail enviado" /><div className="velo-step-grid">{steps.map(([title, text], index) => <article key={title}><span>{index + 1}</span><h3>{title}</h3><p>{text}</p></article>)}</div><div className="velo-demo-grid"><div className="velo-events-card"><div className="demo-heading"><span className="feature-icon"><Webhook /></span><div><h3>Eventos de webhook</h3><p>Receba eventos de entrega e engajamento em tempo real para automatizar seu backend.</p></div></div>{[['email.sent','Mensagem enviada e registrada.','há 2s'],['email.delivered','Aceito pelo servidor do destinatário.','há 8s'],['email.opened','E-mail aberto pelo destinatário.','há 24s'],['email.clicked','Link clicado no e-mail.','há 1min'],['email.failed','Falha na entrega. Verifique o motivo.','há 3min']].map(([event, text, time], i) => <div className="event" key={event}><i className={i === 4 ? 'error' : ''} /><div><b>{event}</b><small>{text}</small></div><time>{time}</time></div>)}</div><div className="velo-template-card"><div className="demo-heading"><span className="feature-icon"><Mail /></span><div><h3>Templates profissionais</h3><p>Crie, edite e reutilize templates para diferentes cenários transacionais.</p></div></div><div className="template-inner"><aside><b>Meus templates</b><span className="selected">Confirmação de cadastro</span><span>Recuperação de senha</span><span>Notificação de pagamento</span><span>Convite para equipe</span><button>+ Novo template</button></aside><div className="mail-preview"><img src="/landing/logo-color.png" alt="VeloMail" /><h4>Olá, {'{nome}'}!</h4><p>Seu cadastro foi confirmado<br />com sucesso!</p><b>Acessar conta</b><small>Se você não realizou este cadastro,<br />ignore este e-mail.</small></div></div></div></div></section>
     <section className="velo-proof"><p className="velo-section-kicker">◉ &nbsp; CONFIANÇA</p><h2>Mais que envio. Resultados reais.</h2><p className="velo-section-lead">Empresas que confiam na VeloMail para entregar sua comunicação.</p><div className="proof-stats"><div><Mail /><b>+99%</b><span>Taxa de entrega</span></div><div><BarChart3 /><b>50M+</b><span>E-mails enviados</span></div><div><Webhook /><b>2.500+</b><span>Aplicações em produção</span></div><div><Star /><b>99,9%</b><span>Uptime da plataforma</span></div></div><div className="logo-cloud"><b>stripe</b><b>▲ vercel</b><b>↯ supabase</b><b>◒ docker</b><b>aws</b><b>☁ Google Cloud</b></div></section>
     <section id="precos" className="velo-cta"><img src="/landing/mascot-footer.png" alt="Mascote robô VeloMail" /><div><p className="velo-section-kicker">COMECE AGORA</p><h2>Pronto para enviar seus<br />e-mails com mais performance?</h2><p>Crie sua conta gratuita e comece a usar a VeloMail em minutos.</p><div className="velo-hero-buttons"><Link className="velo-button" to="/login">Criar conta gratuita <ArrowRight /></Link><Link className="velo-button velo-button-ghost" to="/developers">Ver documentação <BookOpen /></Link></div></div><ul><li><Check /> Sem cartão de crédito</li><li><Check /> Setup em minutos</li><li><Check /> Suporte especializado</li><li><Check /> Escala conforme seu crescimento</li></ul></section>
