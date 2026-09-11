@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "ULTRAZEND DEPLOY VIA GITHUB ACTIONS - INICIANDO..."
+echo "VELOMAIL DEPLOY VIA GITHUB ACTIONS - INICIANDO..."
 echo "=================================================="
 
 REPO_URL="https://github.com/fernandinhomartins40/urbansend.git"
@@ -155,7 +155,7 @@ if [ -z "$(read_env_value "SUPER_ADMIN_EMAIL")" ]; then
   ensure_env_value "SUPER_ADMIN_EMAIL" "superadmin@velomail.com.br"
 fi
 if [ -z "$(read_env_value "SUPER_ADMIN_NAME")" ]; then
-  ensure_env_value "SUPER_ADMIN_NAME" "UltraZend Super Admin"
+  ensure_env_value "SUPER_ADMIN_NAME" "VeloMail Super Admin"
 fi
 ensure_secret_if_missing "SUPER_ADMIN_PASSWORD"
 ensure_env_value "ENABLE_CSRF_PROTECTION" "true"
@@ -426,19 +426,25 @@ else
 fi
 
 echo "Testando health check do container..."
-for i in $(seq 1 12); do
-  if docker exec ultrazend-api node -e "require('http').get('http://localhost:3001/api/health/simple', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" 2>/dev/null; then
+# Migrations e seed podem levar mais de um minuto em um VPS sob carga. O
+# limite anterior de 60s fazia o workflow encerrar um backend saudável antes
+# de ele terminar a inicialização.
+for i in $(seq 1 36); do
+  if docker exec ultrazend-api node -e "const http=require('http');const request=http.get('http://localhost:3001/api/health/simple',(response)=>process.exit(response.statusCode===200?0:1));request.setTimeout(4000,()=>{request.destroy();process.exit(1)});request.on('error',()=>process.exit(1));" 2>/dev/null; then
     echo "Health check: OK"
     break
   fi
 
-  if [ "$i" -eq 12 ]; then
-    echo "ERRO: Health check falhou"
-    docker logs ultrazend-api --tail 120 || true
+  if [ "$i" -eq 36 ]; then
+    echo "ERRO: Health check nao respondeu apos 3 minutos"
+    echo "Estado do container:"
+    docker inspect --format '{{.State.Status}} (exit={{.State.ExitCode}}) started={{.State.StartedAt}}' ultrazend-api || true
+    echo "Ultimas linhas do backend:"
+    docker logs ultrazend-api --tail 160 || true
     exit 1
   fi
 
-  echo "Health check ainda nao respondeu, tentando novamente..."
+  echo "Health check ainda nao respondeu (${i}/36), tentando novamente..."
   sleep 5
 done
 
