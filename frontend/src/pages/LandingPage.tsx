@@ -1,358 +1,46 @@
 import { Link } from 'react-router-dom'
-import {
-  ArrowRight,
-  BadgeCheck,
-  BookOpen,
-  Code2,
-  Globe2,
-  KeyRound,
-  Mail,
-  ShieldCheck,
-  Sparkles,
-  Webhook,
-  Workflow,
-} from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  apiEndpointCatalog,
-  apiKeyPresets,
-  getSwaggerDocsUrl,
-  webhookEventCatalog,
-} from '@/lib/developerPortal'
+import { ArrowRight, BarChart3, BookOpen, Braces, Check, Copy, KeyRound, LockKeyhole, Mail, Menu, ShieldCheck, Star, Webhook, X, Zap } from 'lucide-react'
+import { useState } from 'react'
+import './LandingPage.css'
 
-const pillars = [
-  {
-    title: 'Envio transacional por API',
-    description:
-      'Dispare emails via API key com permissões granulares, observando cada mensagem no painel.',
-    icon: Mail,
-    surface: 'border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50',
-    iconTone: 'bg-teal-500/15 text-teal-700',
-  },
-  {
-    title: 'Autenticação de domínio guiada',
-    description:
-      'Fluxo em 4 etapas com MAIL FROM técnico, SPF, DKIM e DMARC para melhorar entregabilidade.',
-    icon: ShieldCheck,
-    surface: 'border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50',
-    iconTone: 'bg-blue-500/15 text-blue-700',
-  },
-  {
-    title: 'Templates e biblioteca',
-    description:
-      'Editor rico, coleções, biblioteca compartilhada e modelos reutilizáveis para escalar operação.',
-    icon: Workflow,
-    surface: 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50',
-    iconTone: 'bg-amber-500/15 text-amber-700',
-  },
-  {
-    title: 'Analytics e eventos',
-    description:
-      'Painel de aceite SMTP, abertura, clique e falhas, com webhooks assinados para automação.',
-    icon: Webhook,
-    surface: 'border-pink-100 bg-gradient-to-br from-pink-50 via-white to-rose-50',
-    iconTone: 'bg-pink-500/15 text-pink-700',
-  },
+const features = [
+  [Zap, 'Envio por API', 'Dispare e-mails via API com alta performance e confiabilidade.'],
+  [ShieldCheck, 'Autenticação de domínio', 'Configure SPF, DKIM e DMARC de forma simples e segura.'],
+  [KeyRound, 'Templates reutilizáveis', 'Crie, edite e organize modelos para diferentes cenários.'],
+  [BarChart3, 'Analytics em tempo real', 'Acompanhe entregas, aberturas, cliques e falhas.'],
 ] as const
-
-const onboardingSteps = [
-  {
-    title: '1. Gere API key com escopo',
-    description: 'Use presets prontos e habilite apenas as permissões necessárias para seu backend.',
-    icon: KeyRound,
-    tone: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-  },
-  {
-    title: '2. Autentique domínio',
-    description: 'Publique MAIL FROM, SPF, DKIM e DMARC com o assistente de domínio da plataforma.',
-    icon: Globe2,
-    tone: 'border-blue-100 bg-blue-50 text-blue-700',
-  },
-  {
-    title: '3. Configure templates',
-    description: 'Crie templates no editor rico ou clone modelos da biblioteca para acelerar entregas.',
-    icon: Workflow,
-    tone: 'border-amber-100 bg-amber-50 text-amber-700',
-  },
-  {
-    title: '4. Feche o loop com webhooks',
-    description: 'Valide assinatura HMAC e processe eventos de entrega, abertura e clique em tempo real.',
-    icon: Webhook,
-    tone: 'border-pink-100 bg-pink-50 text-pink-700',
-  },
-] as const
-
-const methodTone: Record<string, string> = {
-  GET: 'border-blue-200 bg-blue-100 text-blue-700',
-  POST: 'border-emerald-200 bg-emerald-100 text-emerald-700',
-  PUT: 'border-amber-200 bg-amber-100 text-amber-700',
-  DELETE: 'border-rose-200 bg-rose-100 text-rose-700',
-}
+const steps = [['Gere sua API key', 'Crie sua conta e habilite as permissões necessárias.'], ['Autentique seu domínio', 'Publique os registros SPF, DKIM e DMARC.'], ['Configure seus templates', 'Crie e personalize seus modelos de e-mail.'], ['Envie e acompanhe', 'Dispare os e-mails e monitore os resultados em tempo real.']]
+const code = `curl -X POST https://api.velomail.com/emails/send \\
+  -H "Authorization: Bearer sua_api_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "from": "cliente@exemplo.com",
+    "subject": "Seu código de acesso",
+    "template_id": "tmpl_123",
+    "variables": { "nome": "João", "codigo": "996472" }
+  }'`
 
 export function LandingPage() {
-  const liveEvents = webhookEventCatalog.filter((event) => event.availability === 'live')
-  const plannedEvents = webhookEventCatalog.filter((event) => event.availability === 'planned')
-  const endpointPreview = apiEndpointCatalog.slice(0, 6)
-  const swaggerDocsUrl = getSwaggerDocsUrl()
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="inline-flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-500">
-              <Mail className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <div className="text-lg font-semibold text-white">UltraZend</div>
-              <div className="text-xs text-slate-300">Email transacional para SaaS</div>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-8 text-sm text-slate-300 lg:flex">
-            <a href="#plataforma" className="transition hover:text-white">Plataforma</a>
-            <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
-            <a href="#integracao" className="transition hover:text-white">Integração</a>
-            <a href="#api" className="transition hover:text-white">API</a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" className="text-slate-200 hover:bg-white/10 hover:text-white">
-              <Link to="/login">Entrar</Link>
-            </Button>
-            <Button asChild className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
-              <Link to="/login">Acessar painel</Link>
-            </Button>
-          </div>
-        </div>
+  const [menuOpen, setMenuOpen] = useState(false)
+  return <main className="velo-page">
+    <section className="velo-hero" id="inicio">
+      <header className="velo-nav">
+        <Link to="/" className="velo-logo" aria-label="VeloMail - início"><img src="/landing/logo-white.png" alt="VeloMail" /></Link>
+        <nav className={`velo-links ${menuOpen ? 'is-open' : ''}`} aria-label="Navegação principal">
+          <a onClick={() => setMenuOpen(false)} href="#produto">Produto</a><a onClick={() => setMenuOpen(false)} href="#recursos">Recursos</a><a onClick={() => setMenuOpen(false)} href="#precos">Preços</a><Link onClick={() => setMenuOpen(false)} to="/developers">Documentação</Link><a onClick={() => setMenuOpen(false)} href="#integracoes">Integrações</a><a onClick={() => setMenuOpen(false)} href="#blog">Blog</a>
+        </nav>
+        <div className="velo-nav-actions"><Link className="velo-login" to="/login">Entrar</Link><Link className="velo-button velo-button-small" to="/login">Criar conta gratuita <ArrowRight /></Link></div>
+        <button className="velo-menu" type="button" aria-label="Abrir menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
       </header>
-
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.2),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(251,113,133,0.18),transparent_30%)]" />
-        <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-4 pb-16 pt-16 sm:px-6 lg:grid-cols-[1.35fr_1fr] lg:px-8 lg:pb-24 lg:pt-20">
-          <div className="space-y-6">
-            <Badge className="border-cyan-300/40 bg-cyan-500/15 text-cyan-200">
-              <Sparkles className="mr-2 h-3.5 w-3.5" />
-              Infraestrutura pronta para escalar envios
-            </Badge>
-            <h1 className="text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-              Envie emails transacionais com
-              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 bg-clip-text text-transparent"> velocidade, controle e alta confiança</span>
-            </h1>
-            <p className="max-w-3xl text-lg text-slate-200">
-              UltraZend centraliza tudo que seu SaaS precisa para operação de email: API de envio,
-              autenticação de domínio, templates profissionais, analytics e webhooks em tempo real.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
-                <Link to="/login">
-                  Começar no painel
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10">
-                <a href={swaggerDocsUrl} target="_blank" rel="noreferrer">
-                  API docs
-                  <BookOpen className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
-            </div>
-          </div>
-
-          <Card className="border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Capacidades ativas na plataforma</CardTitle>
-              <CardDescription className="text-slate-300">
-                Recursos disponíveis para sua operação de envio hoje.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 p-4">
-                <div className="text-2xl font-semibold">{liveEvents.length}</div>
-                <div className="text-sm text-cyan-100">eventos de webhook em produção</div>
-              </div>
-              <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
-                <div className="text-2xl font-semibold">{apiKeyPresets.length}</div>
-                <div className="text-sm text-emerald-100">presets de API key no painel</div>
-              </div>
-              <div className="rounded-xl border border-blue-300/30 bg-blue-500/10 p-4">
-                <div className="text-2xl font-semibold">{apiEndpointCatalog.length}</div>
-                <div className="text-sm text-blue-100">rotas-chave mapeadas na documentação</div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      <section id="plataforma" className="bg-slate-50 py-20 text-slate-900">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-12 max-w-3xl">
-            <Badge className="border-slate-200 bg-white text-slate-700">Plataforma</Badge>
-            <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Tudo que seu SaaS precisa para email transacional</h2>
-            <p className="mt-3 text-slate-600">
-              Concentre envio, autenticação, conteúdo e observabilidade em um único fluxo operacional.
-            </p>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            {pillars.map((pillar) => (
-              <Card key={pillar.title} className={pillar.surface}>
-                <CardHeader>
-                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${pillar.iconTone}`}>
-                    <pillar.icon className="h-5 w-5" />
-                  </div>
-                  <CardTitle className="pt-2 text-xl">{pillar.title}</CardTitle>
-                  <CardDescription className="text-slate-700">{pillar.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="onboarding" className="bg-white py-20 text-slate-900">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 flex items-center gap-3">
-            <Badge className="border-blue-200 bg-blue-50 text-blue-700">
-              <Globe2 className="mr-2 h-3.5 w-3.5" />
-              Time-to-value rápido
-            </Badge>
-            <p className="text-sm text-slate-500">Do cadastro ao envio em produção em poucos passos</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {onboardingSteps.map((step) => (
-              <Card key={step.title} className="border-slate-200">
-                <CardContent className="flex items-start gap-4 p-6">
-                  <div className={`inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border ${step.tone}`}>
-                    <step.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">{step.title}</h3>
-                    <p className="mt-1 text-sm text-slate-600">{step.description}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="integracao" className="bg-slate-50 py-20 text-slate-900">
-        <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <Card className="border-slate-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Webhook className="h-5 w-5 text-pink-600" />
-                Eventos de webhook
-              </CardTitle>
-              <CardDescription>
-                Receba eventos de entrega e engajamento para automatizar seu backend.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {webhookEventCatalog.slice(0, 6).map((event) => (
-                <div key={event.value} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">{event.value}</div>
-                    <div className="text-xs text-slate-600">{event.deliveryMeaning}</div>
-                  </div>
-                  <Badge
-                    className={event.availability === 'live'
-                      ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
-                      : 'border-amber-200 bg-amber-100 text-amber-700'}
-                  >
-                    {event.availability === 'live' ? 'live' : 'planned'}
-                  </Badge>
-                </div>
-              ))}
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
-                  <div className="text-xl font-semibold text-emerald-700">{liveEvents.length}</div>
-                  <div className="text-xs text-emerald-700">eventos live</div>
-                </div>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
-                  <div className="text-xl font-semibold text-amber-700">{plannedEvents.length}</div>
-                  <div className="text-xs text-amber-700">eventos planejados</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Code2 className="h-5 w-5 text-blue-600" />
-                Endpoints principais
-              </CardTitle>
-              <CardDescription>
-                API objetiva para envio, rastreamento, templates e integrações.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {endpointPreview.map((endpoint) => (
-                <div key={`${endpoint.method}-${endpoint.path}`} className="rounded-lg border border-slate-200 bg-white p-3">
-                  <div className="mb-1 flex items-center gap-2">
-                    <Badge className={methodTone[endpoint.method] || 'border-slate-200 bg-slate-100 text-slate-700'}>
-                      {endpoint.method}
-                    </Badge>
-                    <code className="text-xs text-slate-700">{endpoint.path}</code>
-                  </div>
-                  <p className="text-xs text-slate-600">{endpoint.description}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      <section id="api" className="bg-white py-20 text-slate-900">
-        <div className="mx-auto w-full max-w-5xl px-4 text-center sm:px-6 lg:px-8">
-          <Badge className="border-slate-200 bg-slate-100 text-slate-700">
-            <BadgeCheck className="mr-2 h-3.5 w-3.5" />
-            Pronto para crescer com seu volume
-          </Badge>
-          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">Comece rápido e evolua com segurança</h2>
-          <p className="mx-auto mt-3 max-w-3xl text-slate-600">
-            Estruture sua operação de email em uma plataforma pensada para times de produto,
-            engenharia e growth que precisam entregar com previsibilidade.
-          </p>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700">
-              <Link to="/login">
-                Começar agora
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <a href={swaggerDocsUrl} target="_blank" rel="noreferrer">
-                Ver API docs
-                <BookOpen className="ml-2 h-4 w-4" />
-              </a>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t border-white/10 bg-slate-950 py-10 text-slate-300">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 text-sm sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div className="inline-flex items-center gap-2">
-            <Mail className="h-4 w-4 text-cyan-300" />
-            <span>UltraZend</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <a href="#plataforma" className="transition hover:text-white">Plataforma</a>
-            <a href="#onboarding" className="transition hover:text-white">Onboarding</a>
-            <a href="#integracao" className="transition hover:text-white">Integração</a>
-            <a href="#api" className="transition hover:text-white">API</a>
-            <Button asChild size="sm" variant="outline" className="border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100">
-              <Link to="/super-admin/login">Painel Super Admin</Link>
-            </Button>
-          </div>
-          <div>(c) 2026 UltraZend. Todos os direitos reservados.</div>
-        </div>
-      </footer>
-    </div>
-  )
+      <div className="velo-hero-copy"><p className="velo-eyebrow"><span /> Infraestrutura de e-mail para quem constrói o futuro</p><h1>E-mails transacionais<br />que chegam <em>mais longe</em></h1><p className="velo-hero-description">Velocidade, confiabilidade e controle para suas aplicações.<br className="desktop-only" /> Integre em minutos e escale sem preocupação.</p><div className="velo-hero-buttons"><Link className="velo-button" to="/login">Começar agora <ArrowRight /></Link><Link className="velo-button velo-button-ghost" to="/developers">Ver documentação <BookOpen /></Link></div><ul className="velo-checks"><li><Check /> Setup em minutos</li><li><Check /> Sem taxa de adesão</li><li><Check /> Suporte especializado</li></ul></div>
+      <div className="velo-dashboard" aria-label="Prévia do painel VeloMail"><aside><img src="/landing/logo-white.png" alt="" /><span className="active"><BarChart3 /> Visão geral</span><span><Mail /> E-mails</span><span><Braces /> Templates</span><span><ShieldCheck /> Domínios</span><span><Webhook /> Webhooks</span></aside><div className="velo-dashboard-content"><div className="dashboard-heading"><div><b>Visão geral</b><small>Olá, equipe VeloMail</small></div><span className="status-dot">Sistema operacional</span></div><div className="metric-row"><div><small>Enviados</small><b>12.542</b><i>+12%</i></div><div><small>Entregues</small><b>12.410</b><i>99,7%</i></div><div><small>Aberturas</small><b>8.456</b><i>67,4%</i></div><div><small>Cliques</small><b>2.103</b><i className="red">16,9%</i></div></div><div className="mini-chart"><div className="chart-tip">1.842 e-mails<br />em 12:00</div><svg viewBox="0 0 500 150" aria-label="Gráfico crescente de envios"><path d="M0 126 L45 105 L90 112 L135 88 L175 100 L225 42 L260 74 L310 78 L360 65 L410 38 L500 15" fill="none" stroke="#1976ff" strokeWidth="4" /></svg></div><p className="activity-title">Atividade em tempo real</p><div className="activity"><span><i /> email.delivered</span><span>cliente@exemplo.com</span><small>há 2s</small><span><i /> email.opened</span><span>usuario@saas.com</span><small>há 12s</small><span><i /> email.clicked</span><span>contato@empresa.com</span><small>há 20s</small></div></div></div>
+      <img className="velo-hero-mascot" src="/landing/mascot-hero.png" alt="Mascote robô da VeloMail segurando um envelope" />
+    </section>
+    <section id="produto" className="velo-section velo-features"><p className="velo-section-kicker">◉ &nbsp; POR QUE VELOMAIL?</p><h2>Tudo o que seu SaaS precisa para<br />e-mail transacional, em um só lugar</h2><p className="velo-section-lead">Da API ao analytics, você tem total controle sobre sua operação de e-mails.</p><div className="velo-feature-grid" id="recursos">{features.map(([Icon, title, text]) => <article className="velo-feature" key={title}><span className="feature-icon"><Icon /></span><h3>{title}</h3><p>{text}</p><a href="#integracoes">Saiba mais <ArrowRight /></a></article>)}</div></section>
+    <section id="integracoes" className="velo-code-section"><div className="velo-code-layout"><div className="velo-code-copy"><p className="velo-section-kicker">◉ &nbsp; DEVELOPER FIRST</p><h2>Integre em minutos<br />com uma API simples<br />e poderosa</h2><p>Envie e-mails transacionais com poucas linhas de código. Nossa API é segura e fácil de implementar.</p><Link className="velo-button velo-button-ghost" to="/developers">Ver documentação <BookOpen /></Link></div><div className="velo-code-card"><div className="code-tabs"><b>cURL</b><span>JavaScript</span><span>Python</span><span>PHP</span></div><button type="button" aria-label="Copiar código"><Copy /></button><pre><code>{code}</code></pre><div className="code-card-footer"><span><Zap /> Resposta em milissegundos</span><span><LockKeyhole /> Conexão segura (HTTPS)</span><span><Braces /> SDKs e exemplos</span></div></div></div></section>
+    <section className="velo-section velo-how"><p className="velo-section-kicker">◉ &nbsp; COMO FUNCIONA</p><h2>Do código ao e-mail enviado<br />em 4 passos</h2><p className="velo-section-lead">Uma experiência simples, rápida e segura.</p><img className="velo-email-flow" src="/landing/email-flow.png" alt="Fluxo de API para e-mail enviado" /><div className="velo-step-grid">{steps.map(([title, text], index) => <article key={title}><span>{index + 1}</span><h3>{title}</h3><p>{text}</p></article>)}</div><div className="velo-demo-grid"><div className="velo-events-card"><div className="demo-heading"><span className="feature-icon"><Webhook /></span><div><h3>Eventos de webhook</h3><p>Receba eventos de entrega e engajamento em tempo real para automatizar seu backend.</p></div></div>{[['email.sent','Mensagem enviada e registrada.','há 2s'],['email.delivered','Aceito pelo servidor do destinatário.','há 8s'],['email.opened','E-mail aberto pelo destinatário.','há 24s'],['email.clicked','Link clicado no e-mail.','há 1min'],['email.failed','Falha na entrega. Verifique o motivo.','há 3min']].map(([event, text, time], i) => <div className="event" key={event}><i className={i === 4 ? 'error' : ''} /><div><b>{event}</b><small>{text}</small></div><time>{time}</time></div>)}</div><div className="velo-template-card"><div className="demo-heading"><span className="feature-icon"><Mail /></span><div><h3>Templates profissionais</h3><p>Crie, edite e reutilize templates para diferentes cenários transacionais.</p></div></div><div className="template-inner"><aside><b>Meus templates</b><span className="selected">Confirmação de cadastro</span><span>Recuperação de senha</span><span>Notificação de pagamento</span><span>Convite para equipe</span><button>+ Novo template</button></aside><div className="mail-preview"><img src="/landing/logo-color.png" alt="VeloMail" /><h4>Olá, {'{nome}'}!</h4><p>Seu cadastro foi confirmado<br />com sucesso!</p><b>Acessar conta</b><small>Se você não realizou este cadastro,<br />ignore este e-mail.</small></div></div></div></div></section>
+    <section className="velo-proof"><p className="velo-section-kicker">◉ &nbsp; CONFIANÇA</p><h2>Mais que envio. Resultados reais.</h2><p className="velo-section-lead">Empresas que confiam na VeloMail para entregar sua comunicação.</p><div className="proof-stats"><div><Mail /><b>+99%</b><span>Taxa de entrega</span></div><div><BarChart3 /><b>50M+</b><span>E-mails enviados</span></div><div><Webhook /><b>2.500+</b><span>Aplicações em produção</span></div><div><Star /><b>99,9%</b><span>Uptime da plataforma</span></div></div><div className="logo-cloud"><b>stripe</b><b>▲ vercel</b><b>↯ supabase</b><b>◒ docker</b><b>aws</b><b>☁ Google Cloud</b></div></section>
+    <section id="precos" className="velo-cta"><img src="/landing/mascot-footer.png" alt="Mascote robô VeloMail" /><div><p className="velo-section-kicker">COMECE AGORA</p><h2>Pronto para enviar seus<br />e-mails com mais performance?</h2><p>Crie sua conta gratuita e comece a usar a VeloMail em minutos.</p><div className="velo-hero-buttons"><Link className="velo-button" to="/login">Criar conta gratuita <ArrowRight /></Link><Link className="velo-button velo-button-ghost" to="/developers">Ver documentação <BookOpen /></Link></div></div><ul><li><Check /> Sem cartão de crédito</li><li><Check /> Setup em minutos</li><li><Check /> Suporte especializado</li><li><Check /> Escala conforme seu crescimento</li></ul></section>
+    <footer className="velo-footer" id="blog"><div className="velo-footer-top"><div className="footer-brand"><img src="/landing/logo-white.png" alt="VeloMail" /><p>Infraestrutura de e-mail transacional para aplicações que vão mais longe.</p></div><div><b>Produto</b><a href="#recursos">Recursos</a><a href="#precos">Preços</a><a href="#integracoes">Integrações</a><a href="#">Changelog</a></div><div><b>Desenvolvedores</b><Link to="/developers">Documentação</Link><a href="#">API</a><a href="#">SDKs</a><a href="#">Status</a></div><div><b>Empresa</b><a href="#">Sobre</a><a href="#blog">Blog</a><a href="#">Suporte</a><a href="#">Contato</a></div><div><b>Siga-nos</b><div className="socials"><a href="#">in</a><a href="#">𝕏</a><a href="#">▶</a><a href="#">◉</a></div></div></div><div className="velo-footer-bottom"><span>© 2026 VeloMail. Todos os direitos reservados.</span><div><a href="#">Termos de uso</a><a href="#">Política de privacidade</a><a href="#">Status</a></div></div></footer>
+  </main>
 }
