@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+on_deploy_error() {
+  local exit_code="$?"
+  local line_number="$1"
+  echo "ERRO: deploy interrompido na linha ${line_number} (exit=${exit_code})"
+  echo "Espaco em disco no momento da falha:"
+  df -h / || true
+  echo "Imagens Docker recentes:"
+  docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' | head -n 12 || true
+  exit "$exit_code"
+}
+trap 'on_deploy_error $LINENO' ERR
+
 echo "VELOMAIL DEPLOY VIA GITHUB ACTIONS - INICIANDO..."
 echo "=================================================="
 
@@ -133,6 +145,15 @@ else
 fi
 
 echo "Atualizando codigo da aplicacao..."
+echo "Verificando espaco antes da compilacao..."
+available_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
+if [ "${available_kb:-0}" -lt 1572864 ]; then
+  echo "Espaco abaixo de 1.5 GB; removendo somente imagens e cache Docker nao utilizados..."
+  docker image prune -f || true
+  docker builder prune -f --filter 'until=24h' || true
+fi
+df -h /
+
 rm -rf "$APP_DIR"
 git clone --depth 1 "$REPO_URL" "$APP_DIR"
 cd "$APP_DIR"
@@ -169,7 +190,7 @@ find "$CONFIG_DIR/dkim-keys" -type f -exec chmod 644 {} + 2>/dev/null || true
 
 echo "Compilando frontend..."
 cd "$APP_DIR/frontend"
-npm ci --silent --no-progress
+npm ci --no-audit --no-fund --no-progress
 npm run build
 
 rm -rf "$STATIC_DIR"/*
