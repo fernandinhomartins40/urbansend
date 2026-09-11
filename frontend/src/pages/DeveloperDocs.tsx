@@ -49,7 +49,7 @@ export function DeveloperDocs() {
           <div className="max-w-3xl space-y-4">
             <Badge className="bg-sky-600 text-white hover:bg-sky-600">Developer Portal</Badge>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Integre a UltraZend com menos atrito</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Integre a VeloMail com menos atrito</h1>
               <p className="max-w-2xl text-sm leading-6 text-slate-600">
                 Esta pagina concentra o fluxo recomendado para API keys, envio transacional, autenticacao de dominio
                 e webhooks. O objetivo e sair do painel com um backend pronto para enviar, observar e reagir a eventos.
@@ -233,7 +233,7 @@ export function DeveloperDocs() {
           />
           <CodeSnippetCard
             title="Payload de exemplo"
-            description="Formato base entregue pela UltraZend em webhooks reais."
+            description="Formato base entregue pela VeloMail em webhooks reais."
             code={buildWebhookPayloadExample()}
             language="json"
           />

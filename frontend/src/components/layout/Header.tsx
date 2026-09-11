@@ -20,10 +20,10 @@ export function Header({ className }: HeaderProps) {
 
   return (
     <header className={cn(
-      "w-full border-b bg-background",
+      "sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur",
       className
     )}>
-      <div className="flex h-16 items-center px-3 sm:px-4 lg:px-6">
+      <div className="flex h-[72px] items-center px-3 sm:px-4 lg:px-6">
         {/* Mobile menu button */}
         <Button
           variant="ghost"
@@ -60,7 +60,7 @@ export function Header({ className }: HeaderProps) {
 
             {/* Notifications dropdown - simplified for now */}
             {showNotifications && (
-              <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-1rem))] rounded-md border bg-popover p-3 shadow-md sm:p-4">
+              <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-1rem))] rounded-xl border bg-popover p-3 shadow-md sm:p-4">
                 <h4 className="font-medium mb-2">Notificações</h4>
                 {notifications.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhuma notificação</p>
@@ -98,7 +98,7 @@ export function Header({ className }: HeaderProps) {
             </Button>
 
             {showUserMenu && (
-              <div className="absolute right-0 z-50 mt-2 w-[min(14rem,calc(100vw-1rem))] rounded-md border bg-popover p-1 shadow-md">
+              <div className="absolute right-0 z-50 mt-2 w-[min(14rem,calc(100vw-1rem))] rounded-xl border bg-popover p-1 shadow-md">
                 <div className="px-3 py-2 border-b">
                   <div className="truncate font-medium">{user?.name}</div>
                   <div className="truncate text-sm text-muted-foreground">{user?.email}</div>

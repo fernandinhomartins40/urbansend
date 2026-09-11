@@ -177,7 +177,7 @@ export const DomainList: React.FC<DomainListProps> = ({
           Nenhum domínio adicionado
         </h3>
         <p className="text-gray-600 mb-6">
-          Adicione seu primeiro domínio para começar a enviar emails autenticados através do UltraZend.
+          Adicione seu primeiro domínio para começar a enviar emails autenticados através da VeloMail.
         </p>
         <Button onClick={onAddDomain}>
           <Plus className="w-4 h-4 mr-2" />

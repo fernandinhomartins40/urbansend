@@ -302,7 +302,7 @@ export function Webhooks() {
             <div className="space-y-2">
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">Receba o que a plataforma realmente sabe hoje</h2>
               <p className="text-sm leading-6 text-slate-600">
-                O catalogo abaixo esta alinhado ao caminho ativo da UltraZend: aceite na API, aceite SMTP, abertura,
+                O catálogo abaixo está alinhado ao caminho ativo da VeloMail: aceite na API, aceite SMTP, abertura,
                 clique e falha imediata. Eventos planejados continuam visiveis, mas nao entram como selecao ativa.
               </p>
             </div>
@@ -789,7 +789,7 @@ export function Webhooks() {
             <div className="space-y-6">
               <CodeSnippetCard
                 title="Payload de exemplo"
-                description="Formato padrao entregue pelos eventos live da UltraZend."
+                description="Formato padrão entregue pelos eventos live da VeloMail."
                 code={docsPayload}
                 language="json"
               />

@@ -405,7 +405,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             <div>
               <h4 className="font-medium">Nao altere o site nem o MX principal</h4>
               <p className="text-sm">
-                A UltraZend usa um subdominio tecnico de return-path. O dominio raiz e o email corporativo do cliente continuam intactos.
+                A VeloMail usa um subdominio técnico de return-path. O domínio raiz e o email corporativo do cliente continuam intactos.
               </p>
             </div>
           </Alert>

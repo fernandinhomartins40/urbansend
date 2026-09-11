@@ -24,20 +24,20 @@ export function SuperAdminLayout() {
   const pageTitle = pageTitleByPath[location.pathname] || 'Super Admin'
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-background">
       <SuperAdminSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <div className="lg:ml-72">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between px-4 sm:px-6">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-indigo-700" />
+                <ShieldCheck className="h-5 w-5 text-primary" />
                 <div>
-                  <h1 className="text-sm font-semibold text-slate-900 sm:text-base">{pageTitle}</h1>
+                  <h1 className="text-sm font-semibold text-foreground sm:text-base">{pageTitle}</h1>
                   <p className="text-xs text-slate-500">Painel separado de administração da plataforma</p>
                 </div>
               </div>
@@ -45,8 +45,8 @@ export function SuperAdminLayout() {
 
             <div className="flex items-center gap-3">
               <div className="hidden text-right sm:block">
-                <div className="text-xs text-slate-500">Conectado como</div>
-                <div className="max-w-[240px] truncate text-sm font-medium text-slate-900">{user?.email}</div>
+                <div className="text-xs text-muted-foreground">Conectado como</div>
+                <div className="max-w-[240px] truncate text-sm font-medium text-foreground">{user?.email}</div>
               </div>
               <Button
                 variant="outline"

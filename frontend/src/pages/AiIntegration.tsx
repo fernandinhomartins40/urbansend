@@ -85,7 +85,7 @@ const downloadTextFile = (filename: string, content: string) => {
 export function AiIntegration() {
   const queryClient = useQueryClient()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [keyName, setKeyName] = useState('UltraZend AI Agent')
+  const [keyName, setKeyName] = useState('VeloMail AI Agent')
   const [description, setDescription] = useState('Chave dedicada para agentes em Cursor, VS Code e IDEs com IA.')
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const [latestKey, setLatestKey] = useState<string | null>(null)
@@ -168,7 +168,7 @@ export function AiIntegration() {
           <div className="max-w-3xl space-y-4">
             <Badge className="bg-cyan-600 text-white hover:bg-cyan-600">Integracao com IA</Badge>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Conecte Cursor e VS Code direto na UltraZend</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Conecte Cursor e VS Code direto na VeloMail</h1>
               <p className="text-sm leading-6 text-slate-600">
                 Gere uma AI Agent Key dedicada, entregue um `mcp.json` pronto para a IDE e use um prompt padrao para
                 o agente consultar docs, validar dominio, configurar webhooks, ajustar settings e executar o primeiro envio.
@@ -262,7 +262,7 @@ export function AiIntegration() {
                 2. Conecte o MCP
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Salve o `mcp.json` no Cursor ou no VS Code e conecte a IDE direto ao servidor MCP remoto da UltraZend.
+                Salve o `mcp.json` no Cursor ou no VS Code e conecte a IDE direto ao servidor MCP remoto da VeloMail.
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -280,7 +280,7 @@ export function AiIntegration() {
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle>Capacidades expostas</CardTitle>
-            <CardDescription>O que o agente enxerga no MCP da UltraZend hoje.</CardDescription>
+            <CardDescription>O que o agente enxerga no MCP da VeloMail hoje.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3">
@@ -459,7 +459,7 @@ export function AiIntegration() {
           {onboarding?.quickstart_markdown ? (
             <CodeSnippetCard
               title="Quickstart"
-              description="Resumo operacional para quem vai integrar a UltraZend com ajuda de IA."
+              description="Resumo operacional para quem vai integrar a VeloMail com ajuda de IA."
               code={onboarding.quickstart_markdown}
               language="md"
             />

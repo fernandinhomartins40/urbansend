@@ -43,24 +43,24 @@ interface RecentActivity {
 
 const metricStyles = {
   volume: {
-    surface: 'border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50',
-    icon: 'bg-teal-500/15 text-teal-700',
-    bar: 'from-teal-500 to-cyan-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   delivery: {
-    surface: 'border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50',
-    icon: 'bg-blue-500/15 text-blue-700',
-    bar: 'from-blue-500 to-indigo-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   open: {
-    surface: 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50',
-    icon: 'bg-amber-500/15 text-amber-700',
-    bar: 'from-amber-500 to-orange-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   bounce: {
-    surface: 'border-red-100 bg-gradient-to-br from-red-50 via-white to-rose-50',
-    icon: 'bg-red-500/15 text-red-700',
-    bar: 'from-red-500 to-rose-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-destructive/10 text-destructive',
+    bar: 'from-destructive to-destructive',
   },
 } as const
 
@@ -318,7 +318,7 @@ export function Dashboard() {
                     <span className="text-cyan-50/80">Intenção de clique</span>
                     <span className="font-medium text-white">{clickEstimate.toFixed(1)}%</span>
                   </div>
-                  {renderPercentageBar(clickEstimate, 'from-pink-500 to-rose-500')}
+                  {renderPercentageBar(clickEstimate, 'from-primary to-primary')}
                 </div>
               </div>
 
@@ -373,8 +373,8 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="overflow-hidden border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-amber-50">
+        <Card className="overflow-hidden border-border shadow-sm">
+          <CardHeader className="border-b bg-muted/35">
             <CardTitle className="text-xl">Atividade recente</CardTitle>
             <CardDescription>Os eventos mais novos da conta, com leitura direta do status.</CardDescription>
           </CardHeader>
@@ -383,24 +383,24 @@ export function Dashboard() {
               recentActivity.slice(0, 6).map((item, index) => (
                 <div
                   key={`${item.email}-${item.timestamp}-${index}`}
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+                  className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-primary" />
                         <span className="font-medium text-slate-900">{getEmailStatusLabel(item.status)}</span>
                       </div>
                       <div className="text-sm text-slate-700">{item.email}</div>
                     </div>
-                    <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50">
+                    <Badge variant="outline" className="rounded-full border-border bg-muted/50">
                       {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true, locale: ptBR })}
                     </Badge>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border py-10 text-center text-muted-foreground">
                 <Activity className="mx-auto mb-3 h-8 w-8" />
                 Nenhuma atividade recente encontrada.
               </div>
@@ -409,25 +409,25 @@ export function Dashboard() {
         </Card>
 
         <div className="grid gap-6">
-          <Card className="overflow-hidden border-slate-200 shadow-sm">
-            <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-white to-cyan-50">
+          <Card className="overflow-hidden border-border shadow-sm">
+            <CardHeader className="border-b bg-muted/35">
               <CardTitle className="text-xl">Leitura operacional</CardTitle>
               <CardDescription>Resumo rápido do que merece atenção agora.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 p-6">
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="rounded-xl border border-border bg-muted/45 p-4">
                 <div className="mb-2 text-sm font-medium text-slate-700">Aceite SMTP</div>
                 {renderPercentageBar(safeStats.deliveryRate, metricStyles.delivery.bar)}
                 <div className="mt-2 text-xs text-slate-500">Entrega técnica aceita pelos servidores remotos.</div>
               </div>
 
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="rounded-xl border border-border bg-muted/45 p-4">
                 <div className="mb-2 text-sm font-medium text-slate-700">Abertura</div>
                 {renderPercentageBar(safeStats.openRate, metricStyles.open.bar)}
                 <div className="mt-2 text-xs text-slate-500">Rastreada por HTML/pixel ou clique em link.</div>
               </div>
 
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="rounded-xl border border-border bg-muted/45 p-4">
                 <div className="mb-2 text-sm font-medium text-slate-700">Bounce</div>
                 {renderPercentageBar(safeStats.bounceRate, metricStyles.bounce.bar)}
                 <div className="mt-2 text-xs text-slate-500">Falhas permanentes ou temporárias do envio.</div>
@@ -435,8 +435,8 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-slate-200 shadow-sm">
-            <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-white to-teal-50">
+          <Card className="overflow-hidden border-border shadow-sm">
+            <CardHeader className="border-b bg-muted/35">
               <CardTitle className="text-xl">Ações rápidas</CardTitle>
               <CardDescription>Caminhos mais usados para agir sobre os números.</CardDescription>
             </CardHeader>
@@ -467,29 +467,29 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border-slate-200 bg-gradient-to-br from-teal-50 to-white shadow-sm">
+        <Card className="border-border bg-card shadow-sm">
           <CardContent className="flex h-full items-start justify-between gap-4 p-5">
             <div>
               <div className="text-sm font-medium text-slate-600">Aceite x abertura</div>
               <div className="mt-1 text-2xl font-semibold text-slate-950">{Math.max(0, safeStats.deliveryRate - safeStats.openRate).toFixed(1)} pp</div>
               <div className="mt-1 text-xs text-slate-500">Diferença entre chegada técnica e engajamento.</div>
             </div>
-            <TrendingUp className="h-5 w-5 text-teal-600" />
+            <TrendingUp className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 bg-gradient-to-br from-amber-50 to-white shadow-sm">
+        <Card className="border-border bg-card shadow-sm">
           <CardContent className="flex h-full items-start justify-between gap-4 p-5">
             <div>
               <div className="text-sm font-medium text-slate-600">Indicador de clique</div>
               <div className="mt-1 text-2xl font-semibold text-slate-950">{clickEstimate.toFixed(1)}%</div>
               <div className="mt-1 text-xs text-slate-500">Estimativa visual para intensidade de ação.</div>
             </div>
-            <MousePointer className="h-5 w-5 text-amber-600" />
+            <MousePointer className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+        <Card className="border-border bg-card shadow-sm">
           <CardContent className="flex h-full items-start justify-between gap-4 p-5">
             <div>
               <div className="text-sm font-medium text-slate-600">Próximo foco</div>

@@ -14,7 +14,7 @@ import './styles/globals.css'
 // Loading component
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+    <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary/20 border-t-primary"></div>
   </div>
 )
 
@@ -412,42 +412,42 @@ function App() {
               toastOptions={{
                 duration: 4000,
                 style: {
-                  background: '#ffffff',
-                  color: '#374151',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
+                  background: 'hsl(var(--popover))',
+                  color: 'hsl(var(--popover-foreground))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '12px',
                   fontSize: '14px',
                   fontWeight: '500',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  boxShadow: 'var(--shadow-md)',
                   maxWidth: '400px',
                   padding: '12px 16px'
                 },
                 success: {
                   iconTheme: {
-                    primary: '#10b981',
-                    secondary: '#ffffff'
+                    primary: 'hsl(var(--success))',
+                    secondary: 'hsl(var(--primary-foreground))'
                   },
                   style: {
-                    border: '1px solid #10b981',
-                    background: '#f0fdf4',
-                    color: '#065f46'
+                    border: '1px solid hsl(var(--success) / .35)',
+                    background: 'hsl(var(--success) / .08)',
+                    color: 'hsl(var(--success))'
                   }
                 },
                 error: {
                   iconTheme: {
-                    primary: '#ef4444',
-                    secondary: '#ffffff'
+                    primary: 'hsl(var(--destructive))',
+                    secondary: 'hsl(var(--destructive-foreground))'
                   },
                   style: {
-                    border: '1px solid #ef4444',
-                    background: '#fef2f2',
-                    color: '#991b1b'
+                    border: '1px solid hsl(var(--destructive) / .35)',
+                    background: 'hsl(var(--destructive) / .08)',
+                    color: 'hsl(var(--destructive))'
                   }
                 },
                 loading: {
                   iconTheme: {
-                    primary: '#3b82f6',
-                    secondary: '#ffffff'
+                    primary: 'hsl(var(--primary))',
+                    secondary: 'hsl(var(--primary-foreground))'
                   }
                 }
               }}

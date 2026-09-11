@@ -22,41 +22,42 @@ import { cn, formatNumber, formatRelativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { veloMailChartColors } from '@/lib/theme'
 
 const chartColors = {
-  sent: '#0f766e',
-  delivered: '#2563eb',
-  opened: '#d97706',
-  clicked: '#db2777',
+  sent: veloMailChartColors.primary,
+  delivered: veloMailChartColors.secondary,
+  opened: veloMailChartColors.success,
+  clicked: veloMailChartColors.warning,
 }
 
 const analyticsRanges: Array<'7d' | '30d' | '90d'> = ['7d', '30d', '90d']
 
 const metricStyles = {
   sent: {
-    surface: 'border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50',
-    icon: 'bg-teal-500/15 text-teal-700',
-    bar: 'from-teal-500 to-cyan-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   delivered: {
-    surface: 'border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50',
-    icon: 'bg-blue-500/15 text-blue-700',
-    bar: 'from-blue-500 to-indigo-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   opened: {
-    surface: 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50',
-    icon: 'bg-amber-500/15 text-amber-700',
-    bar: 'from-amber-500 to-orange-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   clicked: {
-    surface: 'border-pink-100 bg-gradient-to-br from-pink-50 via-white to-rose-50',
-    icon: 'bg-pink-500/15 text-pink-700',
-    bar: 'from-pink-500 to-rose-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-primary/10 text-primary',
+    bar: 'from-primary to-primary',
   },
   bounced: {
-    surface: 'border-red-100 bg-gradient-to-br from-red-50 via-white to-rose-50',
-    icon: 'bg-red-500/15 text-red-700',
-    bar: 'from-red-500 to-rose-500',
+    surface: 'border-border bg-card',
+    icon: 'bg-destructive/10 text-destructive',
+    bar: 'from-destructive to-destructive',
   },
 } as const
 
@@ -419,17 +420,17 @@ export function Analytics() {
                     <stop offset="100%" stopColor={chartColors.clicked} stopOpacity={0.04} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" />
+                <CartesianGrid stroke={veloMailChartColors.grid} strokeDasharray="4 4" />
                 <XAxis
                   dataKey="date"
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
+                  tick={{ fill: veloMailChartColors.label, fontSize: 12 }}
                   tickFormatter={(value) => new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                 />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: veloMailChartColors.label, fontSize: 12 }} />
                 <Tooltip
-                  contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 18px 48px rgba(15, 23, 42, 0.14)' }}
+                  contentStyle={{ borderRadius: 12, border: `1px solid ${veloMailChartColors.grid}`, boxShadow: '0 18px 48px rgba(10, 37, 78, 0.14)' }}
                   labelFormatter={(value) => new Date(value).toLocaleDateString('pt-BR')}
                   formatter={(value: number, name: string) => [
                     formatNumber(Number(value || 0)),

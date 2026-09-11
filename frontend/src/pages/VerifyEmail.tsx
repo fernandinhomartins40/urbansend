@@ -134,7 +134,7 @@ export function VerifyEmail() {
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
           {/* Logo */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-indigo-600">UltraZend</h1>
+            <h1 className="text-2xl font-bold text-primary">VeloMail</h1>
             <p className="text-gray-600 text-sm mt-1">Verificação de Email</p>
           </div>
 
@@ -193,7 +193,7 @@ export function VerifyEmail() {
 
           {/* Footer */}
           <div className="text-xs text-gray-500 border-t pt-4">
-            <p>© 2025 UltraZend. Todos os direitos reservados.</p>
+            <p>© 2026 VeloMail. Todos os direitos reservados.</p>
           </div>
         </div>
       </div>

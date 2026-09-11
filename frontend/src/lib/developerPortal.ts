@@ -95,7 +95,7 @@ export const webhookEventCatalog: WebhookEventDefinition[] = [
     label: 'Email aceito na API',
     description: 'Disparado quando a requisicao de envio e aceita e a mensagem entra na fila interna.',
     availability: 'live',
-    deliveryMeaning: 'Mensagem validada e registrada pela UltraZend.'
+    deliveryMeaning: 'Mensagem validada e registrada pela VeloMail.'
   },
   {
     value: 'email.delivered',
