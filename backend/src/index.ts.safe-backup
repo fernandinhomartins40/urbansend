@@ -133,8 +133,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS ?
   process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
   [
     ...(Env.isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : []),
-    'https://ultrazend.com.br',
-    'https://www.ultrazend.com.br'
+    'https://velomail.com.br',
+    'https://www.velomail.com.br'
   ];
 
 const app = express();
@@ -150,13 +150,13 @@ let primaryServer: any;
 // SSL Certificate paths to try
 const sslCertPaths = [
   {
-    key: '/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem',
-    cert: '/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem',
+    key: '/etc/letsencrypt/live/www.velomail.com.br/privkey.pem',
+    cert: '/etc/letsencrypt/live/www.velomail.com.br/fullchain.pem',
     name: 'Let\'s Encrypt'
   },
   {
-    key: '/etc/ssl/private/ultrazend.com.br.key',
-    cert: '/etc/ssl/certs/ultrazend.com.br.crt', 
+    key: '/etc/ssl/private/velomail.com.br.key',
+    cert: '/etc/ssl/certs/velomail.com.br.crt', 
     name: 'Custom SSL'
   }
 ];
@@ -565,7 +565,7 @@ const initializeServices = async () => {
           const smtpServerConfig = {
             mxPort: Env.isDevelopment ? 2526 : 25,         // Dev: 2526, Prod: 25
             submissionPort: Env.isDevelopment ? 2587 : 587, // Dev: 2587, Prod: 587
-            hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br'),
+            hostname: Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br'),
             maxConnections: Env.getNumber('SMTP_MAX_CLIENTS', 100),
             authRequired: true,
             tlsEnabled: true
@@ -716,7 +716,7 @@ const startServer = async () => {
         logger.info('✅ Schema: 71 tabelas centralizadas via migrations A01→A71');
         logger.info('✅ Serviços: Validação defensiva implementada');
         logger.info('✅ Deploy: Determinístico e confiável');
-        logger.info(`📚 API Documentation: https://www.ultrazend.com.br/api-docs`);
+        logger.info(`📚 API Documentation: https://www.velomail.com.br/api-docs`);
         logger.info(`🔒 SSL: Direct HTTPS server (porta ${HTTPS_PORT})`);
         logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'development')}`);
       });
@@ -734,7 +734,7 @@ const startServer = async () => {
         logger.info('✅ Deploy: Determinístico e confiável');
         
         if (Env.isProduction) {
-          logger.info(`📚 API Documentation: http://www.ultrazend.com.br:${PORT}/api-docs`);
+          logger.info(`📚 API Documentation: http://www.velomail.com.br:${PORT}/api-docs`);
           logger.info(`🔒 SSL: Aguardando certificados ou usando proxy reverso`);
         } else {
           logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`);

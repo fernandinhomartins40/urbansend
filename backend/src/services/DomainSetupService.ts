@@ -118,7 +118,7 @@ export class DomainSetupService {
     .filter((ip) => this.isValidIpv4(ip));
   private readonly ULTRAZEND_SPF_HOSTS = this.parseCsvList(Env.get('ULTRAZEND_SPF_HOSTS', ''))
     .map((host) => this.normalizeDnsHostname(host));
-  private readonly ULTRAZEND_DMARC_RUA = Env.get('ULTRAZEND_DMARC_RUA', 'dmarc@ultrazend.com.br').trim().toLowerCase();
+  private readonly ULTRAZEND_DMARC_RUA = Env.get('ULTRAZEND_DMARC_RUA', 'dmarc@velomail.com.br').trim().toLowerCase();
   private readonly DNS_TIMEOUT = 10000; // 10 segundos
   private readonly MAX_DNS_RETRIES = 3;
   private readonly ENABLE_DNS_FALLBACK = Env.get('ENABLE_DNS_FALLBACK', 'true').toLowerCase() !== 'false';
@@ -407,14 +407,14 @@ export class DomainSetupService {
    */
   async ensureMainDomainVerification(): Promise<boolean> {
     try {
-      const mainDomain = 'ultrazend.com.br';
+      const mainDomain = 'velomail.com.br';
       logger.info('�Y"� CORRE�?�fO CRÍTICA: Verificando domínio principal obrigatoriamente', {
         domain: mainDomain
       });
 
       // Buscar usuário sistema ou admin para o domínio principal
       const systemUser = await db('users')
-        .where('email', 'like', '%ultrazend.com.br')
+        .where('email', 'like', '%velomail.com.br')
         .orWhere('is_admin', true)
         .first();
 
@@ -1482,7 +1482,7 @@ export class DomainSetupService {
     const steps: string[] = [];
 
     if (!results.mail_from_mx.valid) {
-      steps.push('Adicione o MX do subdominio tecnico uz-mail.seudominio.com apontando para mail.ultrazend.com.br.');
+      steps.push('Adicione o MX do subdominio tecnico uz-mail.seudominio.com apontando para mail.velomail.com.br.');
     }
 
     if (!results.spf.valid) {
@@ -1556,9 +1556,9 @@ export class DomainSetupService {
    */
   private isUltraZendDomain(domain: string): boolean {
     const ultraZendDomains = [
-      'ultrazend.com.br',
-      'mail.ultrazend.com.br',
-      'www.ultrazend.com.br'
+      'velomail.com.br',
+      'mail.velomail.com.br',
+      'www.velomail.com.br'
     ];
     
     return ultraZendDomains.includes(domain.toLowerCase());

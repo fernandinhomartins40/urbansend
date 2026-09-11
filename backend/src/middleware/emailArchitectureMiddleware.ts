@@ -271,7 +271,7 @@ export const emailArchitectureBatchMiddleware = asyncHandler(async (
         // Email original com metadados padrão
         processedEmails.push({
           ...email,
-          _dkimDomain: 'ultrazend.com.br',
+          _dkimDomain: 'velomail.com.br',
           _emailServiceType: EmailServiceType.EXTERNAL,
           _emailId: generateEmailId('email_batch_error')
         });
@@ -357,14 +357,14 @@ export const internalEmailMiddleware = asyncHandler(async (
 
     // Marcar como email interno para o processamento posterior
     req.body._emailServiceType = EmailServiceType.INTERNAL;
-    req.body._dkimDomain = 'ultrazend.com.br';
+    req.body._dkimDomain = 'velomail.com.br';
     
     const originalFrom = req.body.from;
     let wasModified = false;
     
     // Garantir que emails internos sempre usem o domínio correto
-    if (req.body.from && !req.body.from.includes('@ultrazend.com.br')) {
-      req.body.from = 'noreply@ultrazend.com.br';
+    if (req.body.from && !req.body.from.includes('@velomail.com.br')) {
+      req.body.from = 'noreply@velomail.com.br';
       wasModified = true;
       logger.debug('Internal email from corrected to UltraZend domain');
     }
@@ -376,11 +376,11 @@ export const internalEmailMiddleware = asyncHandler(async (
     await auditService.logEmailEvent({
       userId: req.user?.id || 0,
       emailId,
-      originalFrom: originalFrom || 'noreply@ultrazend.com.br',
-      finalFrom: req.body.from || 'noreply@ultrazend.com.br',
+      originalFrom: originalFrom || 'noreply@velomail.com.br',
+      finalFrom: req.body.from || 'noreply@velomail.com.br',
       wasModified,
       modificationReason: wasModified ? 'Internal email corrected to UltraZend domain' : undefined,
-      dkimDomain: 'ultrazend.com.br',
+      dkimDomain: 'velomail.com.br',
       deliveryStatus: 'queued',
       metadata: {
         endpoint: req.path,

@@ -357,8 +357,8 @@ export class UnifiedEmailService {
       
       // Reutilizar o método de teste do SMTPDeliveryService
       const testResult = await this.smtpDelivery.deliverEmail({
-        from: 'test@ultrazend.com.br',
-        to: 'test@ultrazend.com.br',
+        from: 'test@velomail.com.br',
+        to: 'test@velomail.com.br',
         subject: 'Test Connection - UnifiedEmailService',
         text: 'This is a connection test from UnifiedEmailService',
         headers: {

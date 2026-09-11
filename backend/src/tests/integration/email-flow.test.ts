@@ -80,7 +80,7 @@ describe('Email Flow Integration Tests', () => {
 
       expect(mockSMTPDelivery).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'noreply@ultrazend.com.br',
+          from: 'noreply@velomail.com.br',
           to: testEmail,
           subject: expect.stringContaining('Confirme seu email')
         })
@@ -98,7 +98,7 @@ describe('Email Flow Integration Tests', () => {
       };
 
       const resetToken = 'password-reset-token-123';
-      const resetUrl = `https://ultrazend.com.br/reset-password?token=${resetToken}`;
+      const resetUrl = `https://velomail.com.br/reset-password?token=${resetToken}`;
 
       await expect(
         internalEmailService.sendPasswordResetEmail(testUser.email, testUser.name, resetUrl)
@@ -106,7 +106,7 @@ describe('Email Flow Integration Tests', () => {
 
       expect(mockSMTPDelivery).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'noreply@ultrazend.com.br',
+          from: 'noreply@velomail.com.br',
           to: testUser.email,
           subject: 'Redefinir sua senha - UltraZend',
           html: expect.stringContaining(resetUrl)
@@ -167,7 +167,7 @@ describe('Email Flow Integration Tests', () => {
 
       // Deve fazer fallback para domínio padrão
       expect(validatedSender.fallback).toBe(true);
-      expect(validatedSender.email).toContain('@ultrazend.com.br');
+      expect(validatedSender.email).toContain('@velomail.com.br');
       expect(validatedSender.reason).toContain('Domain not owned');
     });
 
@@ -189,7 +189,7 @@ describe('Email Flow Integration Tests', () => {
       // Mock getDefaultDKIMConfig
       const mockGetDefaultDKIM = jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any)
         .mockResolvedValue({
-          domain: 'ultrazend.com.br',
+          domain: 'velomail.com.br',
           selector: 'default',
           privateKey: 'mock-fallback-key',
           algorithm: 'rsa-sha256'
@@ -198,7 +198,7 @@ describe('Email Flow Integration Tests', () => {
       const dkimConfig = await dkimManager.getDKIMConfigForDomain('unverified-integration.com');
 
       expect(dkimConfig).toBeDefined();
-      expect(dkimConfig?.domain).toBe('ultrazend.com.br');
+      expect(dkimConfig?.domain).toBe('velomail.com.br');
       expect(mockGetDefaultDKIM).toHaveBeenCalled();
     });
   });
@@ -218,8 +218,8 @@ describe('Email Flow Integration Tests', () => {
       const domainValidator = new DomainValidator();
       const mockValidation = jest.spyOn(domainValidator, 'validateSenderDomain')
         .mockResolvedValue({
-          email: 'noreply+user1@ultrazend.com.br',
-          dkimDomain: 'ultrazend.com.br',
+          email: 'noreply+user1@velomail.com.br',
+          dkimDomain: 'velomail.com.br',
           fallback: true,
           reason: 'Domain not verified'
         });
@@ -227,8 +227,8 @@ describe('Email Flow Integration Tests', () => {
       const result = await domainValidator.validateSenderDomain(testUserId, testEmailData.from);
 
       expect(result.fallback).toBe(true);
-      expect(result.email).toContain('@ultrazend.com.br');
-      expect(result.dkimDomain).toBe('ultrazend.com.br');
+      expect(result.email).toContain('@velomail.com.br');
+      expect(result.dkimDomain).toBe('velomail.com.br');
       expect(mockValidation).toHaveBeenCalledWith(testUserId, testEmailData.from);
     });
 

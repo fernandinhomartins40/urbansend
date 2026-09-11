@@ -43,7 +43,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
       // Mock para getDefaultDKIMConfig
       const mockGetDefaultDKIM = jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any)
         .mockResolvedValue({
-          domain: 'ultrazend.com.br',
+          domain: 'velomail.com.br',
           selector: 'default',
           privateKey: 'mock-private-key',
           algorithm: 'rsa-sha256'
@@ -52,7 +52,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
       const config = await dkimManager.getDKIMConfigForDomain('unverified.com');
 
       expect(config).toBeDefined();
-      expect(config?.domain).toBe('ultrazend.com.br'); // Fallback domain
+      expect(config?.domain).toBe('velomail.com.br'); // Fallback domain
       expect(mockGetDefaultDKIM).toHaveBeenCalled();
     });
 
@@ -107,7 +107,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
 
       const mockGetDefaultDKIM = jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any)
         .mockResolvedValue({
-          domain: 'ultrazend.com.br',
+          domain: 'velomail.com.br',
           selector: 'default',
           privateKey: 'fallback-key',
           algorithm: 'rsa-sha256'
@@ -136,7 +136,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
 
       jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any)
         .mockResolvedValue({
-          domain: 'ultrazend.com.br',
+          domain: 'velomail.com.br',
           selector: 'default',
           privateKey: 'fallback-key'
         });
@@ -206,7 +206,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
     it('should provide consistent fallback configuration', async () => {
       const mockGetDefaultDKIM = jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any)
         .mockResolvedValue({
-          domain: 'ultrazend.com.br',
+          domain: 'velomail.com.br',
           selector: 'default',
           privateKey: 'consistent-fallback-key',
           algorithm: 'rsa-sha256'
@@ -225,8 +225,8 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
       const config1 = await dkimManager.getDKIMConfigForDomain('domain1.com');
       const config2 = await dkimManager.getDKIMConfigForDomain('domain2.com');
 
-      expect(config1?.domain).toBe('ultrazend.com.br');
-      expect(config2?.domain).toBe('ultrazend.com.br');
+      expect(config1?.domain).toBe('velomail.com.br');
+      expect(config2?.domain).toBe('velomail.com.br');
       expect(config1?.privateKey).toBe(config2?.privateKey);
       expect(mockGetDefaultDKIM).toHaveBeenCalledTimes(2);
     });
@@ -266,7 +266,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
 
       jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any)
         .mockResolvedValue({
-          domain: 'ultrazend.com.br',
+          domain: 'velomail.com.br',
           selector: 'default',
           privateKey: '-----BEGIN PRIVATE KEY-----\nMOCK_PRIVATE_KEY\n-----END PRIVATE KEY-----',
           algorithm: 'rsa-sha256'

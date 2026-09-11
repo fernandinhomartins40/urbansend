@@ -70,7 +70,7 @@ async function testDomainIntegration() {
 
     // Teste 3: Domínios internos (devem sempre funcionar)
     console.log('\n📋 Teste 3: Domínios internos');
-    const internalDomains = ['ultrazend.com.br', 'mail.ultrazend.com.br', 'www.ultrazend.com.br'];
+    const internalDomains = ['velomail.com.br', 'mail.velomail.com.br', 'www.velomail.com.br'];
     
     for (const domain of internalDomains) {
       // Para domínios internos, testar através do método validate

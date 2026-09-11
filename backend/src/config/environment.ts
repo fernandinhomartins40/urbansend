@@ -253,8 +253,8 @@ class EnvironmentManager {
         'http://127.0.0.1:5173'
       ] : []),
       ...(config.FRONTEND_URL ? [config.FRONTEND_URL] : []),
-      'https://ultrazend.com.br',
-      'https://www.ultrazend.com.br'
+      'https://velomail.com.br',
+      'https://www.velomail.com.br'
     ];
     
     // Parse custom origins from environment

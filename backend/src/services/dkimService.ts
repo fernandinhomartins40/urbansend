@@ -21,12 +21,12 @@ class DKIMService {
 
   constructor() {
     // Initialize options first without privateKey - padronizar domínio
-    const hostname = Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br');
-    const standardDomain = hostname.replace(/^mail\./, '').replace(/^www\./, '') || 'ultrazend.com.br';
+    const hostname = Env.get('SMTP_HOSTNAME', 'www.velomail.com.br');
+    const standardDomain = hostname.replace(/^mail\./, '').replace(/^www\./, '') || 'velomail.com.br';
     
     this.options = {
       selector: Env.get('DKIM_SELECTOR', 'default'),
-      domain: standardDomain, // Padronizado para ultrazend.com.br
+      domain: standardDomain, // Padronizado para velomail.com.br
       privateKey: '', // Will be set below
       canonicalization: 'relaxed/relaxed',
       headerCanonical: 'relaxed',

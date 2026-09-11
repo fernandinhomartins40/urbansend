@@ -49,7 +49,7 @@ async function testEmailValidatorIntegration() {
     // Teste 4: Domínio interno (deve ser permitido)
     console.log('\n📋 Teste 4: Testando domínio interno');
     const internalTest = {
-      from: 'test@ultrazend.com.br',
+      from: 'test@velomail.com.br',
       to: 'recipient@example.com',
       subject: 'Test Internal Domain'
     };
@@ -81,14 +81,14 @@ async function testEmailValidatorIntegration() {
     console.log(result2.verified === true ? '✅ Retorna verified: true para domínios verificados' : '❌ FALHOU: verified deveria ser true');
     console.log(result2.verifiedAt ? '✅ Retorna verifiedAt quando verificado' : '❌ FALHOU: verifiedAt deveria existir');
     console.log(result3.valid === true ? '✅ Permite domínios internos' : '❌ FALHOU: domínios internos deveriam ser permitidos');
-    console.log(result4.valid === true && result4.email?.from?.includes('ultrazend.com.br') ? '✅ Aplica fallback corretamente' : '❌ FALHOU: fallback não aplicado');
+    console.log(result4.valid === true && result4.email?.from?.includes('velomail.com.br') ? '✅ Aplica fallback corretamente' : '❌ FALHOU: fallback não aplicado');
     
     const allTestsPassed = 
       result1.verified === false &&
       result2.verified === true &&
       result2.verifiedAt &&
       result3.valid === true &&
-      result4.valid === true && result4.email?.from?.includes('ultrazend.com.br');
+      result4.valid === true && result4.email?.from?.includes('velomail.com.br');
     
     console.log(`\n🎯 RESULTADO FINAL FASE 2.2: ${allTestsPassed ? '✅ TODOS OS TESTES PASSARAM' : '❌ ALGUNS TESTES FALHARAM'}`);
     

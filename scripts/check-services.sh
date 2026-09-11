@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 SERVER_HOST="${SERVER_HOST:-31.97.162.155}"
 SERVER_USER="${SERVER_USER:-root}"
 APP_NAME="ultrazend"
-API_BASE_URL="https://www.ultrazend.com.br"
+API_BASE_URL="https://www.velomail.com.br"
 LOCAL_CHECK="${1:-false}"
 
 # Functions
@@ -355,21 +355,21 @@ fi
 # DNS checks (if dig is available)
 if command -v dig >/dev/null 2>&1; then
     printf "%-50s" "Checking DKIM DNS record..."
-    if dig +short TXT default._domainkey.www.ultrazend.com.br | grep -q "DKIM1"; then
+    if dig +short TXT default._domainkey.www.velomail.com.br | grep -q "DKIM1"; then
         echo -e "${GREEN}✅ CONFIGURED${NC}"
     else
         echo -e "${YELLOW}⚠️ NOT CONFIGURED${NC}"
     fi
     
     printf "%-50s" "Checking SPF DNS record..."
-    if dig +short TXT www.ultrazend.com.br | grep -q "v=spf1"; then
+    if dig +short TXT www.velomail.com.br | grep -q "v=spf1"; then
         echo -e "${GREEN}✅ CONFIGURED${NC}"
     else
         echo -e "${YELLOW}⚠️ NOT CONFIGURED${NC}"
     fi
     
     printf "%-50s" "Checking MX DNS record..."
-    if dig +short MX www.ultrazend.com.br | grep -q "www.ultrazend.com.br"; then
+    if dig +short MX www.velomail.com.br | grep -q "www.velomail.com.br"; then
         echo -e "${GREEN}✅ CONFIGURED${NC}"
     else
         echo -e "${YELLOW}⚠️ NOT CONFIGURED${NC}"

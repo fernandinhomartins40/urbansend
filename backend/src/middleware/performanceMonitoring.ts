@@ -95,7 +95,7 @@ class PerformanceMonitor {
           connectionTimeout: 60000,
           greetingTimeout: 30000,
           socketTimeout: 60000,
-          name: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br')
+          name: Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br')
         });
 
         // Verificar se a conexão funciona

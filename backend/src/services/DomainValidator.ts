@@ -32,12 +32,12 @@ export interface DomainRecord {
  */
 export class DomainValidator {
   private readonly INTERNAL_DOMAINS = [
-    'ultrazend.com.br',
-    'mail.ultrazend.com.br',
-    'www.ultrazend.com.br'
+    'velomail.com.br',
+    'mail.velomail.com.br',
+    'www.velomail.com.br'
   ];
 
-  private readonly FALLBACK_DOMAIN = 'ultrazend.com.br';
+  private readonly FALLBACK_DOMAIN = 'velomail.com.br';
 
   /**
    * Valida e corrige o domínio do sender conforme regras de negócio
@@ -157,9 +157,9 @@ export class DomainValidator {
     // 🔧 PROTEÇÃO EXTRA: Lista expandida de domínios principais para garantir funcionamento
     const allInternalDomains = [
       ...this.INTERNAL_DOMAINS,
-      'ultrazend.com.br',      // Domínio principal
-      'www.ultrazend.com.br',  // Subdomínio www
-      'mail.ultrazend.com.br'  // Subdomínio mail
+      'velomail.com.br',      // Domínio principal
+      'www.velomail.com.br',  // Subdomínio www
+      'mail.velomail.com.br'  // Subdomínio mail
     ];
     
     return allInternalDomains.includes(normalizedDomain);

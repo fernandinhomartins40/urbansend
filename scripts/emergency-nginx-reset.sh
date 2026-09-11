@@ -139,7 +139,7 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     
-    server_name www.ultrazend.com.br ultrazend.com.br _;
+    server_name www.velomail.com.br velomail.com.br _;
     
     root /var/www/html;
     index index.html index.htm index.nginx-debian.html;

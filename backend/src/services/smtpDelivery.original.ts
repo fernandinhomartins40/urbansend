@@ -35,7 +35,7 @@ class SMTPDeliveryService {
   private reputationService: ReputationService;
 
   constructor() {
-    this.hostname = Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br');
+    this.hostname = Env.get('SMTP_HOSTNAME', 'www.velomail.com.br');
     this.dkimService = new DKIMService();
     this.suppressionService = new SuppressionService();
     this.reputationService = new ReputationService();
@@ -44,7 +44,7 @@ class SMTPDeliveryService {
   private generateVERPAddress(originalFrom: string, emailId: number): string {
     // Generate VERP address: bounce-{emailId}-{hash}@domain
     const hash = crypto.createHash('md5').update(`${emailId}-${originalFrom}`).digest('hex').substring(0, 8);
-    return `bounce-${emailId}-${hash}@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`;
+    return `bounce-${emailId}-${hash}@${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}`;
   }
 
   private async getMXRecords(domain: string): Promise<MXRecord[]> {

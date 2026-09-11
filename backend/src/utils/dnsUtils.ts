@@ -342,13 +342,13 @@ export class DNSUtils {
         if (spfRecord) {
           // Check if SPF includes our domain
           const includesUltrazend = spfRecord.mechanisms.some(mechanism =>
-            mechanism.includes('ultrazend.com.br')
+            mechanism.includes('velomail.com.br')
           );
           
           return { 
             valid: includesUltrazend, 
             record: spfRecord,
-            error: includesUltrazend ? undefined : 'SPF record does not include ultrazend.com.br'
+            error: includesUltrazend ? undefined : 'SPF record does not include velomail.com.br'
           };
         }
       }

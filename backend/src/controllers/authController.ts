@@ -490,7 +490,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const buildPasswordResetUrl = (token: string, scope: SessionScope = 'app'): string => {
-  const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+  const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.velomail.com.br'));
   const resetPath = scope === 'super_admin'
     ? '/super-admin/reset-password'
     : '/reset-password';
@@ -499,7 +499,7 @@ const buildPasswordResetUrl = (token: string, scope: SessionScope = 'app'): stri
 };
 
 const buildLoginUrl = (scope: SessionScope = 'app') => {
-  const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+  const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.velomail.com.br'));
   const loginPath = scope === 'super_admin' ? '/super-admin/login' : '/login';
   return `${frontendUrl}${loginPath}`;
 };

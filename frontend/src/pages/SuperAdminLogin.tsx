@@ -121,7 +121,7 @@ export function SuperAdminLogin() {
                     id="super-admin-email"
                     type="email"
                     className="pl-9"
-                    placeholder="superadmin@ultrazend.com.br"
+                    placeholder="superadmin@velomail.com.br"
                     {...form.register('email')}
                   />
                 </div>

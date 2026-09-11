@@ -230,8 +230,8 @@ export class DomainVerificationService {
     return {
       domain: domain.domain_name,
       instructions: {
-        mail_from_mx: `uz-mail.${domain.domain_name} MX 10 mail.ultrazend.com.br`,
-        spf: `uz-mail.${domain.domain_name} TXT "v=spf1 include:ultrazend.com.br -all"`,
+        mail_from_mx: `uz-mail.${domain.domain_name} MX 10 mail.velomail.com.br`,
+        spf: `uz-mail.${domain.domain_name} TXT "v=spf1 include:velomail.com.br -all"`,
         dkim: `${dkimSelector}._domainkey.${domain.domain_name} TXT "v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY_HERE"`,
         dmarc: `_dmarc.${domain.domain_name} TXT "v=DMARC1; p=${dmarcPolicy}"`
       }

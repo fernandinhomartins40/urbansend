@@ -502,7 +502,7 @@ export class AlertingService {
       });
 
       // Aqui implementar notificação urgente
-      // Exemplo: enviar email para admin@ultrazend.com.br
+      // Exemplo: enviar email para admin@velomail.com.br
       // Exemplo: webhook para Slack/Discord
       // Exemplo: SMS para equipe técnica
     }

@@ -13,10 +13,10 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Configuration
-DOMAIN="ultrazend.com.br"
-HOSTNAME="mail.ultrazend.com.br"
+DOMAIN="velomail.com.br"
+HOSTNAME="mail.velomail.com.br"
 DKIM_SELECTOR="ultrazend"
-ADMIN_EMAIL="admin@ultrazend.com.br"
+ADMIN_EMAIL="admin@velomail.com.br"
 
 log() { echo -e "${BLUE}[EMAIL-SETUP] $1${NC}"; }
 success() { echo -e "${GREEN}[SUCCESS] $1${NC}"; }
@@ -299,7 +299,7 @@ cat > /usr/local/bin/email-monitor.sh << 'EOF'
 # Email monitoring script for UltraZend
 
 LOG_FILE="/var/log/ultrazend/email-monitor.log"
-ALERT_EMAIL="admin@ultrazend.com.br"
+ALERT_EMAIL="admin@velomail.com.br"
 
 check_postfix() {
     if ! systemctl is-active --quiet postfix; then

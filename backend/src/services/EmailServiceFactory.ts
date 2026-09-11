@@ -72,8 +72,8 @@ export class EmailServiceFactory {
       switch (type) {
         case EmailServiceType.INTERNAL:
           return new InternalEmailService({
-            defaultFrom: options?.defaultFrom || 'noreply@ultrazend.com.br',
-            dkimDomain: options?.dkimDomain || 'ultrazend.com.br'
+            defaultFrom: options?.defaultFrom || 'noreply@velomail.com.br',
+            dkimDomain: options?.dkimDomain || 'velomail.com.br'
           });
 
         case EmailServiceType.EXTERNAL:
@@ -109,8 +109,8 @@ export class EmailServiceFactory {
     logger.debug('Creating internal email service');
     
     return this.createService(EmailServiceType.INTERNAL, {
-      defaultFrom: options?.defaultFrom || 'noreply@ultrazend.com.br',
-      dkimDomain: options?.dkimDomain || 'ultrazend.com.br'
+      defaultFrom: options?.defaultFrom || 'noreply@velomail.com.br',
+      dkimDomain: options?.dkimDomain || 'velomail.com.br'
     });
   }
 

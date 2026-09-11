@@ -30,7 +30,7 @@ export class MultiDomainDKIMManager extends DKIMManager {
   private readonly DEFAULT_ALGORITHM: 'rsa-sha256' = 'rsa-sha256';
   private readonly DEFAULT_CANONICALIZATION: 'relaxed/relaxed' = 'relaxed/relaxed';
   private readonly DEFAULT_KEY_SIZE = 2048;
-  private readonly FALLBACK_DOMAIN = 'ultrazend.com.br';
+  private readonly FALLBACK_DOMAIN = 'velomail.com.br';
 
   constructor() {
     super();
@@ -314,9 +314,9 @@ export class MultiDomainDKIMManager extends DKIMManager {
    */
   private isUltraZendDomain(domain: string): boolean {
     const ultraZendDomains = [
-      'ultrazend.com.br',
-      'mail.ultrazend.com.br',
-      'www.ultrazend.com.br'
+      'velomail.com.br',
+      'mail.velomail.com.br',
+      'www.velomail.com.br'
     ];
     
     return ultraZendDomains.includes(domain.toLowerCase());

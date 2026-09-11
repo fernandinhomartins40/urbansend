@@ -50,8 +50,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS ?
   process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
   [
     ...(Env.isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : []),
-    'https://ultrazend.com.br',
-    'https://www.ultrazend.com.br'
+    'https://velomail.com.br',
+    'https://www.velomail.com.br'
   ];
 
 const app = express();
@@ -71,8 +71,8 @@ if (Env.isProduction) {
   try {
     // Load SSL certificates from Let's Encrypt
     const sslOptions = {
-      key: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem'),
-      cert: fs.readFileSync('/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem')
+      key: fs.readFileSync('/etc/letsencrypt/live/www.velomail.com.br/privkey.pem'),
+      cert: fs.readFileSync('/etc/letsencrypt/live/www.velomail.com.br/fullchain.pem')
     };
     
     // Create HTTPS server with the Express app
@@ -416,7 +416,7 @@ const startServer = async () => {
         // Production with SSL: Start HTTPS server on port 443
         httpsServer.listen(HTTPS_PORT, () => {
           logger.info(`🔒 HTTPS Server running on port ${HTTPS_PORT}`);
-          logger.info(`📚 API Documentation available at https://www.ultrazend.com.br/api-docs`);
+          logger.info(`📚 API Documentation available at https://www.velomail.com.br/api-docs`);
           logger.info(`🔍 Environment: ${Env.get('NODE_ENV', 'production')}`);
         });
         

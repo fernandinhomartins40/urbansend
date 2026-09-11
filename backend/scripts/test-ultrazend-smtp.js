@@ -13,7 +13,7 @@ const { DKIMManager } = require('../dist/services/dkimManager');
 // Configuração de teste
 const TEST_CONFIG = {
   testEmail: process.env.TEST_EMAIL || 'teste@gmail.com',
-  fromEmail: 'noreply@ultrazend.com.br',
+  fromEmail: 'noreply@velomail.com.br',
   testDomain: 'gmail.com',
   timeout: 30000 // 30 segundos
 };

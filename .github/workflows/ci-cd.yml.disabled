@@ -497,8 +497,8 @@ jobs:
           if [ "${{ job.status }}" = "success" ]; then
             echo "✅ Status: SUCCESS"
             echo "🎉 UltraZend v${{ steps.version.outputs.version }} deployed successfully!"
-            echo "🌐 Application URL: https://www.ultrazend.com.br"
-            echo "🏥 Health Check: https://www.ultrazend.com.br/health"
+            echo "🌐 Application URL: https://www.velomail.com.br"
+            echo "🏥 Health Check: https://www.velomail.com.br/health"
           else
             echo "❌ Status: FAILED"
             echo "💥 Deployment failed - please check the logs above"

@@ -20,7 +20,7 @@ env:
   VPS_USER: 'root'
   APP_DIR: '/var/www/ultrazend'
   APP_PORT: '3001'
-  DOMAIN: 'www.ultrazend.com.br'
+  DOMAIN: 'www.velomail.com.br'
   NODE_VERSION: '22'
 
 jobs:
@@ -225,16 +225,16 @@ jobs:
           echo 'REDIS_URL=redis://127.0.0.1:6379' >> .env
           echo "LOG_FILE_PATH=\$APP_DIR/logs" >> .env
           echo 'LOG_LEVEL=info' >> .env
-          echo 'ULTRAZEND_HOSTNAME=mail.ultrazend.com.br' >> .env
-          echo 'ULTRAZEND_DOMAIN=ultrazend.com.br' >> .env
+          echo 'ULTRAZEND_HOSTNAME=mail.velomail.com.br' >> .env
+          echo 'ULTRAZEND_DOMAIN=velomail.com.br' >> .env
           echo 'ULTRAZEND_SMTP_PORT=25' >> .env
           echo 'SMTP_MODE=pure_ultrazend' >> .env
           echo 'POSTFIX_ENABLED=false' >> .env
           echo 'DELIVERY_MODE=direct_mx' >> .env
           echo 'DKIM_ENABLED=true' >> .env
-          echo 'DKIM_PRIVATE_KEY_PATH=../configs/dkim-keys/ultrazend.com.br-default-private.pem' >> .env
+          echo 'DKIM_PRIVATE_KEY_PATH=../configs/dkim-keys/velomail.com.br-default-private.pem' >> .env
           echo 'DKIM_SELECTOR=default' >> .env
-          echo 'DKIM_DOMAIN=ultrazend.com.br' >> .env
+          echo 'DKIM_DOMAIN=velomail.com.br' >> .env
           echo 'EMAIL_QUEUE_CONCURRENCY=5' >> .env
           echo 'EMAIL_QUEUE_RETRY_ATTEMPTS=3' >> .env
           echo 'EMAIL_QUEUE_RETRY_DELAY=300000' >> .env
@@ -365,7 +365,7 @@ jobs:
         else
           echo '⚠️ SSL setup script not found, using manual configuration...'
           # Fallback: usar configuração SSL se existir certificado
-          if [ -f /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem ]; then
+          if [ -f /etc/letsencrypt/live/www.velomail.com.br/fullchain.pem ]; then
             echo 'Using SSL configuration'
             cp configs/nginx-ssl.conf /etc/nginx/sites-available/ultrazend
           else
@@ -379,9 +379,9 @@ jobs:
           nginx -t && systemctl reload nginx
           
           # Tentar obter SSL se não existir
-          if [ ! -f /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem ]; then
+          if [ ! -f /etc/letsencrypt/live/www.velomail.com.br/fullchain.pem ]; then
             echo 'Obtaining SSL certificate...'
-            certbot --nginx -d www.ultrazend.com.br --non-interactive --agree-tos --email admin@ultrazend.com.br || echo 'SSL setup completed with warnings'
+            certbot --nginx -d www.velomail.com.br --non-interactive --agree-tos --email admin@velomail.com.br || echo 'SSL setup completed with warnings'
             systemctl reload nginx
           fi
         fi

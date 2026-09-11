@@ -22,7 +22,7 @@ info() { echo -e "${PURPLE}[INFO] $1${NC}"; }
 # Configuration
 SERVER_HOST="${SERVER_HOST:-31.97.162.155}"
 SERVER_USER="${SERVER_USER:-root}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@ultrazend.com.br}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@velomail.com.br}"
 
 echo "🚀 ULTRAZEND - IMPLEMENTAÇÃO AUTOMÁTICA"
 echo "======================================"
@@ -203,7 +203,7 @@ success "PASSO 5 concluído - Monitoramento configurado"
 log "PASSO 6: Verificação final de saúde..."
 
 perform_health_check() {
-    local health_url="https://www.ultrazend.com.br/health"
+    local health_url="https://www.velomail.com.br/health"
     local max_attempts=6
     local attempt=1
     
@@ -252,9 +252,9 @@ PASSOS EXECUTADOS:
 ✅ 6. Verificação de saúde final
 
 URLS:
-- Aplicação: https://www.ultrazend.com.br
-- Health Check: https://www.ultrazend.com.br/health
-- API: https://www.ultrazend.com.br/api
+- Aplicação: https://www.velomail.com.br
+- Health Check: https://www.velomail.com.br/health
+- API: https://www.velomail.com.br/api
 
 PRÓXIMOS PASSOS MANUAIS:
 1. Configure registros DNS (veja /tmp/ultrazend-dns-records.txt no servidor)

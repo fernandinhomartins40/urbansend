@@ -67,4 +67,4 @@ echo "  6. ✅ Recarregar nginx com proxy correto"
 
 echo ""
 success "🎯 Após o deploy, a API deve responder corretamente em:"
-echo "   https://www.ultrazend.com.br/api/auth/register"
+echo "   https://www.velomail.com.br/api/auth/register"

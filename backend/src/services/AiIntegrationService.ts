@@ -168,7 +168,7 @@ export class AiIntegrationService {
       return trimTrailingSlash(explicitOrigin);
     }
 
-    const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+    const frontendUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.velomail.com.br'));
     return trimTrailingSlash(frontendUrl);
   }
 

@@ -236,7 +236,7 @@ export class ExternalEmailService implements IEmailService {
         originalFrom: emailData.from,
         finalFrom: emailData.from, // Manter original em caso de erro
         wasModified: false,
-        dkimDomain: 'ultrazend.com.br',
+        dkimDomain: 'velomail.com.br',
         deliveryStatus: 'failed',
         metadata: {
           error: error instanceof Error ? error.message : String(error),
@@ -263,10 +263,10 @@ export class ExternalEmailService implements IEmailService {
       
       // Testar componentes principais
       const domainValidatorTest = await this.domainValidator.canUserSendFromEmail(
-        1, 'test@ultrazend.com.br'
+        1, 'test@velomail.com.br'
       );
       
-      const dkimConfigTest = await this.dkimManager.getDKIMConfigForDomain('ultrazend.com.br');
+      const dkimConfigTest = await this.dkimManager.getDKIMConfigForDomain('velomail.com.br');
       
       const connectionValid = domainValidatorTest && dkimConfigTest !== null;
       
@@ -399,7 +399,7 @@ export class ExternalEmailService implements IEmailService {
    * @returns HTML com tracking
    */
   private addTrackingToHtml(html: string, emailId: string): string {
-    const trackingDomain = 'www.ultrazend.com.br';
+    const trackingDomain = 'www.velomail.com.br';
     const processedHtml = processLinksForTracking(html, emailId, trackingDomain);
     const trackingPixel = generateTrackingPixel(emailId, trackingDomain);
 

@@ -22,7 +22,7 @@ export const testMailTesterDeliverability = async (testEmailAddress: string) => 
   
   try {
     const emailData = {
-      from: `noreply@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`,
+      from: `noreply@${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}`,
       to: testEmailAddress,
       subject: 'ULTRAZEND SMTP Server - Deliverability Test',
       html: `
@@ -82,7 +82,7 @@ export const testMailTesterDeliverability = async (testEmailAddress: string) => 
               
               <h3>Configurações do Servidor:</h3>
               <ul>
-                <li><strong>Servidor:</strong> ${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}</li>
+                <li><strong>Servidor:</strong> ${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}</li>
                 <li><strong>DKIM:</strong> Habilitado</li>
                 <li><strong>SPF:</strong> Configurado</li>
                 <li><strong>DMARC:</strong> Ativo</li>
@@ -116,7 +116,7 @@ ULTRAZEND SMTP Server - Deliverability Test
 Este email foi enviado para testar a capacidade de entrega do servidor SMTP ULTRAZEND.
 
 Configurações do Servidor:
-- Servidor: ${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}
+- Servidor: ${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}
 - DKIM: Habilitado
 - SPF: Configurado  
 - DMARC: Ativo
@@ -173,7 +173,7 @@ export const testGmailDeliverability = async (gmailAddress: string) => {
   console.log('📧 Iniciando teste de deliverability com Gmail...');
   
   const emailData = {
-    from: `test@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`,
+    from: `test@${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}`,
     to: gmailAddress,
     subject: 'ULTRAZEND - Teste de Headers DKIM/SPF',
     html: `
@@ -232,7 +232,7 @@ export const testBounceHandling = async () => {
   const nonExistentEmail = `nonexistent-${Date.now()}@invalid-domain-test-${Math.random().toString(36).substring(7)}.com`;
   
   const emailData = {
-    from: `bounce-test@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`,
+    from: `bounce-test@${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}`,
     to: nonExistentEmail,
     subject: 'ULTRAZEND - Teste de Bounce',
     html: '<h1>Este email deve fazer bounce</h1><p>Se você está vendo isto, algo deu errado no teste de bounce.</p>',
@@ -286,7 +286,7 @@ export const testPerformance = async (testEmail: string, count: number = 5) => {
   for (let i = 1; i <= count; i++) {
     try {
       const emailData = {
-        from: `perf-test@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`,
+        from: `perf-test@${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}`,
         to: testEmail,
         subject: `ULTRAZEND Performance Test ${i}/${count}`,
         html: `

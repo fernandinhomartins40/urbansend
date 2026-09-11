@@ -17,7 +17,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-API_BASE_URL="${API_BASE_URL:-https://www.ultrazend.com.br}"
+API_BASE_URL="${API_BASE_URL:-https://www.velomail.com.br}"
 TEST_EMAIL="${TEST_EMAIL:-test-production@gmail.com}"
 TEST_NAME="${TEST_NAME:-Production Test User}"
 TEST_PASSWORD="${TEST_PASSWORD:-testpassword123}"
@@ -241,7 +241,7 @@ if [ -n "$API_KEY" ]; then
     echo ""
     
     email_data='{
-        "from": "noreply@www.ultrazend.com.br",
+        "from": "noreply@www.velomail.com.br",
         "to": "'"$TEST_EMAIL"'",
         "subject": "ULTRAZEND Production Test - '"$UNIQUE_ID"'",
         "html": "<h1>🚀 ULTRAZEND Production Test</h1><p>This is a production test email sent at '"$(date)"'.</p><p>Test ID: '"$UNIQUE_ID"'</p><p>If you receive this email, the ULTRAZEND SMTP server is working correctly in production!</p>",

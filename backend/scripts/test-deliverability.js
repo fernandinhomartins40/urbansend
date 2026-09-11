@@ -64,7 +64,7 @@ CONFIGURAÇÃO:
   Certifique-se de que as variáveis estejam definidas no .env:
   - API_BASE_URL (padrão: http://localhost:3001)
   - TEST_API_KEY (sua chave de API para testes)
-  - SMTP_HOSTNAME (ex: www.ultrazend.com.br)
+  - SMTP_HOSTNAME (ex: www.velomail.com.br)
 `);
 };
 
@@ -152,7 +152,7 @@ if (!process.env.TEST_API_KEY) {
 
 if (!process.env.SMTP_HOSTNAME) {
   console.warn('⚠️ Aviso: SMTP_HOSTNAME não definida no .env');
-  console.log('   Usando www.ultrazend.com.br como padrão');
+  console.log('   Usando www.velomail.com.br como padrão');
 }
 
 main().catch(console.error);

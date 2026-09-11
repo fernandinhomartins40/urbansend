@@ -4,7 +4,7 @@
  * Testes específicos para cenários edge e situações críticas:
  * - Domínio não verificado
  * - Domínio inexistente  
- * - Fallback para ultrazend.com.br
+ * - Fallback para velomail.com.br
  * - Rate limiting por domínio
  * - Cenários de falha e recuperação
  */
@@ -213,12 +213,12 @@ describe('🚨 Edge Cases - Casos Críticos', () => {
   /**
    * 🔄 TESTE 3: FALLBACK PARA ULTRAZEND.COM.BR
    */
-  describe('3. Fallback para ultrazend.com.br', () => {
+  describe('3. Fallback para velomail.com.br', () => {
     
     it('should handle fallback domain correctly', async () => {
-      const fallbackDomain = 'ultrazend.com.br';
+      const fallbackDomain = 'velomail.com.br';
       
-      logger.info('🧪 Testando fallback para ultrazend.com.br');
+      logger.info('🧪 Testando fallback para velomail.com.br');
 
       // Verificar se o fallback domain está configurado
       const validator = new SimpleEmailValidator();
@@ -264,7 +264,7 @@ describe('🚨 Edge Cases - Casos Críticos', () => {
       // O sistema deve sugerir alternativas (isso pode ser implementado no futuro)
       logger.info('✅ Sugestão de fallback testada', {
         domain: failedDomain,
-        suggestion: 'Configure domínio próprio ou use ultrazend.com.br'
+        suggestion: 'Configure domínio próprio ou use velomail.com.br'
       });
     });
 

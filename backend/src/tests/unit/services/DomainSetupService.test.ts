@@ -20,13 +20,13 @@ describe('DomainSetupService', () => {
     mail_from_domain: 'uz-mail.example.com',
     mail_from_mx: {
       record: 'uz-mail.example.com',
-      value: 'mail.ultrazend.com.br',
+      value: 'mail.velomail.com.br',
       priority: 10,
       description: 'Mail-from MX record'
     },
     spf: {
       record: 'uz-mail.example.com',
-      value: 'v=spf1 include:ultrazend.com.br -all',
+      value: 'v=spf1 include:velomail.com.br -all',
       description: 'SPF record'
     },
     dkim: {
@@ -181,9 +181,9 @@ describe('DomainSetupService', () => {
 
     expect(instructions.mail_from_domain).toBe('uz-mail.example.com');
     expect(instructions.mail_from_mx.record).toBe('uz-mail.example.com');
-    expect(instructions.mail_from_mx.value).toBe('mail.ultrazend.com.br');
+    expect(instructions.mail_from_mx.value).toBe('mail.velomail.com.br');
     expect(instructions.spf.record).toBe('uz-mail.example.com');
-    expect(instructions.spf.value).toContain('include:ultrazend.com.br');
+    expect(instructions.spf.value).toContain('include:velomail.com.br');
     expect(instructions.dmarc.value).toBe('v=DMARC1; p=none');
     expect(instructions.notes[0]).toContain('Nao altere os registros @');
   });
@@ -192,7 +192,7 @@ describe('DomainSetupService', () => {
     const service = new DomainSetupService();
 
     jest.spyOn(service as any, 'resolveTxtWithRetry').mockResolvedValue([
-      'v=spf1 include:ultrazend.com.br -all',
+      'v=spf1 include:velomail.com.br -all',
       'v=spf1 include:another.example -all'
     ]);
 
@@ -242,13 +242,13 @@ describe('DomainSetupService', () => {
 
     jest.spyOn(service as any, 'verifyMailFromMxRecord').mockResolvedValue({
       valid: true,
-      expectedValue: 'mail.ultrazend.com.br',
-      actualValue: 'mail.ultrazend.com.br (10)'
+      expectedValue: 'mail.velomail.com.br',
+      actualValue: 'mail.velomail.com.br (10)'
     });
     jest.spyOn(service as any, 'verifySpfRecord').mockResolvedValue({
       valid: true,
-      expectedValue: 'v=spf1 include:ultrazend.com.br -all',
-      actualValue: 'v=spf1 include:ultrazend.com.br -all'
+      expectedValue: 'v=spf1 include:velomail.com.br -all',
+      actualValue: 'v=spf1 include:velomail.com.br -all'
     });
     jest.spyOn(service as any, 'verifyDkimRecord').mockResolvedValue({
       valid: true,

@@ -31,7 +31,7 @@ info:
     ```bash
     curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
          -H "Content-Type: application/json" \
-         https://api.ultrazend.com.br/api/emails/send
+         https://api.velomail.com.br/api/emails/send
     ```
     
     ## 🚦 Rate Limiting
@@ -43,35 +43,35 @@ info:
     ## 📧 SMTP Configuration
     
     **MX Server (recebimento):**
-    - Host: `mail.ultrazend.com.br`
+    - Host: `mail.velomail.com.br`
     - Port: `25`
     
     **Submission Server (envio autenticado):**
-    - Host: `mail.ultrazend.com.br`
+    - Host: `mail.velomail.com.br`
     - Port: `587`
     - Security: `STARTTLS`
     
     ## 🔗 Links Úteis
     
-    - **Dashboard**: https://www.ultrazend.com.br
-    - **Status Page**: https://status.ultrazend.com.br
-    - **Support**: suporte@ultrazend.com.br
-    - **Docs**: https://docs.ultrazend.com.br
+    - **Dashboard**: https://www.velomail.com.br
+    - **Status Page**: https://status.velomail.com.br
+    - **Support**: suporte@velomail.com.br
+    - **Docs**: https://docs.velomail.com.br
     
   version: 2.0.0
   contact:
     name: Suporte UltraZend
-    email: suporte@ultrazend.com.br
-    url: https://www.ultrazend.com.br/support
+    email: suporte@velomail.com.br
+    url: https://www.velomail.com.br/support
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
-  termsOfService: https://www.ultrazend.com.br/terms
+  termsOfService: https://www.velomail.com.br/terms
 
 servers:
-  - url: https://www.ultrazend.com.br/api
+  - url: https://www.velomail.com.br/api
     description: Produção
-  - url: https://staging.ultrazend.com.br/api
+  - url: https://staging.velomail.com.br/api
     description: Staging
   - url: http://localhost:3001/api
     description: Desenvolvimento Local
@@ -215,7 +215,7 @@ components:
         from:
           type: string
           format: email
-          example: "sender@ultrazend.com.br"
+          example: "sender@velomail.com.br"
         to:
           type: string
           format: email
@@ -256,7 +256,7 @@ components:
         from:
           type: string
           format: email
-          example: "noreply@ultrazend.com.br"
+          example: "noreply@velomail.com.br"
           description: "Endereço do remetente (deve estar autorizado)"
         to:
           type: string
@@ -279,7 +279,7 @@ components:
         reply_to:
           type: string
           format: email
-          example: "contato@ultrazend.com.br"
+          example: "contato@velomail.com.br"
           description: "Endereço para respostas"
         cc:
           type: array
@@ -765,7 +765,7 @@ paths:
               simple_email:
                 summary: Email simples
                 value:
-                  from: "noreply@ultrazend.com.br"
+                  from: "noreply@velomail.com.br"
                   to: "cliente@example.com"
                   subject: "Bem-vindo!"
                   html: "<h1>Olá!</h1><p>Bem-vindo ao nosso serviço.</p>"
@@ -774,7 +774,7 @@ paths:
               template_email:
                 summary: Email com template
                 value:
-                  from: "noreply@ultrazend.com.br"
+                  from: "noreply@velomail.com.br"
                   to: "cliente@example.com"
                   subject: "Bem-vindo, {{name}}!"
                   template_id: "welcome-template"
@@ -937,4 +937,4 @@ tags:
 
 externalDocs:
   description: Documentação Completa do UltraZend
-  url: https://docs.ultrazend.com.br
+  url: https://docs.velomail.com.br

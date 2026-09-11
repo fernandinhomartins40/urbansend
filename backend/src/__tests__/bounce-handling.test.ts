@@ -32,7 +32,7 @@ describe('Bounce Handling Tests', () => {
       // Create test email record
       const [emailId] = await db('emails').insert({
         user_id: 1,
-        from_email: 'bounce-test@www.ultrazend.com.br',
+        from_email: 'bounce-test@www.velomail.com.br',
         to_email: nonExistentDomain,
         subject: 'Hard Bounce Test - Nonexistent Domain',
         html_content: '<p>This should bounce - domain does not exist</p>',
@@ -43,7 +43,7 @@ describe('Bounce Handling Tests', () => {
 
       try {
         const result = await smtpDelivery.deliverEmail({
-          from: 'bounce-test@www.ultrazend.com.br',
+          from: 'bounce-test@www.velomail.com.br',
           to: nonExistentDomain,
           subject: 'Hard Bounce Test - Nonexistent Domain',
           html: '<p>This should bounce - domain does not exist</p>',
@@ -73,7 +73,7 @@ describe('Bounce Handling Tests', () => {
       
       const [emailId] = await db('emails').insert({
         user_id: 1,
-        from_email: 'bounce-test@www.ultrazend.com.br',
+        from_email: 'bounce-test@www.velomail.com.br',
         to_email: nonExistentUser,
         subject: 'Hard Bounce Test - Nonexistent User',
         html_content: '<p>This should bounce - user does not exist</p>',
@@ -84,7 +84,7 @@ describe('Bounce Handling Tests', () => {
 
       try {
         const result = await smtpDelivery.deliverEmail({
-          from: 'bounce-test@www.ultrazend.com.br',
+          from: 'bounce-test@www.velomail.com.br',
           to: nonExistentUser,
           subject: 'Hard Bounce Test - Nonexistent User',
           html: '<p>This should bounce - user does not exist</p>',
@@ -114,7 +114,7 @@ describe('Bounce Handling Tests', () => {
       
       const [emailId] = await db('emails').insert({
         user_id: 1,
-        from_email: 'bounce-test@www.ultrazend.com.br',
+        from_email: 'bounce-test@www.velomail.com.br',
         to_email: testEmail,
         subject: 'Soft Bounce Test',
         html_content: '<p>This might be retried</p>',
@@ -166,7 +166,7 @@ describe('Bounce Handling Tests', () => {
     test('Deve gerar endereço VERP corretamente', async () => {
       // Test VERP address generation
       const emailId = 12345;
-      const originalFrom = 'sender@www.ultrazend.com.br';
+      const originalFrom = 'sender@www.velomail.com.br';
       
       // This would be implemented in SMTPDelivery service
       const generateVERPAddress = (originalFrom: string, emailId: number): string => {
@@ -175,13 +175,13 @@ describe('Bounce Handling Tests', () => {
           .update(`${emailId}-${originalFrom}`)
           .digest('hex')
           .substring(0, 8);
-        return `bounce-${emailId}-${hash}@${process.env.SMTP_HOSTNAME || 'www.ultrazend.com.br'}`;
+        return `bounce-${emailId}-${hash}@${process.env.SMTP_HOSTNAME || 'www.velomail.com.br'}`;
       };
 
       const verpAddress = generateVERPAddress(originalFrom, emailId);
       
       expect(verpAddress).toMatch(/^bounce-12345-[a-f0-9]{8}@/);
-      expect(verpAddress).toContain('www.ultrazend.com.br');
+      expect(verpAddress).toContain('www.velomail.com.br');
       
       // Verify consistent generation
       const verpAddress2 = generateVERPAddress(originalFrom, emailId);
@@ -210,7 +210,7 @@ describe('Bounce Handling Tests', () => {
       for (let i = 0; i < emailData.length; i++) {
         await db('emails').insert({
           user_id: testUserId,
-          from_email: 'test@www.ultrazend.com.br',
+          from_email: 'test@www.velomail.com.br',
           to_email: `test${i}@example.com`,
           subject: `Test Email ${i}`,
           html_content: '<p>Test</p>',

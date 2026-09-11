@@ -22,10 +22,10 @@ module.exports = {
         DATABASE_URL: './ultrazend.sqlite',
         
         // ✅ SMTP configuração UltraZend ATIVA
-        SMTP_HOST: 'mail.ultrazend.com.br',
+        SMTP_HOST: 'mail.velomail.com.br',
         SMTP_PORT: 2525,
         SMTP_SECURE: 'false',
-        SMTP_HOSTNAME: 'mail.ultrazend.com.br',
+        SMTP_HOSTNAME: 'mail.velomail.com.br',
         SMTP_MX_PORT: 2525,
         SMTP_SUBMISSION_PORT: 587,
         SMTP_ENABLED: 'true',
@@ -34,9 +34,9 @@ module.exports = {
         ENABLE_DIRECT_MX_DELIVERY: 'true',
         
         // ✅ URLs e configurações
-        FRONTEND_URL: 'https://www.ultrazend.com.br',
-        API_BASE_URL: 'https://www.ultrazend.com.br/api',
-        BACKEND_URL: 'https://www.ultrazend.com.br',
+        FRONTEND_URL: 'https://www.velomail.com.br',
+        API_BASE_URL: 'https://www.velomail.com.br/api',
+        BACKEND_URL: 'https://www.velomail.com.br',
         
         // ✅ Redis opcional (como desenvolvimento)
         REDIS_URL: 'redis://127.0.0.1:6379',
@@ -48,9 +48,9 @@ module.exports = {
         
         // ✅ DKIM configuração
         DKIM_ENABLED: 'true',
-        DKIM_PRIVATE_KEY_PATH: './configs/dkim-keys/ultrazend.com.br-default-private.pem',
+        DKIM_PRIVATE_KEY_PATH: './configs/dkim-keys/velomail.com.br-default-private.pem',
         DKIM_SELECTOR: 'default',
-        DKIM_DOMAIN: 'ultrazend.com.br'
+        DKIM_DOMAIN: 'velomail.com.br'
       },
       
       // ✅ Logging robusto

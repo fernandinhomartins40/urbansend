@@ -51,8 +51,8 @@ router.use(requirePermission('admin:monitoring'));
 router.get('/configuration', async (_req: Request, res: Response) => {
   try {
     const dkimService = new DKIMService();
-    const domain = Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br');
-    const serverIp = Env.get('SERVER_IP', '72.60.10.112');
+    const domain = Env.get('SMTP_HOSTNAME', 'www.velomail.com.br');
+    const serverIp = Env.get('SERVER_IP', '72.60.10.108');
 
     // Configuração SPF
     const spfRecord = {
@@ -148,7 +148,7 @@ router.get('/configuration', async (_req: Request, res: Response) => {
 router.get('/verify', async (_req: Request, res: Response) => {
   try {
     const dns = require('dns').promises;
-    const domain = Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br');
+    const domain = Env.get('SMTP_HOSTNAME', 'www.velomail.com.br');
     const dkimService = new DKIMService();
     const dkimRecord = dkimService.getDNSRecord();
 

@@ -45,7 +45,7 @@ class UltraZendSMTPServer {
     this.config = {
       mxPort: config.mxPort ?? Env.getNumber('SMTP_MX_PORT', 25),
       submissionPort: config.submissionPort ?? Env.getNumber('SMTP_SUBMISSION_PORT', 587),
-      hostname: config.hostname ?? Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com'),
+      hostname: config.hostname ?? Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br'),
       maxConnections: config.maxConnections ?? Env.getNumber('SMTP_MAX_CLIENTS', 100),
       maxMessageSize: config.maxMessageSize ?? (50 * 1024 * 1024), // 50MB
       authRequired: config.authRequired ?? !Env.isDevelopment,

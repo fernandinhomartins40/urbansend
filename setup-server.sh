@@ -8,9 +8,9 @@ set -euo pipefail
 # Configuration
 SERVER_HOST="31.97.162.155"
 SERVER_USER="root"
-DOMAIN="ultrazend.com.br"
-SUBDOMAIN="www.ultrazend.com.br"
-ADMIN_EMAIL="admin@ultrazend.com.br"
+DOMAIN="velomail.com.br"
+SUBDOMAIN="www.velomail.com.br"
+ADMIN_EMAIL="admin@velomail.com.br"
 
 # Colors
 RED='\033[0;31m'

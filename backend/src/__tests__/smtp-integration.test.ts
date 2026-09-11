@@ -13,12 +13,12 @@ const setupTestDatabase = async () => {
     await db.migrate.latest();
     
     // Create system user for internal emails
-    const existingSystemUser = await db('users').where('email', 'system@ultrazend.com.br').first();
+    const existingSystemUser = await db('users').where('email', 'system@velomail.com.br').first();
     if (!existingSystemUser) {
       await db('users').insert({
         id: 1,
         name: 'System',
-        email: 'system@ultrazend.com.br',
+        email: 'system@velomail.com.br',
         password: 'system',
         is_verified: true,
         created_at: new Date(),
@@ -161,7 +161,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       // Criar usuário teste
       const [userId] = await db('users').insert({
         name: 'API Test User',
-        email: 'apitest@ultrazend.com.br',
+        email: 'apitest@velomail.com.br',
         password: 'password123',
         is_verified: true,
         created_at: new Date(),
@@ -183,7 +183,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
 
     test('Deve enviar email via API com sucesso', async () => {
       const emailData = {
-        from: 'noreply@www.ultrazend.com.br',
+        from: 'noreply@www.velomail.com.br',
         to: 'recipient@gmail.com',
         subject: 'Test Email from ULTRAZEND',
         html: '<h1>Hello World</h1><p>This is a test email from ULTRAZEND SMTP Server.</p>',
@@ -218,7 +218,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
 
     test('Deve falhar sem API key', async () => {
       const emailData = {
-        from: 'noreply@www.ultrazend.com.br',
+        from: 'noreply@www.velomail.com.br',
         to: 'recipient@gmail.com',
         subject: 'Test Email',
         html: '<h1>Hello</h1>'
@@ -257,11 +257,11 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       
       const emailData = {
         headers: {
-          from: 'test@www.ultrazend.com.br',
+          from: 'test@www.velomail.com.br',
           to: 'recipient@gmail.com',
           subject: 'Test Subject for DKIM',
           date: new Date().toUTCString(),
-          'message-id': '<test123@www.ultrazend.com.br>'
+          'message-id': '<test123@www.velomail.com.br>'
         },
         body: 'Test body content for DKIM signature validation'
       };
@@ -271,7 +271,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       // Verificações básicas da assinatura DKIM
       expect(signature).toContain('v=1');
       expect(signature).toContain('a=rsa-sha256');
-      expect(signature).toContain('d=www.ultrazend.com.br');
+      expect(signature).toContain('d=www.velomail.com.br');
       expect(signature).toContain('s=default');
       expect(signature).toContain('h=');
       expect(signature).toContain('b=');
@@ -290,7 +290,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       expect(dnsRecord).toHaveProperty('name');
       expect(dnsRecord).toHaveProperty('value');
       
-      expect(dnsRecord.name).toBe('default._domainkey.www.ultrazend.com.br');
+      expect(dnsRecord.name).toBe('default._domainkey.www.velomail.com.br');
       expect(dnsRecord.value).toContain('v=DKIM1');
       expect(dnsRecord.value).toContain('k=rsa');
       expect(dnsRecord.value).toContain('p=');
@@ -311,7 +311,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
     beforeEach(async () => {
       const [userId] = await db('users').insert({
         name: 'Password Reset Test',
-        email: 'resettest@ultrazend.com.br',
+        email: 'resettest@velomail.com.br',
         password: 'oldpassword123',
         is_verified: true,
         created_at: new Date(),
@@ -351,7 +351,7 @@ describe('ULTRAZEND SMTP Integration Tests', () => {
       // Criar email teste
       const [emailId] = await db('emails').insert({
         user_id: 1,
-        from_email: 'test@www.ultrazend.com.br',
+        from_email: 'test@www.velomail.com.br',
         to_email: 'webhook@test.com',
         subject: 'Webhook Test',
         html_content: '<p>Test</p>',

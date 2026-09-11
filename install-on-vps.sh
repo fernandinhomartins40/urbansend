@@ -23,6 +23,6 @@ bash /tmp/deploy-direct.sh
 
 echo "✅ INSTALAÇÃO CONCLUÍDA!"
 echo ""
-echo "🌐 Seu site está em: http://www.ultrazend.com.br"
+echo "🌐 Seu site está em: http://www.velomail.com.br"
 echo "📊 Para monitorar: pm2 list"
 echo "🔄 Para redeploy: bash /var/www/ultrazend/redeploy.sh"

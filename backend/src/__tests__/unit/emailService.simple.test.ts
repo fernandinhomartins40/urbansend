@@ -62,7 +62,7 @@ describe('EmailService Simple Unit Tests', () => {
       const jobData = {
         emailId: 'test-123',
         userId: 1,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Test Email',
         html: '<p>Test message</p>',
@@ -87,7 +87,7 @@ describe('EmailService Simple Unit Tests', () => {
       const jobData = {
         emailId: 'test-invalid',
         userId: 1,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'invalid-email',
         subject: 'Test Email',
         html: '<p>Test message</p>',
@@ -104,7 +104,7 @@ describe('EmailService Simple Unit Tests', () => {
       const jobData = {
         emailId: 'test-error',
         userId: 1,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Test Email',
         html: '<p>Test message</p>',

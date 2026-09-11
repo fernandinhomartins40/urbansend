@@ -7,10 +7,10 @@
 set -e
 
 # Configuration
-SERVER="root@ultrazend.com.br"
+SERVER="root@velomail.com.br"
 APP_DIR="/var/www/ultrazend"
 STATIC_DIR="/var/www/ultrazend-static"
-DOMAIN="www.ultrazend.com.br"
+DOMAIN="www.velomail.com.br"
 DEPLOY_VERSION=$(date +%Y%m%d_%H%M%S)
 
 echo "🚀 ULTRAZEND V3 DEPLOY - ARQUITETURA SIMPLIFICADA"
@@ -92,7 +92,7 @@ ssh $SERVER "
     
     # Build with optimizations and production environment variables
     echo 'Building with enhanced optimizations and production env vars...'
-    VITE_API_BASE_URL=https://www.ultrazend.com.br/api NODE_ENV=production npm run build
+    VITE_API_BASE_URL=https://www.velomail.com.br/api NODE_ENV=production npm run build
     
     # Validate build output
     if [ ! -d 'dist' ] || [ ! -f 'dist/index.html' ]; then
@@ -222,26 +222,26 @@ ENABLE_CROSS_TENANT_VALIDATION=true
 TENANT_ISOLATION_STRICT_MODE=true
 
 # === ULTRAZEND SMTP SERVER (PRÓPRIO) ===
-ULTRAZEND_SMTP_HOST=mail.ultrazend.com.br
+ULTRAZEND_SMTP_HOST=mail.velomail.com.br
 ULTRAZEND_SMTP_PORT=25
 SMTP_MX_PORT=2525
 SMTP_SUBMISSION_PORT=587
-SMTP_HOSTNAME=mail.ultrazend.com.br
+SMTP_HOSTNAME=mail.velomail.com.br
 ULTRAZEND_DIRECT_DELIVERY=true
 ENABLE_DIRECT_MX_DELIVERY=true
 SMTP_ENABLED=true
 
 # === CONFIGURAÇÕES COMPATÍVEIS COM CÓDIGO EXISTENTE ===
-SMTP_HOST=mail.ultrazend.com.br
+SMTP_HOST=mail.velomail.com.br
 SMTP_PORT=2525
 SMTP_SECURE=false
 
 # === DKIM CONFIGURATION ===
 ENABLE_DKIM=true
 ENABLE_DKIM_SIGNING=true
-DKIM_PRIVATE_KEY_PATH=$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem
+DKIM_PRIVATE_KEY_PATH=$APP_DIR/configs/dkim-keys/velomail.com.br-default-private.pem
 DKIM_SELECTOR=default
-DKIM_DOMAIN=ultrazend.com.br
+DKIM_DOMAIN=velomail.com.br
 
 # === ULTRAZEND FEATURES ===
 SMTP_MODE=pure_ultrazend
@@ -269,9 +269,9 @@ V3_COMPATIBILITY_MODE=true
 SMTP_FALLBACK_HOST=smtp.gmail.com
 SMTP_FALLBACK_PORT=587
 SMTP_FALLBACK_SECURE=true
-SMTP_FALLBACK_USER=noreply@ultrazend.com.br
+SMTP_FALLBACK_USER=noreply@velomail.com.br
 SMTP_FALLBACK_PASS=\$(echo "app-password-placeholder")
-SMTP_HOSTNAME=mail.ultrazend.com.br
+SMTP_HOSTNAME=mail.velomail.com.br
 
 # === AUTHENTICATION & SECURITY ===
 JWT_SECRET=\$(openssl rand -base64 64 | tr -d \"\\\\n\" | head -c 64)
@@ -282,9 +282,9 @@ SESSION_TIMEOUT=86400
 BCRYPT_ROUNDS=12
 
 # === URLS & ORIGINS ===
-FRONTEND_URL=https://www.ultrazend.com.br
-API_BASE_URL=https://www.ultrazend.com.br/api
-ALLOWED_ORIGINS=https://www.ultrazend.com.br,https://ultrazend.com.br
+FRONTEND_URL=https://www.velomail.com.br
+API_BASE_URL=https://www.velomail.com.br/api
+ALLOWED_ORIGINS=https://www.velomail.com.br,https://velomail.com.br
 
 # === RATE LIMITING (PER TENANT) ===
 RATE_LIMIT_WINDOW=900000
@@ -376,7 +376,7 @@ REDIS_EOF
     chown -R root:root $APP_DIR/configs/dkim-keys/ || true
     chmod -R 644 $APP_DIR/configs/dkim-keys/ || true
     
-    if [ -f '$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem' ]; then
+    if [ -f '$APP_DIR/configs/dkim-keys/velomail.com.br-default-private.pem' ]; then
         echo '✅ DKIM private key configurado'
     else
         echo '❌ CRÍTICO: DKIM private key não encontrado'
@@ -510,7 +510,7 @@ echo "🔒 Configurando SSL..."
 ssh $SERVER "
     if [ ! -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
         echo 'Obtendo certificado SSL...'
-        certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br --redirect || echo 'SSL setup com warnings'
+        certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@velomail.com.br --redirect || echo 'SSL setup com warnings'
         systemctl reload nginx
     else
         echo 'SSL já configurado - verificando validade'

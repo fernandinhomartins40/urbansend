@@ -36,7 +36,7 @@ interface RelayConfig {
 export class SMTPDeliveryService {
   private connectionPool: Map<string, Transporter> = new Map();
   private dkimManager: DKIMManager;
-  private readonly platformMailHostname = Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br');
+  private readonly platformMailHostname = Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br');
 
   constructor() {
     this.dkimManager = new DKIMManager();
@@ -219,7 +219,7 @@ export class SMTPDeliveryService {
   }
 
   private isUltraZendDomain(domain: string): boolean {
-    return ['ultrazend.com.br', 'mail.ultrazend.com.br', 'www.ultrazend.com.br'].includes(domain.toLowerCase());
+    return ['velomail.com.br', 'mail.velomail.com.br', 'www.velomail.com.br'].includes(domain.toLowerCase());
   }
 
   private async deliverViaSMTPRelay(
@@ -392,7 +392,7 @@ export class SMTPDeliveryService {
       connectionTimeout: 60000,
       greetingTimeout: 30000,
       socketTimeout: 60000,
-      name: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br'),
+      name: Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br'),
       pool: true,
       maxConnections: 5,
       maxMessages: 100

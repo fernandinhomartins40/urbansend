@@ -178,7 +178,7 @@ class UltraZendAPITester {
       variables: {
         name: 'Teste UltraZend',
         company: 'UltraZend SMTP',
-        verificationUrl: 'https://ultrazend.com.br/verify?token=test123'
+        verificationUrl: 'https://velomail.com.br/verify?token=test123'
       }
     };
 

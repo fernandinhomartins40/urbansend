@@ -243,7 +243,7 @@ export class EnvironmentValidator {
           severity: 'HIGH',
           variable: 'DKIM_DOMAIN',
           description: 'DKIM is enabled but DKIM_DOMAIN is not set',
-          fix: 'Set DKIM_DOMAIN to your primary domain (e.g., ultrazend.com.br)'
+          fix: 'Set DKIM_DOMAIN to your primary domain (e.g., velomail.com.br)'
         });
       }
 

@@ -13,10 +13,10 @@ describe('normalizeApiBaseUrl', () => {
   })
 
   it('preserves explicit absolute API URLs', () => {
-    expect(normalizeApiBaseUrl('https://www.ultrazend.com.br/api/')).toBe('https://www.ultrazend.com.br/api')
+    expect(normalizeApiBaseUrl('https://www.velomail.com.br/api/')).toBe('https://www.velomail.com.br/api')
   })
 
   it('promotes absolute site roots to the /api prefix', () => {
-    expect(normalizeApiBaseUrl('https://www.ultrazend.com.br')).toBe('https://www.ultrazend.com.br/api')
+    expect(normalizeApiBaseUrl('https://www.velomail.com.br')).toBe('https://www.velomail.com.br/api')
   })
 })

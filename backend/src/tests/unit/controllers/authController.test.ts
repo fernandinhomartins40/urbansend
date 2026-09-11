@@ -64,7 +64,7 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
       
       // Simular o comportamento do controller
       const internalEmailService = new InternalEmailService();
-      const resetUrl = `${process.env.FRONTEND_URL || 'https://ultrazend.com.br'}/reset-password?token=test-token`;
+      const resetUrl = `${process.env.FRONTEND_URL || 'https://velomail.com.br'}/reset-password?token=test-token`;
       
       await internalEmailService.sendPasswordResetEmail(testEmail, testName, resetUrl);
 
@@ -95,14 +95,14 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
       const testToken = 'abc123token';
       
       const internalEmailService = new InternalEmailService();
-      const resetUrl = `https://ultrazend.com.br/reset-password?token=${testToken}`;
+      const resetUrl = `https://velomail.com.br/reset-password?token=${testToken}`;
       
       await internalEmailService.sendPasswordResetEmail(testEmail, testName, resetUrl);
 
       expect(mockSendPasswordReset).toHaveBeenCalledWith(
         testEmail,
         testName,
-        'https://ultrazend.com.br/reset-password?token=abc123token'
+        'https://velomail.com.br/reset-password?token=abc123token'
       );
     });
 
@@ -138,14 +138,14 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
       const testToken = 'token123';
       
       const internalEmailService = new InternalEmailService();
-      const resetUrl = `${'https://ultrazend.com.br'}/reset-password?token=${testToken}`;
+      const resetUrl = `${'https://velomail.com.br'}/reset-password?token=${testToken}`;
       
       await internalEmailService.sendPasswordResetEmail(testEmail, testName, resetUrl);
 
       expect(mockSendPasswordReset).toHaveBeenCalledWith(
         testEmail,
         testName,
-        'https://ultrazend.com.br/reset-password?token=token123'
+        'https://velomail.com.br/reset-password?token=token123'
       );
       
       // Restaurar env original
@@ -214,7 +214,7 @@ describe('AuthController - Integration Tests', () => {
         await internalEmailService.sendPasswordResetEmail(
           'test@example.com',
           'Test User',
-          'https://ultrazend.com.br/reset-password?token=test'
+          'https://velomail.com.br/reset-password?token=test'
         );
         mockCallback();
         expect(mockCallback).toHaveBeenCalled();

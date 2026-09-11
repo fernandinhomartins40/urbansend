@@ -72,7 +72,7 @@ describe('EmailService Unit Tests', () => {
       await emailService.sendVerificationEmail(email, name, token);
       
       const emailCall = mockSMTPDelivery.deliverEmail.mock.calls[0][0];
-      const expectedUrl = process.env.FRONTEND_URL || 'https://www.ultrazend.com.br';
+      const expectedUrl = process.env.FRONTEND_URL || 'https://www.velomail.com.br';
       
       expect(emailCall.html).toContain(`${expectedUrl}/verify-email?token=${token}`);
       expect(emailCall.text).toContain(`${expectedUrl}/verify-email?token=${token}`);
@@ -108,7 +108,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Test Email',
         html: '<p>Test message</p>',
@@ -135,7 +135,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-invalid-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'invalid-email-format',
         subject: 'Test Email',
         html: '<p>Test message</p>',
@@ -155,7 +155,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-template-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Welcome {{name}}!',
         html: template.html,
@@ -178,7 +178,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-tracking-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Test Email',
         html: '<p>Test message</p>',
@@ -200,7 +200,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-error-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Test Email',
         html: '<p>Test message</p>',
@@ -217,7 +217,7 @@ describe('EmailService Unit Tests', () => {
       const emails = [
         {
           emailId: 'batch-1',
-          from: 'sender@ultrazend.com.br',
+          from: 'sender@velomail.com.br',
           to: 'recipient1@example.com',
           subject: 'Batch Email 1',
           html: '<p>Batch email 1</p>',
@@ -225,7 +225,7 @@ describe('EmailService Unit Tests', () => {
         },
         {
           emailId: 'batch-2',
-          from: 'sender@ultrazend.com.br',
+          from: 'sender@velomail.com.br',
           to: 'recipient2@example.com',
           subject: 'Batch Email 2',
           html: '<p>Batch email 2</p>',
@@ -260,7 +260,7 @@ describe('EmailService Unit Tests', () => {
       const emails = [
         {
           emailId: 'batch-1',
-          from: 'sender@ultrazend.com.br',
+          from: 'sender@velomail.com.br',
           to: 'recipient1@example.com',
           subject: 'Batch Email 1',
           html: '<p>Batch email 1</p>',
@@ -268,7 +268,7 @@ describe('EmailService Unit Tests', () => {
         },
         {
           emailId: 'batch-2',
-          from: 'sender@ultrazend.com.br',
+          from: 'sender@velomail.com.br',
           to: 'recipient2@example.com',
           subject: 'Batch Email 2',
           html: '<p>Batch email 2</p>',
@@ -293,7 +293,7 @@ describe('EmailService Unit Tests', () => {
     test('should process emails in batches to avoid overload', async () => {
       const largeEmailList = Array.from({ length: 25 }, (_, i) => ({
         emailId: `batch-large-${i}`,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: `recipient${i}@example.com`,
         subject: `Batch Email ${i}`,
         html: `<p>Batch email ${i}</p>`,
@@ -399,7 +399,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-logging-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Logging Test',
         html: '<p>Error logging test</p>',
@@ -437,7 +437,7 @@ describe('EmailService Unit Tests', () => {
       const jobData = {
         emailId: 'test-performance-123',
         userId: testUser.id,
-        from: 'sender@ultrazend.com.br',
+        from: 'sender@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Performance Test',
         html: '<p>Performance test email</p>',
@@ -460,7 +460,7 @@ describe('EmailService Unit Tests', () => {
         const jobData = {
           emailId: `concurrent-${i}`,
           userId: testUser.id,
-          from: 'sender@ultrazend.com.br',
+          from: 'sender@velomail.com.br',
           to: `recipient${i}@example.com`,
           subject: `Concurrent Test ${i}`,
           html: `<p>Concurrent email test ${i}</p>`,
@@ -487,7 +487,7 @@ describe('EmailService Unit Tests', () => {
         const jobData = {
           emailId: `memory-${i}`,
           userId: testUser.id,
-          from: 'sender@ultrazend.com.br',
+          from: 'sender@velomail.com.br',
           to: `recipient${i}@example.com`,
           subject: `Memory Test ${i}`,
           html: '<p>' + 'Large content '.repeat(50) + '</p>',

@@ -109,9 +109,9 @@ if [ -d "/etc/letsencrypt/live/" ]; then
     echo "Certificados disponíveis:"
     ls -la /etc/letsencrypt/live/ || echo "Diretório vazio"
     
-    if [ -f "/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem" ]; then
+    if [ -f "/etc/letsencrypt/live/velomail.com.br/fullchain.pem" ]; then
         echo "✅ Certificado SSL encontrado"
-        expiry=$(openssl x509 -enddate -noout -in /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem | cut -d= -f2)
+        expiry=$(openssl x509 -enddate -noout -in /etc/letsencrypt/live/velomail.com.br/fullchain.pem | cut -d= -f2)
         echo "📅 Expira em: $expiry"
     else
         echo "⚠️ Certificado SSL não encontrado"

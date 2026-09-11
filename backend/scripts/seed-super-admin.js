@@ -10,7 +10,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const config = knexConfig[NODE_ENV] || knexConfig.development;
 const db = knexFactory(config);
 
-const SUPER_ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || 'superadmin@ultrazend.com.br').trim().toLowerCase();
+const SUPER_ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || 'superadmin@velomail.com.br').trim().toLowerCase();
 const SUPER_ADMIN_NAME = String(process.env.SUPER_ADMIN_NAME || 'UltraZend Super Admin').trim();
 const DEFAULT_DEV_PASSWORD = 'SuperAdmin@123!';
 const SUPER_ADMIN_FORCE_PASSWORD_RESET = ['1', 'true', 'yes', 'on']

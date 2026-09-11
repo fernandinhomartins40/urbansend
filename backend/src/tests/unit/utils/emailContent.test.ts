@@ -8,11 +8,11 @@ describe('email content utilities', () => {
   });
 
   it('builds trackable HTML from plain text while preserving links and line breaks', () => {
-    const html = buildHtmlFromText('Linha 1\nhttps://ultrazend.com.br/docs');
+    const html = buildHtmlFromText('Linha 1\nhttps://velomail.com.br/docs');
 
     expect(html).toContain('<html');
     expect(html).toContain('Linha 1<br />');
-    expect(html).toContain('<a href="https://ultrazend.com.br/docs"');
+    expect(html).toContain('<a href="https://velomail.com.br/docs"');
   });
 
   it('builds plain text from HTML when only HTML is available', () => {

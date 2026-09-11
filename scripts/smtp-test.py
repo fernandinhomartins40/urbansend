@@ -92,7 +92,7 @@ class SMTPTester:
             with smtplib.SMTP(self.smtp_host, self.mx_port, timeout=10) as server:
                 server.ehlo()
                 server.mail('external@example.com')
-                server.rcpt('test@ultrazend.com.br')  # Should accept local domain
+                server.rcpt('test@velomail.com.br')  # Should accept local domain
                 server.quit()
                 self.log_result('MX External Email Acceptance', True)
         except Exception as e:
@@ -119,7 +119,7 @@ class SMTPTester:
             # Connect to MailHog SMTP
             with smtplib.SMTP('mailhog', 1025, timeout=10) as server:
                 msg = MIMEMultipart()
-                msg['From'] = 'test@ultrazend.com.br'
+                msg['From'] = 'test@velomail.com.br'
                 msg['To'] = 'recipient@example.com'
                 msg['Subject'] = 'UltraZend SMTP Test'
                 

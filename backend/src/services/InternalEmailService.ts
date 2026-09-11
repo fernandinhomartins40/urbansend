@@ -25,8 +25,8 @@ export class InternalEmailService implements IEmailService {
 
   constructor(options: InternalEmailServiceOptions = {}) {
     this.smtpDelivery = new SMTPDeliveryService();
-    this.defaultFrom = options.defaultFrom || 'noreply@ultrazend.com.br';
-    this.dkimDomain = options.dkimDomain || 'ultrazend.com.br';
+    this.defaultFrom = options.defaultFrom || 'noreply@velomail.com.br';
+    this.dkimDomain = options.dkimDomain || 'velomail.com.br';
     this.enableTracking = options.enableTracking || false;
 
     logger.debug('InternalEmailService initialized', {
@@ -191,7 +191,7 @@ export class InternalEmailService implements IEmailService {
       // Teste básico enviando para um email de teste interno
       const testEmail = {
         from: this.defaultFrom,
-        to: 'test@ultrazend.com.br',
+        to: 'test@velomail.com.br',
         subject: 'Test Connection - InternalEmailService',
         text: 'This is a connection test from InternalEmailService',
         html: '<p>This is a connection test from InternalEmailService</p>',
@@ -219,12 +219,12 @@ export class InternalEmailService implements IEmailService {
    * @returns URL completa de verificação
    */
   private buildVerificationUrl(token: string): string {
-    const baseUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+    const baseUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.velomail.com.br'));
     return `${baseUrl}/verify-email?token=${token}`;
   }
 
   private buildLoginUrl(scope: PasswordResetScope): string {
-    const baseUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.ultrazend.com.br'));
+    const baseUrl = Env.get('FRONTEND_URL', Env.get('APP_URL', 'https://www.velomail.com.br'));
     const loginPath = scope === 'super_admin' ? '/super-admin/login' : '/login';
     return `${baseUrl}${loginPath}`;
   }
@@ -339,7 +339,7 @@ Este link de verificação expira em 24 horas.
 
 ---
 UltraZend - Plataforma de Email Marketing
-https://ultrazend.com.br
+https://velomail.com.br
     `.trim();
   }
 
@@ -428,7 +428,7 @@ Este link expira em 1 hora por motivos de segurança.
 
 ---
 UltraZend - Plataforma de Email Marketing
-https://ultrazend.com.br
+https://velomail.com.br
     `.trim();
   }
 
@@ -503,7 +503,7 @@ ${notification.message}
 
 ---
 UltraZend - Plataforma de Email Marketing
-https://ultrazend.com.br
+https://velomail.com.br
     `;
 
     return text.trim();

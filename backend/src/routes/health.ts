@@ -152,7 +152,7 @@ async function checkDKIMHealth(): Promise<HealthCheck> {
       responseTime,
       details: {
         selector: Env.get('DKIM_SELECTOR', 'default'),
-        domain: Env.get('DKIM_DOMAIN', 'ultrazend.com.br'),
+        domain: Env.get('DKIM_DOMAIN', 'velomail.com.br'),
         keyLength: publicKey.length,
         dnsRecord: dnsRecord.name,
         configuredDomains: dkimDomains,
@@ -565,8 +565,8 @@ router.get('/dkim', async (req: Request, res: Response) => {
 
     const configuration = {
       selector: Env.get('DKIM_SELECTOR', 'default'),
-      domain: Env.get('DKIM_DOMAIN', 'ultrazend.com.br'),
-      hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br'),
+      domain: Env.get('DKIM_DOMAIN', 'velomail.com.br'),
+      hostname: Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br'),
       algorithm: 'rsa-sha256',
       canonicalization: 'relaxed/relaxed',
       keySize: 2048,
@@ -631,8 +631,9 @@ router.get('/dkim', async (req: Request, res: Response) => {
       diagnostics.issues.push('No DKIM keys found in database');
     }
     
-    if (!diagnostics.environment.dkimDomain.includes('ultrazend.com.br')) {
-      diagnostics.issues.push('DKIM domain should be set to ultrazend.com.br');
+    const expectedDkimDomain = Env.get('DKIM_DOMAIN', 'velomail.com.br');
+    if (!diagnostics.environment.dkimDomain.includes(expectedDkimDomain)) {
+      diagnostics.issues.push(`DKIM domain should be set to ${expectedDkimDomain}`);
     }
 
     // Determine overall DKIM health
@@ -675,8 +676,8 @@ router.get('/dkim', async (req: Request, res: Response) => {
       error: (error as Error).message,
       configuration: {
         selector: Env.get('DKIM_SELECTOR', 'default'),
-        domain: Env.get('DKIM_DOMAIN', 'ultrazend.com.br'),
-        hostname: Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br')
+        domain: Env.get('DKIM_DOMAIN', 'velomail.com.br'),
+        hostname: Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br')
       }
     };
 

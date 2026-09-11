@@ -9,11 +9,11 @@ set -euo pipefail
 APP_NAME="ultrazend"
 APP_PATH="/var/www/ultrazend"
 MONITOR_PATH="/var/log/ultrazend/monitoring"
-ALERT_EMAIL="admin@ultrazend.com.br"
+ALERT_EMAIL="admin@velomail.com.br"
 SLACK_WEBHOOK="" # Configure if using Slack
 HEALTH_URL="http://localhost:3001/health"
 API_URL="http://localhost:3001/api"
-WEB_URL="https://www.ultrazend.com.br"
+WEB_URL="https://www.velomail.com.br"
 
 # Thresholds
 CPU_THRESHOLD=80
@@ -222,7 +222,7 @@ check_nginx_status() {
 check_ssl_certificates() {
     log "Verificando certificados SSL..."
     
-    local cert_path="/etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem"
+    local cert_path="/etc/letsencrypt/live/velomail.com.br/fullchain.pem"
     
     if [ -f "$cert_path" ]; then
         local expiry_date=$(openssl x509 -enddate -noout -in "$cert_path" | cut -d= -f2)

@@ -10,7 +10,7 @@ exports.up = async function(knex) {
   const domains = [
     // === DOMÍNIO PRINCIPAL ===
     {
-      domain: 'ultrazend.com.br',
+      domain: 'velomail.com.br',
       is_active: true,
       accept_all: false,
       description: 'Domínio principal do UltraZend'
@@ -266,7 +266,7 @@ exports.down = async function(knex) {
   
   const domainsToRemove = [
     // Principal
-    'ultrazend.com.br',
+    'velomail.com.br',
     
     // Globais populares
     'gmail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com',

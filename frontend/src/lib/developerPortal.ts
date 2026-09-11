@@ -164,7 +164,7 @@ export const getPublicSiteOrigin = () => {
     return window.location.origin
   }
 
-  return 'https://www.ultrazend.com.br'
+  return 'https://www.velomail.com.br'
 }
 
 export const getApiBaseForDocs = () => `${getPublicSiteOrigin()}/api`
@@ -220,7 +220,7 @@ export const buildWebhookPayloadExample = (event = 'email.delivered') => `{
   "tenant_id": 7,
   "data": {
     "email_id": 152,
-    "message_id": "<uz-01JQ-example@ultrazend.com.br>",
+    "message_id": "<uz-01JQ-example@velomail.com.br>",
     "tracking_id": "trk_01JQEXAMPLE",
     "template_id": 42,
     "template_data": {

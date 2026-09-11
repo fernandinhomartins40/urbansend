@@ -194,7 +194,7 @@ if (Env.enableDebugRoutes) {
         token: user.verification_token,
         isVerified: user.is_verified,
         createdAt: user.created_at,
-        verifyUrl: `${process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br'}/verify-email?token=${user.verification_token}`
+        verifyUrl: `${process.env['FRONTEND_URL'] || 'https://www.velomail.com.br'}/verify-email?token=${user.verification_token}`
       }))
     });
   }));

@@ -613,7 +613,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
         <Button
           variant="outline"
           className="w-full"
-          onClick={() => window.open('https://docs.ultrazend.com.br/domains', '_blank')}
+          onClick={() => window.open('https://docs.velomail.com.br/domains', '_blank')}
         >
           <ExternalLink className="mr-2 h-4 w-4" />
           Ver documentacao

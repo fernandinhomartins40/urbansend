@@ -9,8 +9,8 @@ set -euo pipefail
 VPS_HOST="31.97.162.155"
 VPS_USER="root"
 APP_DIR="/var/www/ultrazend"
-DOMAIN="ultrazend.com.br"
-SUBDOMAIN="www.ultrazend.com.br"
+DOMAIN="velomail.com.br"
+SUBDOMAIN="www.velomail.com.br"
 
 # Colors
 RED='\033[0;31m'

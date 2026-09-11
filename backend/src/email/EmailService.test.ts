@@ -212,8 +212,8 @@ describe('UnifiedEmailService', () => {
       expect(result).toBe(true);
       expect(mockSMTPDelivery.SMTPDeliveryService.prototype.deliverEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'test@ultrazend.com.br',
-          to: 'test@ultrazend.com.br',
+          from: 'test@velomail.com.br',
+          to: 'test@velomail.com.br',
           subject: 'Test Connection - UnifiedEmailService'
         })
       );

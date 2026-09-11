@@ -455,7 +455,7 @@ class EmailService {
       }
 
       // Use environment-specific frontend URL
-      const frontendUrl = process.env['FRONTEND_URL'] || 'https://www.ultrazend.com.br';
+      const frontendUrl = process.env['FRONTEND_URL'] || 'https://www.velomail.com.br';
       const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
       
       logger.info('Generated verification URL', {
@@ -591,7 +591,7 @@ class EmailService {
       const smtpDelivery = new SMTPDeliveryService();
       
       // Buscar system user para usar ID correto
-      const systemUser = await db('users').where('email', 'system@ultrazend.local').first();
+      const systemUser = await db('users').where('email', 'system@velomail.local').first();
       if (!systemUser) {
         throw new Error('System user not found. Database migration may have failed.');
       }
@@ -599,7 +599,7 @@ class EmailService {
       // Criar email record no banco para tracking
       const insertResult = await db('emails').insert({
         user_id: systemUser.id, // System user ID correto
-        from_email: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
+        from_email: `noreply@${Env.get('SMTP_HOSTNAME', 'www.velomail.com.br')}`,
         to_email: email,
         subject: 'Verifique seu email - Ultrazend',
         html_content: htmlContent,
@@ -612,7 +612,7 @@ class EmailService {
 
       // Entregar via SMTP direto
       const delivered = await smtpDelivery.deliverEmail({
-        from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.ultrazend.com.br')}`,
+        from: `noreply@${Env.get('SMTP_HOSTNAME', 'www.velomail.com.br')}`,
         to: email,
         subject: 'Verifique seu email - Ultrazend',
         html: htmlContent,

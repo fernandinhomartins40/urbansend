@@ -43,9 +43,9 @@ services:
       - SMTP_PORT=25
       - ULTRAZEND_DIRECT_DELIVERY=true
       - ENABLE_DKIM=true
-      - DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/ultrazend.com.br-default-private.pem
+      - DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/velomail.com.br-default-private.pem
       - DKIM_SELECTOR=default
-      - DKIM_DOMAIN=ultrazend.com.br
+      - DKIM_DOMAIN=velomail.com.br
       - QUEUE_ENABLED=true
     command: sh -c "npm run migrate:latest && node dist/index.js"
     volumes:

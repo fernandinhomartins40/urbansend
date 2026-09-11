@@ -16,8 +16,8 @@ POSTGRES_VOLUME="ultrazend-postgres-data"
 LEGACY_STORAGE_VOLUMES=("ultrazend-storage" "ultrazend_ultrazend-storage")
 LEGACY_POSTGRES_VOLUMES=("postgres-data" "ultrazend_postgres-data")
 
-BASE_DOMAIN="ultrazend.com.br"
-WWW_DOMAIN="www.ultrazend.com.br"
+BASE_DOMAIN="velomail.com.br"
+WWW_DOMAIN="www.velomail.com.br"
 DOMAIN="$WWW_DOMAIN"
 
 ensure_env_value() {
@@ -123,7 +123,7 @@ chmod -R 644 "$CONFIG_DIR/dkim-keys" || true
 chown -R 1001:1001 "$LOGS_DIR" || true
 chmod -R 755 "$LOGS_DIR" || true
 
-if [ -f "$CONFIG_DIR/dkim-keys/ultrazend.com.br-default-private.pem" ]; then
+if [ -f "$CONFIG_DIR/dkim-keys/velomail.com.br-default-private.pem" ]; then
   echo "DKIM private key found in persistent storage"
 else
   echo "AVISO: DKIM private key not found in $CONFIG_DIR/dkim-keys"
@@ -149,7 +149,7 @@ ensure_secret_if_invalid "JWT_REFRESH_SECRET"
 ensure_secret_if_invalid "COOKIE_SECRET"
 ensure_secret_if_invalid "APP_ENCRYPTION_KEY"
 if [ -z "$(read_env_value "SUPER_ADMIN_EMAIL")" ]; then
-  ensure_env_value "SUPER_ADMIN_EMAIL" "superadmin@ultrazend.com.br"
+  ensure_env_value "SUPER_ADMIN_EMAIL" "superadmin@velomail.com.br"
 fi
 if [ -z "$(read_env_value "SUPER_ADMIN_NAME")" ]; then
   ensure_env_value "SUPER_ADMIN_NAME" "UltraZend Super Admin"
@@ -177,7 +177,7 @@ cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name www.ultrazend.com.br ultrazend.com.br;
+    server_name www.velomail.com.br velomail.com.br;
 
     # Let's Encrypt ACME challenge
     location /.well-known/acme-challenge/ {
@@ -195,27 +195,27 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name ultrazend.com.br;
+    server_name velomail.com.br;
 
     # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/ultrazend.com.br/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ultrazend.com.br/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/velomail.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/velomail.com.br/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     # Redirect apex to www
-    return 301 https://www.ultrazend.com.br$request_uri;
+    return 301 https://www.velomail.com.br$request_uri;
 }
 
 # HTTPS server for www
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name www.ultrazend.com.br;
+    server_name www.velomail.com.br;
 
     # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/www.ultrazend.com.br/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/www.ultrazend.com.br/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/velomail.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/velomail.com.br/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -366,9 +366,9 @@ docker run -d \
   -e SMTP_PORT=25 \
   -e ULTRAZEND_DIRECT_DELIVERY=true \
   -e ENABLE_DKIM=true \
-  -e DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/ultrazend.com.br-default-private.pem \
+  -e DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/velomail.com.br-default-private.pem \
   -e DKIM_SELECTOR=default \
-  -e DKIM_DOMAIN=ultrazend.com.br \
+  -e DKIM_DOMAIN=velomail.com.br \
   -e QUEUE_ENABLED=true \
   -v "$LOGS_DIR":/app/logs \
   -v "$CONFIG_DIR":/app/configs \
@@ -391,13 +391,11 @@ echo "Servicos iniciados"
 echo "Configurando SSL..."
 if [ ! -f /etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem ]; then
   echo "Obtendo certificado SSL para apex domain..."
-  certbot certonly --nginx -d $BASE_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup for apex completed with warnings"
+  certbot certonly --nginx -d $BASE_DOMAIN -d $WWW_DOMAIN --cert-name $BASE_DOMAIN --non-interactive --agree-tos --email divairbuava@gmail.com || echo "SSL setup completed with warnings"
 fi
 
-if [ ! -f /etc/letsencrypt/live/$WWW_DOMAIN/fullchain.pem ]; then
-  echo "Obtendo certificado SSL para www domain..."
-  certbot certonly --nginx -d $WWW_DOMAIN --non-interactive --agree-tos --email admin@ultrazend.com.br || echo "SSL setup for www completed with warnings"
-fi
+# O certificado de $BASE_DOMAIN ja cobre $WWW_DOMAIN via SAN, entao nao ha
+# emissao separada para o www (o diretorio live/$WWW_DOMAIN nunca existe).
 
 systemctl reload nginx
 echo "SSL configurado para ambos dominios"

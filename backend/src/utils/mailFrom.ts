@@ -1,5 +1,5 @@
 export const MANAGED_MAIL_FROM_PREFIX = 'uz-mail';
-export const DEFAULT_PLATFORM_MX_HOST = 'mail.ultrazend.com.br';
+export const DEFAULT_PLATFORM_MX_HOST = 'mail.velomail.com.br';
 
 export function buildManagedMailFromDomain(domain: string): string {
   return `${MANAGED_MAIL_FROM_PREFIX}.${domain}`.toLowerCase();

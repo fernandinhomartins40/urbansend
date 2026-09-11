@@ -130,7 +130,7 @@ exports.up = async function(knex) {
       },
       {
         config_key: 'fallback_domain',
-        config_value: 'ultrazend.com.br',
+        config_value: 'velomail.com.br',
         data_type: 'string',
         description: 'Domínio de fallback para emails não verificados',
         is_active: true

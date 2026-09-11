@@ -6,8 +6,8 @@
 
 set -e
 
-DOMAIN="www.ultrazend.com.br"
-EMAIL="admin@ultrazend.com.br"
+DOMAIN="www.velomail.com.br"
+EMAIL="admin@velomail.com.br"
 APP_DIR="/var/www/ultrazend"
 NGINX_CONFIG_DIR="/etc/nginx/sites-available"
 NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"

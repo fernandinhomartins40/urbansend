@@ -61,7 +61,7 @@ export function SuperAdminForgotPassword() {
                     id="super-admin-forgot-email"
                     type="email"
                     className="pl-9"
-                    placeholder="superadmin@ultrazend.com.br"
+                    placeholder="superadmin@velomail.com.br"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                   />

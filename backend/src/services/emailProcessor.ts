@@ -84,12 +84,12 @@ export class EmailProcessor {
   private async loadLocalDomains() {
     try {
       // Carregar domínios locais configurados
-      const primaryDomain = Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br');
+      const primaryDomain = Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br');
       const baseDomain = primaryDomain.replace(/^mail\./, '');
       
       this.localDomains.add(baseDomain);
-      this.localDomains.add('ultrazend.com.br');
-      this.localDomains.add('www.ultrazend.com.br');
+      this.localDomains.add('velomail.com.br');
+      this.localDomains.add('www.velomail.com.br');
 
       // Carregar domínios adicionais do banco se existir tabela
       try {
@@ -613,7 +613,7 @@ export class EmailProcessor {
   private generateMessageId(parsedEmail: ParsedMail): string {
     return parsedEmail.messageId || 
            parsedEmail.headers?.get('message-id') as string ||
-           `<${Date.now()}.${Math.random().toString(36).substr(2, 9)}@ultrazend.local>`;
+           `<${Date.now()}.${Math.random().toString(36).substr(2, 9)}@velomail.local>`;
   }
 
   private extractRecipients(parsedEmail: ParsedMail): string {
@@ -865,7 +865,7 @@ export class EmailProcessor {
     try {
       logger.info('Sending verification email', { email, name });
 
-      const baseUrl = Env.get('APP_BASE_URL', 'https://www.ultrazend.com.br');
+      const baseUrl = Env.get('APP_BASE_URL', 'https://www.velomail.com.br');
       const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
       
       const htmlContent = `
@@ -936,7 +936,7 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
       const systemTenantId = tenantId || 1; // Se não fornecido, usar tenant sistema (ID 1)
       
       const deliveryId = await this.deliveryManager.queueEmail({
-        from: `noreply@ultrazend.com.br`,
+        from: `noreply@velomail.com.br`,
         to: email,
         subject: '🚀 Confirme seu email - UltraZend',
         body: htmlContent, // Interface usa 'body' não 'html'
@@ -949,7 +949,7 @@ Se você não se registrou no UltraZend, pode ignorar este email com segurança.
         priority: 10 // Máxima prioridade para emails de verificação
       });
 
-      const messageId = `<verification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@ultrazend.com.br>`;
+      const messageId = `<verification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@velomail.com.br>`;
 
       logger.info('Verification email queued successfully', { 
         email, 

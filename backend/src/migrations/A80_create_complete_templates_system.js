@@ -327,7 +327,7 @@ exports.up = function(knex) {
 
     -- Inserir usuário sistema se não existir
     INSERT OR IGNORE INTO users (id, email, password_hash, name, is_admin, is_verified, is_active)
-    VALUES (1, 'system@ultrazend.com.br', 'system', 'Sistema UltraZend', 1, 1, 1);
+    VALUES (1, 'system@velomail.com.br', 'system', 'Sistema UltraZend', 1, 1, 1);
 
     -- Templates profissionais de sistema
     INSERT OR IGNORE INTO email_templates (

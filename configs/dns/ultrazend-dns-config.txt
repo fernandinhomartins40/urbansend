@@ -3,38 +3,38 @@
 # =============================================
 
 # MX Records - Mail Exchange
-ultrazend.com.br.           IN    MX    10    mail.ultrazend.com.br.
-ultrazend.com.br.           IN    MX    20    mail2.ultrazend.com.br.
-www.ultrazend.com.br.       IN    MX    10    mail.ultrazend.com.br.
+velomail.com.br.           IN    MX    10    mail.velomail.com.br.
+velomail.com.br.           IN    MX    20    mail2.velomail.com.br.
+www.velomail.com.br.       IN    MX    10    mail.velomail.com.br.
 
 # A Records - Servidores de Email
-mail.ultrazend.com.br.      IN    A     [IP_SERVIDOR_PRINCIPAL]
-mail2.ultrazend.com.br.     IN    A     [IP_SERVIDOR_BACKUP]
+mail.velomail.com.br.      IN    A     [IP_SERVIDOR_PRINCIPAL]
+mail2.velomail.com.br.     IN    A     [IP_SERVIDOR_BACKUP]
 
 # DNS Reverso (PTR Records) - Para reputação
-[IP_SERVIDOR_PRINCIPAL]     IN    PTR   mail.ultrazend.com.br.
-[IP_SERVIDOR_BACKUP]        IN    PTR   mail2.ultrazend.com.br.
+[IP_SERVIDOR_PRINCIPAL]     IN    PTR   mail.velomail.com.br.
+[IP_SERVIDOR_BACKUP]        IN    PTR   mail2.velomail.com.br.
 
 # SPF Record - Sender Policy Framework
-ultrazend.com.br.           IN    TXT   "v=spf1 mx a ip4:[IP_SERVIDOR_PRINCIPAL] ip4:[IP_SERVIDOR_BACKUP] include:_spf.google.com ~all"
+velomail.com.br.           IN    TXT   "v=spf1 mx a ip4:[IP_SERVIDOR_PRINCIPAL] ip4:[IP_SERVIDOR_BACKUP] include:_spf.google.com ~all"
 
 # DMARC Policy - Domain-based Message Authentication
-_dmarc.ultrazend.com.br.    IN    TXT   "v=DMARC1; p=quarantine; rua=mailto:dmarc@ultrazend.com.br; ruf=mailto:dmarc@ultrazend.com.br; sp=quarantine; adkim=r; aspf=r; fo=1; rf=afrf; ri=86400"
+_dmarc.velomail.com.br.    IN    TXT   "v=DMARC1; p=quarantine; rua=mailto:dmarc@velomail.com.br; ruf=mailto:dmarc@velomail.com.br; sp=quarantine; adkim=r; aspf=r; fo=1; rf=afrf; ri=86400"
 
 # DKIM Selector - DomainKeys Identified Mail
-default._domainkey.ultrazend.com.br.    IN    TXT   "v=DKIM1; k=rsa; t=s; p=[CHAVE_PUBLICA_DKIM_SERA_GERADA]"
+default._domainkey.velomail.com.br.    IN    TXT   "v=DKIM1; k=rsa; t=s; p=[CHAVE_PUBLICA_DKIM_SERA_GERADA]"
 
 # Subdominios adicionais para MX
-smtp.ultrazend.com.br.      IN    A     [IP_SERVIDOR_PRINCIPAL]
-submission.ultrazend.com.br. IN    A     [IP_SERVIDOR_PRINCIPAL]
+smtp.velomail.com.br.      IN    A     [IP_SERVIDOR_PRINCIPAL]
+submission.velomail.com.br. IN    A     [IP_SERVIDOR_PRINCIPAL]
 
 # SRV Records para autodiscovery
-_submission._tcp.ultrazend.com.br.  IN  SRV   0  1  587  mail.ultrazend.com.br.
-_imap._tcp.ultrazend.com.br.        IN  SRV   0  1  143  mail.ultrazend.com.br.
-_imaps._tcp.ultrazend.com.br.       IN  SRV   0  1  993  mail.ultrazend.com.br.
+_submission._tcp.velomail.com.br.  IN  SRV   0  1  587  mail.velomail.com.br.
+_imap._tcp.velomail.com.br.        IN  SRV   0  1  143  mail.velomail.com.br.
+_imaps._tcp.velomail.com.br.       IN  SRV   0  1  993  mail.velomail.com.br.
 
 # TXT Record adicional para verificação
-ultrazend.com.br.           IN    TXT   "ultrazend-verification=production-smtp-server-v1.0"
+velomail.com.br.           IN    TXT   "ultrazend-verification=production-smtp-server-v1.0"
 
 # INSTRUCOES DE CONFIGURACAO:
 # 1. Substituir [IP_SERVIDOR_PRINCIPAL] pelo IP real do servidor

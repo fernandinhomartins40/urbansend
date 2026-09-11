@@ -340,7 +340,7 @@ router.get('/domains/:domainId',
               domain: domainStatus.mail_from_status.domain,
               configured: domainStatus.mail_from_status.configured,
               dns_valid: domainStatus.mail_from_status.dns_valid,
-              mx_target: 'mail.ultrazend.com.br'
+              mx_target: 'mail.velomail.com.br'
             },
             dkim: {
               enabled: true,

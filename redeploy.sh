@@ -54,7 +54,7 @@ chown -R root:root "$APP_DIR"/configs/dkim-keys/ || true
 chmod -R 644 "$APP_DIR"/configs/dkim-keys/ || true
 
 # Validate DKIM file still exists
-if [ -f "$APP_DIR/configs/dkim-keys/ultrazend.com.br-default-private.pem" ]; then
+if [ -f "$APP_DIR/configs/dkim-keys/velomail.com.br-default-private.pem" ]; then
     echo "✅ DKIM private key found"
 else
     echo "❌ AVISO: DKIM private key not found - Email may not work properly"

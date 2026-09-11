@@ -567,8 +567,8 @@ export class MultiTenantEmailService {
         return html;
       }
 
-      // Usar domínio fixo para tracking (www.ultrazend.com.br)
-      const trackingDomain = 'www.ultrazend.com.br';
+      // Usar domínio fixo para tracking (www.velomail.com.br)
+      const trackingDomain = 'www.velomail.com.br';
 
       // 1. Processar links para tracking de cliques
       let processedHtml = options.click

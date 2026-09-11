@@ -137,11 +137,11 @@ export class DKIMManager {
 
   private async ensureDefaultDKIM() {
     try {
-      const primaryDomain = Env.get('SMTP_HOSTNAME', 'mail.ultrazend.com.br');
+      const primaryDomain = Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br');
       const baseDomain = primaryDomain.replace(/^mail\./, '').replace(/^www\./, '');
       
-      // Padronizar para ultrazend.com.br sem www
-      const standardDomain = 'ultrazend.com.br';
+      // Padronizar para velomail.com.br sem www
+      const standardDomain = 'velomail.com.br';
       
       logger.info('Ensuring default DKIM for domain', { 
         primaryDomain, 
@@ -675,7 +675,7 @@ export class DKIMManager {
         
         const systemUserData = {
           name: 'System',
-          email: 'system@ultrazend.com.br',
+          email: 'system@velomail.com.br',
           password_hash: await bcrypt.hash('system-generated-password-' + Date.now(), 12),
           is_admin: true,
           is_verified: true,

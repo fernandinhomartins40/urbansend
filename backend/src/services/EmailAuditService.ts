@@ -398,7 +398,7 @@ export class EmailAuditService {
     }, {} as Record<string, number>);
 
     const suspiciousDomains = Object.entries(domainCounts)
-      .filter(([domain, count]) => count > 100 && !domain.includes('ultrazend.com.br'))
+      .filter(([domain, count]) => count > 100 && !domain.includes('velomail.com.br'))
       .length;
 
     if (suspiciousDomains > 0) {

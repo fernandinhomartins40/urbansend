@@ -74,7 +74,7 @@ class Phase2Tester {
     await this.runTest('SecurityManager - Email Security Check', async () => {
       const testEmail = {
         from: 'test@example.com',
-        to: 'user@ultrazend.com',
+        to: 'user@velomail.com.br',
         subject: 'Test Email',
         body: 'This is a test email'
       };
@@ -214,7 +214,7 @@ class Phase2Tester {
     });
 
     await this.runTest('EmailProcessor - Validate Local Recipient', async () => {
-      const result = await emailProcessor.validateLocalRecipient('user@ultrazend.com');
+      const result = await emailProcessor.validateLocalRecipient('user@velomail.com.br');
       if (!result || typeof result.isValid !== 'boolean') {
         throw new Error('Invalid recipient validation response');
       }
@@ -224,7 +224,7 @@ class Phase2Tester {
     const mockParsedEmail = {
       messageId: '<test@example.com>',
       from: { value: [{ address: 'test@example.com', name: 'Test User' }] },
-      to: { value: [{ address: 'recipient@ultrazend.com', name: 'Recipient' }] },
+      to: { value: [{ address: 'recipient@velomail.com.br', name: 'Recipient' }] },
       subject: 'Test Email',
       text: 'This is a test email',
       html: '<p>This is a test email</p>',
@@ -258,7 +258,7 @@ class Phase2Tester {
 
     await this.runTest('DeliveryManager - Queue Email', async () => {
       const emailData = {
-        from: 'test@ultrazend.com',
+        from: 'test@velomail.com.br',
         to: 'recipient@example.com',
         subject: 'Test Delivery',
         body: 'This is a test email for delivery',
@@ -296,7 +296,7 @@ class Phase2Tester {
       const customConfig = {
         mxPort: 2525,
         submissionPort: 5587,
-        hostname: 'test.ultrazend.com'
+        hostname: 'test.velomail.com.br'
       };
       
       const server = new UltraZendSMTPServer(customConfig);
