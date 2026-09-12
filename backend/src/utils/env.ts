@@ -116,7 +116,12 @@ export class Env {
    * Shared encryption key for sensitive application settings.
    */
   static get appEncryptionKey(): string {
-    const secret = process.env.APP_ENCRYPTION_KEY || process.env.JWT_SECRET;
+    const configuredSecret = process.env.APP_ENCRYPTION_KEY;
+    if (Env.isProduction && !configuredSecret) {
+      throw new Error('APP_ENCRYPTION_KEY e obrigatoria em producao e deve ser diferente de JWT_SECRET');
+    }
+
+    const secret = configuredSecret || process.env.JWT_SECRET;
     if (!secret || secret.length < 32) {
       throw new Error('APP_ENCRYPTION_KEY (ou JWT_SECRET) e obrigatorio e deve ter pelo menos 32 caracteres');
     }
