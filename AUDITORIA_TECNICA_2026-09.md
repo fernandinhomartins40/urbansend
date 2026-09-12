@@ -168,3 +168,11 @@ Em 12/09/2026, `npm audit --omit=dev` passou de 44 para 17 vulnerabilidades apó
 - `express` 5 e a cadeia transitiva `qs`.
 
 Essas mudanças não foram aplicadas automaticamente porque alteram contratos de runtime ou binários nativos; cada grupo deve ser atualizado com build, typecheck e testes completos em lote próprio.
+
+### Fechamento dos lotes de hardening
+
+Os upgrades foram concluídos e validados por grupos: `bcrypt` 6, `nodemailer` 10, `sharp` 0.35, `sqlite3` 6, Prisma 6.12, Express 5 e `express-prom-bundle` 8. O backend também substituiu `uuid` por `crypto.randomUUID()` nativo. Em nova execução, `npm audit --omit=dev` retornou **0 vulnerabilidades** (0 crítica, 0 alta, 0 moderada).
+
+O rate limiter avançado passou a consumir buckets persistidos pela migration `A92_create_rate_limit_buckets_table.js`, compartilhando limites entre réplicas. A fila de webhook passou a persistir jobs em `webhook_job_logs`, com claim condicional, retentativas exponenciais e recuperação de leases expirados.
+
+Permanecem como evolução arquitetural, não como bloqueios de hardening: escolher uma única ferramenta de migration como fonte de verdade e remover gradualmente os serviços legados ainda não chamados.
