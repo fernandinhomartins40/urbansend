@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { PageHeader } from '@/components/ui/page'
 import { getEmailStatusLabel, isEmailClicked, isEmailOpened } from '@/lib/emailEngagement'
 import { emailApi } from '@/lib/api'
 import { formatDate, formatRelativeTime, getStatusColor } from '@/lib/utils'
@@ -245,12 +246,7 @@ export function EmailList() {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Emails</h1>
-            <p className="text-muted-foreground">Gerencie seus emails enviados</p>
-          </div>
-        </div>
+        <PageHeader title="Emails" description="Gerencie seus emails enviados" />
         
         <Card>
           <CardContent className="flex items-center justify-center py-12">
