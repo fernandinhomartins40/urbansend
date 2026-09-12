@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" sizes="any" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="preload" href="/landing/logo-color.png" as="image" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -40,9 +41,28 @@
     
     <!-- Security headers moved to nginx configuration -->
     <!-- Deployment timestamp: 2025-08-30T04:30:00Z -->
+    <style>
+      /* Primeiro frame da PWA: aparece antes do bundle React, evitando que a
+         transicao revele o splash nativo do navegador apos o app iniciar. */
+      .vm-boot { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: #f7f9fc; }
+      .vm-boot__inner { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 0 24px; }
+      .vm-boot__logo { width: min(200px, 52vw); height: auto; animation: vm-boot-in .45s ease-out both; }
+      .vm-boot__progress { width: 120px; height: 3px; overflow: hidden; border-radius: 999px; background: #e8edf5; }
+      .vm-boot__progress::after { display: block; width: 40%; height: 100%; border-radius: inherit; background: #049fea; content: ''; animation: vm-boot-slide 1s ease-in-out infinite; }
+      @keyframes vm-boot-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+      @keyframes vm-boot-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+      @media (prefers-reduced-motion: reduce) { .vm-boot__logo, .vm-boot__progress::after { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root" role="application" aria-label="VeloMail - Aplicativo de email transacional"></div>
+    <div id="root" role="application" aria-label="VeloMail - Aplicativo de email transacional">
+      <div class="vm-boot" role="status" aria-label="Abrindo VeloMail">
+        <div class="vm-boot__inner">
+          <img class="vm-boot__logo" src="/landing/logo-color.png" alt="VeloMail" width="200" />
+          <div class="vm-boot__progress" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
     
     
     <script type="module" src="/src/main.tsx"></script>

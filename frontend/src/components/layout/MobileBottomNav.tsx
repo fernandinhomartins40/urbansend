@@ -91,7 +91,7 @@ export function MobileBottomNav() {
     <>
       {/* Bottom sheet do "Mais" */}
       {isMoreOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Mais opcoes">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Mais opcoes">
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-background/80 backdrop-blur-sm"
@@ -148,7 +148,7 @@ export function MobileBottomNav() {
       )}
 
       <nav
-        className="vm-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden"
+        className="vm-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur lg:hidden"
         aria-label="Navegacao principal mobile"
       >
         <div className="flex items-stretch justify-around gap-1 px-2 pt-1">

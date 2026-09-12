@@ -58,22 +58,23 @@ export function Sidebar({ className }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 h-screen w-64 bg-background border-r transition-transform duration-200 ease-in-out md:translate-x-0',
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+          'fixed left-0 top-0 z-50 h-screen w-64 border-r bg-background transition-[width,transform] duration-200 ease-in-out lg:w-20 lg:translate-x-0 2xl:w-64',
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           className
         )}
         aria-label="Sidebar navigation"
       >
         <div className="flex h-full flex-col bg-card">
-          <header className="flex h-[72px] items-center justify-between px-5 border-b">
+          <header className="flex h-[72px] items-center justify-between border-b px-5 lg:justify-center lg:px-2 2xl:justify-between 2xl:px-5">
             <div className="flex items-center space-x-2">
-              <img className="h-auto w-[116px]" src="/landing/logo-color.png" alt="VeloMail" />
+              <img className="hidden h-auto w-[116px] 2xl:block" src="/landing/logo-color.png" alt="VeloMail" />
+              <img className="h-9 w-9 rounded-lg 2xl:hidden" src="/favicon.png" alt="VeloMail" />
             </div>
 
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="lg:hidden"
               onClick={close}
               aria-label="Close sidebar"
             >
@@ -81,7 +82,7 @@ export function Sidebar({ className }: SidebarProps) {
             </Button>
           </header>
 
-          <nav className="flex-1 space-y-1 p-3" aria-label="Main menu">
+          <nav className="flex-1 space-y-1 p-3 lg:p-2 2xl:p-3" aria-label="Main menu">
             {navigation.map((item) => {
               const isActive = isRouteActive(item.href)
               const Icon = item.icon
@@ -91,12 +92,14 @@ export function Sidebar({ className }: SidebarProps) {
                   key={item.name}
                   to={item.href}
                   onClick={() => {
-                    if (window.innerWidth < 768) {
+                    if (window.innerWidth < 1024) {
                       close()
                     }
                   }}
+                  aria-label={item.name}
+                  title={item.name}
                   className={cn(
-                    'flex items-center space-x-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors',
+                    'flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:px-2 2xl:justify-start 2xl:space-x-3 2xl:px-3',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -104,13 +107,13 @@ export function Sidebar({ className }: SidebarProps) {
                   aria-current={isActive ? 'page' : undefined}
                 >
                   <Icon className="h-5 w-5" aria-hidden="true" />
-                  <span>{item.name}</span>
+                  <span className="hidden 2xl:inline">{item.name}</span>
                 </Link>
               )
             })}
           </nav>
 
-          <footer className="p-3 border-t">
+          <footer className="hidden border-t p-3 2xl:block">
             <div className="rounded-xl bg-primary/5 p-3" role="complementary" aria-label="Plan info">
               <div className="text-sm font-medium">Plano Gratuito</div>
               <div className="text-xs text-muted-foreground">

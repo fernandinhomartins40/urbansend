@@ -102,6 +102,11 @@
   .vm-metric-label { @apply text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground; }
   .vm-metric-value { @apply mt-2 text-2xl font-bold tracking-tight text-foreground; }
 
+  /* Impede que textos, cards e blocos de codigo forcem uma coluna do grid
+     alem da largura disponivel. Cada componente passa a poder encolher e,
+     quando necessario, usa o proprio scroll interno (como tabelas e codigo). */
+  main :where(.grid > *) { min-width: 0; }
+
   /* Superficie de codigo unica (snippets, previews, chaves). */
   .vm-code-surface { @apply overflow-x-auto rounded-xl p-4 font-mono text-xs leading-relaxed; background: hsl(var(--surface-code)); color: hsl(var(--surface-code-foreground)); }
 

@@ -29,7 +29,7 @@ export function Header({ className }: HeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="lg:hidden"
           onClick={toggle}
           aria-label="Abrir menu de navegacao"
         >
@@ -38,7 +38,7 @@ export function Header({ className }: HeaderProps) {
 
         {/* A marca some no desktop, onde a sidebar ja a exibe. */}
         <img
-          className="ml-2 h-auto w-[104px] md:hidden"
+          className="ml-2 h-auto w-[104px] lg:hidden"
           src="/landing/logo-color.png"
           alt="VeloMail"
         />
