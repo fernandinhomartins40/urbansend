@@ -149,6 +149,7 @@ model api_keys {
 
   @@index([expires_at], map: "api_keys_expires_at_index")
   @@index([key_hash], map: "api_keys_key_hash_index")
+  @@index([key_preview, is_active], map: "api_keys_preview_active_index")
   @@index([user_id, is_active], map: "api_keys_user_id_is_active_index")
   @@index([user_id, key_type], map: "idx_api_keys_user_key_type")
 }

@@ -149,7 +149,10 @@ export const authenticateApiKey = async (
       throw createError('Invalid API key format', 401);
     }
 
-    // First try to find API keys to verify against
+    // A chave guarda um prefixo publico (`re_`/`uai_` + 7 hex) em
+    // `key_preview`. Buscar por ele evita executar bcrypt para todas as
+    // chaves ativas do sistema em cada request.
+    const keyPreview = apiKeyHeader.slice(0, 10);
     const apiKeys = await db('api_keys')
       .select(
         'api_keys.*',
@@ -163,6 +166,7 @@ export const authenticateApiKey = async (
       )
       .join('users', 'api_keys.user_id', '=', 'users.id')
       .where('api_keys.is_active', true)
+      .where('api_keys.key_preview', keyPreview)
       .where('users.is_active', true)
       .modify((query) => {
         query.where((builder) => {

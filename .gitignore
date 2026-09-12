@@ -29,6 +29,16 @@ pids
 .env.development.local
 .env.test.local
 .env.production.local
+*.env
+*.env.*
+!*.env.example
+*.pem
+*.key
+cookies*.txt
+*.backup
+*.bak
+*.original
+*.vps
 
 # IDE
 .vscode/
