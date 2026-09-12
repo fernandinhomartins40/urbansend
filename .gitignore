@@ -41,6 +41,7 @@ cookies*.txt
 *.vps
 *.original.*
 *.vps.*
+*.safe-backup
 
 # IDE
 .vscode/
