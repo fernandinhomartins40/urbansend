@@ -141,3 +141,18 @@ O produto contém boas bases — Helmet, JWT com validação de usuário ativo/v
 ## Próximos passos
 
 Não é seguro implementar remoção de segredos sem coordenar a rotação real de credenciais. As demais melhorias podem começar após restaurar o ambiente de dependências e confirmar a baseline em CI.
+
+## Atualização de implementação — 12/09/2026
+
+Itens implementados em microlotes, com commit e push individuais:
+
+- Segredos e artefatos sensíveis foram removidos do índice Git; regras de ignore foram ampliadas. A rotação dos valores já expostos continua sendo uma ação operacional externa ao repositório.
+- Produção passou a exigir `APP_ENCRYPTION_KEY` e `JWT_REFRESH_SECRET`; logs de inicialização não imprimem mais a URL do banco.
+- API keys usam prefixo indexado antes da verificação bcrypt, evitando varrer todas as chaves ativas.
+- CORS sem `Origin` foi restringido em produção; verificadores de assinatura de webhook validam formato e usam comparação segura.
+- Limites de cadastro e reset foram separados; falhas do limitador retornam 503 e IDs baixos não recebem mais tiers elevados implicitamente.
+- Foi adicionado workflow de qualidade com instalação limpa, typecheck, build e testes unitários para backend e frontend.
+- A fila `email_delivery_queue` faz claim condicional por status, persiste uma tentativa por claim, recupera leases expirados e registra falhas definitivas em `queue_job_failures` sem armazenar o corpo do e-mail.
+- A rota de teste de webhook deixou de bloquear o request HTTP; ela dispara o `WebhookService`, que centraliza assinatura, validação SSRF, tentativas e logs.
+
+Lacunas ainda abertas: migração efetiva para uma única fonte de schema (Prisma ou Knex), rate limiting compartilhado entre réplicas, fila de webhook realmente durável e retirada controlada dos artefatos legados.
