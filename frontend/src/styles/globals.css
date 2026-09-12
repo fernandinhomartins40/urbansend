@@ -86,6 +86,11 @@
   .vm-page-description { @apply mt-1 max-w-2xl text-sm leading-6 text-muted-foreground; }
   .vm-surface { @apply rounded-xl border bg-card text-card-foreground; box-shadow: var(--shadow-sm); }
   .vm-empty-state { @apply flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 p-6 text-center text-muted-foreground; }
+  .vm-page-hero { @apply relative overflow-hidden rounded-2xl border p-5 shadow-sm sm:p-6 lg:p-8; background: linear-gradient(135deg, hsl(var(--primary-soft)), hsl(var(--card)) 58%, hsl(var(--primary) / .08)); border-color: hsl(var(--primary) / .2); }
+  .vm-page-hero::after { content: ''; position: absolute; inset: auto -10% -60% auto; width: 22rem; height: 22rem; border-radius: 999px; background: radial-gradient(circle, hsl(var(--primary) / .12), transparent 68%); pointer-events: none; }
+  .vm-metric-card { @apply min-w-0 rounded-xl border bg-card p-4; box-shadow: var(--shadow-sm); }
+  .vm-metric-label { @apply text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground; }
+  .vm-metric-value { @apply mt-2 text-2xl font-bold tracking-tight text-foreground; }
 }
 
 @layer utilities {
@@ -104,6 +109,18 @@
   .from-blue-50, .from-sky-50, .from-indigo-50, .from-cyan-50, .to-blue-50, .to-sky-50, .to-indigo-50, .to-cyan-50 { --tw-gradient-from: hsl(var(--primary-soft)) var(--tw-gradient-from-position) !important; --tw-gradient-to: hsl(var(--primary-soft) / 0) var(--tw-gradient-to-position) !important; }
   .from-blue-500, .from-sky-500, .from-indigo-500, .from-cyan-500, .to-blue-500, .to-sky-500, .to-indigo-500, .to-cyan-500 { --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position) !important; --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position) !important; }
 }
+
+/* Normaliza os heros legados de páginas autenticadas até que cada rota use
+   diretamente vm-page-hero. Mantém uma única assinatura visual no painel. */
+main [class*="rounded-[2rem]"][class*="bg-[radial-gradient"],
+main section.rounded-3xl[class*="bg-gradient"] { border-radius: 1rem !important; border-color: hsl(var(--primary) / .2) !important; background-image: linear-gradient(135deg, hsl(var(--primary-soft)), hsl(var(--card)) 58%, hsl(var(--primary) / .08)) !important; }
+main table { border-collapse: separate; border-spacing: 0; }
+main table thead { background: hsl(var(--muted) / .7); }
+main table th { color: hsl(var(--muted-foreground)); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+main table tbody tr { transition: background-color .15s ease; }
+main table tbody tr:hover { background: hsl(var(--primary) / .035); }
+main select:not([data-radix-select-viewport]) { min-height: 2.5rem; border-color: hsl(var(--input)); border-radius: .5rem; background-color: hsl(var(--background)); color: hsl(var(--foreground)); box-shadow: var(--shadow-sm); }
+main select:not([data-radix-select-viewport]):focus { border-color: hsl(var(--primary) / .6); outline: 2px solid hsl(var(--ring) / .25); outline-offset: 1px; }
 
 .custom-scrollbar::-webkit-scrollbar { width: 7px; height: 7px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: hsl(var(--muted)); }

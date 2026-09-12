@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PageHeader } from '@/components/ui/page'
 import { copyToClipboard, formatRelativeTime } from '@/lib/utils'
 import {
   apiKeyPresets,
@@ -245,13 +246,10 @@ export function ApiKeys() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">API Keys</h1>
-          <p className="text-muted-foreground">Gerencie autenticacao, escopos e o onboarding tecnico das integracoes externas.</p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
+      <PageHeader
+        title="API Keys"
+        description="Gerencie autenticação, escopos e o onboarding técnico das integrações externas."
+        actions={<>
           <Button asChild variant="outline">
             <Link to="/app/developers">
               <BookOpen className="mr-2 h-4 w-4" />
@@ -262,8 +260,8 @@ export function ApiKeys() {
             <Plus className="mr-2 h-4 w-4" />
             Nova API Key
           </Button>
-        </div>
-      </div>
+        </>}
+      />
 
       <section className="overflow-hidden rounded-[2rem] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_42%),linear-gradient(135deg,#eff6ff,_#f8fafc_55%,#ecfeff)] p-4 shadow-sm sm:p-6 lg:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">

@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageHeader } from '@/components/ui/page'
 import { useDomainSetup } from '@/hooks/useDomainSetup'
 import { analyticsApi } from '@/lib/api'
 import { useSettingsStore } from '@/lib/store'
@@ -266,16 +267,14 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dominios</h1>
-          <p className="text-muted-foreground">Feche a autenticacao do dominio antes de abrir o envio em producao.</p>
-        </div>
-        <Button onClick={handleAddDomain}>
+      <PageHeader
+        title="Domínios"
+        description="Feche a autenticação do domínio antes de abrir o envio em produção."
+        actions={<Button onClick={handleAddDomain}>
           <Plus className="mr-2 h-4 w-4" />
-          Novo dominio
-        </Button>
-      </div>
+          Novo domínio
+        </Button>}
+      />
 
       <DomainStats domains={domains} />
 

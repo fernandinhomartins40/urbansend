@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageHeader } from '@/components/ui/page'
 import { Textarea } from '@/components/ui/textarea'
 import {
   buildWebhookPayloadExample,
@@ -279,12 +280,10 @@ export function Webhooks() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Webhooks</h1>
-          <p className="text-muted-foreground">Configure endpoints reais, valide a assinatura e acompanhe a entrega evento por evento.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+      <PageHeader
+        title="Webhooks"
+        description="Configure endpoints reais, valide a assinatura e acompanhe a entrega evento por evento."
+        actions={<>
           <Button asChild variant="outline">
             <Link to="/app/developers">Tutorial</Link>
           </Button>
@@ -292,8 +291,8 @@ export function Webhooks() {
             <Plus className="mr-2 h-4 w-4" />
             Novo webhook
           </Button>
-        </div>
-      </div>
+        </>}
+      />
 
       <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_45%),linear-gradient(135deg,#ecfdf5,_#f8fafc_55%,#eff6ff)] p-4 shadow-sm sm:p-6 lg:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">

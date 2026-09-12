@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { PageHeader } from '@/components/ui/page'
 import { settingsApi, templateApi } from '@/lib/api'
 import { useEmailSend } from '@/hooks/useEmailSend'
 import { useHasVerifiedDomains } from '@/hooks/useUserDomains'
@@ -193,18 +194,15 @@ export function SendEmail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <Button variant="ghost" onClick={() => navigate('/app/emails')}>
+      <PageHeader
+        title="Novo email"
+        description="Envie um email transacional sem trilhas paralelas."
+        className="gap-3"
+        actions={<Button variant="ghost" onClick={() => navigate('/app/emails')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Novo email</h1>
-            <p className="text-muted-foreground">Envie um email transacional sem trilhas paralelas.</p>
-          </div>
-        </div>
-      </div>
+          </Button>}
+      />
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
