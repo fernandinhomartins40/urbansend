@@ -23,7 +23,6 @@ import { Env } from './utils/env';
 import db from './config/database';
 // queueService removido - sistema simplificado sem queue
 import UltraZendSMTPServer from './services/smtpServer';
-import { SMTPDeliveryService } from './services/smtpDelivery';
 import { domainVerificationInitializer } from './services/domainVerificationInitializer';
 import { autoRollbackService } from './services/AutoRollbackService';
 import { getFeatureFlags } from './config/features';
@@ -662,25 +661,6 @@ const initializeServices = async () => {
           });
           throw error; // Não mascarar erros - queremos saber se há problemas
         }
-      }
-    },
-    {
-      name: 'Email Queue Processor',
-      dependencies: ['Queue Service', 'SMTP Server'], // Depende de ambos
-      critical: false, // Pode falhar sem parar sistema
-      init: async () => {
-        const smtpDelivery = new SMTPDeliveryService();
-        
-        const processQueue = async () => {
-          try {
-            await smtpDelivery.processEmailQueue();
-          } catch (error) {
-            logger.error('Error in queue processing:', error);
-          }
-        };
-        
-        setInterval(processQueue, 30000);
-        logger.info('✅ Email queue processor started (30s intervals)');
       }
     },
     {
