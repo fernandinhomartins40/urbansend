@@ -176,3 +176,10 @@ Os upgrades foram concluídos e validados por grupos: `bcrypt` 6, `nodemailer` 1
 O rate limiter avançado passou a consumir buckets persistidos pela migration `A92_create_rate_limit_buckets_table.js`, compartilhando limites entre réplicas. A fila de webhook passou a persistir jobs em `webhook_job_logs`, com claim condicional, retentativas exponenciais e recuperação de leases expirados.
 
 Permanecem como evolução arquitetural, não como bloqueios de hardening: escolher uma única ferramenta de migration como fonte de verdade e remover gradualmente os serviços legados ainda não chamados.
+
+### Evidências finais de validação
+
+- `npm audit --omit=dev --json`: 0 vulnerabilidades de produção.
+- `.github/scripts/check-tracked-sensitive-files.mjs`: aprovado; nenhum segredo, backup ou cópia legada é rastreado.
+- `prisma validate --schema prisma/schema.prisma`: schema PostgreSQL válido com `DATABASE_URL` de validação.
+- Migration `A92_create_rate_limit_buckets_table.js`: aplicada em SQLite efêmero, com criação e escrita do bucket confirmadas.
