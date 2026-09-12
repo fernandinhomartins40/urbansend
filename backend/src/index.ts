@@ -276,7 +276,7 @@ app.use('/api', cors({
     // Em produção, permitir requests sem Origin para endpoints específicos como health checks e APIs
     if (!origin && Env.isProduction) {
       // Permitir requests internos e de monitoramento
-      return callback(null, true);
+      return callback(null, false);
     }
     
     if (origin && allowedOrigins.includes(origin)) {
