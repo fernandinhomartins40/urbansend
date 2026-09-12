@@ -17,6 +17,9 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+      - name: Check tracked-file policy
+        run: node .github/scripts/check-tracked-sensitive-files.mjs
+        working-directory: .
       - uses: actions/setup-node@v4
         with:
           node-version: 20
