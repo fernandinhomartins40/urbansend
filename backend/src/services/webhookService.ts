@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { randomUUID } from 'crypto';
 import { logger } from '../config/logger';
 import { createWebhookSignature } from '../utils/crypto';
 import db from '../config/database';
@@ -41,10 +42,14 @@ export class WebhookService {
   private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
   private tablesValidated: boolean | null = null;
   private tableValidationPromise: Promise<boolean> | null = null;
+  private isProcessingJobs = false;
+  private readonly jobProcessor: NodeJS.Timeout;
 
   constructor() {
     this.tenantContextService = new TenantContextService(); // 🔥 NOVO: Inicializar tenant context
     this.tableValidationPromise = this.validateRequiredTables();
+    this.jobProcessor = setInterval(() => void this.processPendingWebhookJobs(), 5000);
+    this.jobProcessor.unref?.();
   }
 
   private async validateRequiredTables(): Promise<boolean> {
@@ -139,12 +144,10 @@ export class WebhookService {
         webhookCount: webhooks.length
       });
 
-      // Send webhook to each endpoint with tenant context
-      const webhookPromises = webhooks.map(webhook => 
-        this.deliverWebhookWithTenant(webhook, event, payload, tenantId)
-      );
-
-      await Promise.allSettled(webhookPromises);
+      await Promise.all(webhooks.map(webhook =>
+        this.enqueueWebhookJob(webhook, event, payload, tenantId)
+      ));
+      void this.processPendingWebhookJobs();
       
     } catch (error) {
       logger.error('Failed to process tenant webhooks', { 
@@ -157,6 +160,63 @@ export class WebhookService {
   }
 
   // 🔥 NOVO MÉTODO: Deliver webhook com tenant context
+  private async enqueueWebhookJob(webhook: any, event: string, payload: any, tenantId: number): Promise<void> {
+    await db('webhook_job_logs').insert({
+      webhook_id: webhook.id,
+      job_id: randomUUID(),
+      event_type: event,
+      payload: JSON.stringify({ data: payload, tenantId }).substring(0, 10000),
+      attempt: 0,
+      status: 'pending',
+      scheduled_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+  }
+
+  private async processPendingWebhookJobs(): Promise<void> {
+    if (this.isProcessingJobs || !(await this.ensureTablesReady())) return;
+    this.isProcessingJobs = true;
+    try {
+      const jobs = await db('webhook_job_logs').where('status', 'pending')
+        .where('scheduled_at', '<=', new Date()).orderBy('scheduled_at', 'asc').limit(10);
+      for (const job of jobs) {
+        const claimed = await db('webhook_job_logs').where('id', job.id).where('status', 'pending')
+          .update({ status: 'processing', processed_at: new Date(), updated_at: new Date() });
+        if (claimed) await this.deliverPersistedWebhookJob(job);
+      }
+    } catch (error) {
+      logger.error('Failed to process persisted webhook jobs', { error });
+    } finally {
+      this.isProcessingJobs = false;
+    }
+  }
+
+  private async deliverPersistedWebhookJob(job: any): Promise<void> {
+    const webhook = await db('webhooks').where('id', job.webhook_id).where('is_active', true).first();
+    const stored = JSON.parse(job.payload || '{}');
+    const tenantId = Number(stored.tenantId || webhook?.user_id || 0);
+    const attempt = Number(job.attempt || 0) + 1;
+    try {
+      if (!webhook || !tenantId) throw new Error('Webhook is unavailable');
+      await assertSafeWebhookUrl(webhook.url);
+      const payload: WebhookPayload = { event: job.event_type, data: stored.data, timestamp: new Date().toISOString(), webhook_id: String(webhook.id), tenant_id: tenantId };
+      const serialized = JSON.stringify(payload);
+      const response = await axios.post(webhook.url, payload, {
+        headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': `sha256=${createWebhookSignature(serialized, webhook.secret || '')}`, 'X-Webhook-Event': job.event_type, 'X-Webhook-ID': String(webhook.id), 'X-Tenant-ID': String(tenantId), 'User-Agent': 'UltraZend-Webhook/1.0' },
+        timeout: Number(webhook.timeout_ms || 30000), validateStatus: status => status >= 200 && status < 300
+      });
+      await db('webhook_logs').insert({ webhook_id: webhook.id, event: job.event_type, payload: serialized.substring(0, 10000), success: true, status_code: response.status, response_body: JSON.stringify(response.data).substring(0, 1000), attempt, created_at: new Date() });
+      await db('webhook_job_logs').where('id', job.id).update({ status: 'delivered', attempt, processed_at: new Date(), updated_at: new Date() });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Webhook delivery failed';
+      const exhausted = attempt >= Number(webhook?.max_retries || 3);
+      const delay = Math.min(1000 * 2 ** Math.max(0, attempt - 1), 30000);
+      await db('webhook_logs').insert({ webhook_id: job.webhook_id, event: job.event_type, payload: String(job.payload || '').substring(0, 10000), success: false, error_message: message, attempt, created_at: new Date() });
+      await db('webhook_job_logs').where('id', job.id).update({ status: exhausted ? 'failed' : 'pending', attempt, error_message: message, scheduled_at: exhausted ? null : new Date(Date.now() + delay), processed_at: new Date(), updated_at: new Date() });
+    }
+  }
+
   private async deliverWebhookWithTenant(webhook: any, event: string, data: any, tenantId: number): Promise<void> {
     try {
       await assertSafeWebhookUrl(webhook.url);
