@@ -36,6 +36,7 @@ interface RelayConfig {
 export class SMTPDeliveryService {
   private connectionPool: Map<string, Transporter> = new Map();
   private dkimManager: DKIMManager;
+  private isProcessingQueue = false;
   private readonly platformMailHostname = Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br');
 
   constructor() {
@@ -459,6 +460,12 @@ export class SMTPDeliveryService {
   }
 
   async processEmailQueue(): Promise<void> {
+    if (this.isProcessingQueue) {
+      logger.warn('Skipping overlapping SMTP queue execution');
+      return;
+    }
+
+    this.isProcessingQueue = true;
     try {
       // Reivindica o lote dentro de uma transacao. Sem isso, duas replicas
       // podem ler os mesmos itens `queued` antes que qualquer uma os marque
@@ -530,6 +537,8 @@ export class SMTPDeliveryService {
       logger.error('Error processing email queue', {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
+    } finally {
+      this.isProcessingQueue = false;
     }
   }
 
