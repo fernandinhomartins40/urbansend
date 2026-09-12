@@ -1352,6 +1352,16 @@ model rate_limit_configs {
   @@index([is_active], map: "rate_limit_configs_is_active_index")
 }
 
+model rate_limit_buckets {
+  bucket_key String   @id
+  count      Int      @default(0)
+  reset_at   DateTime
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  @@index([reset_at], map: "rate_limit_buckets_reset_at_index")
+}
+
 model rate_limit_logs {
   id           Int       @id @default(autoincrement())
   key          String
