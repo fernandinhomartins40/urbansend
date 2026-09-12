@@ -19,6 +19,7 @@ import {
 } from '../config/features';
 import { logger } from '../config/logger';
 import { debugLogger } from '../utils/debugLogger';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 
@@ -98,7 +99,7 @@ router.put('/:flag',
   authenticateJWT,
   requirePermission('admin:feature_flags'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { flag } = req.params;
+    const flag = getRouteParam(req.params.flag);
     const { value, reason = 'Admin update' } = req.body;
     
     // Validar flag name

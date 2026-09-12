@@ -4,6 +4,7 @@ import { authenticateJWT } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import SharedTemplateService from '../services/SharedTemplateServiceV2';
 import { getAccountUserId } from '../utils/accountContext';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ router.get('/public',
 router.post('/:id/clone',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const templateId = parseInt(req.params.id, 10);
+    const templateId = parseInt(getRouteParam(req.params.id), 10);
     const userId = getAccountUserId(req);
     const customizations = req.body;
 
@@ -86,7 +87,7 @@ router.post('/:id/clone',
 router.post('/:id/favorite',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const templateId = parseInt(req.params.id, 10);
+    const templateId = parseInt(getRouteParam(req.params.id), 10);
     const userId = getAccountUserId(req);
 
     if (isNaN(templateId)) {
@@ -132,7 +133,7 @@ router.get('/system',
  */
 router.get('/:id/stats',
   asyncHandler(async (req, res: Response) => {
-    const templateId = parseInt(req.params.id, 10);
+    const templateId = parseInt(getRouteParam(req.params.id), 10);
 
     if (isNaN(templateId)) {
       return res.status(400).json({ error: 'ID do template inválido' });
@@ -150,7 +151,7 @@ router.get('/:id/stats',
 router.post('/:id/record-usage',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const templateId = parseInt(req.params.id, 10);
+    const templateId = parseInt(getRouteParam(req.params.id), 10);
     const userId = getAccountUserId(req);
 
     if (isNaN(templateId)) {
@@ -169,7 +170,7 @@ router.post('/:id/record-usage',
 router.post('/:id/rate',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const templateId = parseInt(req.params.id, 10);
+    const templateId = parseInt(getRouteParam(req.params.id), 10);
     const userId = getAccountUserId(req);
     const { rating, review } = req.body;
 
@@ -197,7 +198,7 @@ router.post('/:id/rate',
  */
 router.get('/:id/reviews',
   asyncHandler(async (req, res: Response) => {
-    const templateId = parseInt(req.params.id, 10);
+    const templateId = parseInt(getRouteParam(req.params.id), 10);
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
 
@@ -258,7 +259,7 @@ router.post('/collections',
 router.get('/collections/:id',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const collectionId = parseInt(req.params.id, 10);
+    const collectionId = parseInt(getRouteParam(req.params.id), 10);
     const userId = getAccountUserId(req);
 
     if (isNaN(collectionId)) {
@@ -282,7 +283,7 @@ router.get('/collections/:id',
 router.post('/collections/:id/add-template',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const collectionId = parseInt(req.params.id, 10);
+    const collectionId = parseInt(getRouteParam(req.params.id), 10);
     const userId = getAccountUserId(req);
     const { template_id } = req.body;
 
@@ -302,8 +303,8 @@ router.post('/collections/:id/add-template',
 router.delete('/collections/:id/remove-template/:templateId',
   authenticateJWT,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const collectionId = parseInt(req.params.id, 10);
-    const templateId = parseInt(req.params.templateId, 10);
+    const collectionId = parseInt(getRouteParam(req.params.id), 10);
+    const templateId = parseInt(getRouteParam(req.params.templateId), 10);
     const userId = getAccountUserId(req);
 
     if (isNaN(collectionId) || isNaN(templateId)) {

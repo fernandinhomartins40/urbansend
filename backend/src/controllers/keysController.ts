@@ -7,6 +7,7 @@ import { generateApiKey, hashApiKey } from '../utils/crypto';
 import { resolveInsertedId } from '../utils/insertedId';
 import { getAccountUserId, getActorUserId } from '../utils/accountContext';
 import { applyApiKeyMetadataForWrite, deriveApiKeyType, getApiKeySelectColumns } from '../utils/apiKeyTable';
+import { getRouteParam } from '../utils/routeParams';
 
 const formatApiKey = (key: any) => ({
   id: key.id,
@@ -117,7 +118,7 @@ export const createApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 });
 
 export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   
   if (!id) {
     throw createError('API key ID is required', 400);
@@ -182,7 +183,7 @@ export const updateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 });
 
 export const deleteApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')
@@ -207,7 +208,7 @@ export const deleteApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 });
 
 export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const userId = getAccountUserId(req);
 
   const existingKey = await db('api_keys')
@@ -244,7 +245,7 @@ export const regenerateApiKey = asyncHandler(async (req: AuthenticatedRequest, r
 });
 
 export const toggleApiKey = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')
@@ -274,7 +275,7 @@ export const toggleApiKey = asyncHandler(async (req: AuthenticatedRequest, res: 
 });
 
 export const getApiKeyUsage = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const userId = getAccountUserId(req);
 
   const apiKey = await db('api_keys')

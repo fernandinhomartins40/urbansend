@@ -8,6 +8,7 @@ import { logger } from '../config/logger';
 import db from '../config/database';
 import { z } from 'zod';
 import { getAccountUserId } from '../utils/accountContext';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 
@@ -120,7 +121,7 @@ router.post('/:domainId/verify',
   requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { domainId } = req.params;
+    const domainId = getRouteParam(req.params.domainId);
     const userId = getAccountUserId(req);
 
     logger.info('Domain verification request received', { 
@@ -300,7 +301,7 @@ router.get('/domains/:domainId',
   requirePermission('domain:read'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { domainId } = req.params;
+    const domainId = getRouteParam(req.params.domainId);
     const userId = getAccountUserId(req);
 
     logger.debug('Domain details request received', { userId, domainId });
@@ -395,7 +396,7 @@ router.delete('/domains/:domainId',
   requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { domainId } = req.params;
+    const domainId = getRouteParam(req.params.domainId);
     const userId = getAccountUserId(req);
 
     logger.info('Domain removal request received', { userId, domainId });
@@ -446,7 +447,7 @@ router.post('/domains/:domainId/regenerate-dkim',
   requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { domainId } = req.params;
+    const domainId = getRouteParam(req.params.domainId);
     const userId = getAccountUserId(req);
 
     logger.info('DKIM regeneration request received', { userId, domainId });
@@ -527,7 +528,7 @@ router.get('/dns-instructions/:domainId',
   requirePermission('domain:read'),
   validateRequest({ params: domainIdSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { domainId } = req.params;
+    const domainId = getRouteParam(req.params.domainId);
     const userId = getAccountUserId(req);
 
     logger.debug('DNS instructions request received', { userId, domainId });
@@ -602,7 +603,7 @@ router.put('/domains/:domainId',
   requirePermission('domain:write'),
   validateRequest({ params: domainIdSchema, body: domainUpdateSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { domainId } = req.params;
+    const domainId = getRouteParam(req.params.domainId);
     const userId = getAccountUserId(req);
     const { dkim_enabled, spf_enabled, dmarc_enabled, dmarc_policy } = req.body;
 

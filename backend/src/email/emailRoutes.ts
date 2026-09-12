@@ -17,6 +17,7 @@ import { SimpleEmailValidator } from './EmailValidator';
 import { EmailData, EmailContext, EmailQuotas } from './types';
 import db from '../config/database';
 import { sqlExtractHour } from '../utils/sqlDialect';
+import { getRouteParam } from '../utils/routeParams';
 
 // Interface para resultados de queries de uso de email
 interface EmailUsageResult {
@@ -351,7 +352,7 @@ router.get('/metrics/:userId',
   requirePermission('email:read'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = parseInt(getRouteParam(req.params.userId));
       const days = parseInt(req.query.days as string) || 7;
 
       if (isNaN(userId)) {
@@ -500,7 +501,7 @@ router.delete('/domains/:domain',
   requirePermission('email:manage'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { domain } = req.params;
+      const domain = getRouteParam(req.params.domain);
       const userId = req.user!.id;
 
       if (!domain) {
@@ -587,7 +588,7 @@ router.get('/analytics/:userId',
   requirePermission('email:read'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = parseInt(getRouteParam(req.params.userId));
       const hours = parseInt(req.query.hours as string) || undefined;
       const days = parseInt(req.query.days as string) || undefined;
       const weeks = parseInt(req.query.weeks as string) || undefined;

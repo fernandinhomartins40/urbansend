@@ -4,6 +4,7 @@ import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../mid
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { validateRequest } from '../middleware/validation';
 import { workspaceService } from '../services/WorkspaceService';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 
@@ -94,7 +95,7 @@ router.post('/invitations/:token/accept',
   }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const workspace = await workspaceService.acceptInvitation(req.user!.id, req.params.token);
+      const workspace = await workspaceService.acceptInvitation(req.user!.id, getRouteParam(req.params.token));
       res.json({ workspace });
     } catch (error) {
       throw createError(error instanceof Error ? error.message : 'Failed to accept invitation', 400);
@@ -111,7 +112,7 @@ router.post('/invitations/:token/decline',
   }),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      await workspaceService.declineInvitation(req.user!.id, req.params.token);
+      await workspaceService.declineInvitation(req.user!.id, getRouteParam(req.params.token));
       res.json({ success: true });
     } catch (error) {
       throw createError(error instanceof Error ? error.message : 'Failed to decline invitation', 400);

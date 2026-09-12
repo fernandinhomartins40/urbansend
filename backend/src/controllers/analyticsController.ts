@@ -4,6 +4,7 @@ import { EmailAnalyticsService } from '../services/EmailAnalyticsService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
 import { getAccountUserId } from '../utils/accountContext';
+import { getRouteParam } from '../utils/routeParams';
 
 const analyticsService = new EmailAnalyticsService();
 
@@ -63,7 +64,7 @@ export class AnalyticsController {
   static getCampaignMetrics = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = getAccountUserId(req);
-      const { campaignId } = req.params;
+      const campaignId = getRouteParam(req.params.campaignId);
 
       if (!campaignId) {
         return res.status(400).json({
@@ -156,7 +157,7 @@ export class AnalyticsController {
   static getEventAnalytics = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = getAccountUserId(req);
-      const { eventType } = req.params;
+      const eventType = getRouteParam(req.params.eventType);
       const { startDate, endDate, limit = 100 } = req.query;
 
       let start: Date | undefined;

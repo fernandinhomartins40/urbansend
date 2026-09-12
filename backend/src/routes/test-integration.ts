@@ -10,6 +10,7 @@ import { SimpleEmailValidator } from '../email/EmailValidator';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
 import db from '../config/database';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 const emailValidator = new SimpleEmailValidator();
@@ -20,7 +21,8 @@ const emailValidator = new SimpleEmailValidator();
  */
 router.get('/test-domain-integration/:userId/:domain', 
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { userId, domain } = req.params;
+    const userId = getRouteParam(req.params.userId);
+    const domain = getRouteParam(req.params.domain);
     const userIdNum = parseInt(userId);
 
     if (isNaN(userIdNum)) {
@@ -84,7 +86,7 @@ router.get('/test-domain-integration/:userId/:domain',
  */
 router.get('/test-user-domains/:userId',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { userId } = req.params;
+    const userId = getRouteParam(req.params.userId);
     const userIdNum = parseInt(userId);
 
     if (isNaN(userIdNum)) {

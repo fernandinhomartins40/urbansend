@@ -6,6 +6,7 @@ import { EmailAuditService } from '../services/EmailAuditService';
 import { AlertingService } from '../services/AlertingService';
 import { logger } from '../config/logger';
 import { z } from 'zod';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 
@@ -257,7 +258,7 @@ router.get('/alerts', requirePermission('admin:monitoring'), asyncHandler(async 
  */
 router.post('/alerts/:id/resolve', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const alertId = parseInt(req.params.id);
+  const alertId = parseInt(getRouteParam(req.params.id));
   
   if (isNaN(alertId)) {
     return res.status(400).json({

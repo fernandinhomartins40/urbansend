@@ -4,6 +4,7 @@ import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import db from '../config/database';
 import { getAccountUserId } from '../utils/accountContext';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 router.use(authenticateJWT);
@@ -64,7 +65,7 @@ router.post('/', requirePermission('domain:write'), asyncHandler(async (req: Aut
 }));
 
 router.get('/:id', requirePermission('domain:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const accountUserId = getAccountUserId(req);
   
   const domain = await db('domains')
@@ -80,7 +81,7 @@ router.get('/:id', requirePermission('domain:read'), asyncHandler(async (req: Au
 }));
 
 router.post('/:id/verify', requirePermission('domain:write'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const accountUserId = getAccountUserId(req);
   
   // Verificar se domínio pertence ao usuário
@@ -142,7 +143,7 @@ router.post('/:id/verify', requirePermission('domain:write'), asyncHandler(async
 }));
 
 router.delete('/:id', requirePermission('domain:write'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
   const accountUserId = getAccountUserId(req);
   
   const deleted = await db('domains')

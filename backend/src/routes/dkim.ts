@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { DKIMManager } from '../services/dkimManager';
+import { getRouteParam } from '../utils/routeParams';
 
 const router = Router();
 router.use(authenticateJWT);
@@ -64,7 +65,7 @@ router.post('/keys', asyncHandler(async (req: AuthenticatedRequest, res: Respons
  */
 router.post('/rotate/:domain', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { domain } = req.params;
+    const domain = getRouteParam(req.params.domain);
     
     const result = await dkimManager.rotateDKIMKey(domain);
     

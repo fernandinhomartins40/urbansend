@@ -1,7 +1,12 @@
 import { Router, Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { z } from 'zod';
+// Os schemas do MCP usam zod v4: com os tipos do zod v3 o SDK dispara
+// TS2589 e o `tsc` estoura a heap (cada registerTool custa ~5M
+// instanciacoes de tipo). z3 fica apenas para o validateRequest, que
+// ainda espera ZodSchema do v3.
+import { z as z3 } from 'zod';
+import * as z from 'zod/v4';
 import db from '../config/database';
 import { logger } from '../config/logger';
 import { API_KEY_GRANTABLE_PERMISSIONS, hasPermission } from '../constants/permissions';
@@ -22,10 +27,10 @@ import { applyApiKeyMetadataForWrite, deriveApiKeyType, getApiKeySelectColumns, 
 const router = Router();
 const domainSetupService = new DomainSetupService();
 
-const aiAgentKeySchema = z.object({
-  key_name: z.string().min(1).max(100),
-  description: z.string().max(300).optional(),
-  permissions: z.array(z.enum(API_KEY_GRANTABLE_PERMISSIONS)).min(1).optional()
+const aiAgentKeySchema = z3.object({
+  key_name: z3.string().min(1).max(100),
+  description: z3.string().max(300).optional(),
+  permissions: z3.array(z3.enum(API_KEY_GRANTABLE_PERMISSIONS)).min(1).optional()
 });
 
 const parseEvents = (events: unknown): string[] => {
@@ -558,7 +563,7 @@ const registerMcpTools = (server: McpServer, req: AuthenticatedRequest) => {
         title: 'Atualizar configuracoes',
         description: 'Atualiza configuracoes com um payload parcial',
         inputSchema: {
-          payload: z.record(z.any())
+          payload: z.record(z.string(), z.any())
         }
       },
       async ({ payload }) => {
@@ -632,7 +637,7 @@ const registerMcpTools = (server: McpServer, req: AuthenticatedRequest) => {
           html: z.string().optional(),
           text: z.string().optional(),
           template_id: z.number().int().positive().optional(),
-          variables: z.record(z.any()).optional()
+          variables: z.record(z.string(), z.any()).optional()
         }
       },
       async ({ from, to, subject, html, text, template_id, variables }) => {
