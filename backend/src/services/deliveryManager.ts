@@ -7,6 +7,7 @@ import { createTransport, Transporter, SendMailOptions } from 'nodemailer';
 import { simpleParser } from 'mailparser';
 import db from '../config/database';
 import { Env } from '../utils/env';
+import { getNextDeliveryAttempt } from '../utils/deliveryAttempts';
 
 export interface DeliveryConfig {
   maxConcurrentDeliveries: number;
@@ -231,7 +232,7 @@ export class DeliveryManager {
   public async processDelivery(deliveryId: number, tenantId?: number): Promise<DeliveryResult> {
     try {
       // 🔥 CRÍTICO: Buscar email na fila COM validação de tenant
-      const deliveryQuery = db('email_delivery_queue')
+      let deliveryQuery = db('email_delivery_queue')
         .where('id', deliveryId)
         .where('status', 'pending');
 
@@ -257,14 +258,23 @@ export class DeliveryManager {
         }
       }
 
-      // Marcar como processando
-      await db('email_delivery_queue')
+      // O predicado de status transforma a atualizaÃ§Ã£o em um claim atÃ´mico:
+      // somente uma rÃ©plica pode sair de pending para processing.
+      const attempts = getNextDeliveryAttempt(delivery.attempts);
+      const claimed = await db('email_delivery_queue')
         .where('id', deliveryId)
+        .where('status', 'pending')
         .update({
           status: 'processing',
           last_attempt: new Date(),
-          attempts: delivery.attempts + 1
+          attempts
         });
+
+      if (!claimed) {
+        throw new Error(`Delivery ${deliveryId} was already claimed by another worker`);
+      }
+
+      delivery.attempts = attempts;
 
       this.activeDeliveries++;
 
@@ -397,7 +407,7 @@ export class DeliveryManager {
     error: any
   ): Promise<void> {
     const maxAttempts = this.config.retryAttempts;
-    const attempts = delivery.attempts + 1;
+    const attempts = Number(delivery.attempts || 0);
 
     if (attempts >= maxAttempts) {
       // Falha permanente
