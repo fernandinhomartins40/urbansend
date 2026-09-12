@@ -39,6 +39,8 @@ cookies*.txt
 *.bak
 *.original
 *.vps
+*.original.*
+*.vps.*
 
 # IDE
 .vscode/
