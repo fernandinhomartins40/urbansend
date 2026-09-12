@@ -178,6 +178,7 @@ export class WebhookService {
     if (this.isProcessingJobs || !(await this.ensureTablesReady())) return;
     this.isProcessingJobs = true;
     try {
+      await this.recoverStaleWebhookJobs();
       const jobs = await db('webhook_job_logs').where('status', 'pending')
         .where('scheduled_at', '<=', new Date()).orderBy('scheduled_at', 'asc').limit(10);
       for (const job of jobs) {
@@ -189,6 +190,23 @@ export class WebhookService {
       logger.error('Failed to process persisted webhook jobs', { error });
     } finally {
       this.isProcessingJobs = false;
+    }
+  }
+
+  private async recoverStaleWebhookJobs(): Promise<void> {
+    const staleBefore = new Date(Date.now() - 2 * 60 * 1000);
+    const recovered = await db('webhook_job_logs')
+      .where('status', 'processing')
+      .where('processed_at', '<', staleBefore)
+      .update({
+        status: 'pending',
+        error_message: 'Webhook processing lease expired',
+        scheduled_at: new Date(),
+        updated_at: new Date()
+      });
+
+    if (recovered) {
+      logger.warn('Recovered stale webhook processing jobs', { recovered });
     }
   }
 
