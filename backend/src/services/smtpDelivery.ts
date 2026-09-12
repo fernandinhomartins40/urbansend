@@ -22,6 +22,26 @@ interface EmailData {
   accountUserId?: number;
 }
 
+interface QueuedEmailRecord {
+  from_email: string;
+  to_email: string;
+  subject: string;
+  html_content?: string | null;
+  text_content?: string | null;
+  user_id?: number | null;
+}
+
+export function toDeliveryEmailData(email: QueuedEmailRecord): EmailData {
+  return {
+    from: email.from_email,
+    to: email.to_email,
+    subject: email.subject,
+    html: email.html_content || undefined,
+    text: email.text_content || undefined,
+    accountUserId: email.user_id || undefined,
+  };
+}
+
 interface RelayConfig {
   host: string;
   port: number;
@@ -500,14 +520,7 @@ export class SMTPDeliveryService {
 
       for (const email of pendingEmails) {
         try {
-          const emailData = {
-            from: email.sender_email,
-            to: email.recipient_email,
-            subject: email.subject,
-            html: email.html_content,
-            text: email.text_content,
-            accountUserId: email.user_id
-          };
+          const emailData = toDeliveryEmailData(email);
 
           const delivered = await this.deliverEmail(emailData);
 
