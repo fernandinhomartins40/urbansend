@@ -335,7 +335,7 @@ export function createAdvancedRateLimit(endpoint: string) {
       });
       
       // Em caso de erro, permitir a requisição (fail-open)
-      next();
+      return res.status(503).json({ error: 'Service temporarily unavailable', code: 'RATE_LIMIT_UNAVAILABLE' });
     }
   };
 }
