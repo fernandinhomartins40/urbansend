@@ -1,3 +1,26 @@
+ .logo-cloud > span {
+  flex-direction: column;
+  gap: 7px;
+  height: 64px;
+}
+
+.logo-cloud img {
+  height: 25px;
+  opacity: .72;
+}
+
+.logo-cloud > span:nth-child(n) img {
+  height: 25px;
+}
+
+.logo-cloud small {
+  color: #9aa7ba;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
 @media (max-width: 920px) {
   .logo-cloud {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -13,6 +36,6 @@
     gap: 20px 34px;
   }
 
-  .logo-cloud > span { height: 34px; }
-  .logo-cloud img { max-height: 27px !important; }
+  .logo-cloud > span { height: 56px; }
+  .logo-cloud img { max-height: 25px !important; }
 }
