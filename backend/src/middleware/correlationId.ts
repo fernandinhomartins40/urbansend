@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { requestContextService } from '../services/RequestContextService';
 
 /**
@@ -26,7 +26,7 @@ export const correlationIdMiddleware = (
   const requestId =
     (req.headers['x-request-id'] as string) ||
     (req.headers['x-trace-id'] as string) ||
-    uuidv4();
+    randomUUID();
   const correlationId =
     (req.headers['x-correlation-id'] as string) ||
     requestId;

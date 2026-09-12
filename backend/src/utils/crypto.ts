@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
 import { Env } from './env';
 
 export const generateApiKey = (prefix: 're' | 'uai' = 're'): string => {
@@ -18,7 +17,7 @@ export const generateVerificationToken = (): string => {
 };
 
 export const generateTrackingId = (): string => {
-  return uuidv4();
+  return crypto.randomUUID();
 };
 
 /**

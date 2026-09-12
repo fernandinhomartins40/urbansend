@@ -1,6 +1,6 @@
 import db from '../config/database';
 import { logger } from '../config/logger';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export interface EmailAuditLog {
   id: string;
@@ -336,7 +336,7 @@ export class EmailAuditService {
   }
 
   private generateAuditId(): string {
-    return `audit_${uuidv4().replace(/-/g, '')}`;
+    return `audit_${randomUUID().replace(/-/g, '')}`;
   }
 
   private determineAction(auditLog: EmailAuditLog): string {
