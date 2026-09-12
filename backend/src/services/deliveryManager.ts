@@ -90,6 +90,7 @@ export class DeliveryManager {
   private isProcessing = false;
   private activeDeliveries = 0;
   private deliveryQueue: Map<number, NodeJS.Timeout> = new Map();
+  private processorInterval?: NodeJS.Timeout;
   private transporter: Transporter;
   private tenantProcessors: Map<number, NodeJS.Timeout> = new Map(); // 🔥 NOVO: Processadores por tenant
 
@@ -419,6 +420,8 @@ export class DeliveryManager {
           next_attempt: null
         });
 
+      await this.recordDeadLetter(delivery, (error as Error).message);
+
       logger.warn('Email delivery permanently failed', {
         deliveryId,
         messageId: delivery.message_id,
@@ -456,6 +459,30 @@ export class DeliveryManager {
       error_message: error.message,
       created_at: new Date()
     });
+  }
+
+  private async recordDeadLetter(delivery: any, errorMessage: string): Promise<void> {
+    try {
+      await db('queue_job_failures').insert({
+        job_id: String(delivery.id),
+        queue_name: 'email_delivery_queue',
+        job_name: 'smtp_delivery',
+        job_data: JSON.stringify({
+          messageId: delivery.message_id,
+          userId: delivery.user_id
+        }),
+        error_message: errorMessage,
+        attempts: Number(delivery.attempts || 0),
+        failed_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+    } catch (deadLetterError) {
+      logger.error('Failed to record delivery dead letter', {
+        deliveryId: delivery.id,
+        error: deadLetterError instanceof Error ? deadLetterError.message : 'Unknown error'
+      });
+    }
   }
 
   private calculateRetryDelay(attempt: number): number {
@@ -524,8 +551,10 @@ export class DeliveryManager {
 
     this.isProcessing = true;
 
-    setInterval(async () => {
+    this.processorInterval = setInterval(async () => {
       try {
+        await this.recoverStaleDeliveries();
+
         if (this.activeDeliveries >= this.config.maxConcurrentDeliveries) {
           return;
         }
@@ -551,6 +580,44 @@ export class DeliveryManager {
     }, 5000); // Verificar a cada 5 segundos
 
     logger.info('Tenant-aware delivery processor started');
+  }
+
+  private async recoverStaleDeliveries(): Promise<void> {
+    const staleBefore = new Date(Date.now() - (this.config.deliveryTimeout * 2));
+    const staleDeliveries = await db('email_delivery_queue')
+      .where('status', 'processing')
+      .where('last_attempt', '<', staleBefore)
+      .select('id', 'attempts', 'message_id');
+
+    for (const delivery of staleDeliveries) {
+      const exhausted = Number(delivery.attempts || 0) >= this.config.retryAttempts;
+      await db('email_delivery_queue')
+        .where('id', delivery.id)
+        .where('status', 'processing')
+        .update({
+          status: exhausted ? 'failed' : 'pending',
+          error_message: 'Delivery lease expired before completion',
+          next_attempt: exhausted ? null : new Date(),
+          updated_at: new Date()
+        });
+
+      if (exhausted) {
+        await this.recordDeadLetter(delivery, 'Delivery lease expired before completion');
+      }
+    }
+  }
+
+  public shutdown(): void {
+    if (this.processorInterval) {
+      clearInterval(this.processorInterval);
+      this.processorInterval = undefined;
+    }
+
+    for (const timeout of this.deliveryQueue.values()) {
+      clearTimeout(timeout);
+    }
+    this.deliveryQueue.clear();
+    this.isProcessing = false;
   }
 
   // 🔥 NOVO MÉTODO: Descobrir tenants com entregas pendentes
