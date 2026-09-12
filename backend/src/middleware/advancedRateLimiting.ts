@@ -229,10 +229,8 @@ const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
 /**
  * Determinar tier do usuário (simplified - em produção viria do banco)
  */
-function getUserTier(userId: number): 'free' | 'professional' | 'enterprise' {
-  // Lógica simplificada - em produção consultaria banco de dados
-  if (userId <= 10) return 'enterprise'; // Primeiros usuários são enterprise para testes
-  if (userId <= 100) return 'professional';
+export function getUserTier(_userId: number): 'free' | 'professional' | 'enterprise' {
+  // Sem uma assinatura verificada, o fallback seguro nunca eleva privilégios.
   return 'free';
 }
 
@@ -334,7 +332,7 @@ export function createAdvancedRateLimit(endpoint: string) {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       
-      // Em caso de erro, permitir a requisição (fail-open)
+      // Falhas do limitador bloqueiam o endpoint protegido (fail-closed).
       return res.status(503).json({ error: 'Service temporarily unavailable', code: 'RATE_LIMIT_UNAVAILABLE' });
     }
   };
