@@ -54,8 +54,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const { icon, buttonVariant } = getVariantStyles();
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="presentation"
+    >
+      <Card className="my-auto w-full max-w-md" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
         <CardHeader>
           <div className="flex items-center gap-3">
             {icon}

@@ -127,7 +127,10 @@ interface SidebarState {
 }
 
 export const useSidebarStore = create<SidebarState>()((set) => ({
-  isOpen: true,
+  // Fechada por padrao: no mobile a sidebar e um drawer sobreposto, e abrir
+  // por default cobria o conteudo com overlay ja no primeiro carregamento.
+  // No desktop o `md:translate-x-0` mantem a sidebar sempre visivel.
+  isOpen: false,
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
   close: () => set({ isOpen: false }),
   open: () => set({ isOpen: true }),

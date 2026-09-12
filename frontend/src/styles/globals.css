@@ -71,10 +71,15 @@
   }
 
   * { @apply border-border; }
-  html { color-scheme: light; }
+  html { color-scheme: light; -webkit-text-size-adjust: 100%; }
   html.dark { color-scheme: dark; }
   body { @apply bg-background text-foreground; min-width: 320px; font-family: Inter, system-ui, -apple-system, sans-serif; font-feature-settings: "rlig" 1, "calt" 1; overflow-x: clip; }
-  #root { min-height: 100vh; }
+  /* dvh acompanha a barra de endereco movel; vh fica como fallback. */
+  #root { min-height: 100vh; min-height: 100dvh; }
+  /* Evita o zoom automatico do iOS ao focar um campo com fonte < 16px. */
+  @supports (-webkit-touch-callout: none) {
+    input, select, textarea { font-size: 16px; }
+  }
   img, video { max-width: 100%; height: auto; }
   h1 { @apply text-3xl font-bold leading-tight tracking-tight; }
   h2 { @apply text-2xl font-semibold leading-snug tracking-tight; }
@@ -112,6 +117,27 @@
   .vm-status-danger { border-color: hsl(var(--destructive) / .3); background: hsl(var(--destructive) / .12); color: hsl(var(--destructive)); }
   .vm-status-info { border-color: hsl(var(--primary) / .28); background: hsl(var(--primary) / .12); color: hsl(var(--primary-active)); }
   .vm-status-neutral { @apply border-border bg-muted text-muted-foreground; }
+
+  /* === Camada mobile / PWA === */
+
+  /* Barra inferior: respeita a safe area do iPhone sem inflar em telas sem entalhe. */
+  .vm-bottom-nav { padding-bottom: max(env(safe-area-inset-bottom), .5rem); box-shadow: 0 -1px 2px rgb(10 30 65 / .05), 0 -8px 24px rgb(10 30 65 / .06); }
+  .vm-bottom-nav-fab { box-shadow: 0 6px 18px hsl(var(--primary) / .35); border: 3px solid hsl(var(--background)); }
+  /* Reserva o espaco da barra para o conteudo nunca ficar escondido atras dela. */
+  .vm-has-bottom-nav { padding-bottom: calc(4.5rem + max(env(safe-area-inset-bottom), .5rem)); }
+  .vm-sheet { padding-bottom: max(env(safe-area-inset-bottom), 1rem); }
+  .vm-install-prompt { padding-bottom: max(env(safe-area-inset-bottom), .75rem); }
+
+  /* Abertura da PWA instalada. */
+  .vm-launch-screen { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: hsl(var(--background)); transition: opacity .24s ease; }
+  .vm-launch-screen.is-leaving { opacity: 0; }
+  .vm-launch-inner { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding: 0 1.5rem; }
+  .vm-launch-logo { width: min(200px, 52vw); height: auto; animation: vm-launch-in .45s ease-out both; }
+  .vm-launch-progress { width: 120px; height: 3px; overflow: hidden; border-radius: 999px; background: hsl(var(--muted)); }
+  .vm-launch-progress span { display: block; width: 40%; height: 100%; border-radius: inherit; background: hsl(var(--primary)); animation: vm-launch-slide 1s ease-in-out infinite; }
+
+  @keyframes vm-launch-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+  @keyframes vm-launch-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 }
 
 @layer utilities {

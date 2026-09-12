@@ -5,10 +5,11 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  // O scroll horizontal fica contido na tabela, nunca na pagina.
+  <div className="relative w-full overflow-x-auto">
     <table
       ref={ref}
-      className={cn("w-full min-w-[720px] caption-bottom text-sm", className)}
+      className={cn("w-full caption-bottom text-sm sm:min-w-[720px]", className)}
       {...props}
     />
   </div>

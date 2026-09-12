@@ -23,16 +23,25 @@ export function Header({ className }: HeaderProps) {
       "sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur",
       className
     )}>
-      <div className="flex h-[72px] items-center px-3 sm:px-4 lg:px-6">
+      {/* Header mais baixo no mobile para devolver altura util ao conteudo. */}
+      <div className="flex h-14 items-center px-3 sm:px-4 md:h-[72px] lg:px-6">
         {/* Mobile menu button */}
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden mr-4"
+          className="md:hidden"
           onClick={toggle}
+          aria-label="Abrir menu de navegacao"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
+
+        {/* A marca some no desktop, onde a sidebar ja a exibe. */}
+        <img
+          className="ml-2 h-auto w-[104px] md:hidden"
+          src="/landing/logo-color.png"
+          alt="VeloMail"
+        />
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           {/* Notifications */}

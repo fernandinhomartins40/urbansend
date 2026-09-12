@@ -1,0 +1,55 @@
+{
+  "name": "VeloMail - E-mail transacional",
+  "short_name": "VeloMail",
+  "description": "Infraestrutura de e-mail transacional: envio, entregabilidade, analytics e webhooks em um so lugar.",
+  "id": "/app",
+  "start_url": "/app?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "theme_color": "#049fea",
+  "background_color": "#f7f9fc",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "developer"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Enviar email",
+      "short_name": "Enviar",
+      "url": "/app/emails/send?source=pwa",
+      "description": "Disparar um novo envio transacional"
+    },
+    {
+      "name": "Analytics",
+      "short_name": "Analytics",
+      "url": "/app/analytics?source=pwa",
+      "description": "Acompanhar entrega e engajamento"
+    },
+    {
+      "name": "Dominios",
+      "short_name": "Dominios",
+      "url": "/app/domains?source=pwa",
+      "description": "Autenticacao SPF, DKIM e DMARC"
+    }
+  ]
+}

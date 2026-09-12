@@ -1,11 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { useAuthStore } from './lib/store'
 import { useAuthEvents } from './hooks/useAuthEvents'
 import { useAuthCheck } from './hooks/useAuthCheck'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { AppLaunchScreen } from './components/layout/AppLaunchScreen'
+import { InstallPrompt } from './components/layout/InstallPrompt'
+import { isLaunchedFromPwa } from './lib/pwa'
 import { Toaster } from 'react-hot-toast'
 import queryClient, { initializePersistence } from './lib/queryClient'
 import { installGlobalErrorHandlers, reportFrontendError } from './lib/errorReporter'
@@ -47,6 +50,24 @@ const SuperAdminDeliverabilityPage = lazy(() => import('./modules/super-admin/pa
 const SuperAdminIntegrationsPage = lazy(() => import('./modules/super-admin/pages/SuperAdminIntegrationsPage').then(m => ({ default: m.SuperAdminIntegrationsPage })));
 const SuperAdminAuditPage = lazy(() => import('./modules/super-admin/pages/SuperAdminAuditPage').then(m => ({ default: m.SuperAdminAuditPage })));
 const SuperAdminProfilePage = lazy(() => import('./modules/super-admin/pages/SuperAdminProfilePage').then(m => ({ default: m.SuperAdminProfilePage })));
+
+/**
+ * Raiz publica: a landing continua servindo visitantes do site, mas a PWA
+ * instalada entra direto no fluxo do sistema em vez de passar por ela.
+ */
+function RootRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
+
+  if (isLaunchedFromPwa()) {
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />
+    }
+
+    return <Navigate to={user?.session_scope === 'super_admin' ? '/super-admin/overview' : '/app'} replace />
+  }
+
+  return <>{children}</>
+}
 
 function AppRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -109,7 +130,14 @@ function AppRoutes() {
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
               {/* Public routes */}
-              <Route path="/" element={<LandingPage />} />
+              <Route
+                path="/"
+                element={
+                  <RootRoute>
+                    <LandingPage />
+                  </RootRoute>
+                }
+              />
               <Route 
                 path="/login" 
                 element={
@@ -369,6 +397,9 @@ function AppRoutes() {
 }
 
 function App() {
+  // O splash so existe na experiencia instalada; no navegador seria ruido.
+  const [isLaunching, setIsLaunching] = useState(() => isLaunchedFromPwa())
+
   useEffect(() => {
     initializePersistence()
     const cleanup = installGlobalErrorHandlers()
@@ -376,8 +407,12 @@ function App() {
     return cleanup
   }, [])
 
+  if (isLaunching) {
+    return <AppLaunchScreen onFinish={() => setIsLaunching(false)} />
+  }
+
   return (
-    <ErrorBoundary 
+    <ErrorBoundary
       onError={(error, errorInfo) => {
         console.error('React Error Boundary:', error, errorInfo);
         void reportFrontendError({
@@ -397,6 +432,7 @@ function App() {
               <AppRoutes />
             </Suspense>
           </ErrorBoundary>
+          <InstallPrompt />
           {/* Toast global configurado para toda aplicação */}
           <div aria-live="polite" aria-atomic="true">
             <Toaster
