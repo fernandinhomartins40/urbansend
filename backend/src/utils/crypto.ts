@@ -95,10 +95,16 @@ export const decryptSensitiveValue = (value: string): string => {
 
 export const verifyWebhookSignature = (payload: string, signature: string, secret: string): boolean => {
   const expectedSignature = createWebhookSignature(payload, secret);
-  return crypto.timingSafeEqual(
-    Buffer.from(signature, 'hex'),
-    Buffer.from(expectedSignature, 'hex')
-  );
+  const received = signature.replace(/^sha256=/i, '');
+
+  if (!/^[a-f0-9]{64}$/i.test(received)) {
+    return false;
+  }
+
+  const receivedBuffer = Buffer.from(received, 'hex');
+  const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+  return receivedBuffer.length === expectedBuffer.length
+    && crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
 };
 
 export const generateDKIMKeys = (): { privateKey: string; publicKey: string } => {

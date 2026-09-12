@@ -1,4 +1,4 @@
-import { decryptSensitiveValue, encryptSensitiveValue } from '../../../utils/crypto';
+import { createWebhookSignature, decryptSensitiveValue, encryptSensitiveValue, verifyWebhookSignature } from '../../../utils/crypto';
 
 describe('sensitive value encryption', () => {
   const originalJwtSecret = process.env.JWT_SECRET;
@@ -23,5 +23,13 @@ describe('sensitive value encryption', () => {
 
   it('keeps legacy plain values readable during migration', () => {
     expect(decryptSensitiveValue('legacy-plain-text')).toBe('legacy-plain-text');
+  });
+
+  it('rejects malformed webhook signatures without throwing', () => {
+    const signature = createWebhookSignature('payload', 'webhook-secret');
+
+    expect(verifyWebhookSignature('payload', signature, 'webhook-secret')).toBe(true);
+    expect(verifyWebhookSignature('payload', `sha256=${signature}`, 'webhook-secret')).toBe(true);
+    expect(verifyWebhookSignature('payload', 'not-a-signature', 'webhook-secret')).toBe(false);
   });
 });
