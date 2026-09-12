@@ -87,6 +87,8 @@ temp/
 
 # Scripts gerados automaticamente
 fix-routes*.js
+workspace_files*.txt
+vps_files*.txt
 
 # Claude Code
 .claude/
