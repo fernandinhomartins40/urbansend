@@ -22,26 +22,6 @@ interface EmailData {
   accountUserId?: number;
 }
 
-interface QueuedEmailRecord {
-  from_email: string;
-  to_email: string;
-  subject: string;
-  html_content?: string | null;
-  text_content?: string | null;
-  user_id?: number | null;
-}
-
-export function toDeliveryEmailData(email: QueuedEmailRecord): EmailData {
-  return {
-    from: email.from_email,
-    to: email.to_email,
-    subject: email.subject,
-    html: email.html_content || undefined,
-    text: email.text_content || undefined,
-    accountUserId: email.user_id || undefined,
-  };
-}
-
 interface RelayConfig {
   host: string;
   port: number;
@@ -56,7 +36,6 @@ interface RelayConfig {
 export class SMTPDeliveryService {
   private connectionPool: Map<string, Transporter> = new Map();
   private dkimManager: DKIMManager;
-  private isProcessingQueue = false;
   private readonly platformMailHostname = Env.get('SMTP_HOSTNAME', 'mail.velomail.com.br');
 
   constructor() {
@@ -476,82 +455,6 @@ export class SMTPDeliveryService {
         emailId
       });
       throw error;
-    }
-  }
-
-  async processEmailQueue(): Promise<void> {
-    if (this.isProcessingQueue) {
-      logger.warn('Skipping overlapping SMTP queue execution');
-      return;
-    }
-
-    this.isProcessingQueue = true;
-    try {
-      // Reivindica o lote dentro de uma transacao. Sem isso, duas replicas
-      // podem ler os mesmos itens `queued` antes que qualquer uma os marque
-      // como `processing`, gerando envio duplicado.
-      const pendingEmails = await db.transaction(async (trx) => {
-        let query = trx('emails')
-          .where('status', 'queued')
-          .orderBy('created_at', 'asc')
-          .limit(10);
-
-        const client = String((trx as any).client?.config?.client || '').toLowerCase();
-        if (client === 'pg' || client === 'postgres' || client === 'postgresql') {
-          query = query.forUpdate().skipLocked();
-        }
-
-        const claimed = await query;
-        if (claimed.length > 0) {
-          await trx('emails')
-            .whereIn('id', claimed.map((email: any) => email.id))
-            .where('status', 'queued')
-            .update({ status: 'processing', updated_at: new Date() });
-        }
-
-        return claimed;
-      });
-
-      if (pendingEmails.length === 0) {
-        return;
-      }
-
-      logger.info(`Processing ${pendingEmails.length} queued emails`);
-
-      for (const email of pendingEmails) {
-        try {
-          const emailData = toDeliveryEmailData(email);
-
-          const delivered = await this.deliverEmail(emailData);
-
-          await db('emails').where('id', email.id).update({
-            status: delivered ? 'sent' : 'failed',
-            sent_at: delivered ? new Date() : null,
-            updated_at: new Date()
-          });
-
-          if (delivered) {
-            logger.info(`Email ${email.id} delivered successfully`);
-          } else {
-            logger.error(`Email ${email.id} delivery failed`);
-          }
-        } catch (error) {
-          await db('emails').where('id', email.id).update({
-            status: 'failed',
-            updated_at: new Date()
-          });
-
-          logger.error(`Email ${email.id} processing failed`, {
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      }
-    } catch (error) {
-      logger.error('Error processing email queue', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    } finally {
-      this.isProcessingQueue = false;
     }
   }
 
