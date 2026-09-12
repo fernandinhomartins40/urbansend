@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth';
 import { logger } from '../config/optimizedLogger';
 import { logMiddlewareEvent } from './emailMiddlewareHelpers';
+import { consumeRateLimitBucket } from '../services/rateLimitBucketStore';
 
 /**
  * Sistema de rate limiting avançado para Fase 3
@@ -49,6 +50,10 @@ class AdvancedRateLimiter {
    * Implementa sliding window rate limiting otimizado
    */
   async checkLimit(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
+    return consumeRateLimitBucket(`${config.endpoint || 'general'}:${key}`, config.max, config.windowMs);
+  }
+
+  private async legacyCheckLimit(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
     const now = Date.now();
     const windowStart = now - config.windowMs;
     
