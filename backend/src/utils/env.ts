@@ -65,7 +65,7 @@ export class Env {
    * surfaces that should not be exposed in the default application runtime.
    */
   static get enableInternalRoutes(): boolean {
-    return Env.getBoolean('ENABLE_INTERNAL_ROUTES', false);
+    return Env.isDevelopment && Env.getBoolean('ENABLE_INTERNAL_ROUTES', false);
   }
 
   /**
@@ -79,7 +79,7 @@ export class Env {
    * Debug endpoints that expose sensitive operational data must be explicitly enabled.
    */
   static get enableDebugRoutes(): boolean {
-    return Env.getBoolean('ENABLE_DEBUG_ROUTES', false);
+    return Env.isDevelopment && Env.getBoolean('ENABLE_DEBUG_ROUTES', false);
   }
 
   /**

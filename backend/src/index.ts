@@ -312,15 +312,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // JSON parsing error handler
 app.use((err: any, req: any, res: any, next: any) => {
   if (err instanceof SyntaxError && err.message.includes('JSON')) {
-    // TEMPORARY DEBUG - Log raw body content
-    logger.error('JSON parsing error - DETAILED DEBUG:', {
+    logger.warn('JSON parsing error', {
       error: err.message,
       url: req.url,
       method: req.method,
       ip: req.ip,
       contentType: req.get('Content-Type'),
       contentLength: req.get('Content-Length'),
-      rawBodySample: req.body ? String(req.body).substring(0, 500) : 'NO BODY',
       headers: {
         'content-type': req.get('Content-Type'),
         'content-encoding': req.get('Content-Encoding'),
