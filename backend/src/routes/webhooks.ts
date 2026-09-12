@@ -323,7 +323,7 @@ router.post('/:id/test', requirePermission('webhook:write'), validateRequest({ p
 
   return res.status(202).json({
     success: true,
-    message: 'Webhook de teste enfileirado para entrega',
+    message: 'Entrega assíncrona do webhook de teste iniciada',
     webhook_id: webhook.id
   });
 }));
