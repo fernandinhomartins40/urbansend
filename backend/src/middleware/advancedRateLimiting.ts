@@ -143,6 +143,8 @@ class AdvancedRateLimiter {
  * Configurações de rate limit por endpoint e user tier
  */
 const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
+  'registration:free': { windowMs: 60 * 60 * 1000, max: 10, tier: 'free', endpoint: 'registration' },
+  'password-reset:free': { windowMs: 60 * 60 * 1000, max: 5, tier: 'free', endpoint: 'password-reset' },
   // Login endpoints
   'login:free': {
     windowMs: 15 * 60 * 1000, // 15 minutos
@@ -340,8 +342,8 @@ export function createAdvancedRateLimit(endpoint: string) {
 
 // Rate limiters otimizados para diferentes endpoints
 export const advancedLoginRateLimit = createAdvancedRateLimit('login');
-export const advancedRegistrationRateLimit = createAdvancedRateLimit('login'); // Usa mesmo config do login
-export const advancedPasswordResetRateLimit = createAdvancedRateLimit('login'); // Usa mesmo config do login
+export const advancedRegistrationRateLimit = createAdvancedRateLimit('registration');
+export const advancedPasswordResetRateLimit = createAdvancedRateLimit('password-reset');
 export const advancedEmailRateLimit = createAdvancedRateLimit('email');
 export const advancedBatchRateLimit = createAdvancedRateLimit('batch');
 export const advancedApiRateLimit = createAdvancedRateLimit('api');
