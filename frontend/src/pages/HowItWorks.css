@@ -1,0 +1,72 @@
+/* Keeps the process heading and its illustration as one centered composition. */
+.velo-how-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: clamp(20px, 3vw, 42px);
+  width: min(820px, 100%);
+  margin: 0 auto;
+}
+
+.velo-how-title {
+  min-width: 0;
+  text-align: center;
+}
+
+.velo-how-title h2 {
+  margin: 10px 0 8px;
+}
+
+.velo-how-heading .velo-email-flow {
+  position: static;
+  z-index: 1;
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+.velo-how .velo-step-grid {
+  width: min(var(--container), 100%);
+  margin: 54px auto 56px;
+}
+
+.velo-how .velo-demo-grid {
+  width: min(var(--container), 100%);
+  margin-inline: auto;
+}
+
+@media (max-width: 920px) {
+  .velo-how-heading {
+    grid-template-columns: minmax(0, 1fr) 185px;
+    gap: 18px;
+    width: min(700px, 100%);
+  }
+
+  .velo-how-heading .velo-email-flow {
+    width: 185px;
+  }
+}
+
+@media (max-width: 640px) {
+  .velo-how-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .velo-how-title {
+    width: 100%;
+  }
+
+  .velo-how-heading .velo-email-flow {
+    width: min(255px, 80vw);
+    margin: -2px auto 6px;
+  }
+
+  .velo-how .velo-step-grid {
+    margin-top: 36px;
+    margin-bottom: 38px;
+  }
+}
