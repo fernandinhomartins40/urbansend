@@ -35,26 +35,26 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     switch (variant) {
       case 'danger':
         return {
-          icon: <AlertTriangle className="h-5 w-5 text-red-500" />,
-          buttonClass: 'bg-red-600 hover:bg-red-700'
+          icon: <AlertTriangle className="h-5 w-5 text-destructive" />,
+          buttonVariant: 'destructive' as const
         };
       case 'warning':
         return {
-          icon: <AlertTriangle className="h-5 w-5 text-yellow-500" />,
-          buttonClass: 'bg-yellow-600 hover:bg-yellow-700'
+          icon: <AlertTriangle className="h-5 w-5 text-[hsl(var(--warning))]" />,
+          buttonVariant: 'default' as const
         };
       default:
         return {
-          icon: <AlertTriangle className="h-5 w-5 text-blue-500" />,
-          buttonClass: 'bg-blue-600 hover:bg-blue-700'
+          icon: <AlertTriangle className="h-5 w-5 text-primary" />,
+          buttonVariant: 'default' as const
         };
     }
   };
 
-  const { icon, buttonClass } = getVariantStyles();
+  const { icon, buttonVariant } = getVariantStyles();
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
       <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -70,8 +70,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <Button variant="outline" onClick={onClose}>
               {cancelText}
             </Button>
-            <Button 
-              className={buttonClass}
+            <Button
+              variant={buttonVariant}
               onClick={handleConfirm}
             >
               {confirmText}

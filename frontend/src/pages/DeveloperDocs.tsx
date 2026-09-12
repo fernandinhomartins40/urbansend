@@ -44,13 +44,13 @@ export function DeveloperDocs() {
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2rem] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_45%),linear-gradient(135deg,#eff6ff,_#f8fafc_55%,#fef3c7)] p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <section className="vm-page-hero">
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-4">
-            <Badge className="bg-sky-600 text-white hover:bg-sky-600">Developer Portal</Badge>
+            <Badge>Developer Portal</Badge>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">Integre a VeloMail com menos atrito</h1>
-              <p className="max-w-2xl text-sm leading-6 text-slate-600">
+              <h1 className="vm-page-title">Integre a VeloMail com menos atrito</h1>
+              <p className="vm-page-description">
                 Esta pagina concentra o fluxo recomendado para API keys, envio transacional, autenticacao de dominio
                 e webhooks. O objetivo e sair do painel com um backend pronto para enviar, observar e reagir a eventos.
               </p>
@@ -70,33 +70,29 @@ export function DeveloperDocs() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="relative mt-8 grid gap-4 md:grid-cols-3">
           {setupSteps.map((step) => {
             const Icon = step.icon
             return (
-              <Card key={step.title} className="border-white/70 bg-white/80 backdrop-blur">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-slate-900 p-2 text-white">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <CardTitle className="text-base">{step.title}</CardTitle>
+              <div key={step.title} className="vm-hero-card space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                    <Icon className="h-4 w-4" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm leading-6 text-slate-600">{step.description}</p>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={step.to}>Abrir</Link>
-                  </Button>
-                </CardContent>
-              </Card>
+                  <div className="text-base font-semibold text-foreground">{step.title}</div>
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground">{step.description}</p>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={step.to}>Abrir</Link>
+                </Button>
+              </div>
             )
           })}
         </div>
       </section>
 
-      <Card className="border-sky-200 bg-sky-50 shadow-sm">
-        <CardContent className="pt-6 text-sm leading-6 text-sky-950">
+      <Card className="border-primary/25 bg-primary/5">
+        <CardContent className="pt-6 text-sm leading-6 text-muted-foreground">
           <span className="font-medium">Separacao de credenciais:</span> use <code>ULTRAZEND_API_KEY</code> com uma
           chave padrao <code>re_...</code> para <code>/api/emails/send</code>. A <code>ULTRAZEND_AI_AGENT_KEY</code>
           com prefixo <code>uai_</code> e reservada ao MCP em Cursor/VS Code e nao deve ser usada pela aplicacao cliente.
@@ -104,7 +100,7 @@ export function DeveloperDocs() {
       </Card>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Quickstart de envio</CardTitle>
             <CardDescription>Fluxo recomendado para colocar o primeiro email transacional no ar.</CardDescription>
@@ -112,10 +108,11 @@ export function DeveloperDocs() {
           <CardContent className="space-y-6">
             <div className="grid gap-4 md:grid-cols-3">
               {apiKeyPresets.map((preset) => (
-                <div key={preset.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-slate-900">{preset.label}</div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{preset.description}</p>
-                  {preset.recommendation ? <p className="mt-3 text-xs text-slate-500">{preset.recommendation}</p> : null}
+                <div key={preset.id} className="rounded-xl border bg-muted/45 p-4">
+                  <div className="text-sm font-semibold text-foreground">{preset.label}</div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{preset.description}</p>
+
+                  {preset.recommendation ? <p className="mt-3 text-xs text-muted-foreground">{preset.recommendation}</p> : null}
                 </div>
               ))}
             </div>
@@ -137,7 +134,7 @@ export function DeveloperDocs() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Superficie da integracao</CardTitle>
             <CardDescription>O que a plataforma entrega hoje no caminho ativo.</CardDescription>
@@ -145,12 +142,12 @@ export function DeveloperDocs() {
           <CardContent className="space-y-4">
             <div className="grid gap-3">
               {apiEndpointCatalog.map((endpoint) => (
-                <div key={endpoint.path} className="rounded-2xl border border-slate-200 p-4">
+                <div key={endpoint.path} className="rounded-xl border p-4">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{endpoint.method}</Badge>
-                    <span className="font-mono text-sm text-slate-900">{endpoint.path}</span>
+                    <span className="font-mono text-sm text-foreground">{endpoint.path}</span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">{endpoint.description}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{endpoint.description}</p>
                 </div>
               ))}
             </div>
@@ -159,32 +156,32 @@ export function DeveloperDocs() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Permissoes de API key</CardTitle>
             <CardDescription>Use o menor escopo necessario para cada integracao.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {apiPermissionCatalog.map((permission) => (
-              <div key={permission.id} className="rounded-2xl border border-slate-200 p-4">
+              <div key={permission.id} className="rounded-xl border p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="font-medium text-slate-900">{permission.label}</div>
-                    <div className="text-xs font-mono text-slate-500">{permission.id}</div>
+                    <div className="font-medium text-foreground">{permission.label}</div>
+                    <div className="text-xs font-mono text-muted-foreground">{permission.id}</div>
                   </div>
                   <Badge variant="outline">{permission.category}</Badge>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">{permission.description}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{permission.description}</p>
               </div>
             ))}
           </CardContent>
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-slate-200 shadow-sm">
+          <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-emerald-100 p-2 text-emerald-700">
+                <div className="rounded-xl bg-primary/10 p-2 text-primary">
                   <Webhook className="h-4 w-4" />
                 </div>
                 <div>
@@ -196,23 +193,23 @@ export function DeveloperDocs() {
             <CardContent className="space-y-4">
               <div className="grid gap-3">
                 {liveEvents.map((event) => (
-                  <div key={event.value} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div key={event.value} className="rounded-xl border border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.1)] p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <div className="font-medium text-slate-900">{event.label}</div>
-                        <div className="text-xs font-mono text-slate-500">{event.value}</div>
+                        <div className="font-medium text-foreground">{event.label}</div>
+                        <div className="text-xs font-mono text-muted-foreground">{event.value}</div>
                       </div>
-                      <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Live</Badge>
+                      <span className="vm-status vm-status-success">Live</span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">{event.description}</p>
-                    <p className="mt-2 text-xs text-slate-500">{event.deliveryMeaning}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{event.description}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{event.deliveryMeaning}</p>
                   </div>
                 ))}
               </div>
 
               {plannedEvents.length > 0 ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="mb-2 font-medium text-amber-900">Eventos planejados</div>
+                <div className="rounded-xl border border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)] p-4">
+                  <div className="mb-2 font-medium text-foreground">Eventos planejados</div>
                   <div className="flex flex-wrap gap-2">
                     {plannedEvents.map((event) => (
                       <Badge key={event.value} variant="outline">
@@ -241,40 +238,40 @@ export function DeveloperDocs() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Send className="h-5 w-5 text-sky-600" />
+              <Send className="h-5 w-5 text-primary" />
               <CardTitle className="text-base">Envio</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="text-sm leading-6 text-slate-600">
+          <CardContent className="text-sm leading-6 text-muted-foreground">
             `email.delivered` representa aceite SMTP do servidor remoto. Para inbox placement e reputacao, acompanhe
             tambem autenticacao de dominio e reputacao do IP de saida.
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Webhook className="h-5 w-5 text-emerald-600" />
+              <Webhook className="h-5 w-5 text-primary" />
               <CardTitle className="text-base">Observabilidade</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="text-sm leading-6 text-slate-600">
+          <CardContent className="text-sm leading-6 text-muted-foreground">
             Webhooks de teste, logs de entrega e analytics de mensagem precisam contar a mesma historia. As paginas de
             API Keys e Webhooks agora usam o mesmo catalogo e os mesmos exemplos.
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <BookOpen className="h-5 w-5 text-violet-600" />
+              <BookOpen className="h-5 w-5 text-primary" />
               <CardTitle className="text-base">Documentacao</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
+          <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
             <p>Use esta pagina para onboarding e o OpenAPI para exploracao detalhada dos endpoints.</p>
             <Button asChild variant="outline" size="sm">
               <a href={getSwaggerDocsUrl()} target="_blank" rel="noreferrer">

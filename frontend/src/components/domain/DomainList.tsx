@@ -54,15 +54,15 @@ export const DomainList: React.FC<DomainListProps> = ({
   const getStatusColor = (status: DomainStatus['status']) => {
     switch (status) {
       case 'verified':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'vm-status vm-status-success';
       case 'partial':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'vm-status vm-status-warning';
       case 'pending':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'vm-status vm-status-info';
       case 'failed':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'vm-status vm-status-danger';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'vm-status vm-status-neutral';
     }
   };
 
@@ -171,12 +171,12 @@ export const DomainList: React.FC<DomainListProps> = ({
     <Card className="p-8 text-center">
       <div className="max-w-md mx-auto">
         <div className="mb-4">
-          <Globe className="w-12 h-12 text-gray-400 mx-auto" />
+          <Globe className="w-12 h-12 text-muted-foreground mx-auto" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <h3 className="text-lg font-semibold text-foreground mb-2">
           Nenhum domínio adicionado
         </h3>
-        <p className="text-gray-600 mb-6">
+        <p className="text-muted-foreground mb-6">
           Adicione seu primeiro domínio para começar a enviar emails autenticados através da VeloMail.
         </p>
         <Button onClick={onAddDomain}>
@@ -209,14 +209,14 @@ export const DomainList: React.FC<DomainListProps> = ({
               <span className="ml-1">{getStatusLabel(domain.status)}</span>
             </Badge>
             {domain.is_verified && (
-              <Badge variant="outline" className="text-green-600">
+              <Badge variant="outline" className="text-[hsl(var(--success))]">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
                 Verificado
               </Badge>
             )}
           </div>
 
-          <div className="text-sm text-gray-600 space-y-1">
+          <div className="text-sm text-muted-foreground space-y-1">
             <div>Criado: {format(new Date(domain.created_at), 'dd/MM/yyyy')}</div>
             {domain.verified_at && (
               <div>Verificado: {format(new Date(domain.verified_at), 'dd/MM/yyyy HH:mm')}</div>
@@ -256,7 +256,7 @@ export const DomainList: React.FC<DomainListProps> = ({
               setDomainToDelete(domain);
               setDeleteDialogOpen(true);
             }}
-            className="text-red-600 hover:text-red-700"
+            className="text-destructive hover:text-destructive"
             title="Remover domínio"
           >
             <Trash2 className="w-4 h-4" />
@@ -268,7 +268,7 @@ export const DomainList: React.FC<DomainListProps> = ({
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-sm font-medium">Progresso da Configuração</span>
-          <span className="text-sm text-gray-600">{domain.completion_percentage}%</span>
+          <span className="text-sm text-muted-foreground">{domain.completion_percentage}%</span>
         </div>
         <Progress value={domain.completion_percentage} className="h-2" />
       </div>
@@ -281,10 +281,10 @@ export const DomainList: React.FC<DomainListProps> = ({
 
       {/* Status specific messages */}
       {domain.status === 'failed' && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+        <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3">
           <div className="flex items-center">
-            <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
-            <span className="text-sm text-red-700">
+            <AlertCircle className="w-4 h-4 text-destructive mr-2" />
+            <span className="text-sm text-destructive">
               Verificação do domínio falhou. Clique no botão de configurações para ver detalhes e tentar novamente.
             </span>
           </div>
@@ -292,10 +292,10 @@ export const DomainList: React.FC<DomainListProps> = ({
       )}
 
       {domain.status === 'partial' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+        <div className="rounded-lg border border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)] p-3">
           <div className="flex items-center">
-            <AlertCircle className="w-4 h-4 text-yellow-600 mr-2" />
-            <span className="text-sm text-yellow-700">
+            <AlertCircle className="w-4 h-4 text-[hsl(var(--warning))] mr-2" />
+            <span className="text-sm text-[hsl(var(--warning))]">
               Alguns registros DNS estão faltando ou incorretos. Complete a configuração para começar a enviar emails.
             </span>
           </div>
@@ -303,10 +303,10 @@ export const DomainList: React.FC<DomainListProps> = ({
       )}
 
       {domain.status === 'pending' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <div className="rounded-lg border border-primary/25 bg-primary/10 p-3">
           <div className="flex items-center">
-            <Clock className="w-4 h-4 text-blue-600 mr-2" />
-            <span className="text-sm text-blue-700">
+            <Clock className="w-4 h-4 text-primary mr-2" />
+            <span className="text-sm text-primary">
               Registros DNS estão sendo verificados. Isso pode levar alguns minutos.
             </span>
           </div>
@@ -314,10 +314,10 @@ export const DomainList: React.FC<DomainListProps> = ({
       )}
 
       {domain.status === 'verified' && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+        <div className="rounded-lg border border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.12)] p-3">
           <div className="flex items-center">
-            <CheckCircle2 className="w-4 h-4 text-green-600 mr-2" />
-            <span className="text-sm text-green-700">
+            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] mr-2" />
+            <span className="text-sm text-[hsl(var(--success))]">
               Domínio está totalmente configurado e pronto para enviar emails!
             </span>
           </div>
@@ -340,11 +340,11 @@ export const DomainList: React.FC<DomainListProps> = ({
     
     return (
       <Card className="p-6 text-center">
-        <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-        <h3 className="font-semibold text-gray-900 mb-2">
+        <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-3" />
+        <h3 className="font-semibold text-foreground mb-2">
           {isAuthError ? 'Autenticação Necessária' : 'Erro ao Carregar Domínios'}
         </h3>
-        <p className="text-gray-600 mb-4">
+        <p className="text-muted-foreground mb-4">
           {isAuthError ? 'Faça login para visualizar e gerenciar seus domínios.' : error}
         </p>
         <div className="flex flex-wrap justify-center gap-3">
@@ -369,7 +369,7 @@ export const DomainList: React.FC<DomainListProps> = ({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Seus Domínios</h2>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Gerencie seus domínios configurados para envio de emails
           </p>
         </div>
@@ -388,26 +388,26 @@ export const DomainList: React.FC<DomainListProps> = ({
           {domains.length > 0 && (
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Card className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">{domains.length}</div>
-                <div className="text-sm text-gray-600">Total</div>
+                <div className="text-2xl font-bold text-primary">{domains.length}</div>
+                <div className="text-sm text-muted-foreground">Total</div>
               </Card>
               <Card className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-[hsl(var(--success))]">
                   {domains.filter(d => d.status === 'verified').length}
                 </div>
-                <div className="text-sm text-gray-600">Verificados</div>
+                <div className="text-sm text-muted-foreground">Verificados</div>
               </Card>
               <Card className="p-4 text-center">
-                <div className="text-2xl font-bold text-yellow-600">
+                <div className="text-2xl font-bold text-[hsl(var(--warning))]">
                   {domains.filter(d => d.status === 'partial').length}
                 </div>
-                <div className="text-sm text-gray-600">Parciais</div>
+                <div className="text-sm text-muted-foreground">Parciais</div>
               </Card>
               <Card className="p-4 text-center">
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-destructive">
                   {domains.filter(d => d.status === 'failed').length}
                 </div>
-                <div className="text-sm text-gray-600">Com Falha</div>
+                <div className="text-sm text-muted-foreground">Com Falha</div>
               </Card>
             </div>
           )}

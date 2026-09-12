@@ -99,14 +99,14 @@ export function RichTemplateEditor({
 
   return (
     <div className={cn('overflow-hidden rounded-xl border bg-white', className)}>
-      <div className="flex items-center gap-1 overflow-x-auto border-b bg-slate-50/70 p-2">
+      <div className="flex items-center gap-1 overflow-x-auto border-b bg-muted/45 p-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('undo')}>
           <Undo2 className="h-4 w-4" />
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('redo')}>
           <Redo2 className="h-4 w-4" />
         </Button>
-        <div className="mx-1 h-5 w-px bg-slate-200" />
+        <div className="mx-1 h-5 w-px bg-border" />
 
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('bold')}>
           <Bold className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function RichTemplateEditor({
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('underline')}>
           <Underline className="h-4 w-4" />
         </Button>
-        <div className="mx-1 h-5 w-px bg-slate-200" />
+        <div className="mx-1 h-5 w-px bg-border" />
 
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('justifyLeft')}>
           <AlignLeft className="h-4 w-4" />
@@ -128,7 +128,7 @@ export function RichTemplateEditor({
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('justifyRight')}>
           <AlignRight className="h-4 w-4" />
         </Button>
-        <div className="mx-1 h-5 w-px bg-slate-200" />
+        <div className="mx-1 h-5 w-px bg-border" />
 
         <Button type="button" variant="ghost" size="sm" onClick={() => exec('insertUnorderedList')}>
           <List className="h-4 w-4" />
@@ -167,7 +167,7 @@ export function RichTemplateEditor({
 
       <div className="relative">
         {!hasContent && !isFocused ? (
-          <div className="pointer-events-none absolute left-4 top-4 text-sm text-slate-400">
+          <div className="pointer-events-none absolute left-4 top-4 text-sm text-muted-foreground">
             {placeholder}
           </div>
         ) : null}
@@ -175,7 +175,7 @@ export function RichTemplateEditor({
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
-          className="min-h-[320px] p-4 text-sm leading-6 text-slate-800 outline-none sm:min-h-[420px]"
+          className="min-h-[320px] p-4 text-sm leading-6 text-foreground outline-none sm:min-h-[420px]"
           onInput={emitValue}
           onFocus={() => setIsFocused(true)}
           onBlur={() => {

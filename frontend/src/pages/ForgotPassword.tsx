@@ -38,19 +38,16 @@ export function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-black via-primary-dark to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center space-x-2 mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary-blue flex items-center justify-center">
-              <span className="text-white font-bold text-lg">UZ</span>
-            </div>
-            <span className="text-2xl font-bold text-white">Ultrazend</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <img className="h-auto w-[168px]" src="/landing/logo-color.png" alt="VeloMail" />
           </div>
-          <p className="text-gray-400">Recuperacao de senha</p>
+          <p className="text-muted-foreground">Recuperacao de senha</p>
         </div>
 
-        <Card className="bg-white/95 backdrop-blur border-0 shadow-xl">
+        <Card className="shadow-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">Esqueceu sua senha?</CardTitle>
             <CardDescription className="text-center">
@@ -63,7 +60,7 @@ export function ForgotPassword() {
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"

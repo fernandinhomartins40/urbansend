@@ -100,30 +100,30 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'verified':
-        return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+        return <CheckCircle2 className="w-5 h-5 text-[hsl(var(--success))]" />;
       case 'partial':
-        return <AlertCircle className="w-5 h-5 text-yellow-600" />;
+        return <AlertCircle className="w-5 h-5 text-[hsl(var(--warning))]" />;
       case 'pending':
-        return <Clock className="w-5 h-5 text-blue-600" />;
+        return <Clock className="w-5 h-5 text-primary" />;
       case 'failed':
-        return <XCircle className="w-5 h-5 text-red-600" />;
+        return <XCircle className="w-5 h-5 text-destructive" />;
       default:
-        return <Clock className="w-5 h-5 text-gray-600" />;
+        return <Clock className="w-5 h-5 text-muted-foreground" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'verified':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'vm-status vm-status-success';
       case 'partial':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'vm-status vm-status-warning';
       case 'pending':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'vm-status vm-status-info';
       case 'failed':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'vm-status vm-status-danger';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'vm-status vm-status-neutral';
     }
   };
 
@@ -144,15 +144,15 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
       
       <div className="space-y-2 text-sm">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-gray-600">Habilitado:</span>
+          <span className="text-muted-foreground">Habilitado:</span>
           <span>{config.enabled ? '✅ Sim' : '❌ Não'}</span>
         </div>
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-gray-600">Configurado:</span>
+          <span className="text-muted-foreground">Configurado:</span>
           <span>{config.configured ? '✅ Sim' : '❌ Não'}</span>
         </div>
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-gray-600">DNS Válido:</span>
+          <span className="text-muted-foreground">DNS Válido:</span>
           <span>{config.dns_valid ? '✅ Sim' : '❌ Não'}</span>
         </div>
       </div>
@@ -177,9 +177,9 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-4xl">
           <div className="text-center py-8">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-            <h3 className="font-semibold text-gray-900 mb-2">Erro ao Carregar</h3>
-            <p className="text-gray-600 mb-4">Não foi possível carregar os detalhes do domínio.</p>
+            <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-3" />
+            <h3 className="font-semibold text-foreground mb-2">Erro ao Carregar</h3>
+            <p className="text-muted-foreground mb-4">Não foi possível carregar os detalhes do domínio.</p>
             <Button onClick={loadDomainData}>Tentar Novamente</Button>
           </div>
         </DialogContent>
@@ -208,7 +208,7 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
                 {getStatusIcon(domain.status)}
                 <div>
                   <h3 className="font-medium text-lg">{domain.name}</h3>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     Criado em {format(new Date(domain.created_at), 'dd/MM/yyyy HH:mm')}
                   </p>
                 </div>
@@ -232,13 +232,13 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Progresso da Configuração</span>
-                <span className="text-sm text-gray-600">{domain.completion_percentage}%</span>
+                <span className="text-sm text-muted-foreground">{domain.completion_percentage}%</span>
               </div>
               <Progress value={domain.completion_percentage} className="h-2" />
             </div>
 
             {domain.verified_at && (
-              <div className="mt-3 text-sm text-green-600">
+              <div className="mt-3 text-sm text-[hsl(var(--success))]">
                 ✅ Verificado em {format(new Date(domain.verified_at), 'dd/MM/yyyy HH:mm')}
               </div>
             )}
@@ -255,25 +255,25 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
               {renderConfigStatus(
                 domainDetails.configuration.mail_from,
                 'MAIL FROM',
-                <Mail className="w-4 h-4 text-amber-600" />
+                <Mail className="w-4 h-4 text-primary" />
               )}
 
               {renderConfigStatus(
                 config.spf, 
                 'SPF Record', 
-                <Shield className="w-4 h-4 text-blue-600" />
+                <Shield className="w-4 h-4 text-primary" />
               )}
               
               {renderConfigStatus(
                 config.dkim, 
                 'DKIM Signature', 
-                <Key className="w-4 h-4 text-green-600" />
+                <Key className="w-4 h-4 text-primary" />
               )}
               
               {renderConfigStatus(
                 config.dmarc, 
                 'DMARC Policy', 
-                <Shield className="w-4 h-4 text-purple-600" />
+                <Shield className="w-4 h-4 text-primary" />
               )}
             </div>
           </div>
@@ -290,11 +290,11 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-gray-600">MAIL FROM:</span>
+                <span className="text-muted-foreground">MAIL FROM:</span>
                 <span className="break-all font-mono">{config.mail_from.domain}</span>
               </div>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-gray-600">MX tecnico:</span>
+                <span className="text-muted-foreground">MX tecnico:</span>
                 <span className="break-all font-mono">{config.mail_from.mx_target}</span>
               </div>
             </div>
@@ -318,13 +318,13 @@ export const DomainDetails: React.FC<DomainDetailsProps> = ({
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-gray-600">Selector:</span>
+                  <span className="text-muted-foreground">Selector:</span>
                   <span className="break-all font-mono">{config.dkim.selector}</span>
                 </div>
                 {config.dkim.public_key && (
                   <div>
-                    <div className="text-gray-600 mb-1">Chave Pública:</div>
-                    <div className="bg-gray-50 p-2 rounded text-xs font-mono break-all">
+                    <div className="text-muted-foreground mb-1">Chave Pública:</div>
+                    <div className="bg-muted/45 border p-2 rounded text-xs font-mono break-all">
                       {config.dkim.public_key.substring(0, 100)}...
                     </div>
                   </div>

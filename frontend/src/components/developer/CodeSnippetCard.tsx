@@ -12,7 +12,7 @@ interface CodeSnippetCardProps {
 
 export function CodeSnippetCard({ title, description, code, language }: CodeSnippetCardProps) {
   return (
-    <Card className="border-slate-200 shadow-sm">
+    <Card>
       <CardHeader className="flex flex-col items-start justify-between gap-3 space-y-0 sm:flex-row">
         <div>
           <CardTitle className="text-base">{title}</CardTitle>
@@ -20,7 +20,7 @@ export function CodeSnippetCard({ title, description, code, language }: CodeSnip
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {language ? (
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-600">
+            <span className="rounded-full border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               {language}
             </span>
           ) : null}
@@ -31,7 +31,7 @@ export function CodeSnippetCard({ title, description, code, language }: CodeSnip
         </div>
       </CardHeader>
       <CardContent>
-        <pre className="overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100">
+        <pre className="vm-code-surface">
           <code>{code}</code>
         </pre>
       </CardContent>

@@ -86,11 +86,11 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
     color?: 'blue' | 'green' | 'purple' | 'orange' | 'red'
   }) => {
     const colorClasses = {
-      blue: 'text-blue-600 bg-blue-100',
-      green: 'text-green-600 bg-green-100',
-      purple: 'text-purple-600 bg-purple-100',
-      orange: 'text-orange-600 bg-orange-100',
-      red: 'text-red-600 bg-red-100'
+      blue: 'text-primary bg-primary/10',
+      green: 'text-[hsl(var(--success))] bg-[hsl(var(--success)/.12)]',
+      purple: 'text-primary bg-primary/10',
+      orange: 'text-[hsl(var(--warning))] bg-[hsl(var(--warning)/.14)]',
+      red: 'text-destructive bg-destructive/10'
     }
 
     return (
@@ -98,10 +98,10 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-              <p className="text-2xl font-bold text-gray-900">{value}</p>
+              <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
+              <p className="text-2xl font-bold text-foreground">{value}</p>
               {description && (
-                <p className="text-xs text-gray-500 mt-1">{description}</p>
+                <p className="text-xs text-muted-foreground mt-1">{description}</p>
               )}
             </div>
             <div className={`p-3 rounded-full ${colorClasses[color]}`}>
@@ -110,9 +110,9 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
           </div>
           {trend && (
             <div className="mt-4 flex items-center text-sm">
-              <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-600 font-medium">{trend}</span>
-              <span className="text-gray-600 ml-1">vs período anterior</span>
+              <TrendingUp className="h-4 w-4 text-[hsl(var(--success))] mr-1" />
+              <span className="text-[hsl(var(--success))] font-medium">{trend}</span>
+              <span className="text-muted-foreground ml-1">vs período anterior</span>
             </div>
           )}
         </CardContent>
@@ -145,10 +145,10 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
   return (
     <div className={className}>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-foreground mb-2">
           {templateId ? 'Analytics do Template' : 'Analytics Geral'}
         </h1>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           {templateId
             ? 'Métricas detalhadas de performance e engajamento'
             : 'Visão geral do seu desempenho com templates'
@@ -212,11 +212,11 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <h4 className="font-medium mb-2">Nome</h4>
-                      <p className="text-gray-600">{analytics.template.template_name}</p>
+                      <p className="text-muted-foreground">{analytics.template.template_name}</p>
                     </div>
                     <div>
                       <h4 className="font-medium mb-2">Criado em</h4>
-                      <p className="text-gray-600">
+                      <p className="text-muted-foreground">
                         {formatRelativeTime(analytics.template.created_at)}
                       </p>
                     </div>
@@ -274,7 +274,7 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
                       {analytics.top_categories.map((category: any, index: number) => (
                         <div key={category.category} className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-medium">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
                               {index + 1}
                             </div>
                             <span className="font-medium capitalize">{category.category}</span>
@@ -311,8 +311,8 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
             {trending.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
-                  <TrendingUp className="h-8 w-8 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">Nenhum template em tendência encontrado para este período</p>
+                  <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Nenhum template em tendência encontrado para este período</p>
                 </CardContent>
               </Card>
             ) : (
@@ -321,38 +321,38 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
                   <CardContent className="p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-start gap-4">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold">
                           #{index + 1}
                         </div>
                         <div>
                           <h3 className="font-semibold text-lg">{template.template_name}</h3>
-                          <p className="text-gray-600 text-sm">{template.subject}</p>
+                          <p className="text-muted-foreground text-sm">{template.subject}</p>
                         </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                         <div className="text-center">
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Eye className="h-4 w-4" />
                             {template.usage_count}
                           </div>
-                          <p className="text-xs text-gray-500">visualizações</p>
+                          <p className="text-xs text-muted-foreground">visualizações</p>
                         </div>
 
                         <div className="text-center">
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Copy className="h-4 w-4" />
                             {template.clone_count}
                           </div>
-                          <p className="text-xs text-gray-500">clones</p>
+                          <p className="text-xs text-muted-foreground">clones</p>
                         </div>
 
                         <div className="text-center">
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Star className="h-4 w-4 fill-[hsl(var(--warning))] text-[hsl(var(--warning))]" />
                             {template.avg_rating}
                           </div>
-                          <p className="text-xs text-gray-500">({template.rating_count})</p>
+                          <p className="text-xs text-muted-foreground">({template.rating_count})</p>
                         </div>
 
                         <Badge variant="outline" className="capitalize">
@@ -377,8 +377,8 @@ export const TemplateAnalytics: React.FC<TemplateAnalyticsProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  <BarChart3 className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                   Gráfico de uso será implementado com biblioteca de charts
                 </div>
               </CardContent>

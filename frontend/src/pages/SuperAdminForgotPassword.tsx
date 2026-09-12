@@ -38,11 +38,11 @@ export function SuperAdminForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-4 py-8">
+    <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
-        <Card className="w-full border-white/15 bg-white/95 shadow-2xl">
+        <Card className="w-full shadow-md">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/10 text-indigo-700">
+            <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <ShieldCheck className="h-6 w-6" />
             </div>
             <CardTitle className="text-2xl">Recuperar senha Super Admin</CardTitle>
@@ -71,13 +71,13 @@ export function SuperAdminForgotPassword() {
                 </p>
               </div>
 
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={isSubmitting}>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? 'Enviando...' : 'Enviar link de recuperacao'}
               </Button>
             </form>
 
             <div className="text-center text-sm text-muted-foreground">
-              <Link to="/super-admin/login" className="font-medium text-indigo-700 hover:text-indigo-800">
+              <Link to="/super-admin/login" className="font-medium text-primary hover:underline">
                 Voltar para login super admin
               </Link>
             </div>

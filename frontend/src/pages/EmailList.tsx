@@ -210,36 +210,32 @@ export function EmailList() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <RefreshCw className="h-4 w-4 text-amber-500" />
-      case 'sent': return <Send className="h-4 w-4 text-blue-500" />
-      case 'delivered': return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'opened': return <Eye className="h-4 w-4 text-blue-600" />
-      case 'clicked': return <MousePointer className="h-4 w-4 text-purple-500" />
-      case 'bounced': return <AlertTriangle className="h-4 w-4 text-red-500" />
-      case 'failed': return <AlertTriangle className="h-4 w-4 text-red-600" />
-      default: return <div className="h-4 w-4 rounded-full bg-gray-400" />
+      case 'pending': return <RefreshCw className="h-4 w-4 text-[hsl(var(--warning))]" />
+      case 'sent': return <Send className="h-4 w-4 text-primary" />
+      case 'delivered': return <CheckCircle className="h-4 w-4 text-[hsl(var(--success))]" />
+      case 'opened': return <Eye className="h-4 w-4 text-primary" />
+      case 'clicked': return <MousePointer className="h-4 w-4 text-primary" />
+      case 'bounced': return <AlertTriangle className="h-4 w-4 text-destructive" />
+      case 'failed': return <AlertTriangle className="h-4 w-4 text-destructive" />
+      default: return <div className="h-4 w-4 rounded-full bg-muted-foreground/40" />
     }
   }
 
   const getStatusBadge = (email: Email) => {
     if (isEmailClicked(email.status)) {
-      return <Badge variant="default" className="bg-purple-100 text-purple-800">Clicado</Badge>
+      return <span className="vm-status vm-status-info">Clicado</span>
     }
     if (isEmailOpened(email.status)) {
-      return <Badge variant="default" className="bg-blue-100 text-blue-800">Aberto</Badge>
+      return <span className="vm-status vm-status-info">Aberto</span>
     }
     if (email.bounce_reason) {
       return <Badge variant="destructive">Bounce</Badge>
     }
     
-    const color = getStatusColor(email.status)
     return (
-      <Badge 
-        variant="secondary" 
-        className={color}
-      >
+      <span className={getStatusColor(email.status)}>
         {getEmailStatusLabel(email.status)}
-      </Badge>
+      </span>
     )
   }
 
@@ -295,7 +291,7 @@ export function EmailList() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <Send className="h-5 w-5 text-blue-500" />
+              <Send className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-bold">{stats.total}</p>
@@ -307,7 +303,7 @@ export function EmailList() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <Eye className="h-5 w-5 text-green-500" />
+              <Eye className="h-5 w-5 text-[hsl(var(--success))]" />
               <div>
                 <p className="text-sm text-muted-foreground">Aceitos SMTP</p>
                 <p className="text-2xl font-bold">{stats.delivered}</p>
@@ -319,7 +315,7 @@ export function EmailList() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <Eye className="h-5 w-5 text-blue-600" />
+              <Eye className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">Abertos</p>
                 <p className="text-2xl font-bold">{stats.opened}</p>
@@ -331,7 +327,7 @@ export function EmailList() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <MousePointer className="h-5 w-5 text-purple-500" />
+              <MousePointer className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">Clicados</p>
                 <p className="text-2xl font-bold">{stats.clicked}</p>
@@ -368,7 +364,7 @@ export function EmailList() {
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     placeholder="Buscar por email, assunto, conteúdo..."
                     value={search}
@@ -377,7 +373,7 @@ export function EmailList() {
                   />
                   {search !== debouncedSearch && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <RefreshCw className="h-3 w-3 animate-spin text-gray-400" />
+                      <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
                     </div>
                   )}
                 </div>
@@ -390,7 +386,7 @@ export function EmailList() {
               
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <select 
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
                 >
@@ -402,7 +398,7 @@ export function EmailList() {
                 </select>
                 
                 <select
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm sm:min-w-[140px]"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm sm:min-w-[140px]"
                   value={domainFilter}
                   onChange={(e) => setDomainFilter(e.target.value)}
                 >
@@ -443,8 +439,8 @@ export function EmailList() {
             
             {/* Ações em lote */}
             {selectedEmails.length > 0 && (
-              <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm font-medium text-blue-700">
+              <div className="flex flex-col gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm font-medium text-primary">
                   {selectedEmails.length} email(s) selecionado(s)
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -500,12 +496,12 @@ export function EmailList() {
               // Loading skeleton
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell><div className="h-4 w-4 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="h-4 w-48 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="h-4 w-16 bg-gray-200 rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-4 bg-muted rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-32 bg-muted rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-48 bg-muted rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-32 bg-muted rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-24 bg-muted rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse" /></TableCell>
                 </TableRow>
               ))
             ) : emails.length === 0 ? (
@@ -529,7 +525,7 @@ export function EmailList() {
               </TableRow>
             ) : (
               emails.map((email: Email) => (
-                <TableRow key={email.id} className={selectedEmails.includes(email.id) ? 'bg-blue-50' : ''}>
+                <TableRow key={email.id} className={selectedEmails.includes(email.id) ? 'bg-primary/5' : ''}>
                   <TableCell>
                     <input
                       type="checkbox"
@@ -580,14 +576,14 @@ export function EmailList() {
                   <TableCell>
                     <div className="text-sm">
                       {isEmailOpened(email.status) ? (
-                        <span className="text-green-600">✓ Aberto</span>
+                        <span className="text-[hsl(var(--success))]">✓ Aberto</span>
                       ) : email.sent_at || email.delivered_at ? (
-                        <span className="text-gray-500">Não aberto</span>
+                        <span className="text-muted-foreground">Não aberto</span>
                       ) : (
-                        <span className="text-yellow-600">Pendente</span>
+                        <span className="text-[hsl(var(--warning))]">Pendente</span>
                       )}
                       {isEmailClicked(email.status) && (
-                        <div className="text-purple-600">✓ Clicado</div>
+                        <div className="text-primary">✓ Clicado</div>
                       )}
                     </div>
                   </TableCell>
@@ -604,7 +600,7 @@ export function EmailList() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          className="text-blue-600"
+                          className="text-primary"
                           onClick={() => resendEmails([email.id])}
                         >
                           Reenviar
@@ -624,7 +620,7 @@ export function EmailList() {
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground sm:gap-4">
               <span>Página {pagination.page} de {pagination.pages} • {pagination.total} emails</span>
               {selectedEmails.length > 0 && (
-                <span className="text-blue-600">{selectedEmails.length} selecionados</span>
+                <span className="text-primary">{selectedEmails.length} selecionados</span>
               )}
             </div>
             

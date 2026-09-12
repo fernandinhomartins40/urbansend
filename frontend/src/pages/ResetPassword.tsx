@@ -57,19 +57,16 @@ export function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-black via-primary-dark to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center space-x-2 mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary-blue flex items-center justify-center">
-              <span className="text-white font-bold text-lg">UZ</span>
-            </div>
-            <span className="text-2xl font-bold text-white">Ultrazend</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <img className="h-auto w-[168px]" src="/landing/logo-color.png" alt="VeloMail" />
           </div>
-          <p className="text-gray-400">Definicao de nova senha</p>
+          <p className="text-muted-foreground">Definicao de nova senha</p>
         </div>
 
-        <Card className="bg-white/95 backdrop-blur border-0 shadow-xl">
+        <Card className="shadow-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">Redefinir senha</CardTitle>
             <CardDescription className="text-center">
@@ -80,7 +77,7 @@ export function ResetPassword() {
           <CardContent className="space-y-4">
             {!token ? (
               <div className="space-y-4 text-center">
-                <p className="text-sm text-red-600">O link de recuperacao esta incompleto ou expirou.</p>
+                <p className="text-sm text-destructive">O link de recuperacao esta incompleto ou expirou.</p>
                 <Link to="/forgot-password" className="text-sm text-primary hover:underline">
                   Solicitar novo link
                 </Link>
@@ -90,7 +87,7 @@ export function ResetPassword() {
                 <div className="space-y-2">
                   <Label htmlFor="password">Nova senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
@@ -100,7 +97,7 @@ export function ResetPassword() {
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                       onClick={() => setShowPassword((value) => !value)}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -111,7 +108,7 @@ export function ResetPassword() {
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
@@ -121,7 +118,7 @@ export function ResetPassword() {
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                       onClick={() => setShowConfirmPassword((value) => !value)}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

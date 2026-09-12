@@ -67,8 +67,8 @@ export const TemplateRating: React.FC<TemplateRatingProps> = ({
                 sizeClasses[size],
                 "transition-all duration-150",
                 star <= (hoverRating || value)
-                  ? "fill-yellow-400 text-yellow-400"
-                  : "text-gray-300 hover:text-yellow-400"
+                  ? "fill-[hsl(var(--warning))] text-[hsl(var(--warning))]"
+                  : "text-muted-foreground/40 hover:text-[hsl(var(--warning))]"
               )}
             />
           </button>
@@ -127,12 +127,12 @@ export const TemplateRating: React.FC<TemplateRatingProps> = ({
                 onHover={setHoverRating}
                 size="lg"
               />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-muted-foreground">
                 {rating > 0 && (
                   <>
                     {rating} de 5 estrelas
                     {hoverRating > 0 && hoverRating !== rating && (
-                      <span className="text-gray-400"> (selecionando {hoverRating})</span>
+                      <span className="text-muted-foreground"> (selecionando {hoverRating})</span>
                     )}
                   </>
                 )}
@@ -152,7 +152,7 @@ export const TemplateRating: React.FC<TemplateRatingProps> = ({
               rows={4}
               maxLength={500}
             />
-            <div className="text-xs text-gray-500 text-right">
+            <div className="text-xs text-muted-foreground text-right">
               {review.length}/500
             </div>
           </div>
@@ -210,15 +210,15 @@ export const TemplateRatingDisplay: React.FC<{
             className={cn(
               sizeClasses[size],
               star <= Math.round(rating)
-                ? "fill-yellow-400 text-yellow-400"
-                : "text-gray-300"
+                ? "fill-[hsl(var(--warning))] text-[hsl(var(--warning))]"
+                : "text-muted-foreground/40"
             )}
           />
         ))}
       </div>
 
       {showCount && (
-        <span className={cn("text-gray-600", textSizes[size])}>
+        <span className={cn("text-muted-foreground", textSizes[size])}>
           {rating.toFixed(1)} ({reviewCount})
         </span>
       )}

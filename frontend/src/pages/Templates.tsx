@@ -418,7 +418,7 @@ export function Templates() {
                   </Button>
                 </div>
                 <div className="relative mt-2">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -458,31 +458,31 @@ export function Templates() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-wide text-slate-500">Modelos padrão editáveis</Label>
+                  <Label className="vm-metric-label">Modelos padrão editáveis</Label>
                   <div className="space-y-2">
                     {BUILTIN_MODELS.map((model) => (
                       <button
                         type="button"
                         key={model.id}
                         onClick={() => loadFromModel(model)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-sky-300 hover:bg-sky-50"
+                        className="w-full rounded-xl border bg-muted/45 p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
                       >
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="font-medium text-slate-900">{model.label}</div>
+                          <div className="font-medium text-foreground">{model.label}</div>
                           <Badge variant="outline">{model.category}</Badge>
                         </div>
-                        <p className="mt-1 line-clamp-1 text-xs text-slate-500">{model.subject}</p>
+                        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{model.subject}</p>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="space-y-2 pb-20">
-                  <Label className="text-xs uppercase tracking-wide text-slate-500">Templates salvos</Label>
+                  <Label className="vm-metric-label">Templates salvos</Label>
                   {isLoading ? (
-                    <div className="text-sm text-slate-500">Carregando...</div>
+                    <div className="text-sm text-muted-foreground">Carregando...</div>
                   ) : filteredTemplates.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-4 text-sm text-slate-500">
+                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
                       Nenhum template encontrado.
                     </div>
                   ) : (
@@ -493,20 +493,20 @@ export function Templates() {
                         onClick={() => handleSelectTemplate(template)}
                         className={`w-full rounded-xl border p-3 text-left transition-colors ${
                           selectedTemplate?.id === template.id && !isCreating
-                            ? 'border-sky-400 bg-sky-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/40'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <div className="font-medium text-slate-900">{template.name}</div>
-                            <div className="line-clamp-1 text-xs text-slate-500">{template.subject}</div>
+                            <div className="font-medium text-foreground">{template.name}</div>
+                            <div className="line-clamp-1 text-xs text-muted-foreground">{template.subject}</div>
                           </div>
                           {template.variables?.length ? (
                             <Badge variant="outline">{template.variables.length}</Badge>
                           ) : null}
                         </div>
-                        <div className="mt-2 text-xs text-slate-400">{formatRelativeTime(template.updated_at)}</div>
+                        <div className="mt-2 text-xs text-muted-foreground">{formatRelativeTime(template.updated_at)}</div>
                       </button>
                     ))
                   )}
@@ -565,12 +565,12 @@ export function Templates() {
                   <div>
                     <Label htmlFor="template-name">Nome</Label>
                     <Input id="template-name" placeholder="Ex: Confirmação de pedido" {...register('name')} />
-                    {errors.name ? <p className="mt-1 text-xs text-red-600">{errors.name.message}</p> : null}
+                    {errors.name ? <p className="mt-1 text-xs text-destructive">{errors.name.message}</p> : null}
                   </div>
                   <div>
                     <Label htmlFor="template-subject">Assunto</Label>
                     <Input id="template-subject" placeholder="Ex: Pedido #{{order_id}} confirmado" {...register('subject')} />
-                    {errors.subject ? <p className="mt-1 text-xs text-red-600">{errors.subject.message}</p> : null}
+                    {errors.subject ? <p className="mt-1 text-xs text-destructive">{errors.subject.message}</p> : null}
                   </div>
                 </div>
 
@@ -618,7 +618,7 @@ export function Templates() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                           {variables.length === 0 ? (
-                            <p className="text-sm text-slate-500">Nenhuma variável detectada.</p>
+                            <p className="text-sm text-muted-foreground">Nenhuma variável detectada.</p>
                           ) : (
                             variables.map((variable) => (
                               <div key={variable}>
@@ -652,14 +652,14 @@ export function Templates() {
                   </TabsContent>
                 </Tabs>
 
-                <Card className="border-sky-100 bg-sky-50/60">
+                <Card className="border-primary/20 bg-primary/5">
                   <CardHeader>
                     <CardTitle className="text-base">Integração API e Webhooks</CardTitle>
                     <CardDescription>
                       O envio por API agora persiste `template_id` e os webhooks recebem `template_id` + `template_data`.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-slate-700">
+                  <CardContent className="space-y-3 text-sm text-muted-foreground">
                     <div className="rounded-lg border bg-white p-3 font-mono text-xs">
                       POST /api/emails/send {'{'} from, to, subject, template_id, variables {'}'}
                     </div>

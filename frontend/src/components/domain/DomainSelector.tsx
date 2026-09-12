@@ -122,14 +122,14 @@ export const DomainSelector = ({
     return (
       <div className={`space-y-3 ${className}`}>
         <Select disabled>
-          <SelectTrigger className="border-dashed border-amber-200 bg-amber-50">
+          <SelectTrigger className="border-dashed border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)]">
             <SelectValue placeholder="Nenhum domínio verificado encontrado" />
           </SelectTrigger>
         </Select>
         
-        <Alert className="border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-700">
+        <Alert className="border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)]">
+          <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" />
+          <AlertDescription className="text-[hsl(var(--warning))]">
             Você precisa configurar e verificar pelo menos um domínio para enviar emails.
           </AlertDescription>
         </Alert>
@@ -176,7 +176,7 @@ export const DomainSelector = ({
             {domains.map((domain) => (
               <SelectItem key={domain.id} value={domain.domain_name}>
                 <div className="flex items-center gap-2 w-full">
-                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  <CheckCircle className="h-4 w-4 text-[hsl(var(--success))] flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">
                       {domain.domain_name}
@@ -187,7 +187,7 @@ export const DomainSelector = ({
                   </div>
                   <Badge 
                     variant="secondary" 
-                    className="text-xs bg-green-100 text-green-800 flex-shrink-0"
+                    className="vm-status vm-status-success flex-shrink-0"
                   >
                     Verificado
                   </Badge>

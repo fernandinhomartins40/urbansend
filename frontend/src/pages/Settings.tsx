@@ -189,9 +189,9 @@ const roleLabels: Record<WorkspaceRole, string> = {
 }
 
 const planTone = (plan: string) => {
-  if (plan === 'enterprise') return 'bg-amber-500/10 text-amber-700 border-amber-200'
-  if (plan === 'pro') return 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-  return 'bg-slate-500/10 text-slate-700 border-slate-200'
+  if (plan === 'enterprise') return 'vm-status vm-status-warning'
+  if (plan === 'pro') return 'vm-status vm-status-success'
+  return 'vm-status vm-status-neutral'
 }
 
 export function Settings() {
@@ -270,23 +270,23 @@ export function Settings() {
         label: 'Workspace',
         value: settingsForm.workspace.organization_name,
         icon: Users,
-        tone: 'bg-sky-500/10 text-sky-700 border-sky-200',
+        tone: 'vm-status vm-status-info',
       },
       {
         label: 'Tracking',
         value: settingsForm.account_preferences.sending_settings.open_tracking ? 'Ligado' : 'Desligado',
         icon: Send,
         tone: settingsForm.account_preferences.sending_settings.open_tracking
-          ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-          : 'bg-rose-500/10 text-rose-700 border-rose-200',
+          ? 'vm-status vm-status-success'
+          : 'vm-status vm-status-danger',
       },
       {
         label: 'Seguranca',
         value: settingsForm.profile.is_active ? 'Conta ativa' : 'Conta bloqueada',
         icon: Shield,
         tone: settingsForm.profile.is_active
-          ? 'bg-violet-500/10 text-violet-700 border-violet-200'
-          : 'bg-rose-500/10 text-rose-700 border-rose-200',
+          ? 'vm-status vm-status-info'
+          : 'vm-status vm-status-danger',
       },
     ]
   }, [settingsForm])
@@ -408,8 +408,7 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6">
-        <div className="absolute inset-y-0 right-0 w-72 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.18),_transparent_55%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.16),_transparent_55%)]" />
+      <section className="vm-page-hero">
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <Badge className={planTone(settingsForm.plan.name)}>{settingsForm.plan.name.toUpperCase()}</Badge>
@@ -417,8 +416,8 @@ export function Settings() {
             <Badge variant="outline">{settingsForm.profile.is_verified ? 'Email verificado' : 'Verificacao pendente'}</Badge>
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight">Configuracoes da conta e do workspace</h1>
-            <p className="max-w-3xl text-sm text-muted-foreground">
+            <h1 className="vm-page-title">Configuracoes da conta e do workspace</h1>
+            <p className="vm-page-description">
               A pagina agora concentra preferencias pessoais, defaults operacionais da conta, tracking,
               branding, webhooks e colaboracao do workspace.
             </p>
@@ -1232,22 +1231,22 @@ export function Settings() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                  <div className="rounded-xl border border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)] p-4 text-sm leading-6 text-foreground">
                     O bloco antigo de "default webhook" foi removido desta tela porque nao participava do fluxo real
                     de entrega. Para producao, crie endpoints explicitos em <span className="font-medium">Webhooks</span>,
                     onde o secret e gerado/exibido no momento da criacao e os logs acompanham o envio.
                   </div>
                   <div className="rounded-2xl border p-4">
                     <div className="text-sm text-muted-foreground">Status legado encontrado</div>
-                    <div className="mt-2 font-medium text-slate-900">
+                    <div className="mt-2 font-medium text-foreground">
                       {settingsForm.account_preferences.webhook_settings.enabled ? 'Configuracao antiga habilitada' : 'Nenhuma configuracao antiga habilitada'}
                     </div>
                     {settingsForm.account_preferences.webhook_settings.webhook_url ? (
-                      <div className="mt-2 break-all text-sm text-slate-600">
+                      <div className="mt-2 break-all text-sm text-muted-foreground">
                         URL armazenada: {settingsForm.account_preferences.webhook_settings.webhook_url}
                       </div>
                     ) : null}
-                    <div className="mt-2 text-sm text-slate-600">
+                    <div className="mt-2 text-sm text-muted-foreground">
                       Secret configurado: {settingsForm.account_preferences.webhook_settings.webhook_secret_configured ? 'sim' : 'nao'}
                     </div>
                   </div>

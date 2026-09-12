@@ -38,7 +38,7 @@ export function SuperAdminLayout() {
                 <ShieldCheck className="h-5 w-5 text-primary" />
                 <div>
                   <h1 className="text-sm font-semibold text-foreground sm:text-base">{pageTitle}</h1>
-                  <p className="text-xs text-slate-500">Painel separado de administração da plataforma</p>
+                  <p className="text-xs text-muted-foreground">Painel separado de administração da plataforma</p>
                 </div>
               </div>
             </div>

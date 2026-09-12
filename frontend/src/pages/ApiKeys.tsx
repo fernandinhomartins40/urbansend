@@ -263,13 +263,13 @@ export function ApiKeys() {
         </>}
       />
 
-      <section className="overflow-hidden rounded-[2rem] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_42%),linear-gradient(135deg,#eff6ff,_#f8fafc_55%,#ecfeff)] p-4 shadow-sm sm:p-6 lg:p-8">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <section className="vm-page-hero">
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-4">
-            <Badge className="bg-sky-600 text-white hover:bg-sky-600">Integração por API</Badge>
+            <Badge>Integração por API</Badge>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Fluxo recomendado para colocar uma integração em produção</h2>
-              <p className="text-sm leading-6 text-slate-600">
+              <h2 className="vm-page-title">Fluxo recomendado para colocar uma integração em produção</h2>
+              <p className="vm-page-description">
                 Gere uma chave com o menor escopo possível, autentique seu domínio, faça o primeiro envio com `x-api-key`
                 e acompanhe a execução por analytics e webhooks. Esta tela agora concentra o quickstart e os snippets mínimos.
               </p>
@@ -289,42 +289,34 @@ export function ApiKeys() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Total de chaves</div>
-              <div className="mt-2 text-3xl font-bold text-slate-900">{keys.length}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Ativas</div>
-              <div className="mt-2 text-3xl font-bold text-emerald-700">{activeKeyCount}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Sem uso ainda</div>
-              <div className="mt-2 text-3xl font-bold text-amber-600">{neverUsedCount}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Ultima criacao</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">
-                {latestCreatedAt ? formatRelativeTime(latestCreatedAt) : 'Ainda nao criada'}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="relative mt-8 grid gap-4 md:grid-cols-4">
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Total de chaves</div>
+            <div className="vm-hero-value">{keys.length}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Ativas</div>
+            <div className="vm-hero-value">{activeKeyCount}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Sem uso ainda</div>
+            <div className="vm-hero-value">{neverUsedCount}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Ultima criacao</div>
+            <div className="mt-2 text-lg font-semibold text-foreground">
+              {latestCreatedAt ? formatRelativeTime(latestCreatedAt) : 'Ainda nao criada'}
+            </div>
+          </div>
         </div>
       </section>
 
-      <Card className="border-sky-200 bg-sky-50">
+      <Card className="border-primary/25 bg-primary/5">
         <CardContent className="flex items-start gap-3 pt-6">
-          <AlertTriangle className="mt-0.5 h-5 w-5 text-sky-700" />
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-primary" />
           <div>
-            <h3 className="font-medium text-sky-900">Credencial correta para a aplicacao cliente</h3>
-            <p className="mt-1 text-sm text-sky-800">
+            <h3 className="font-medium text-foreground">Credencial correta para a aplicacao cliente</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               Use uma API key padrao com prefixo <code>re_</code> em <code>ULTRAZEND_API_KEY</code>. A
               <code> ULTRAZEND_AI_AGENT_KEY</code> com prefixo <code>uai_</code> e exclusiva do MCP/IDE e nao deve ser
               usada no envio transacional direto.
@@ -334,55 +326,55 @@ export function ApiKeys() {
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Quickstart</CardTitle>
             <CardDescription>Trilha minima para integrar sua aplicacao sem improviso.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Key className="h-4 w-4 text-sky-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Key className="h-4 w-4 text-primary" />
                 1. Gere a chave
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Use um preset, copie a chave uma vez e guarde em segredo do ambiente.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary" />
                 2. Restrinja o escopo
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Liberte apenas envio, leitura e analytics quando o sistema nao precisa alterar templates ou webhooks.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Zap className="h-4 w-4 text-amber-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Zap className="h-4 w-4 text-primary" />
                 3. Teste o primeiro request
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Faça o primeiro `POST /api/emails/send`, confirme o retorno e monitore no analytics.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Presets recomendados</CardTitle>
             <CardDescription>Use um perfil pronto e ajuste apenas se houver necessidade real.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {apiKeyPresets.map((preset) => (
-              <div key={preset.id} className="rounded-2xl border border-slate-200 p-4">
+              <div key={preset.id} className="rounded-xl border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="font-medium text-slate-900">{preset.label}</div>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">{preset.description}</p>
-                    {preset.recommendation ? <p className="mt-2 text-xs text-slate-500">{preset.recommendation}</p> : null}
+                    <div className="font-medium text-foreground">{preset.label}</div>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{preset.description}</p>
+                    {preset.recommendation ? <p className="mt-2 text-xs text-muted-foreground">{preset.recommendation}</p> : null}
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(preset.id)}>
                     Usar preset
@@ -419,12 +411,12 @@ export function ApiKeys() {
         />
       </div>
 
-      <Card className="border-yellow-200 bg-yellow-50">
+      <Card className="border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.08)]">
         <CardContent className="flex items-start gap-3 pt-6">
-          <AlertTriangle className="mt-0.5 h-5 w-5 text-yellow-600" />
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-[hsl(var(--warning))]" />
           <div>
-            <h3 className="font-medium text-yellow-800">Leitura unica da chave</h3>
-            <p className="mt-1 text-sm text-yellow-700">
+            <h3 className="font-medium text-foreground">Leitura unica da chave</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               A chave completa so aparece na criacao ou regeneracao. Depois disso, a lista mostra apenas um preview seguro.
             </p>
           </div>
@@ -432,12 +424,12 @@ export function ApiKeys() {
       </Card>
 
       {latestKey && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.08)]">
           <CardContent className="pt-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
-                <h3 className="mb-2 font-medium text-green-800">Chave pronta para copia</h3>
-                <p className="mb-3 text-sm text-green-700">Guarde esta chave agora e salve como `ULTRAZEND_API_KEY`. Ela nao sera exibida novamente.</p>
+                <h3 className="mb-2 font-medium text-foreground">Chave pronta para copia</h3>
+                <p className="mb-3 text-sm text-muted-foreground">Guarde esta chave agora e salve como `ULTRAZEND_API_KEY`. Ela nao sera exibida novamente.</p>
                 <div className="flex items-center gap-2 rounded border bg-white p-3">
                   <code className="min-w-0 flex-1 overflow-x-auto text-sm font-mono">{latestKey}</code>
                   <Button size="sm" onClick={handleCopyLatestKey}>
@@ -478,7 +470,7 @@ export function ApiKeys() {
                       className={`rounded-lg border p-3 text-left transition-colors ${
                         selectedPermissions.includes(permission.id)
                           ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-border hover:border-primary/40'
                       }`}
                       onClick={() => handlePermissionToggle(permission.id)}
                     >
@@ -516,9 +508,9 @@ export function ApiKeys() {
             <Card key={index}>
               <CardContent className="pt-6">
                 <div className="animate-pulse space-y-3">
-                  <div className="h-4 w-40 rounded bg-gray-200" />
-                  <div className="h-3 w-56 rounded bg-gray-200" />
-                  <div className="h-16 rounded bg-gray-200" />
+                  <div className="h-4 w-40 rounded bg-muted" />
+                  <div className="h-3 w-56 rounded bg-muted" />
+                  <div className="h-16 rounded bg-muted" />
                 </div>
               </CardContent>
             </Card>
@@ -577,35 +569,35 @@ export function ApiKeys() {
                         <div className="space-y-1 p-2">
                           <button
                             onClick={() => setUsageTarget(apiKey)}
-                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent"
                           >
                             <BarChart3 className="h-4 w-4" />
                             Ver uso
                           </button>
                           <button
                             onClick={() => setEditingKey(apiKey)}
-                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent"
                           >
                             <Pencil className="h-4 w-4" />
                             Editar
                           </button>
                           <button
                             onClick={() => handleToggleKey(apiKey.id)}
-                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent"
                           >
                             <Settings className="h-4 w-4" />
                             {apiKey.is_active ? 'Desativar' : 'Ativar'}
                           </button>
                           <button
                             onClick={() => setRegenerateTarget(apiKey)}
-                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-gray-100"
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm hover:bg-accent"
                           >
                             <RotateCcw className="h-4 w-4" />
                             Regenerar
                           </button>
                           <button
                             onClick={() => setDeleteTarget(apiKey)}
-                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
+                            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
                           >
                             <Trash2 className="h-4 w-4" />
                             Remover
@@ -620,7 +612,7 @@ export function ApiKeys() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Preview da chave</Label>
-                  <div className="space-y-2 rounded border bg-gray-50 p-3">
+                  <div className="space-y-2 rounded-lg border bg-muted/45 p-3">
                     <code className="block text-sm font-mono">{apiKey.api_key_preview}</code>
                     <p className="text-xs text-muted-foreground">
                       O preview serve apenas para identificar a chave. A chave completa so aparece na criacao ou regeneracao.
@@ -642,7 +634,7 @@ export function ApiKeys() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 rounded bg-gray-50 p-3 md:grid-cols-4">
+                <div className="grid gap-4 rounded-lg border bg-muted/45 p-3 md:grid-cols-4">
                   <div>
                     <div className="text-sm text-muted-foreground">Status</div>
                     <div className="font-medium">{apiKey.is_active ? 'Ativa' : 'Inativa'}</div>
@@ -711,7 +703,7 @@ export function ApiKeys() {
                     className={`rounded-lg border p-3 text-left transition-colors ${
                       editSelectedPermissions.includes(permission.id)
                         ? 'border-primary bg-primary/5'
-                        : 'border-gray-200 hover:border-gray-300'
+                        : 'border-border hover:border-primary/40'
                     }`}
                     onClick={() => handleEditPermissionToggle(permission.id)}
                   >
@@ -745,7 +737,7 @@ export function ApiKeys() {
             <div className="py-8 text-center text-muted-foreground">Carregando metricas...</div>
           ) : (
             <div className="space-y-6">
-              <div className="rounded-lg border bg-gray-50 p-4">
+              <div className="rounded-lg border bg-muted/45 p-4">
                 <div className="font-medium">{usageResponse.api_key.key_name}</div>
                 <div className="text-sm text-muted-foreground">{usageResponse.api_key.api_key_preview}</div>
                 <div className="mt-2 text-sm text-muted-foreground">

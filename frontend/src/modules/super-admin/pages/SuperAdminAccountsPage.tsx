@@ -79,7 +79,7 @@ export function SuperAdminAccountsPage() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-indigo-200">
+      <Card>
         <CardHeader>
           <CardTitle>Contas</CardTitle>
           <CardDescription>Gestão de contas do SaaS, planos e bloqueios operacionais.</CardDescription>

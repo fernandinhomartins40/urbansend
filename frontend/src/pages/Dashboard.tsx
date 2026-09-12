@@ -67,7 +67,7 @@ const metricStyles = {
 const clampPercentage = (value: number) => Math.max(0, Math.min(100, value))
 
 const renderPercentageBar = (value: number, gradient: string) => (
-  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+  <div className="h-2 overflow-hidden rounded-full bg-muted">
     <div
       className={cn('h-full rounded-full bg-gradient-to-r transition-all', gradient)}
       style={{ width: `${clampPercentage(value)}%` }}
@@ -84,10 +84,10 @@ const formatChange = (value: number, invertMeaning = false) => {
   return {
     label,
     className: safeValue === 0
-      ? 'border-slate-200 bg-slate-100 text-slate-700'
+      ? 'vm-status vm-status-neutral'
       : improved
-        ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
-        : 'border-rose-200 bg-rose-100 text-rose-700',
+        ? 'vm-status vm-status-success'
+        : 'vm-status vm-status-danger',
   }
 }
 
@@ -246,95 +246,92 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-0 bg-gradient-to-br from-slate-950 via-sky-900 to-cyan-800 text-white shadow-xl">
-        <CardContent className="relative p-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_24%)]" />
-          <div className="relative grid gap-6 p-6 lg:grid-cols-[1.5fr_1fr] lg:p-8">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="border-white/20 bg-white/12 text-white">Resumo operacional</Badge>
-                <Badge className="border-white/20 bg-white/12 text-white">{formatPollingLabel(currentInterval)}</Badge>
-                {isError && <Badge className="border-rose-300/30 bg-rose-500/20 text-rose-100">Com falha recente</Badge>}
-              </div>
-
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight lg:text-4xl">Dashboard</h1>
-                <p className="max-w-2xl text-sm text-cyan-50/80 lg:text-base">
-                  Leitura rápida do que importa agora: volume, aceite SMTP, abertura, bounce e o próximo foco operacional.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-100/70">Volume</div>
-                  <div className="text-3xl font-semibold">{formatNumber(safeStats.totalEmails)}</div>
-                  <div className="mt-1 text-sm text-cyan-50/75">base do período atual</div>
-                </div>
-                <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-100/70">Saúde</div>
-                  <div className="text-3xl font-semibold">{safeStats.deliveryRate.toFixed(1)}%</div>
-                  <div className="mt-1 text-sm text-cyan-50/75">aceite SMTP consolidado</div>
-                </div>
-                <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-100/70">Próximo passo</div>
-                  <div className="text-base font-semibold">
-                    {safeStats.deliveryRate >= 90 && safeStats.openRate < 20
-                      ? 'melhorar abertura'
-                      : safeStats.bounceRate > 5
-                        ? 'reduzir bounce'
-                        : 'escalar com segurança'}
-                  </div>
-                  <div className="mt-1 text-sm text-cyan-50/75">ação sugerida pelo funil</div>
-                </div>
-              </div>
+      <section className="vm-page-hero">
+        <div className="relative grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="vm-status vm-status-info">Resumo operacional</span>
+              <span className="vm-status vm-status-neutral">{formatPollingLabel(currentInterval)}</span>
+              {isError && <span className="vm-status vm-status-danger">Com falha recente</span>}
             </div>
 
-            <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/15 bg-slate-950/25 p-5 backdrop-blur-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Pulso do dia</div>
-                  <div className="mt-2 text-xl font-semibold">Indicadores vivos</div>
-                </div>
-                <Sparkles className="h-5 w-5 text-cyan-100/80" />
-              </div>
+            <div className="space-y-2">
+              <h1 className="vm-page-title">Dashboard</h1>
+              <p className="vm-page-description">
+                Leitura rápida do que importa agora: volume, aceite SMTP, abertura, bounce e o próximo foco operacional.
+              </p>
+            </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-cyan-50/80">Aceite SMTP</span>
-                    <span className="font-medium text-white">{safeStats.deliveryRate.toFixed(1)}%</span>
-                  </div>
-                  {renderPercentageBar(safeStats.deliveryRate, metricStyles.delivery.bar)}
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-cyan-50/80">Abertura</span>
-                    <span className="font-medium text-white">{safeStats.openRate.toFixed(1)}%</span>
-                  </div>
-                  {renderPercentageBar(safeStats.openRate, metricStyles.open.bar)}
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-cyan-50/80">Intenção de clique</span>
-                    <span className="font-medium text-white">{clickEstimate.toFixed(1)}%</span>
-                  </div>
-                  {renderPercentageBar(clickEstimate, 'from-primary to-primary')}
-                </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="vm-hero-card">
+                <div className="vm-hero-label">Volume</div>
+                <div className="vm-hero-value">{formatNumber(safeStats.totalEmails)}</div>
+                <div className="mt-1 text-sm text-muted-foreground">base do período atual</div>
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" className="rounded-full" onClick={() => handleRefresh()}>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Atualizar
-                </Button>
-                <Button variant="ghost" className="rounded-full border border-white/15 text-white hover:bg-white/15 hover:text-white" onClick={() => navigate('/app/analytics')}>
-                  Ver analytics
-                </Button>
+              <div className="vm-hero-card">
+                <div className="vm-hero-label">Saúde</div>
+                <div className="vm-hero-value">{safeStats.deliveryRate.toFixed(1)}%</div>
+                <div className="mt-1 text-sm text-muted-foreground">aceite SMTP consolidado</div>
+              </div>
+              <div className="vm-hero-card">
+                <div className="vm-hero-label">Próximo passo</div>
+                <div className="mt-2 text-base font-semibold text-foreground">
+                  {safeStats.deliveryRate >= 90 && safeStats.openRate < 20
+                    ? 'melhorar abertura'
+                    : safeStats.bounceRate > 5
+                      ? 'reduzir bounce'
+                      : 'escalar com segurança'}
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">ação sugerida pelo funil</div>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="flex flex-col justify-between gap-4 rounded-xl border bg-card p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="vm-hero-label">Pulso do dia</div>
+                <div className="mt-2 text-xl font-semibold text-foreground">Indicadores vivos</div>
+              </div>
+              <Sparkles className="h-5 w-5 text-primary" />
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Aceite SMTP</span>
+                  <span className="font-medium text-foreground">{safeStats.deliveryRate.toFixed(1)}%</span>
+                </div>
+                {renderPercentageBar(safeStats.deliveryRate, metricStyles.delivery.bar)}
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Abertura</span>
+                  <span className="font-medium text-foreground">{safeStats.openRate.toFixed(1)}%</span>
+                </div>
+                {renderPercentageBar(safeStats.openRate, metricStyles.open.bar)}
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Intenção de clique</span>
+                  <span className="font-medium text-foreground">{clickEstimate.toFixed(1)}%</span>
+                </div>
+                {renderPercentageBar(clickEstimate, 'from-primary to-primary')}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => handleRefresh()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/app/analytics')}>
+                Ver analytics
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
@@ -354,14 +351,14 @@ export function Dashboard() {
                 </div>
 
                 <div className="space-y-1">
-                  <div className="text-sm font-medium text-slate-600">{card.title}</div>
-                  <div className="text-3xl font-semibold tracking-tight text-slate-950">{card.value}</div>
-                  <div className="text-sm text-slate-700">{card.subtitle}</div>
+                  <div className="text-sm font-medium text-muted-foreground">{card.title}</div>
+                  <div className="text-3xl font-semibold tracking-tight text-foreground">{card.value}</div>
+                  <div className="text-sm text-muted-foreground">{card.subtitle}</div>
                 </div>
 
                 <div className="space-y-2">
                   {renderPercentageBar(card.progress, style.bar)}
-                  <div className="flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Leitura visual</span>
                     <span>{clampPercentage(card.progress).toFixed(0)}%</span>
                   </div>
@@ -389,9 +386,9 @@ export function Dashboard() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                        <span className="font-medium text-slate-900">{getEmailStatusLabel(item.status)}</span>
+                        <span className="font-medium text-foreground">{getEmailStatusLabel(item.status)}</span>
                       </div>
-                      <div className="text-sm text-slate-700">{item.email}</div>
+                      <div className="text-sm text-muted-foreground">{item.email}</div>
                     </div>
                     <Badge variant="outline" className="rounded-full border-border bg-muted/50">
                       {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true, locale: ptBR })}
@@ -416,21 +413,21 @@ export function Dashboard() {
             </CardHeader>
             <CardContent className="space-y-4 p-6">
               <div className="rounded-xl border border-border bg-muted/45 p-4">
-                <div className="mb-2 text-sm font-medium text-slate-700">Aceite SMTP</div>
+                <div className="mb-2 text-sm font-medium text-foreground">Aceite SMTP</div>
                 {renderPercentageBar(safeStats.deliveryRate, metricStyles.delivery.bar)}
-                <div className="mt-2 text-xs text-slate-500">Entrega técnica aceita pelos servidores remotos.</div>
+                <div className="mt-2 text-xs text-muted-foreground">Entrega técnica aceita pelos servidores remotos.</div>
               </div>
 
               <div className="rounded-xl border border-border bg-muted/45 p-4">
-                <div className="mb-2 text-sm font-medium text-slate-700">Abertura</div>
+                <div className="mb-2 text-sm font-medium text-foreground">Abertura</div>
                 {renderPercentageBar(safeStats.openRate, metricStyles.open.bar)}
-                <div className="mt-2 text-xs text-slate-500">Rastreada por HTML/pixel ou clique em link.</div>
+                <div className="mt-2 text-xs text-muted-foreground">Rastreada por HTML/pixel ou clique em link.</div>
               </div>
 
               <div className="rounded-xl border border-border bg-muted/45 p-4">
-                <div className="mb-2 text-sm font-medium text-slate-700">Bounce</div>
+                <div className="mb-2 text-sm font-medium text-foreground">Bounce</div>
                 {renderPercentageBar(safeStats.bounceRate, metricStyles.bounce.bar)}
-                <div className="mt-2 text-xs text-slate-500">Falhas permanentes ou temporárias do envio.</div>
+                <div className="mt-2 text-xs text-muted-foreground">Falhas permanentes ou temporárias do envio.</div>
               </div>
             </CardContent>
           </Card>
@@ -470,9 +467,9 @@ export function Dashboard() {
         <Card className="border-border bg-card shadow-sm">
           <CardContent className="flex h-full items-start justify-between gap-4 p-5">
             <div>
-              <div className="text-sm font-medium text-slate-600">Aceite x abertura</div>
-              <div className="mt-1 text-2xl font-semibold text-slate-950">{Math.max(0, safeStats.deliveryRate - safeStats.openRate).toFixed(1)} pp</div>
-              <div className="mt-1 text-xs text-slate-500">Diferença entre chegada técnica e engajamento.</div>
+              <div className="text-sm font-medium text-muted-foreground">Aceite x abertura</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">{Math.max(0, safeStats.deliveryRate - safeStats.openRate).toFixed(1)} pp</div>
+              <div className="mt-1 text-xs text-muted-foreground">Diferença entre chegada técnica e engajamento.</div>
             </div>
             <TrendingUp className="h-5 w-5 text-primary" />
           </CardContent>
@@ -481,9 +478,9 @@ export function Dashboard() {
         <Card className="border-border bg-card shadow-sm">
           <CardContent className="flex h-full items-start justify-between gap-4 p-5">
             <div>
-              <div className="text-sm font-medium text-slate-600">Indicador de clique</div>
-              <div className="mt-1 text-2xl font-semibold text-slate-950">{clickEstimate.toFixed(1)}%</div>
-              <div className="mt-1 text-xs text-slate-500">Estimativa visual para intensidade de ação.</div>
+              <div className="text-sm font-medium text-muted-foreground">Indicador de clique</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">{clickEstimate.toFixed(1)}%</div>
+              <div className="mt-1 text-xs text-muted-foreground">Estimativa visual para intensidade de ação.</div>
             </div>
             <MousePointer className="h-5 w-5 text-primary" />
           </CardContent>
@@ -492,17 +489,17 @@ export function Dashboard() {
         <Card className="border-border bg-card shadow-sm">
           <CardContent className="flex h-full items-start justify-between gap-4 p-5">
             <div>
-              <div className="text-sm font-medium text-slate-600">Próximo foco</div>
-              <div className="mt-1 text-lg font-semibold text-slate-950">
+              <div className="text-sm font-medium text-muted-foreground">Próximo foco</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">
                 {safeStats.deliveryRate >= 90 && safeStats.openRate < 20
                   ? 'trabalhar assunto e caixa de entrada'
                   : safeStats.bounceRate > 5
                     ? 'limpar base e autenticação'
                     : 'aumentar volume com controle'}
               </div>
-              <div className="mt-1 text-xs text-slate-500">Orientação automática a partir dos indicadores.</div>
+              <div className="mt-1 text-xs text-muted-foreground">Orientação automática a partir dos indicadores.</div>
             </div>
-            <ArrowUpRight className="h-5 w-5 text-slate-700" />
+            <ArrowUpRight className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
       </div>

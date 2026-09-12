@@ -231,7 +231,7 @@ export function SendEmail() {
                           </FormControl>
                           <FormMessage />
                           {!hasVerifiedDomains && (
-                            <FormDescription className="text-amber-600">
+                            <FormDescription className="text-[hsl(var(--warning))]">
                               Configure pelo menos um dominio verificado para liberar o envio.
                             </FormDescription>
                           )}
@@ -401,7 +401,7 @@ export function SendEmail() {
                   {Object.entries(customVariables).length > 0 && (
                     <div className="space-y-2">
                       {Object.entries(customVariables).map(([key, value]) => (
-                        <div key={key} className="flex flex-col gap-2 rounded bg-gray-50 p-2 sm:flex-row sm:items-center">
+                        <div key={key} className="flex flex-col gap-2 rounded-lg border bg-muted/45 p-2 sm:flex-row sm:items-center">
                           <div className="font-mono text-sm sm:min-w-[120px]">{key}</div>
                           <Input
                             value={value}

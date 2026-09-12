@@ -129,24 +129,24 @@ export function VerifyEmail() {
   }, [searchParams, navigate]) // Removido status para evitar re-execução
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="rounded-2xl border bg-card p-8 text-center shadow-md">
           {/* Logo */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-primary">VeloMail</h1>
-            <p className="text-gray-600 text-sm mt-1">Verificação de Email</p>
+          <div className="mb-6 flex flex-col items-center">
+            <img className="h-auto w-[168px]" src="/landing/logo-color.png" alt="VeloMail" />
+            <p className="text-muted-foreground text-sm mt-2">Verificação de Email</p>
           </div>
 
           {/* Status */}
           <div className="mb-6">
             {status === 'loading' && (
               <div className="flex flex-col items-center">
-                <Loader2 className="h-16 w-16 text-indigo-600 animate-spin mb-4" />
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                   Verificando seu email...
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   Por favor, aguarde enquanto confirmamos sua conta.
                 </p>
               </div>
@@ -154,14 +154,14 @@ export function VerifyEmail() {
 
             {status === 'success' && (
               <div className="flex flex-col items-center">
-                <CheckCircle2 className="h-16 w-16 text-green-500 mb-4" />
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                <CheckCircle2 className="h-16 w-16 text-[hsl(var(--success))] mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                   Email verificado!
                 </h2>
-                <p className="text-gray-600 mb-4">
+                <p className="text-muted-foreground mb-4">
                   {message}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   Redirecionando para o login em alguns segundos...
                 </p>
               </div>
@@ -169,21 +169,21 @@ export function VerifyEmail() {
 
             {status === 'error' && (
               <div className="flex flex-col items-center">
-                <XCircle className="h-16 w-16 text-red-500 mb-4" />
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                <XCircle className="h-16 w-16 text-destructive mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                   Erro na verificação
                 </h2>
-                <p className="text-gray-600 mb-6">
+                <p className="text-muted-foreground mb-6">
                   {message}
                 </p>
                 <div className="space-y-3">
                   <Link
                     to="/login"
-                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                    className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-[hsl(var(--primary-hover))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     Ir para Login
                   </Link>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Se o problema persistir, entre em contato conosco.
                   </p>
                 </div>
@@ -192,7 +192,7 @@ export function VerifyEmail() {
           </div>
 
           {/* Footer */}
-          <div className="text-xs text-gray-500 border-t pt-4">
+          <div className="text-xs text-muted-foreground border-t pt-4">
             <p>© 2026 VeloMail. Todos os direitos reservados.</p>
           </div>
         </div>

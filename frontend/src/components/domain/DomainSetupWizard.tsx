@@ -214,9 +214,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
               <div
                 className={[
                   'flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium',
-                  isCompleted && 'border-green-300 bg-green-100 text-green-800',
-                  isCurrent && 'border-blue-300 bg-blue-100 text-blue-800',
-                  !isCompleted && !isCurrent && 'border-gray-200 bg-gray-100 text-gray-500',
+                  isCompleted && 'border-[hsl(var(--success)/.35)] bg-[hsl(var(--success)/.12)] text-[hsl(var(--success))]',
+                  isCurrent && 'border-primary/35 bg-primary/12 text-primary',
+                  !isCompleted && !isCurrent && 'border-border bg-muted text-muted-foreground',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -235,7 +235,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
   )
 
   const renderDNSRecord = (type: string, record: any) => (
-    <div key={type} className="space-y-3 rounded-lg border bg-gray-50 p-4">
+    <div key={type} className="space-y-3 rounded-lg border bg-muted/45 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h4 className="font-medium uppercase">{type}</h4>
         {record.priority ? <Badge variant="outline">Prioridade {record.priority}</Badge> : null}
@@ -400,7 +400,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             </>
           )}
 
-          <Alert className="mb-6 border-blue-200 bg-blue-50">
+          <Alert className="mb-6 border-primary/25 bg-primary/5">
             <Info className="h-4 w-4" />
             <div>
               <h4 className="font-medium">Nao altere o site nem o MX principal</h4>
@@ -410,7 +410,7 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             </div>
           </Alert>
 
-          <Alert className="mb-6 border-amber-200 bg-amber-50">
+          <Alert className="mb-6 border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)]">
             <Info className="h-4 w-4" />
             <div>
               <h4 className="font-medium">Foco em inbox (anti-spam)</h4>
@@ -448,9 +448,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           </div>
 
           {setupResult.dns_instructions.notes.length > 0 && (
-            <div className="mb-6 rounded-lg border bg-amber-50 p-4">
-              <h4 className="mb-2 font-medium text-amber-900">Notas importantes</h4>
-              <div className="space-y-1 text-sm text-amber-800">
+            <div className="mb-6 rounded-lg border border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)] p-4">
+              <h4 className="mb-2 font-medium text-foreground">Notas importantes</h4>
+              <div className="space-y-1 text-sm text-muted-foreground">
                 {setupResult.dns_instructions.notes.map((note) => (
                   <div key={note}>- {note}</div>
                 ))}
@@ -459,9 +459,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           )}
 
           {(setupResult.dns_instructions.deliverability_requirements || []).length > 0 && (
-            <div className="mb-6 rounded-lg border bg-green-50 p-4">
-              <h4 className="mb-2 font-medium text-green-900">Requisitos para evitar spam</h4>
-              <div className="space-y-1 text-sm text-green-800">
+            <div className="mb-6 rounded-lg border border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.12)] p-4">
+              <h4 className="mb-2 font-medium text-foreground">Requisitos para evitar spam</h4>
+              <div className="space-y-1 text-sm text-muted-foreground">
                 {setupResult.dns_instructions.deliverability_requirements.map((item) => (
                   <div key={item}>- {item}</div>
                 ))}
@@ -470,9 +470,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
           )}
 
           {(setupResult.dns_instructions.recommended_practices || []).length > 0 && (
-            <div className="mb-6 rounded-lg border bg-slate-50 p-4">
-              <h4 className="mb-2 font-medium text-slate-900">Boas praticas recomendadas</h4>
-              <div className="space-y-1 text-sm text-slate-700">
+            <div className="mb-6 rounded-lg border bg-muted/45 p-4">
+              <h4 className="mb-2 font-medium text-foreground">Boas praticas recomendadas</h4>
+              <div className="space-y-1 text-sm text-muted-foreground">
                 {setupResult.dns_instructions.recommended_practices.map((item) => (
                   <div key={item}>- {item}</div>
                 ))}
@@ -480,9 +480,9 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
             </div>
           )}
 
-          <div className="rounded-lg bg-blue-50 p-4">
-            <h4 className="mb-2 font-medium text-blue-900">Passo a passo</h4>
-            <ol className="space-y-1 text-sm text-blue-800">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <h4 className="mb-2 font-medium text-foreground">Passo a passo</h4>
+            <ol className="space-y-1 text-sm text-muted-foreground">
               {setupResult.setup_guide.map((step, index) => (
                 <li key={`${step}-${index}`}>
                   {index + 1}. {step}
@@ -510,16 +510,16 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
     }
 
     return (
-      <div className="flex flex-col gap-3 rounded-lg border bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border bg-muted/45 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           {result.valid ? (
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <CheckCircle2 className="h-5 w-5 text-[hsl(var(--success))]" />
           ) : (
-            <AlertCircle className="h-5 w-5 text-red-600" />
+            <AlertCircle className="h-5 w-5 text-destructive" />
           )}
           <div>
             <div className="font-medium">{label}</div>
-            {result.error && <div className="text-sm text-red-600">{result.error}</div>}
+            {result.error && <div className="text-sm text-destructive">{result.error}</div>}
             {!result.valid && result.expected && (
               <div className="text-xs text-muted-foreground">Esperado: {result.expected}</div>
             )}
@@ -589,15 +589,15 @@ export const DomainSetupWizard: React.FC<DomainSetupWizardProps> = ({
 
   const renderCompletionStep = () => (
     <Card className="p-6 text-center">
-      <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-600" />
-      <h3 className="mb-2 text-2xl font-bold text-green-600">Dominio configurado</h3>
+      <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-[hsl(var(--success))]" />
+      <h3 className="mb-2 text-2xl font-bold text-foreground">Dominio configurado</h3>
       <p className="mb-6 text-muted-foreground">
         {setupResult?.domain.name} esta autenticado e pronto para uso no envio de emails.
       </p>
 
-      <div className="mb-6 rounded-lg bg-green-50 p-4 text-left">
-        <h4 className="mb-2 font-medium text-green-900">O que ficou valido</h4>
-        <div className="space-y-1 text-sm text-green-800">
+      <div className="mb-6 rounded-lg border border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.12)] p-4 text-left">
+        <h4 className="mb-2 font-medium text-foreground">O que ficou valido</h4>
+        <div className="space-y-1 text-sm text-muted-foreground">
           <div>OK MAIL FROM tecnico validado</div>
           <div>OK SPF tecnico autorizado</div>
           <div>OK DKIM assinado</div>

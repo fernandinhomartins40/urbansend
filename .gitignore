@@ -78,3 +78,5 @@ fix-routes*.js
 
 # Claude Code
 .claude/
+# Assets originais da landing (nao referenciados pelo build)
+assetslandingpage/

@@ -87,9 +87,9 @@ export function EmailDetails() {
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="animate-pulse space-y-4">
-                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-4 bg-muted rounded w-1/4"></div>
+                  <div className="h-4 bg-muted rounded w-3/4"></div>
+                  <div className="h-4 bg-muted rounded w-1/2"></div>
                 </div>
               </CardContent>
             </Card>
@@ -135,36 +135,32 @@ export function EmailDetails() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <Activity className="h-4 w-4 text-amber-500" />
-      case 'sent': return <Send className="h-4 w-4 text-blue-500" />
-      case 'delivered': return <Send className="h-4 w-4 text-green-500" />
-      case 'opened': return <Eye className="h-4 w-4 text-blue-600" />
-      case 'clicked': return <MousePointer className="h-4 w-4 text-purple-500" />
-      case 'bounced': return <AlertTriangle className="h-4 w-4 text-red-500" />
-      case 'failed': return <AlertTriangle className="h-4 w-4 text-red-600" />
-      default: return <div className="h-4 w-4 rounded-full bg-gray-400" />
+      case 'pending': return <Activity className="h-4 w-4 text-[hsl(var(--warning))]" />
+      case 'sent': return <Send className="h-4 w-4 text-primary" />
+      case 'delivered': return <Send className="h-4 w-4 text-[hsl(var(--success))]" />
+      case 'opened': return <Eye className="h-4 w-4 text-primary" />
+      case 'clicked': return <MousePointer className="h-4 w-4 text-primary" />
+      case 'bounced': return <AlertTriangle className="h-4 w-4 text-destructive" />
+      case 'failed': return <AlertTriangle className="h-4 w-4 text-destructive" />
+      default: return <div className="h-4 w-4 rounded-full bg-muted-foreground/40" />
     }
   }
 
   const getStatusBadge = (email: Email) => {
     if (isEmailClicked(email.status)) {
-      return <Badge variant="default" className="bg-purple-100 text-purple-800">Clicado</Badge>
+      return <span className="vm-status vm-status-info">Clicado</span>
     }
     if (isEmailOpened(email.status)) {
-      return <Badge variant="default" className="bg-blue-100 text-blue-800">Aberto</Badge>
+      return <span className="vm-status vm-status-info">Aberto</span>
     }
     if (email.bounce_reason) {
       return <Badge variant="destructive">Bounce</Badge>
     }
-    
-    const color = getStatusColor(email.status)
+
     return (
-      <Badge 
-        variant="secondary" 
-        className={color}
-      >
+      <span className={getStatusColor(email.status)}>
         {getEmailStatusLabel(email.status)}
-      </Badge>
+      </span>
     )
   }
 
@@ -187,13 +183,13 @@ export function EmailDetails() {
 
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
-      case 'open': return <Eye className="h-4 w-4 text-blue-500" />
-      case 'click': return <MousePointer className="h-4 w-4 text-purple-500" />
-      case 'bounce': return <AlertTriangle className="h-4 w-4 text-red-500" />
-      case 'delivered': return <Send className="h-4 w-4 text-green-500" />
-      case 'delivery': return <Send className="h-4 w-4 text-green-500" />
-      case 'unsubscribe': return <User className="h-4 w-4 text-orange-500" />
-      default: return <Activity className="h-4 w-4 text-gray-500" />
+      case 'open': return <Eye className="h-4 w-4 text-primary" />
+      case 'click': return <MousePointer className="h-4 w-4 text-primary" />
+      case 'bounce': return <AlertTriangle className="h-4 w-4 text-destructive" />
+      case 'delivered': return <Send className="h-4 w-4 text-[hsl(var(--success))]" />
+      case 'delivery': return <Send className="h-4 w-4 text-[hsl(var(--success))]" />
+      case 'unsubscribe': return <User className="h-4 w-4 text-[hsl(var(--warning))]" />
+      default: return <Activity className="h-4 w-4 text-muted-foreground" />
     }
   }
 
@@ -348,7 +344,7 @@ export function EmailDetails() {
               )}
             </div>
           ) : (
-            <div className="border rounded-lg p-4 bg-gray-50">
+            <div className="border rounded-lg p-4 bg-muted/45">
               <pre className="whitespace-pre-wrap text-sm">
                 {email.text_content || 'Conteúdo de texto não disponível'}
               </pre>
@@ -401,7 +397,7 @@ export function EmailDetails() {
                             href={event.link_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-blue-500 hover:underline text-sm truncate max-w-[200px]"
+                            className="text-primary hover:underline text-sm truncate max-w-[200px]"
                           >
                             {event.link_url}
                           </a>

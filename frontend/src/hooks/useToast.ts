@@ -1,58 +1,35 @@
 import toast, { ToastOptions } from 'react-hot-toast'
 
 // Configurações padrão para diferentes tipos de toast
+// Os toasts leem os tokens do tema, entao acompanham light/dark sem duplicar paleta.
 const defaultOptions: ToastOptions = {
   duration: 4000,
   style: {
-    background: '#ffffff',
-    color: '#374151',
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
+    background: 'hsl(var(--popover))',
+    color: 'hsl(var(--popover-foreground))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: '12px',
     fontSize: '14px',
     fontWeight: '500',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+    boxShadow: 'var(--shadow-md)'
   }
 }
 
-const successOptions: ToastOptions = {
+const toneOptions = (token: string, duration: number): ToastOptions => ({
   ...defaultOptions,
-  duration: 3000,
+  duration,
   style: {
     ...defaultOptions.style,
-    border: '1px solid #10b981',
-    background: '#f0fdf4'
+    border: `1px solid hsl(var(${token}) / .35)`,
+    background: `hsl(var(${token}) / .08)`,
+    color: `hsl(var(${token}))`
   }
-}
+})
 
-const errorOptions: ToastOptions = {
-  ...defaultOptions,
-  duration: 5000,
-  style: {
-    ...defaultOptions.style,
-    border: '1px solid #ef4444',
-    background: '#fef2f2'
-  }
-}
-
-const warningOptions: ToastOptions = {
-  ...defaultOptions,
-  duration: 4000,
-  style: {
-    ...defaultOptions.style,
-    border: '1px solid #f59e0b',
-    background: '#fffbeb'
-  }
-}
-
-const infoOptions: ToastOptions = {
-  ...defaultOptions,
-  duration: 3000,
-  style: {
-    ...defaultOptions.style,
-    border: '1px solid #3b82f6',
-    background: '#eff6ff'
-  }
-}
+const successOptions = toneOptions('--success', 3000)
+const errorOptions = toneOptions('--destructive', 5000)
+const warningOptions = toneOptions('--warning', 4000)
+const infoOptions = toneOptions('--primary', 3000)
 
 export interface UseToastReturn {
   // Métodos básicos

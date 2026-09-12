@@ -264,7 +264,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
               size="sm"
               className={cn(
                 'opacity-0 group-hover:opacity-100 transition-opacity ml-2',
-                template.is_favorited && 'opacity-100 text-red-500'
+                template.is_favorited && 'opacity-100 text-destructive'
               )}
               onClick={(e) => handleFavorite(template.id, e)}
             >

@@ -58,10 +58,10 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <Globe className="h-5 w-5 text-blue-600" />
+            <Globe className="h-5 w-5 text-primary" />
             <div>
               <div className="text-2xl font-bold">{totalDomains}</div>
-              <div className="text-sm text-gray-600">Total</div>
+              <div className="text-sm text-muted-foreground">Total</div>
             </div>
           </div>
         </CardContent>
@@ -70,10 +70,10 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
+            <CheckCircle className="h-5 w-5 text-[hsl(var(--success))]" />
             <div>
               <div className="text-2xl font-bold">{verifiedDomains}</div>
-              <div className="text-sm text-gray-600">Verificados</div>
+              <div className="text-sm text-muted-foreground">Verificados</div>
             </div>
           </div>
         </CardContent>
@@ -82,10 +82,10 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <RefreshCw className="h-5 w-5 text-amber-600" />
+            <RefreshCw className="h-5 w-5 text-[hsl(var(--warning))]" />
             <div>
               <div className="text-2xl font-bold">{pendingDomains}</div>
-              <div className="text-sm text-gray-600">Em ajuste</div>
+              <div className="text-sm text-muted-foreground">Em ajuste</div>
             </div>
           </div>
         </CardContent>
@@ -94,10 +94,10 @@ const DomainStats: React.FC<DomainStatsProps> = ({ domains }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 text-red-600" />
+            <AlertTriangle className="h-5 w-5 text-destructive" />
             <div>
               <div className="text-2xl font-bold">{failedDomains}</div>
-              <div className="text-sm text-gray-600">Com falha</div>
+              <div className="text-sm text-muted-foreground">Com falha</div>
             </div>
           </div>
         </CardContent>
@@ -148,7 +148,7 @@ const DomainMonitoring: React.FC<{ domains: ReturnType<typeof useDomainSetup>['d
                 { label: 'DKIM', state: domain.dns_status.dkim },
                 { label: 'DMARC', state: domain.dns_status.dmarc },
               ].map((item) => (
-                <div key={item.label} className="rounded-md bg-gray-50 p-3">
+                <div key={item.label} className="rounded-lg border bg-muted/45 p-3">
                   <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <span className="font-medium">{item.label}</span>
                     <Badge variant={item.state.valid ? 'default' : 'destructive'}>
@@ -246,7 +246,7 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
 
   if (viewMode === 'setup') {
     return (
-      <div className="min-h-screen bg-gray-50 py-6">
+      <div className="min-h-screen bg-background py-6">
         <div className="mx-auto max-w-4xl px-4">
           <div className="mb-6">
             <Button variant="ghost" onClick={handleSetupCancel} className="mb-4">
@@ -385,19 +385,19 @@ export const Domains: React.FC<DomainsPageProps> = ({ initialMode = 'list' }) =>
                       </div>
 
                       <div className="grid gap-3 md:grid-cols-4">
-                        <div className="rounded-md bg-gray-50 p-3">
+                        <div className="rounded-lg border bg-muted/45 p-3">
                           <div className="text-sm text-muted-foreground">Aceitos SMTP</div>
                           <div className="text-lg font-semibold">{domain.delivered_count}</div>
                         </div>
-                        <div className="rounded-md bg-gray-50 p-3">
+                        <div className="rounded-lg border bg-muted/45 p-3">
                           <div className="text-sm text-muted-foreground">Abertura</div>
                           <div className="text-lg font-semibold">{domain.open_rate.toFixed(1)}%</div>
                         </div>
-                        <div className="rounded-md bg-gray-50 p-3">
+                        <div className="rounded-lg border bg-muted/45 p-3">
                           <div className="text-sm text-muted-foreground">Clique</div>
                           <div className="text-lg font-semibold">{domain.click_rate.toFixed(1)}%</div>
                         </div>
-                        <div className="rounded-md bg-gray-50 p-3">
+                        <div className="rounded-lg border bg-muted/45 p-3">
                           <div className="text-sm text-muted-foreground">Bounce</div>
                           <div className="text-lg font-semibold">{domain.bounce_rate.toFixed(1)}%</div>
                         </div>

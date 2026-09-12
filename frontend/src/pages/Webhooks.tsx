@@ -70,7 +70,7 @@ interface WebhookLog {
 const getStatusBadge = (status: WebhookLog['status']) => {
   switch (status) {
     case 'success':
-      return <Badge className="bg-green-100 text-green-800 border-green-200">Sucesso</Badge>
+      return <span className="vm-status vm-status-success">Sucesso</span>
     case 'failed':
       return <Badge variant="destructive">Falha</Badge>
     case 'retry':
@@ -83,13 +83,13 @@ const getStatusBadge = (status: WebhookLog['status']) => {
 const getStatusIcon = (status: WebhookLog['status']) => {
   switch (status) {
     case 'success':
-      return <CheckCircle className="h-4 w-4 text-green-500" />
+      return <CheckCircle className="h-4 w-4 text-[hsl(var(--success))]" />
     case 'failed':
-      return <XCircle className="h-4 w-4 text-red-500" />
+      return <XCircle className="h-4 w-4 text-destructive" />
     case 'retry':
-      return <RefreshCw className="h-4 w-4 text-amber-500" />
+      return <RefreshCw className="h-4 w-4 text-[hsl(var(--warning))]" />
     default:
-      return <Clock className="h-4 w-4 text-gray-500" />
+      return <Clock className="h-4 w-4 text-muted-foreground" />
   }
 }
 
@@ -294,13 +294,13 @@ export function Webhooks() {
         </>}
       />
 
-      <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_45%),linear-gradient(135deg,#ecfdf5,_#f8fafc_55%,#eff6ff)] p-4 shadow-sm sm:p-6 lg:p-8">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <section className="vm-page-hero">
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-4">
-            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Automacao orientada por eventos</Badge>
+            <Badge>Automacao orientada por eventos</Badge>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Receba o que a plataforma realmente sabe hoje</h2>
-              <p className="text-sm leading-6 text-slate-600">
+              <h2 className="vm-page-title">Receba o que a plataforma realmente sabe hoje</h2>
+              <p className="vm-page-description">
                 O catálogo abaixo está alinhado ao caminho ativo da VeloMail: aceite na API, aceite SMTP, abertura,
                 clique e falha imediata. Eventos planejados continuam visiveis, mas nao entram como selecao ativa.
               </p>
@@ -320,44 +320,36 @@ export function Webhooks() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Endpoints</div>
-              <div className="mt-2 text-3xl font-bold text-slate-900">{webhookList.length}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Ativos</div>
-              <div className="mt-2 text-3xl font-bold text-emerald-700">{activeWebhookCount}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Eventos live</div>
-              <div className="mt-2 text-3xl font-bold text-sky-700">{liveWebhookEvents.length}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Sucesso medio</div>
-              <div className="mt-2 text-3xl font-bold text-amber-600">{averageSuccessRate.toFixed(1)}%</div>
-            </CardContent>
-          </Card>
+        <div className="relative mt-8 grid gap-4 md:grid-cols-4">
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Endpoints</div>
+            <div className="vm-hero-value">{webhookList.length}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Ativos</div>
+            <div className="vm-hero-value">{activeWebhookCount}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Eventos live</div>
+            <div className="vm-hero-value">{liveWebhookEvents.length}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Sucesso medio</div>
+            <div className="vm-hero-value">{averageSuccessRate.toFixed(1)}%</div>
+          </div>
         </div>
       </section>
 
       {latestSecret ? (
-        <Card className="border-emerald-200 bg-emerald-50">
+        <Card className="border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.08)]">
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-emerald-900">Secret do webhook criado agora</h3>
-                <p className="mt-1 text-sm text-emerald-800">
+                <h3 className="font-medium text-foreground">Secret do webhook criado agora</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Guarde este secret agora para validar `X-Webhook-Signature`. Ele nao sera exibido novamente.
                 </p>
-                <div className="mt-3 text-xs text-emerald-900">
+                <div className="mt-3 text-xs text-muted-foreground">
                   {latestSecret.webhookName}
                   {latestSecret.webhookUrl ? ` - ${latestSecret.webhookUrl}` : ''}
                 </div>
@@ -384,43 +376,43 @@ export function Webhooks() {
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Setup guiado</CardTitle>
             <CardDescription>O fluxo mais seguro para ligar um endpoint externo.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Webhook className="h-4 w-4 text-emerald-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Webhook className="h-4 w-4 text-primary" />
                 1. Endpoint HTTPS
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Use uma URL publica com resposta 2xx rapida e processamento assicrono no seu backend.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <ShieldCheck className="h-4 w-4 text-sky-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary" />
                 2. Valide a assinatura
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Guarde o secret por endpoint e valide `X-Webhook-Signature` sobre o corpo bruto.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Zap className="h-4 w-4 text-amber-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Zap className="h-4 w-4 text-primary" />
                 3. Teste e monitore
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Envie `webhook.test`, confira logs, tempo de resposta e trate retries sem duplicidade.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Catalogo de eventos</CardTitle>
             <CardDescription>Selecione apenas eventos live; os planejados ficam identificados como futuros.</CardDescription>
@@ -431,21 +423,21 @@ export function Webhooks() {
                 key={event.value}
                 className={`rounded-2xl border p-4 ${
                   event.availability === 'live'
-                    ? 'border-emerald-200 bg-emerald-50'
-                    : 'border-amber-200 bg-amber-50'
+                    ? 'border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.1)]'
+                    : 'border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.1)]'
                 }`}
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="font-medium text-slate-900">{event.label}</div>
-                    <div className="text-xs font-mono text-slate-500">{event.value}</div>
+                    <div className="font-medium text-foreground">{event.label}</div>
+                    <div className="text-xs font-mono text-muted-foreground">{event.value}</div>
                   </div>
                   <Badge variant={event.availability === 'live' ? 'default' : 'outline'}>
                     {event.availability === 'live' ? 'Live' : 'Planejado'}
                   </Badge>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{event.description}</p>
-                <p className="mt-2 text-xs text-slate-500">{event.deliveryMeaning}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{event.description}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{event.deliveryMeaning}</p>
               </div>
             ))}
           </CardContent>
@@ -479,8 +471,8 @@ export function Webhooks() {
                 {isLoading ? (
                   Array.from({ length: 3 }).map((_, index) => (
                     <div key={index} className="rounded-lg border p-3 animate-pulse">
-                      <div className="mb-2 h-4 rounded bg-gray-200" />
-                      <div className="h-3 w-24 rounded bg-gray-200" />
+                      <div className="mb-2 h-4 rounded bg-muted" />
+                      <div className="h-3 w-24 rounded bg-muted" />
                     </div>
                   ))
                 ) : webhookList.length === 0 ? (
@@ -493,7 +485,7 @@ export function Webhooks() {
                     <div
                       key={webhook.id}
                       className={`cursor-pointer rounded-lg border p-3 transition-colors ${
-                        selectedWebhook?.id === webhook.id ? 'border-primary bg-primary/5' : 'hover:border-gray-300'
+                        selectedWebhook?.id === webhook.id ? 'border-primary bg-primary/5' : 'hover:border-primary/40'
                       }`}
                       onClick={() => handleSelectWebhook(webhook)}
                     >
@@ -566,7 +558,7 @@ export function Webhooks() {
                             type="button"
                             disabled={event.availability === 'planned'}
                             className={`rounded-lg border p-3 text-left transition-colors ${
-                              selectedEvents.includes(event.value) ? 'border-primary bg-primary/5' : 'hover:border-gray-300'
+                              selectedEvents.includes(event.value) ? 'border-primary bg-primary/5' : 'hover:border-primary/40'
                             } ${event.availability === 'planned' ? 'cursor-not-allowed opacity-60' : ''}`}
                             onClick={() => handleEventToggle(event.value)}
                           >
@@ -584,7 +576,7 @@ export function Webhooks() {
                         <p className="mt-1 text-sm text-destructive">{form.formState.errors.events.message}</p>
                       )}
                       {selectedWebhook?.events.some((eventValue) => webhookEvents.find((event) => event.value === eventValue)?.availability === 'planned') && (
-                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                        <div className="mt-3 rounded-lg border border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)] p-3 text-sm text-foreground">
                           Este endpoint possui eventos planejados salvos. Eles continuam visiveis, mas so os eventos
                           marcados como <span className="font-medium">Live</span> serao emitidos pelo fluxo atual.
                         </div>
@@ -717,7 +709,7 @@ export function Webhooks() {
                   <button
                     key={log.id}
                     type="button"
-                    className="w-full rounded-lg border p-4 text-left transition-colors hover:border-gray-300"
+                    className="w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/40"
                     onClick={() => setSelectedLog(log)}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -738,7 +730,7 @@ export function Webhooks() {
                       <Eye className="h-4 w-4 text-muted-foreground" />
                     </div>
                     {log.error_message && (
-                      <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{log.error_message}</div>
+                      <div className="mt-3 rounded-lg border border-destructive/25 bg-destructive/10 p-2 text-sm text-destructive">{log.error_message}</div>
                     )}
                   </button>
                 ))
@@ -755,20 +747,20 @@ export function Webhooks() {
                 <CardDescription>O minimo para um consumidor de webhook robusto.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="font-medium text-slate-900">HTTPS + resposta rapida</div>
+                <div className="rounded-xl border bg-muted/45 p-4">
+                  <div className="font-medium text-foreground">HTTPS + resposta rapida</div>
                   <p className="mt-2 leading-6">Responda 2xx rapidamente e delegue processamento pesado para fila interna.</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="font-medium text-slate-900">Assinatura HMAC</div>
+                <div className="rounded-xl border bg-muted/45 p-4">
+                  <div className="font-medium text-foreground">Assinatura HMAC</div>
                   <p className="mt-2 leading-6">Valide `X-Webhook-Signature` com o corpo bruto usando o secret do endpoint.</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="font-medium text-slate-900">Idempotencia</div>
+                <div className="rounded-xl border bg-muted/45 p-4">
+                  <div className="font-medium text-foreground">Idempotencia</div>
                   <p className="mt-2 leading-6">Use `webhook_id + event + data.message_id + timestamp` para evitar duplicidade em retries.</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="font-medium text-slate-900">Teste interno</div>
+                <div className="rounded-xl border bg-muted/45 p-4">
+                  <div className="font-medium text-foreground">Teste interno</div>
                   <p className="mt-2 leading-6">`webhook.test` aparece nos logs e nao depende da lista de eventos selecionados.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -857,7 +849,7 @@ export function Webhooks() {
               {selectedLog.error_message && (
                 <div>
                   <Label>Erro</Label>
-                  <div className="mt-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{selectedLog.error_message}</div>
+                  <div className="mt-1 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">{selectedLog.error_message}</div>
                 </div>
               )}
             </div>

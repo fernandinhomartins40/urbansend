@@ -112,7 +112,7 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Coleções de Templates</h2>
-          <p className="text-gray-600">Organize seus templates favoritos em coleções</p>
+          <p className="text-muted-foreground">Organize seus templates favoritos em coleções</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -163,7 +163,7 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
                 <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <Label htmlFor="is-public">Coleção Pública</Label>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       Outros usuários poderão visualizar esta coleção
                     </p>
                   </div>
@@ -214,11 +214,11 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
         </div>
       ) : collections.length === 0 ? (
         <div className="text-center py-12">
-          <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">
             {showPublicOnly ? 'Nenhuma coleção pública encontrada' : 'Nenhuma coleção encontrada'}
           </h3>
-          <p className="text-gray-500 mb-6">
+          <p className="text-muted-foreground mb-6">
             {showPublicOnly
               ? 'Desative o filtro de coleções públicas para ver suas coleções privadas.'
               : 'Crie sua primeira coleção para organizar seus templates favoritos.'
@@ -244,14 +244,14 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
                   <div className="flex-1">
                     <CardTitle className="text-lg flex items-center gap-2">
                       {collection.is_public ? (
-                        <Globe className="h-4 w-4 text-blue-500" />
+                        <Globe className="h-4 w-4 text-primary" />
                       ) : (
-                        <Lock className="h-4 w-4 text-gray-500" />
+                        <Lock className="h-4 w-4 text-muted-foreground" />
                       )}
                       {collection.name}
                     </CardTitle>
                     {collection.description && (
-                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
                         {collection.description}
                       </p>
                     )}
@@ -264,7 +264,7 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
 
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <FileText className="h-4 w-4" />
                       {collection.templates?.length || 0} templates
@@ -278,7 +278,7 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3" />
                     Criada {formatRelativeTime(collection.created_at)}
                   </div>
@@ -302,20 +302,20 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {selectedCollection.is_public ? (
-                  <Globe className="h-5 w-5 text-blue-500" />
+                  <Globe className="h-5 w-5 text-primary" />
                 ) : (
-                  <Lock className="h-5 w-5 text-gray-500" />
+                  <Lock className="h-5 w-5 text-muted-foreground" />
                 )}
                 {selectedCollection.name}
               </DialogTitle>
               {selectedCollection.description && (
-                <p className="text-gray-600">{selectedCollection.description}</p>
+                <p className="text-muted-foreground">{selectedCollection.description}</p>
               )}
             </DialogHeader>
 
             <div className="space-y-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:gap-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground sm:gap-4">
                   <span>{selectedCollection.templates?.length || 0} templates</span>
                   {selectedCollection.creator_name && (
                     <span>Por {selectedCollection.creator_name}</span>
@@ -330,8 +330,8 @@ export const TemplateCollections: React.FC<TemplateCollectionsProps> = ({
               </div>
 
               {/* Lista de templates na coleção seria exibida aqui */}
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                 Visualização detalhada dos templates será implementada em breve
               </div>
             </div>

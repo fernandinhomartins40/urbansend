@@ -108,14 +108,14 @@ export function SuperAdminProfilePage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-cyan-50 to-emerald-50 p-5">
-        <h2 className="text-xl font-semibold text-slate-900">Perfil do Super Admin</h2>
-        <p className="mt-1 text-sm text-slate-600">
+      <section className="vm-page-hero">
+        <h2 className="vm-page-title">Perfil do Super Admin</h2>
+        <p className="vm-page-description">
           Atualize seus dados de acesso do painel administrativo global.
         </p>
       </section>
 
-      <Card className="border-indigo-200">
+      <Card>
         <CardHeader>
           <CardTitle>Dados da conta</CardTitle>
           <CardDescription>
@@ -176,7 +176,7 @@ export function SuperAdminProfilePage() {
         </CardContent>
       </Card>
 
-      <Card className="border-amber-200">
+      <Card className="border-[hsl(var(--warning)/.3)]">
         <CardHeader>
           <CardTitle>Alterar senha</CardTitle>
           <CardDescription>

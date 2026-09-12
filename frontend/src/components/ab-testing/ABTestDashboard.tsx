@@ -135,7 +135,7 @@ export const ABTestDashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Variante A</span>
-                  {winner === 'A' && <Trophy className="h-4 w-4 text-yellow-500" />}
+                  {winner === 'A' && <Trophy className="h-4 w-4 text-[hsl(var(--warning))]" />}
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
@@ -149,7 +149,7 @@ export const ABTestDashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Variante B</span>
-                  {winner === 'B' && <Trophy className="h-4 w-4 text-yellow-500" />}
+                  {winner === 'B' && <Trophy className="h-4 w-4 text-[hsl(var(--warning))]" />}
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">

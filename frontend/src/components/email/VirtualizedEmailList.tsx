@@ -32,17 +32,17 @@ const StatusIcon = ({ status }: { status: Email['status'] }) => {
     case 'delivered':
     case 'opened':
     case 'clicked':
-      return <CheckCircle className="h-4 w-4 text-green-500" />
+      return <CheckCircle className="h-4 w-4 text-[hsl(var(--success))]" />
     case 'sent':
-      return <Clock className="h-4 w-4 text-blue-500" />
+      return <Clock className="h-4 w-4 text-primary" />
     case 'pending':
-      return <Clock className="h-4 w-4 text-amber-500" />
+      return <Clock className="h-4 w-4 text-[hsl(var(--warning))]" />
     case 'queued':
     case 'draft':
-      return <Clock className="h-4 w-4 text-yellow-500" />
+      return <Clock className="h-4 w-4 text-[hsl(var(--warning))]" />
     case 'bounced':
     case 'failed':
-      return <XCircle className="h-4 w-4 text-red-500" />
+      return <XCircle className="h-4 w-4 text-destructive" />
     default:
       return <AlertCircle className="h-4 w-4 text-muted-foreground" />
   }
@@ -241,13 +241,13 @@ export const VirtualizedEmailList: React.FC<VirtualizedEmailListProps> = ({
                     {showAnalytics && (
                       <div className="flex flex-wrap items-center gap-3">
                         {isEmailOpened(email.status) && (
-                          <div className="flex items-center gap-1 text-blue-600">
+                          <div className="flex items-center gap-1 text-primary">
                             <Eye className="h-3 w-3" />
                             <span>Aberto</span>
                           </div>
                         )}
                         {isEmailClicked(email.status) && (
-                          <div className="flex items-center gap-1 text-green-600">
+                          <div className="flex items-center gap-1 text-[hsl(var(--success))]">
                             <MousePointer className="h-3 w-3" />
                             <span>Clicado</span>
                           </div>

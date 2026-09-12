@@ -163,18 +163,18 @@ export function AiIntegration() {
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2rem] border border-cyan-100 bg-[radial-gradient(circle_at_top_left,_rgba(6,182,212,0.16),_transparent_42%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.14),_transparent_38%),linear-gradient(135deg,#ecfeff,_#f8fafc_52%,#fef3c7)] p-5 shadow-sm sm:p-8">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <section className="vm-page-hero">
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-4">
-            <Badge className="bg-cyan-600 text-white hover:bg-cyan-600">Integracao com IA</Badge>
+            <Badge>Integracao com IA</Badge>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">Conecte Cursor e VS Code direto na VeloMail</h1>
-              <p className="text-sm leading-6 text-slate-600">
+              <h1 className="vm-page-title">Conecte Cursor e VS Code direto na VeloMail</h1>
+              <p className="vm-page-description">
                 Gere uma AI Agent Key dedicada, entregue um `mcp.json` pronto para a IDE e use um prompt padrao para
                 o agente consultar docs, validar dominio, configurar webhooks, ajustar settings e executar o primeiro envio.
               </p>
               {onboarding?.workspace_scope?.organization_id ? (
-                <div className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900">
+                <div className="vm-status vm-status-info">
                   Workspace alvo: {onboarding.workspace_scope.organization_name || 'Workspace ativo'} #{onboarding.workspace_scope.organization_id}
                 </div>
               ) : null}
@@ -201,38 +201,30 @@ export function AiIntegration() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">AI Agent Keys</div>
-              <div className="mt-2 text-3xl font-bold text-slate-900">{accountSummary?.aiAgentKeysTotal || 0}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Dominios verificados</div>
-              <div className="mt-2 text-3xl font-bold text-emerald-700">{accountSummary?.domainsVerified || 0}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Webhooks ativos</div>
-              <div className="mt-2 text-3xl font-bold text-sky-700">{accountSummary?.webhooksTotal || 0}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-white/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="text-sm text-slate-500">Endpoint MCP</div>
-              <div className="mt-2 truncate text-sm font-semibold text-slate-900">
-                {onboarding?.mcp_endpoint || 'Carregando...'}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="relative mt-8 grid gap-4 md:grid-cols-4">
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">AI Agent Keys</div>
+            <div className="vm-hero-value">{accountSummary?.aiAgentKeysTotal || 0}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Dominios verificados</div>
+            <div className="vm-hero-value">{accountSummary?.domainsVerified || 0}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Webhooks ativos</div>
+            <div className="vm-hero-value">{accountSummary?.webhooksTotal || 0}</div>
+          </div>
+          <div className="vm-hero-card">
+            <div className="vm-hero-label">Endpoint MCP</div>
+            <div className="mt-2 truncate text-sm font-semibold text-foreground">
+              {onboarding?.mcp_endpoint || 'Carregando...'}
+            </div>
+          </div>
         </div>
       </section>
 
-      <Card className="border-cyan-200 bg-cyan-50/80 shadow-sm">
-        <CardContent className="pt-6 text-sm leading-6 text-cyan-950">
+      <Card className="border-primary/25 bg-primary/5">
+        <CardContent className="pt-6 text-sm leading-6 text-muted-foreground">
           <span className="font-medium">Escopo da credencial:</span> a <code>ULTRAZEND_AI_AGENT_KEY</code> com prefixo
           <code> uai_</code> e exclusiva para o MCP da IDE. Para chamadas da aplicacao cliente em
           <code> /api/emails/send</code>, gere uma API key padrao <code>re_...</code> em <Link to="/app/api-keys" className="font-medium underline">API Keys</Link>
@@ -241,69 +233,69 @@ export function AiIntegration() {
       </Card>
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Fluxo recomendado</CardTitle>
             <CardDescription>O caminho mais curto para deixar uma integracao pronta em uma IDE com IA.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <KeyRound className="h-4 w-4 text-cyan-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <KeyRound className="h-4 w-4 text-primary" />
                 1. Gere a chave
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Crie uma AI Agent Key dedicada para onboarding tecnico. Ela deve ser separada da chave usada pela aplicacao.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <ServerCog className="h-4 w-4 text-sky-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ServerCog className="h-4 w-4 text-primary" />
                 2. Conecte o MCP
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Salve o `mcp.json` no Cursor ou no VS Code e conecte a IDE direto ao servidor MCP remoto da VeloMail.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Wand2 className="h-4 w-4 text-amber-600" />
+            <div className="rounded-xl border bg-muted/45 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Wand2 className="h-4 w-4 text-primary" />
                 3. Cole o prompt
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Use o prompt padrao para o agente ler docs, validar DNS, criar webhooks e testar o primeiro envio.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Capacidades expostas</CardTitle>
             <CardDescription>O que o agente enxerga no MCP da VeloMail hoje.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3">
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-4">
-                <div className="flex items-center gap-2 font-medium text-slate-900">
-                  <Bot className="h-4 w-4 text-cyan-700" />
+              <div className="rounded-xl border bg-muted/45 p-4">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <Bot className="h-4 w-4 text-primary" />
                   {onboarding?.tools.length || 0} tools
                 </div>
-                <p className="mt-2 text-sm text-slate-600">Acoes para dominio, settings, webhooks, envio de teste e criacao de chave.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Acoes para dominio, settings, webhooks, envio de teste e criacao de chave.</p>
               </div>
-              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                <div className="flex items-center gap-2 font-medium text-slate-900">
-                  <Workflow className="h-4 w-4 text-amber-700" />
+              <div className="rounded-xl border bg-muted/45 p-4">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <Workflow className="h-4 w-4 text-primary" />
                   {onboarding?.prompts.length || 0} prompts
                 </div>
-                <p className="mt-2 text-sm text-slate-600">Prompts padrao para onboarding tecnico, dominio e webhooks.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Prompts padrao para onboarding tecnico, dominio e webhooks.</p>
               </div>
-              <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
-                <div className="flex items-center gap-2 font-medium text-slate-900">
-                  <BookOpen className="h-4 w-4 text-sky-700" />
+              <div className="rounded-xl border bg-muted/45 p-4">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <BookOpen className="h-4 w-4 text-primary" />
                   {onboarding?.resources.length || 0} resources
                 </div>
-                <p className="mt-2 text-sm text-slate-600">Quickstart, docs de DNS, webhooks, MCP e resumo real da conta.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Quickstart, docs de DNS, webhooks, MCP e resumo real da conta.</p>
               </div>
             </div>
           </CardContent>
@@ -311,49 +303,49 @@ export function AiIntegration() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Tools</CardTitle>
             <CardDescription>Acoes reais que o agente pode executar na conta.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {(onboarding?.tools || []).map((tool) => (
-              <div key={tool.name} className="rounded-2xl border border-slate-200 p-4">
-                <div className="font-medium text-slate-900">{tool.title}</div>
-                <div className="mt-1 text-xs font-mono text-slate-500">{tool.name}</div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{tool.description}</p>
+              <div key={tool.name} className="rounded-xl border p-4">
+                <div className="font-medium text-foreground">{tool.title}</div>
+                <div className="mt-1 text-xs font-mono text-muted-foreground">{tool.name}</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{tool.description}</p>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Resources</CardTitle>
             <CardDescription>Documentacao e contexto vivo expostos ao agente.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {(onboarding?.resources || []).map((resource) => (
-              <div key={resource.uri} className="rounded-2xl border border-slate-200 p-4">
-                <div className="font-medium text-slate-900">{resource.title}</div>
-                <div className="mt-1 text-xs font-mono text-slate-500">{resource.uri}</div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{resource.description}</p>
+              <div key={resource.uri} className="rounded-xl border p-4">
+                <div className="font-medium text-foreground">{resource.title}</div>
+                <div className="mt-1 text-xs font-mono text-muted-foreground">{resource.uri}</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{resource.description}</p>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Prompts</CardTitle>
             <CardDescription>Entradas guiadas para onboarding tecnico rapido.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {(onboarding?.prompts || []).map((prompt) => (
-              <div key={prompt.name} className="rounded-2xl border border-slate-200 p-4">
-                <div className="font-medium text-slate-900">{prompt.title}</div>
-                <div className="mt-1 text-xs font-mono text-slate-500">{prompt.name}</div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{prompt.description}</p>
+              <div key={prompt.name} className="rounded-xl border p-4">
+                <div className="font-medium text-foreground">{prompt.title}</div>
+                <div className="mt-1 text-xs font-mono text-muted-foreground">{prompt.name}</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{prompt.description}</p>
               </div>
             ))}
           </CardContent>
@@ -361,13 +353,13 @@ export function AiIntegration() {
       </section>
 
       {latestKey ? (
-        <Card className="border-emerald-200 bg-emerald-50/70 shadow-sm">
+        <Card className="border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.08)]">
           <CardHeader>
             <CardTitle>AI Agent Key gerada agora</CardTitle>
             <CardDescription>Copie a chave agora. Ela nao sera exibida novamente depois que voce sair desta pagina.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="overflow-x-auto rounded-2xl bg-slate-950 p-4 font-mono text-sm text-slate-100">
+            <div className="vm-code-surface text-sm">
               {latestKey}
             </div>
             <div className="flex flex-wrap gap-3">
@@ -393,8 +385,8 @@ export function AiIntegration() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">Snippets de conexao</h2>
-              <p className="text-sm text-slate-500">Arquivos prontos para conectar a IDE ao servidor MCP remoto.</p>
+              <h2 className="text-xl font-semibold text-foreground">Snippets de conexao</h2>
+              <p className="text-sm text-muted-foreground">Arquivos prontos para conectar a IDE ao servidor MCP remoto.</p>
             </div>
             <div className="flex gap-2">
               {onboarding?.cursor_mcp_json ? (
@@ -468,28 +460,28 @@ export function AiIntegration() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Permissoes recomendadas</CardTitle>
             <CardDescription>Preset que permite ao agente fazer onboarding tecnico sem depender de prompt manual longo.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {visiblePermissionCatalog.map((permission) => (
-              <div key={permission.id} className="rounded-2xl border border-slate-200 p-4">
+              <div key={permission.id} className="rounded-xl border p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="font-medium text-slate-900">{permission.label}</div>
-                    <div className="text-xs font-mono text-slate-500">{permission.id}</div>
+                    <div className="font-medium text-foreground">{permission.label}</div>
+                    <div className="text-xs font-mono text-muted-foreground">{permission.id}</div>
                   </div>
                   <Badge variant="outline">{permission.category}</Badge>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{permission.description}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{permission.description}</p>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>AI Agent Keys da conta</CardTitle>
             <CardDescription>Credenciais dedicadas para Cursor, VS Code e outros agentes compativeis com MCP.</CardDescription>
@@ -498,28 +490,28 @@ export function AiIntegration() {
             {overviewQuery.isLoading ? (
               <div className="py-10 text-center text-muted-foreground">Carregando AI Agent Keys...</div>
             ) : agentKeys.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+              <div className="vm-empty-state">
                 Nenhuma AI Agent Key criada ainda.
               </div>
             ) : (
               agentKeys.map((agentKey) => (
-                <div key={agentKey.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div key={agentKey.id} className="rounded-xl border bg-muted/45 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <div className="font-semibold text-slate-900">{agentKey.key_name}</div>
-                        <Badge className="bg-cyan-600 text-white hover:bg-cyan-600">AI Agent</Badge>
+                        <div className="font-semibold text-foreground">{agentKey.key_name}</div>
+                        <Badge>AI Agent</Badge>
                       </div>
                       {agentKey.description ? (
-                        <p className="mt-2 text-sm leading-6 text-slate-600">{agentKey.description}</p>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">{agentKey.description}</p>
                       ) : null}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-muted-foreground">
                       {agentKey.last_used_at ? `Ultimo uso ${formatRelativeTime(agentKey.last_used_at)}` : 'Ainda sem uso'}
                     </div>
                   </div>
 
-                  <div className="mt-3 rounded-xl bg-white px-3 py-2 font-mono text-xs text-slate-700">
+                  <div className="mt-3 rounded-lg border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">
                     {agentKey.api_key_preview}...
                   </div>
 
@@ -555,7 +547,7 @@ export function AiIntegration() {
                 <Input id="ai-key-description" value={description} onChange={(event) => setDescription(event.target.value)} />
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              <div className="rounded-xl border border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)] p-4 text-sm leading-6 text-foreground">
                 Use esta chave apenas para agentes de IDE via MCP. Ela nao substitui a `ULTRAZEND_API_KEY` transacional da aplicacao cliente. O ideal e revogar ou rotacionar a credencial depois que o onboarding tecnico terminar.
               </div>
             </div>
@@ -563,8 +555,8 @@ export function AiIntegration() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium text-slate-900">Escopos da AI Agent Key</div>
-                  <div className="text-sm text-slate-500">Comece com o preset recomendado e ajuste so se necessario.</div>
+                  <div className="font-medium text-foreground">Escopos da AI Agent Key</div>
+                  <div className="text-sm text-muted-foreground">Comece com o preset recomendado e ajuste so se necessario.</div>
                 </div>
                 <Button
                   variant="outline"
@@ -586,18 +578,18 @@ export function AiIntegration() {
                       onClick={() => handlePermissionToggle(permission.id)}
                       className={`rounded-2xl border p-4 text-left transition ${
                         selected
-                          ? 'border-cyan-400 bg-cyan-50'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-card hover:border-primary/40'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="font-medium text-slate-900">{permission.label}</div>
-                          <div className="text-xs font-mono text-slate-500">{permission.id}</div>
+                          <div className="font-medium text-foreground">{permission.label}</div>
+                          <div className="text-xs font-mono text-muted-foreground">{permission.id}</div>
                         </div>
                         <Badge variant="outline">{permission.category}</Badge>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{permission.description}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{permission.description}</p>
                     </button>
                   )
                 })}

@@ -71,7 +71,7 @@ export const EnhancedLoading: React.FC<EnhancedLoadingProps> = ({
             <div className="text-center">
               <h3 className="font-semibold">{title}</h3>
               {message && (
-                <p className="text-gray-600 text-sm mt-1">{message}</p>
+                <p className="text-muted-foreground text-sm mt-1">{message}</p>
               )}
             </div>
             
@@ -80,35 +80,35 @@ export const EnhancedLoading: React.FC<EnhancedLoadingProps> = ({
                 <div key={step.id} className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
                     {step.status === 'completed' && (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <CheckCircle className="h-5 w-5 text-[hsl(var(--success))]" />
                     )}
                     {step.status === 'error' && (
-                      <AlertCircle className="h-5 w-5 text-red-500" />
+                      <AlertCircle className="h-5 w-5 text-destructive" />
                     )}
                     {step.status === 'loading' && (
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     )}
                     {step.status === 'pending' && (
-                      <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                      <div className="h-5 w-5 rounded-full border-2 border-border" />
                     )}
                   </div>
-                  
+
                   <div className="flex-1">
                     <p className={`font-medium ${
-                      step.status === 'completed' ? 'text-green-700' :
-                      step.status === 'error' ? 'text-red-700' :
-                      step.status === 'loading' ? 'text-blue-700' :
-                      'text-gray-500'
+                      step.status === 'completed' ? 'text-[hsl(var(--success))]' :
+                      step.status === 'error' ? 'text-destructive' :
+                      step.status === 'loading' ? 'text-primary' :
+                      'text-muted-foreground'
                     }`}>
                       {step.name}
                     </p>
                     {step.message && (
-                      <p className="text-xs text-gray-500 mt-1">{step.message}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{step.message}</p>
                     )}
                   </div>
-                  
+
                   {step.duration && step.status === 'completed' && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground">
                       {step.duration}ms
                     </span>
                   )}
@@ -127,19 +127,19 @@ export const EnhancedLoading: React.FC<EnhancedLoadingProps> = ({
         <CardContent className={sizeClasses[size]}>
           <div className="space-y-3">
             <div className="flex items-center space-x-3">
-              <Loader2 className={`${spinnerSizes[size]} animate-spin text-blue-500`} />
+              <Loader2 className={`${spinnerSizes[size]} animate-spin text-primary`} />
               <div className="flex-1">
                 <h3 className="font-semibold">{title}</h3>
                 {message && (
-                  <p className="text-gray-600 text-sm">{message}</p>
+                  <p className="text-muted-foreground text-sm">{message}</p>
                 )}
               </div>
             </div>
-            
+
             {typeof progress === 'number' && (
               <div className="space-y-1">
                 <Progress value={progress} className="w-full" />
-                <p className="text-xs text-gray-500 text-right">
+                <p className="text-xs text-muted-foreground text-right">
                   {Math.round(progress)}%
                 </p>
               </div>
@@ -155,11 +155,11 @@ export const EnhancedLoading: React.FC<EnhancedLoadingProps> = ({
     <Card className={`${className}`}>
       <CardContent className={`${sizeClasses[size]} flex items-center justify-center`}>
         <div className="flex items-center space-x-3">
-          <Loader2 className={`${spinnerSizes[size]} animate-spin text-blue-500`} />
+          <Loader2 className={`${spinnerSizes[size]} animate-spin text-primary`} />
           <div>
             <p className="font-semibold">{title}</p>
             {message && (
-              <p className="text-gray-600 text-sm">{message}</p>
+              <p className="text-muted-foreground text-sm">{message}</p>
             )}
           </div>
         </div>
@@ -189,11 +189,11 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
       </div>
       
       {isLoading && (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center z-10">
           <EnhancedLoading
             {...loadingProps}
             isLoading={true}
-            className="bg-white/90 backdrop-blur-sm shadow-lg"
+            className="bg-card/90 backdrop-blur-sm shadow-lg"
           />
         </div>
       )}

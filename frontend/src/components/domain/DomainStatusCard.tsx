@@ -58,10 +58,10 @@ export const DomainStatusCard = ({
   // Obter cor do status
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'verified': return 'text-green-600 bg-green-50 border-green-200'
-      case 'pending': return 'text-yellow-600 bg-yellow-50 border-yellow-200'
-      case 'failed': return 'text-red-600 bg-red-50 border-red-200'
-      default: return 'text-gray-600 bg-gray-50 border-gray-200'
+      case 'verified': return 'vm-status vm-status-success'
+      case 'pending': return 'vm-status vm-status-warning'
+      case 'failed': return 'vm-status vm-status-danger'
+      default: return 'vm-status vm-status-neutral'
     }
   }
 
@@ -209,7 +209,7 @@ export const DomainStatusCard = ({
               <TooltipTrigger asChild>
                 <div className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
                   <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${domain.dkim_enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <div className={`h-2 w-2 rounded-full ${domain.dkim_enabled ? 'bg-[hsl(var(--success))]' : 'bg-muted-foreground/30'}`} />
                     <Lock className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">DKIM</span>
                   </div>
@@ -228,7 +228,7 @@ export const DomainStatusCard = ({
               <TooltipTrigger asChild>
                 <div className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
                   <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${domain.spf_enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <div className={`h-2 w-2 rounded-full ${domain.spf_enabled ? 'bg-[hsl(var(--success))]' : 'bg-muted-foreground/30'}`} />
                     <Shield className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">SPF</span>
                   </div>
@@ -247,7 +247,7 @@ export const DomainStatusCard = ({
               <TooltipTrigger asChild>
                 <div className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
                   <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${domain.dmarc_enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <div className={`h-2 w-2 rounded-full ${domain.dmarc_enabled ? 'bg-[hsl(var(--success))]' : 'bg-muted-foreground/30'}`} />
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">DMARC</span>
                   </div>
@@ -334,12 +334,12 @@ export const DomainStatusGrid = ({
         {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
-              <div className="h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-2/3 mb-4"></div>
+              <div className="h-4 bg-muted rounded mb-2"></div>
+              <div className="h-3 bg-muted rounded w-2/3 mb-4"></div>
               <div className="space-y-2">
-                <div className="h-2 bg-gray-200 rounded"></div>
-                <div className="h-2 bg-gray-200 rounded"></div>
-                <div className="h-2 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-2 bg-muted rounded"></div>
+                <div className="h-2 bg-muted rounded"></div>
+                <div className="h-2 bg-muted rounded w-1/2"></div>
               </div>
             </CardContent>
           </Card>

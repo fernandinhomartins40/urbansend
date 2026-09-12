@@ -53,7 +53,7 @@ const calculatePasswordStrength = (password: string) => {
     score: strength,
     checks,
     label: strength < 2 ? 'Fraca' : strength < 4 ? 'Média' : 'Forte',
-    color: strength < 2 ? 'text-red-500' : strength < 4 ? 'text-yellow-500' : 'text-green-500'
+    color: strength < 2 ? 'text-destructive' : strength < 4 ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--success))]'
   }
 }
 
@@ -326,22 +326,19 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-black via-primary-dark to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-3xl">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center space-x-2 mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary-blue flex items-center justify-center">
-              <span className="text-white font-bold text-lg">UZ</span>
-            </div>
-            <span className="text-2xl font-bold text-white">Ultrazend</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <img className="h-auto w-[168px]" src="/landing/logo-color.png" alt="VeloMail" />
           </div>
-          <p className="text-gray-400">
+          <p className="text-muted-foreground">
             {isLogin ? 'Faça login em sua conta' : 'Crie sua conta gratuita'}
           </p>
         </div>
 
-        <Card className="bg-white/95 backdrop-blur border-0 shadow-xl">
+        <Card className="shadow-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
               {isLogin ? 'Entrar' : 'Registrar'}
@@ -360,7 +357,7 @@ export function Login() {
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="email"
                       type="email"
@@ -379,7 +376,7 @@ export function Login() {
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
@@ -389,7 +386,7 @@ export function Login() {
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -432,7 +429,7 @@ export function Login() {
                   <div className="space-y-2">
                     <Label htmlFor="name">Nome</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
                         id="name"
                         placeholder="Seu nome completo"
@@ -450,7 +447,7 @@ export function Login() {
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
                         id="email"
                         type="email"
@@ -470,7 +467,7 @@ export function Login() {
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
@@ -480,7 +477,7 @@ export function Login() {
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -498,24 +495,24 @@ export function Login() {
                               <span>Força da senha:</span>
                               <span className={strength.color}>{strength.label}</span>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-1">
+                            <div className="w-full bg-muted rounded-full h-1">
                               <div 
                                 className={`h-1 rounded-full transition-all ${
-                                  strength.score < 2 ? 'bg-red-500' : 
-                                  strength.score < 4 ? 'bg-yellow-500' : 'bg-green-500'
+                                  strength.score < 2 ? 'bg-destructive' :
+                                  strength.score < 4 ? 'bg-[hsl(var(--warning))]' : 'bg-[hsl(var(--success))]'
                                 }`}
                                 style={{ width: `${(strength.score / 5) * 100}%` }}
                               />
                             </div>
-                            <div className="text-xs text-gray-500 space-y-1">
+                            <div className="text-xs text-muted-foreground space-y-1">
                               <div className="flex flex-wrap gap-2">
-                                <span className={strength.checks.length ? 'text-green-500' : 'text-gray-400'}>
+                                <span className={strength.checks.length ? 'text-[hsl(var(--success))]' : 'text-muted-foreground'}>
                                   ✓ 8+ caracteres
                                 </span>
-                                <span className={strength.checks.uppercase ? 'text-green-500' : 'text-gray-400'}>
+                                <span className={strength.checks.uppercase ? 'text-[hsl(var(--success))]' : 'text-muted-foreground'}>
                                   ✓ Maiúscula
                                 </span>
-                                <span className={strength.checks.special ? 'text-green-500' : 'text-gray-400'}>
+                                <span className={strength.checks.special ? 'text-[hsl(var(--success))]' : 'text-muted-foreground'}>
                                   ✓ Especial
                                 </span>
                               </div>
@@ -536,7 +533,7 @@ export function Login() {
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirmar Senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
@@ -546,7 +543,7 @@ export function Login() {
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -557,9 +554,9 @@ export function Login() {
                   {registerForm.watch('confirmPassword') && registerForm.watch('password') && (
                     <div className="text-xs">
                       {registerForm.watch('password') === registerForm.watch('confirmPassword') ? (
-                        <span className="text-green-500">✓ Senhas coincidem</span>
+                        <span className="text-[hsl(var(--success))]">✓ Senhas coincidem</span>
                       ) : (
-                        <span className="text-red-500">✗ Senhas não coincidem</span>
+                        <span className="text-destructive">✗ Senhas não coincidem</span>
                       )}
                     </div>
                   )}
@@ -605,7 +602,7 @@ export function Login() {
                 <div className="text-center">
                   <button
                     type="button"
-                    className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                    className="text-sm text-primary hover:underline"
                     onClick={() => setShowResendForm(!showResendForm)}
                   >
                     Não recebeu o email de verificação?
@@ -614,8 +611,8 @@ export function Login() {
 
                 {/* Formulário de reenvio */}
                 {showResendForm && (
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-700 mb-2">
+                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/25">
+                    <p className="text-sm text-muted-foreground mb-2">
                       📧 Digite seu email para reenviar a verificação:
                     </p>
                     <div className="flex gap-2">
@@ -632,14 +629,14 @@ export function Login() {
                         size="sm"
                         onClick={onResendFormSubmit}
                         disabled={isLoading}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className=""
                       >
                         {isLoading ? 'Enviando...' : 'Enviar'}
                       </Button>
                     </div>
                     <button
                       type="button"
-                      className="text-xs text-gray-500 mt-1 hover:text-gray-700"
+                      className="text-xs text-muted-foreground mt-1 hover:text-foreground"
                       onClick={() => {
                         setShowResendForm(false)
                         setResendFormEmail('')
@@ -652,8 +649,8 @@ export function Login() {
                 
                 {/* Opção de reenvio de verificação - só após registro */}
                 {showResendOption && (
-                  <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-700 mb-2">
+                  <div className="text-center p-3 bg-primary/5 rounded-lg border border-primary/25">
+                    <p className="text-sm text-muted-foreground mb-2">
                       📧 Registrado com sucesso! Não recebeu o email de verificação?
                     </p>
                     <Button
@@ -662,11 +659,11 @@ export function Login() {
                       size="sm"
                       onClick={onResendVerification}
                       disabled={isLoading}
-                      className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                      className=""
                     >
                       {isLoading ? 'Reenviando...' : 'Reenviar email de verificação'}
                     </Button>
-                    <p className="text-xs text-blue-600 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Email: {resendEmail}
                     </p>
                   </div>
@@ -676,8 +673,8 @@ export function Login() {
           </CardContent>
         </Card>
 
-        <div className="mt-8 text-center text-sm text-gray-400">
-          <p>© 2024 Ultrazend. Todos os direitos reservados.</p>
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          <p>© 2026 VeloMail. Todos os direitos reservados.</p>
         </div>
       </div>
     </div>

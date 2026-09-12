@@ -55,7 +55,7 @@ export function SuperAdminUsersPage() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-cyan-200">
+      <Card>
         <CardHeader>
           <CardTitle>Usuarios</CardTitle>
           <CardDescription>Gestão de status e privilégios administrativos.</CardDescription>

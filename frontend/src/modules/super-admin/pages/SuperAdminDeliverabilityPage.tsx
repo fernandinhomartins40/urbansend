@@ -18,10 +18,10 @@ export function SuperAdminDeliverabilityPage() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-emerald-200">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-emerald-700" />
+            <Activity className="h-5 w-5 text-primary" />
             Entregabilidade
           </CardTitle>
           <CardDescription>Análise de entrega por domínio de envio.</CardDescription>
@@ -67,8 +67,8 @@ export function SuperAdminDeliverabilityPage() {
                 <tr key={row.domain} className="border-t">
                   <td className="px-2 py-3 font-medium">{row.domain}</td>
                   <td className="px-2 py-3">{Number(row.total || 0).toLocaleString('pt-BR')}</td>
-                  <td className="px-2 py-3 text-emerald-700">{Number(row.successful || 0).toLocaleString('pt-BR')}</td>
-                  <td className="px-2 py-3 text-red-700">{Number(row.failed || 0).toLocaleString('pt-BR')}</td>
+                  <td className="px-2 py-3 text-[hsl(var(--success))]">{Number(row.successful || 0).toLocaleString('pt-BR')}</td>
+                  <td className="px-2 py-3 text-destructive">{Number(row.failed || 0).toLocaleString('pt-BR')}</td>
                   <td className="px-2 py-3">
                     <Badge variant={row.delivery_rate >= 95 ? 'success' : row.delivery_rate >= 85 ? 'warning' : 'destructive'}>
                       {row.delivery_rate.toFixed(2)}%

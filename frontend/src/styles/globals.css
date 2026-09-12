@@ -35,6 +35,9 @@
     --radius: 0.75rem;
     --shadow-sm: 0 1px 2px rgb(10 30 65 / .05), 0 1px 8px rgb(10 30 65 / .04);
     --shadow-md: 0 12px 32px rgb(10 37 78 / .10);
+    /* Superficie de codigo: unica em toda a aplicacao. */
+    --surface-code: 221 52% 11%;
+    --surface-code-foreground: 214 32% 91%;
   }
 
   .dark {
@@ -63,6 +66,8 @@
     --border: 217 31% 23%;
     --input: 217 31% 27%;
     --ring: 195 100% 57%;
+    --surface-code: 222 47% 7%;
+    --surface-code-foreground: 213 27% 84%;
   }
 
   * { @apply border-border; }
@@ -91,29 +96,30 @@
   .vm-metric-card { @apply min-w-0 rounded-xl border bg-card p-4; box-shadow: var(--shadow-sm); }
   .vm-metric-label { @apply text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground; }
   .vm-metric-value { @apply mt-2 text-2xl font-bold tracking-tight text-foreground; }
+
+  /* Superficie de codigo unica (snippets, previews, chaves). */
+  .vm-code-surface { @apply overflow-x-auto rounded-xl p-4 font-mono text-xs leading-relaxed; background: hsl(var(--surface-code)); color: hsl(var(--surface-code-foreground)); }
+
+  /* Cartao dentro de um hero: vidro sobre a superficie da marca. */
+  .vm-hero-card { @apply min-w-0 rounded-xl border p-4; border-color: hsl(var(--primary) / .18); background: hsl(var(--card) / .72); backdrop-filter: blur(6px); }
+  .vm-hero-label { @apply text-xs font-semibold uppercase tracking-[.14em] text-muted-foreground; }
+  .vm-hero-value { @apply mt-2 text-2xl font-bold tracking-tight text-foreground; }
+
+  /* Status semanticos: uma cor por significado, nunca por pagina. */
+  .vm-status { @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold; }
+  .vm-status-success { border-color: hsl(var(--success) / .3); background: hsl(var(--success) / .12); color: hsl(var(--success)); }
+  .vm-status-warning { border-color: hsl(var(--warning) / .32); background: hsl(var(--warning) / .14); color: hsl(var(--warning)); }
+  .vm-status-danger { border-color: hsl(var(--destructive) / .3); background: hsl(var(--destructive) / .12); color: hsl(var(--destructive)); }
+  .vm-status-info { border-color: hsl(var(--primary) / .28); background: hsl(var(--primary) / .12); color: hsl(var(--primary-active)); }
+  .vm-status-neutral { @apply border-border bg-muted text-muted-foreground; }
 }
 
 @layer utilities {
   .text-balance { text-wrap: balance; }
   .shadow-sm { box-shadow: var(--shadow-sm); }
   .shadow-md, .shadow-lg, .shadow-xl { box-shadow: var(--shadow-md); }
-
-  /* Transitional aliases: legacy utility usage now resolves to VeloMail roles. */
-  .bg-blue-50, .bg-sky-50, .bg-indigo-50, .bg-cyan-50 { background-color: hsl(var(--primary-soft)) !important; }
-  .bg-blue-100, .bg-sky-100, .bg-indigo-100, .bg-cyan-100 { background-color: hsl(var(--primary) / .13) !important; }
-  .bg-blue-500, .bg-blue-600, .bg-sky-500, .bg-sky-600, .bg-indigo-500, .bg-indigo-600, .bg-cyan-500, .bg-cyan-600 { background-color: hsl(var(--primary)) !important; }
-  .hover\\:bg-blue-700:hover, .hover\\:bg-blue-600:hover, .hover\\:bg-sky-700:hover, .hover\\:bg-sky-600:hover, .hover\\:bg-indigo-700:hover, .hover\\:bg-indigo-600:hover, .hover\\:bg-cyan-700:hover { background-color: hsl(var(--primary-hover)) !important; }
-  .text-blue-500, .text-blue-600, .text-blue-700, .text-sky-500, .text-sky-600, .text-sky-700, .text-indigo-600, .text-indigo-700, .text-cyan-600, .text-cyan-700 { color: hsl(var(--primary-active)) !important; }
-  .border-blue-100, .border-blue-200, .border-blue-300, .border-sky-100, .border-sky-200, .border-indigo-200, .border-indigo-300, .border-cyan-100, .border-cyan-200 { border-color: hsl(var(--primary) / .24) !important; }
-  .ring-blue-300, .ring-blue-500, .ring-indigo-500, .ring-sky-500 { --tw-ring-color: hsl(var(--ring)) !important; }
-  .from-blue-50, .from-sky-50, .from-indigo-50, .from-cyan-50, .to-blue-50, .to-sky-50, .to-indigo-50, .to-cyan-50 { --tw-gradient-from: hsl(var(--primary-soft)) var(--tw-gradient-from-position) !important; --tw-gradient-to: hsl(var(--primary-soft) / 0) var(--tw-gradient-to-position) !important; }
-  .from-blue-500, .from-sky-500, .from-indigo-500, .from-cyan-500, .to-blue-500, .to-sky-500, .to-indigo-500, .to-cyan-500 { --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position) !important; --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position) !important; }
 }
 
-/* Normaliza os heros legados de páginas autenticadas até que cada rota use
-   diretamente vm-page-hero. Mantém uma única assinatura visual no painel. */
-main [class*="rounded-[2rem]"][class*="bg-[radial-gradient"],
-main section.rounded-3xl[class*="bg-gradient"] { border-radius: 1rem !important; border-color: hsl(var(--primary) / .2) !important; background-image: linear-gradient(135deg, hsl(var(--primary-soft)), hsl(var(--card)) 58%, hsl(var(--primary) / .08)) !important; }
 main table { border-collapse: separate; border-spacing: 0; }
 main table thead { background: hsl(var(--muted) / .7); }
 main table th { color: hsl(var(--muted-foreground)); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }

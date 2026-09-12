@@ -69,11 +69,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
       // Default error UI
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
           <Card className="w-full max-w-md">
             <CardHeader className="text-center">
-              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
+              <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-destructive" />
               </div>
               <CardTitle className="text-xl">Oops! Algo deu errado</CardTitle>
               <CardDescription>
@@ -82,9 +82,9 @@ export class ErrorBoundary extends Component<Props, State> {
             </CardHeader>
             <CardContent className="space-y-4">
               {process.env.NODE_ENV === 'development' && this.state.error && (
-                <div className="bg-gray-100 p-3 rounded-md text-sm">
-                  <p className="font-medium text-gray-900 mb-1">Detalhes do erro:</p>
-                  <p className="text-gray-700 font-mono text-xs">
+                <div className="bg-muted p-3 rounded-lg text-sm">
+                  <p className="font-medium text-foreground mb-1">Detalhes do erro:</p>
+                  <p className="text-muted-foreground font-mono text-xs">
                     {this.state.error.message}
                   </p>
                 </div>
@@ -109,7 +109,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
 
               {this.state.errorId && (
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-muted-foreground text-center">
                   ID do erro: {this.state.errorId}
                 </p>
               )}

@@ -63,22 +63,30 @@ export function generateRandomId(length = 8) {
   return Math.random().toString(36).substring(2, length + 2)
 }
 
+/**
+ * Traduz um status de dominio/email para a classe semantica do design system.
+ * A cor vem do significado, nunca da pagina que renderiza o badge.
+ */
 export function getStatusColor(status: string) {
   switch (status.toLowerCase()) {
     case 'delivered':
     case 'sent':
     case 'verified':
     case 'active':
-      return 'text-green-600 bg-green-100'
+      return 'vm-status vm-status-success'
     case 'queued':
     case 'pending':
-      return 'text-yellow-600 bg-yellow-100'
+    case 'partial':
+      return 'vm-status vm-status-warning'
     case 'bounced':
     case 'failed':
     case 'inactive':
-      return 'text-red-600 bg-red-100'
+      return 'vm-status vm-status-danger'
+    case 'opened':
+    case 'clicked':
+      return 'vm-status vm-status-info'
     default:
-      return 'text-gray-600 bg-gray-100'
+      return 'vm-status vm-status-neutral'
   }
 }
 

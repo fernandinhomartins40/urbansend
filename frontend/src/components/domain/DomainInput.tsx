@@ -154,10 +154,10 @@ export const DomainInput = ({
       case 'validating':
         return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
       case 'valid':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="h-4 w-4 text-[hsl(var(--success))]" />
       case 'invalid':
       case 'error':
-        return <X className="h-4 w-4 text-red-500" />
+        return <X className="h-4 w-4 text-destructive" />
       default:
         return null
     }
@@ -167,12 +167,12 @@ export const DomainInput = ({
   const getInputClasses = () => {
     switch (validationStatus) {
       case 'valid':
-        return 'border-green-500 focus-visible:ring-green-500'
+        return 'border-[hsl(var(--success))] focus-visible:ring-[hsl(var(--success)/.3)]'
       case 'invalid':
       case 'error':
-        return 'border-red-500 focus-visible:ring-red-500'
+        return 'border-destructive focus-visible:ring-destructive/30'
       case 'validating':
-        return 'border-blue-500 focus-visible:ring-blue-500'
+        return 'border-primary focus-visible:ring-ring/30'
       default:
         return ''
     }
@@ -189,9 +189,9 @@ export const DomainInput = ({
     // Casos especiais de feedback
     if (reason === 'DOMAIN_ALREADY_EXISTS') {
       return (
-        <Alert className="border-amber-200 bg-amber-50">
-          <Info className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-700">
+        <Alert className="border-[hsl(var(--warning)/.3)] bg-[hsl(var(--warning)/.12)]">
+          <Info className="h-4 w-4 text-[hsl(var(--warning))]" />
+          <AlertDescription className="text-[hsl(var(--warning))]">
             <div className="font-medium mb-1">{message}</div>
             <div className="text-sm">
               Status atual: 
@@ -201,7 +201,7 @@ export const DomainInput = ({
             </div>
             <Button 
               variant="link" 
-              className="p-0 h-auto text-amber-700 hover:text-amber-800"
+              className="p-0 h-auto text-[hsl(var(--warning))] hover:text-[hsl(var(--warning))]"
               onClick={() => navigate('/app/domains')}
             >
               Ver em Meus Domínios <ExternalLink className="h-3 w-3 ml-1" />
@@ -213,9 +213,9 @@ export const DomainInput = ({
 
     if (valid) {
       return (
-        <Alert className="border-green-200 bg-green-50">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-700">
+        <Alert className="border-[hsl(var(--success)/.3)] bg-[hsl(var(--success)/.12)]">
+          <CheckCircle className="h-4 w-4 text-[hsl(var(--success))]" />
+          <AlertDescription className="text-[hsl(var(--success))]">
             <div className="font-medium mb-1">{message}</div>
             {next_steps && next_steps.length > 0 && (
               <ul className="text-sm mt-2 list-disc list-inside space-y-1">
