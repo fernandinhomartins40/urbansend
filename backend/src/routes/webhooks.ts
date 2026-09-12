@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest, authenticateJWT, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -8,11 +7,12 @@ import {
   updateWebhookPayloadSchema,
   validateRequest,
 } from '../middleware/validation';
-import { generateSecretKey, createWebhookSignature } from '../utils/crypto';
+import { generateSecretKey } from '../utils/crypto';
 import db from '../config/database';
 import { resolveInsertedId } from '../utils/insertedId';
 import { getAccountUserId } from '../utils/accountContext';
 import { assertSafeWebhookUrl } from '../utils/urlSecurity';
+import { webhookService } from '../services/webhookService';
 
 const router = Router();
 
@@ -116,30 +116,6 @@ const getWebhookStatsMap = async (webhookIds: number[]) => {
       }
     ])
   );
-};
-
-const logWebhookDelivery = async (params: {
-  webhookId: number;
-  event: string;
-  payload: unknown;
-  success: boolean;
-  statusCode?: number | null;
-  responseBody?: string | null;
-  errorMessage?: string | null;
-  responseTimeMs?: number | null;
-}) => {
-  await db('webhook_logs').insert({
-    webhook_id: params.webhookId,
-    event: params.event,
-    payload: JSON.stringify(params.payload).substring(0, 10000),
-    success: params.success,
-    status_code: params.statusCode ?? null,
-    response_body: params.responseBody ?? null,
-    attempt: 1,
-    error_message: params.errorMessage ?? null,
-    response_time_ms: params.responseTimeMs ?? null,
-    created_at: new Date()
-  });
 };
 
 router.get('/', requirePermission('webhook:read'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -343,70 +319,13 @@ router.post('/:id/test', requirePermission('webhook:write'), validateRequest({ p
     }
   };
 
-  const payloadString = JSON.stringify(payload);
-  const signature = createWebhookSignature(payloadString, webhook.secret || '');
-  const startedAt = Date.now();
+  void webhookService.sendWebhook('webhook.test', payload.data, accountUserId, Number(webhook.id));
 
-  try {
-    const response = await axios.post(webhook.url, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Webhook-Signature': `sha256=${signature}`,
-        'X-Webhook-Event': 'webhook.test',
-        'X-Webhook-ID': String(webhook.id),
-        'User-Agent': 'UltraZend-Webhook/1.0'
-      },
-      timeout: 10000,
-      validateStatus: () => true
-    });
-
-    const success = response.status >= 200 && response.status < 300;
-
-    await logWebhookDelivery({
-      webhookId: webhook.id,
-      event: 'webhook.test',
-      payload,
-      success,
-      statusCode: response.status,
-      responseBody: response.data ? JSON.stringify(response.data).substring(0, 1000) : null,
-      errorMessage: success ? null : `Endpoint respondeu com status ${response.status}`,
-      responseTimeMs: Date.now() - startedAt
-    });
-
-    if (!success) {
-      return res.status(502).json({
-        success: false,
-        message: 'O endpoint respondeu com erro ao webhook de teste',
-        status_code: response.status
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: 'Webhook de teste enviado com sucesso',
-      status_code: response.status
-    });
-  } catch (error: any) {
-    const statusCode = error.response?.status ?? null;
-    const responseBody = error.response?.data ? JSON.stringify(error.response.data).substring(0, 1000) : null;
-
-    await logWebhookDelivery({
-      webhookId: webhook.id,
-      event: 'webhook.test',
-      payload,
-      success: false,
-      statusCode,
-      responseBody,
-      errorMessage: error.message || 'Falha ao enviar webhook de teste',
-      responseTimeMs: Date.now() - startedAt
-    });
-
-    return res.status(502).json({
-      success: false,
-      message: error.message || 'Falha ao enviar webhook de teste',
-      status_code: statusCode
-    });
-  }
+  return res.status(202).json({
+    success: true,
+    message: 'Webhook de teste enfileirado para entrega',
+    webhook_id: webhook.id
+  });
 }));
 
 export default router;
