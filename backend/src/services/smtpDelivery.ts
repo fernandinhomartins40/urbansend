@@ -460,10 +460,30 @@ export class SMTPDeliveryService {
 
   async processEmailQueue(): Promise<void> {
     try {
-      const pendingEmails = await db('emails')
-        .where('status', 'queued')
-        .orderBy('created_at', 'asc')
-        .limit(10);
+      // Reivindica o lote dentro de uma transacao. Sem isso, duas replicas
+      // podem ler os mesmos itens `queued` antes que qualquer uma os marque
+      // como `processing`, gerando envio duplicado.
+      const pendingEmails = await db.transaction(async (trx) => {
+        let query = trx('emails')
+          .where('status', 'queued')
+          .orderBy('created_at', 'asc')
+          .limit(10);
+
+        const client = String((trx as any).client?.config?.client || '').toLowerCase();
+        if (client === 'pg' || client === 'postgres' || client === 'postgresql') {
+          query = query.forUpdate().skipLocked();
+        }
+
+        const claimed = await query;
+        if (claimed.length > 0) {
+          await trx('emails')
+            .whereIn('id', claimed.map((email: any) => email.id))
+            .where('status', 'queued')
+            .update({ status: 'processing', updated_at: new Date() });
+        }
+
+        return claimed;
+      });
 
       if (pendingEmails.length === 0) {
         return;
@@ -473,11 +493,6 @@ export class SMTPDeliveryService {
 
       for (const email of pendingEmails) {
         try {
-          await db('emails').where('id', email.id).update({
-            status: 'processing',
-            updated_at: new Date()
-          });
-
           const emailData = {
             from: email.sender_email,
             to: email.recipient_email,
