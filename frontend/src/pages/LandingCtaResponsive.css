@@ -1,0 +1,47 @@
+@media (max-width: 640px) {
+  .velo-cta {
+    align-items: center;
+    padding: 54px var(--gutter) 46px;
+    text-align: center;
+  }
+
+  .velo-cta > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(100%, 344px);
+  }
+
+  .velo-cta h2 {
+    margin: 10px 0 11px;
+    line-height: 1.1;
+  }
+
+  .velo-cta > div > p:not(.velo-section-kicker) {
+    max-width: 330px;
+    line-height: 1.5;
+  }
+
+  .velo-cta > img {
+    align-self: center;
+    width: min(280px, 78vw);
+    margin: 14px auto 16px;
+    order: 2;
+  }
+
+  .velo-cta ul {
+    display: grid;
+    gap: 10px;
+    width: min(280px, 100%);
+    margin: 0 auto;
+    padding: 18px 0 0;
+    border: 0;
+    text-align: left;
+    order: 3;
+  }
+
+  .velo-cta li {
+    justify-content: flex-start;
+    margin: 0;
+  }
+}
