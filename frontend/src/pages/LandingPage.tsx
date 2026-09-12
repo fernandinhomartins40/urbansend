@@ -4,6 +4,7 @@ import { useState } from 'react'
 import './LandingPage.css'
 import './PartnerLogos.css'
 import './HowItWorks.css'
+import './HeroResponsive.css'
 
 const features = [
   [Zap, 'Envio por API', 'Dispare e-mails via API com alta performance e confiabilidade.'],

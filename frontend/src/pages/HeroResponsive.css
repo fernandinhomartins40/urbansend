@@ -1,0 +1,54 @@
+@media (max-width: 640px) {
+  .velo-hero {
+    min-height: 0;
+    background-color: #020d26;
+    background-image: linear-gradient(180deg, rgba(2, 10, 31, 0.08), rgba(2, 10, 31, 0.56)), url('/landing/hero-mobile.png');
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: 100% 100%, 100% auto;
+  }
+
+  .velo-hero-copy {
+    padding-top: 32px;
+    text-align: center;
+  }
+
+  .velo-hero h1 {
+    margin-top: 16px;
+    font-size: clamp(37px, 10.7vw, 44px);
+    line-height: 1.07;
+  }
+
+  .velo-hero-description {
+    max-width: 340px;
+    line-height: 1.52;
+  }
+
+  .velo-hero-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    width: min(100%, 344px);
+    margin: 24px auto 0;
+    gap: 11px;
+  }
+
+  .velo-hero-buttons .velo-button {
+    flex: none;
+    width: 100%;
+  }
+
+  .velo-checks {
+    justify-content: center;
+    max-width: 320px;
+    margin: 24px auto 0;
+    gap: 9px 15px;
+  }
+
+  .velo-hero-mascot {
+    width: min(100%, 500px);
+    max-width: 100%;
+    margin: 30px auto 0;
+    transform: none;
+    left: auto;
+  }
+}
