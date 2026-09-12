@@ -24,4 +24,15 @@ describe('environment feature flags', () => {
     expect(Env.enableInternalRoutes).toBe(true);
     expect(Env.enableDebugRoutes).toBe(true);
   });
+
+  it('rejects reused production secrets', () => {
+    const secret = 'a'.repeat(32);
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = secret;
+    process.env.JWT_REFRESH_SECRET = secret;
+    process.env.APP_ENCRYPTION_KEY = secret;
+
+    expect(() => Env.jwtRefreshSecret).toThrow('deve ser diferente');
+    expect(() => Env.appEncryptionKey).toThrow('deve ser diferente');
+  });
 });

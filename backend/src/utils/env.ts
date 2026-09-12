@@ -111,6 +111,10 @@ export class Env {
       throw new Error('JWT_REFRESH_SECRET e obrigatorio em producao e deve ser diferente de JWT_SECRET');
     }
 
+    if (Env.isProduction && configuredSecret === process.env.JWT_SECRET) {
+      throw new Error('JWT_REFRESH_SECRET deve ser diferente de JWT_SECRET em producao');
+    }
+
     const secret = configuredSecret || process.env.JWT_SECRET;
     if (!secret || secret.length < 32) {
       throw new Error('JWT_REFRESH_SECRET (ou JWT_SECRET) é obrigatório e deve ter pelo menos 32 caracteres');
@@ -124,6 +128,10 @@ export class Env {
     const configuredSecret = process.env.APP_ENCRYPTION_KEY;
     if (Env.isProduction && !configuredSecret) {
       throw new Error('APP_ENCRYPTION_KEY e obrigatoria em producao e deve ser diferente de JWT_SECRET');
+    }
+
+    if (Env.isProduction && configuredSecret === process.env.JWT_SECRET) {
+      throw new Error('APP_ENCRYPTION_KEY deve ser diferente de JWT_SECRET em producao');
     }
 
     const secret = configuredSecret || process.env.JWT_SECRET;
