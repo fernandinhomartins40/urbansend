@@ -106,7 +106,12 @@ export class Env {
    * Get JWT Refresh Secret (required for security)
    */
   static get jwtRefreshSecret(): string {
-    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    const configuredSecret = process.env.JWT_REFRESH_SECRET;
+    if (Env.isProduction && !configuredSecret) {
+      throw new Error('JWT_REFRESH_SECRET e obrigatorio em producao e deve ser diferente de JWT_SECRET');
+    }
+
+    const secret = configuredSecret || process.env.JWT_SECRET;
     if (!secret || secret.length < 32) {
       throw new Error('JWT_REFRESH_SECRET (ou JWT_SECRET) é obrigatório e deve ter pelo menos 32 caracteres');
     }

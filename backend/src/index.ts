@@ -134,7 +134,7 @@ logger.info('🚀 UltraZend Backend Starting...', {
   arch: process.arch,
   cwd: process.cwd(),
   env: process.env.NODE_ENV,
-  databaseUrl: process.env.DATABASE_URL
+  databaseConfigured: Boolean(process.env.DATABASE_URL)
 });
 
 // CORS allowed origins
