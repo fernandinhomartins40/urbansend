@@ -156,3 +156,15 @@ Itens implementados em microlotes, com commit e push individuais:
 - A rota de teste de webhook deixou de bloquear o request HTTP; ela dispara o `WebhookService`, que centraliza assinatura, validação SSRF, tentativas e logs.
 
 Lacunas ainda abertas: migração efetiva para uma única fonte de schema (Prisma ou Knex), rate limiting compartilhado entre réplicas, fila de webhook realmente durável e retirada controlada dos artefatos legados.
+
+### Dependências remanescentes após correções compatíveis
+
+Em 12/09/2026, `npm audit --omit=dev` passou de 44 para 17 vulnerabilidades após atualizações compatíveis. As restantes dependem de upgrades major e foram agrupadas para revisão com testes de compatibilidade:
+
+- `sqlite3` 6, que também substitui a cadeia vulnerável de `tar`, `node-gyp` e `cacache`.
+- `bcrypt` 6, removendo `@mapbox/node-pre-gyp`.
+- `prisma`/`@prisma/client` na versão indicada pelo ecossistema compatível.
+- `nodemailer` 10, `sharp` 0.35 e `uuid` 14.
+- `express` 5 e a cadeia transitiva `qs`.
+
+Essas mudanças não foram aplicadas automaticamente porque alteram contratos de runtime ou binários nativos; cada grupo deve ser atualizado com build, typecheck e testes completos em lote próprio.
