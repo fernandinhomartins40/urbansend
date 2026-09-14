@@ -95,3 +95,7 @@ vps_files*.txt
 .claude/
 # Assets originais da landing (nao referenciados pelo build)
 assetslandingpage/
+
+# Python (scripts de manutencao da VPS)
+__pycache__/
+*.pyc

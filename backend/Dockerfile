@@ -1,4 +1,8 @@
-# syntax=docker/dockerfile:1
+# NAO adicione `# syntax=docker/dockerfile:1` aqui. Essa diretiva faz o BuildKit
+# baixar o frontend do Docker Hub a cada build, e nesta VPS (saturada, ~94
+# containers) isso falha com "TLS handshake timeout" e derruba o deploy.
+# Nenhum recurso deste arquivo depende dela: sem heredoc, sem RUN --mount,
+# sem COPY --link. Ver docs/VPS-ORPHAN-CLEANUP-REPORT.md.
 
 # ---------------------------------------------------------------------------
 # Stage 1: dependências de produção
