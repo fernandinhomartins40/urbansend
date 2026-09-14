@@ -139,6 +139,52 @@ Isto **não é necessariamente erro** — pode ser intencional (não recriar o b
 Mas significa que os diretórios de release antigos **não podem ser apagados**: ainda há containers
 vivos referenciando-os. Importante para a limpeza de disco.
 
+### 🔴 Mecanismo A-ter — Processos `docker build` órfãos (achado de 2026-09-14 16:56Z)
+
+**11 processos `docker build -t ultrazend-api:latest` travados desde 12/09/2026, 15:24.**
+
+```
+PID     PPID  STAT  ELAPSED      COMMAND
+2533408 1     Ss    2-01:33:26   bash -s
+2540508 2533408 Sl  2-01:32:40   docker build ... -t ultrazend-api:latest
+... (mais 8 iguais, iniciados entre 15:24 e 15:45 de 12/09)
+```
+
+**`PPID 1` prova que são órfãos:** a sessão SSH do deploy morreu, o `bash -s` foi
+adotado pelo init, e o `docker build` ficou esperando um cliente que não existe mais.
+
+A janela 15:24–15:45 de 12/09 é **exatamente a dos 14 deploys que falharam naquele dia**.
+Cada deploy que estourou deixou o `docker build` para trás.
+
+Estado `Sl` e 0% de CPU: não queimam processador, mas **seguram locks e sessões do
+BuildKit**, o que faz cada novo build rastejar. São seguros de encerrar — builds
+abandonados há 2 dias não produzem nada.
+
+**Load average: 258,78** numa VPS de 4 vCPUs — 64× a capacidade. Não é CPU ocupada
+computando; é fila de processos presos em I/O.
+
+Origem: `.github/scripts/deploy-production-remote.sh`, que roda `docker build`
+diretamente pela sessão SSH, sem `setsid`/`nohup` e sem trap de limpeza. Quando o
+deploy falha ou o SSH cai, o build fica.
+
+**Correção estrutural:** mover o build para o CI (GHCR). Sem build na VPS, não há
+build órfão. É o mesmo item P0-1 já registrado.
+
+### Conflito de prune concorrente (observado)
+
+O `--apply` do guardian falhou em `docker image prune` com:
+
+```
+Error response from daemon: a prune operation is already running
+```
+
+Causa: o `deploy-production-remote.sh` executa `docker image prune -af --filter "until=24h"`.
+Note o **`-a`**: remove todas as imagens sem container, não apenas dangling. Esse prune do
+deploy ficou **mais de 16 minutos** sem concluir.
+
+Dois deploys simultâneos, ou um deploy junto do guardian, colidem. Mitigação: o timer do
+guardian roda às 04:00, fora da janela típica de deploy.
+
 ### Mecanismo C — Containers `Exited` acumulados
 
 6 containers parados, nunca removidos:
