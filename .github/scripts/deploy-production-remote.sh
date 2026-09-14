@@ -348,11 +348,20 @@ else
     --name ultrazend-postgres \
     --restart unless-stopped \
     --network ultrazend-network \
+    -m 256m \
+    --memory-swap 256m \
+    --log-driver json-file \
+    --log-opt max-size=10m \
+    --log-opt max-file=3 \
     -e POSTGRES_DB=ultrazend \
     -e POSTGRES_USER=ultrazend \
     -e POSTGRES_PASSWORD=ultrazend \
     -v ${POSTGRES_VOLUME}:/var/lib/postgresql/data \
-    postgres:16-alpine >/dev/null
+    postgres:16-alpine \
+    -c shared_buffers=64MB \
+    -c effective_cache_size=192MB \
+    -c max_connections=50 \
+    -c work_mem=4MB >/dev/null
 fi
 
 echo "Aguardando PostgreSQL ficar pronto..."
@@ -371,7 +380,27 @@ done
 
 echo "Construindo imagem Docker do backend..."
 cd "$APP_DIR"
-DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --progress=plain -t ultrazend-api:latest -f backend/Dockerfile backend/
+# Dois targets: "runtime" e a imagem enxuta que fica residente 24h (sem Prisma
+# nem TypeScript); "migration" adiciona o Prisma CLI e roda como container
+# efemero apenas para aplicar o schema.
+DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --progress=plain \
+  --target runtime -t ultrazend-api:latest -f backend/Dockerfile backend/
+DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --progress=plain \
+  --target migration -t ultrazend-migration:latest -f backend/Dockerfile backend/
+
+echo "Aplicando migrations (container efemero)..."
+docker run --rm \
+  --name ultrazend-migration \
+  --network ultrazend-network \
+  --env-file "$ENV_FILE" \
+  -m 512m \
+  -e NODE_ENV=production \
+  -e DB_CLIENT=pg \
+  -e DATABASE_URL=postgresql://ultrazend:ultrazend@ultrazend-postgres:5432/ultrazend?schema=public \
+  -v "$CONFIG_DIR":/app/configs \
+  ultrazend-migration:latest \
+  sh -c "npm run migrate:latest && npm run seed:super-admin"
+echo "Migrations e seed concluidos"
 
 echo "Subindo novo container backend..."
 docker run -d \
@@ -384,6 +413,10 @@ docker run -d \
   -p 3001:3001 \
   -m 512m \
   --memory-swap 512m \
+  --log-driver json-file \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
+  -e NODE_OPTIONS=--max-old-space-size=384 \
   -e NODE_ENV=production \
   -e DB_CLIENT=pg \
   -e PORT=3001 \
@@ -396,12 +429,11 @@ docker run -d \
   -e DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/velomail.com.br-default-private.pem \
   -e DKIM_SELECTOR=default \
   -e DKIM_DOMAIN=velomail.com.br \
-  -e QUEUE_ENABLED=true \
   -v "$LOGS_DIR":/app/logs \
   -v "$CONFIG_DIR":/app/configs \
   -v ${STORAGE_VOLUME}:/app/storage \
   ultrazend-api:latest \
-  sh -c "npm run migrate:latest && npm run seed:super-admin && node dist/index.js"
+  node dist/index.js
 
 echo "Aguardando container inicializar..."
 sleep 15

@@ -7,8 +7,29 @@ services:
       - POSTGRES_DB=ultrazend
       - POSTGRES_USER=ultrazend
       - POSTGRES_PASSWORD=ultrazend
-    ports:
-      - "5432:5432"
+    # Postgres NAO e mais publicado no host: so a rede interna alcanca 5432.
+    # Para depurar localmente use `docker compose exec postgres psql ...`.
+    expose:
+      - "5432"
+    # Tuning dimensionado para o limite DO CONTAINER (256m), nao para a RAM do host.
+    command:
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - effective_cache_size=192MB
+      - -c
+      - max_connections=50
+      - -c
+      - work_mem=4MB
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -19,10 +40,48 @@ services:
       timeout: 3s
       retries: 10
 
+  # Container efemero: aplica schema + seed e sai. Roda ANTES da API, para que
+  # o container residente nao carregue o Prisma CLI nem rode migration a cada
+  # restart.
+  ultrazend-migration:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: migration
+    container_name: ultrazend-migration
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - DB_CLIENT=pg
+      - DATABASE_URL=postgresql://ultrazend:ultrazend@postgres:5432/ultrazend?schema=public
+      - LOG_FILE_PATH=/app/logs
+      # SUPER_ADMIN_PASSWORD e obrigatorio em producao: o seed falha sem ele.
+      - SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD:?defina SUPER_ADMIN_PASSWORD}
+      - SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL:-admin@velomail.com.br}
+    command: sh -c "npm run migrate:latest && npm run seed:super-admin"
+    volumes:
+      - ultrazend-logs:/app/logs
+      - /var/lib/ultrazend/configs:/app/configs
+    networks:
+      - ultrazend-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   ultrazend-api:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: runtime
     container_name: ultrazend-api
     labels:
       - com.ultrazend.component=application
@@ -31,12 +90,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      ultrazend-migration:
+        condition: service_completed_successfully
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
       - DB_CLIENT=pg
       - PORT=3001
+      # Abaixo do limite de 512M do container, deixando folga para memoria
+      # nativa/off-heap do Node.
+      - NODE_OPTIONS=--max-old-space-size=384
       - DATABASE_URL=postgresql://ultrazend:ultrazend@postgres:5432/ultrazend?schema=public
       - LOG_FILE_PATH=/app/logs
       - SMTP_HOST=localhost
@@ -46,8 +110,18 @@ services:
       - DKIM_PRIVATE_KEY_PATH=/app/configs/dkim-keys/velomail.com.br-default-private.pem
       - DKIM_SELECTOR=default
       - DKIM_DOMAIN=velomail.com.br
-      - QUEUE_ENABLED=true
-    command: sh -c "npm run migrate:latest && node dist/index.js"
+    # Migration saiu daqui: roda no servico ultrazend-migration. O container
+    # residente apenas sobe a aplicacao.
+    command: node dist/index.js
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ultrazend-logs:/app/logs
       - ultrazend-storage:/app/storage

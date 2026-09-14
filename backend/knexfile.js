@@ -67,8 +67,13 @@ const buildPostgresConfig = (fallbackDatabaseName) => {
       tableName: 'knex_migrations'
     },
     pool: {
-      min: 2,
-      max: 12,
+      // Mantidos os valores originais (min 2 / max 12). Reduzir para max 5 foi
+      // testado e NAO e seguro: a inicializacao abre conexoes em varios
+      // subsistemas ao mesmo tempo e satura o pool, travando o boot antes do
+      // server.listen(). Agora sao ajustaveis por ENV, mas so mude com teste
+      // de boot completo (ver docs/VPS-OPTIMIZATION-AUDIT.md).
+      min: Number(process.env.DB_POOL_MIN || 2),
+      max: Number(process.env.DB_POOL_MAX || 12),
       acquireTimeoutMillis: 120000,
       createTimeoutMillis: 60000,
       destroyTimeoutMillis: 10000,

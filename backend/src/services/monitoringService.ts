@@ -37,6 +37,26 @@ export class MonitoringService {
   constructor(database?: Knex) {
     this.db = database || db;
 
+    // Em teste o singleton e criado no import do modulo, antes de o setup
+    // definir DATABASE_URL e rodar as migrations. Armar os timers aqui
+    // deixava handles abertos apontando para um banco sem as tabelas, o que
+    // mantinha o processo do Jest vivo indefinidamente. Use start() para
+    // ativar o monitoramento explicitamente.
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+
+    this.start();
+  }
+
+  /**
+   * Valida o schema e arma os timers de monitoramento. Idempotente.
+   */
+  start(): void {
+    if (this.healthCheckInterval || this.metricsCleanupInterval) {
+      return;
+    }
+
     this.validateRequiredTables();
     this.startHealthChecks();
     this.startMetricsCleanup();
@@ -698,6 +718,7 @@ export class MonitoringService {
 
   // Stub methods para compatibilidade (manter métodos existentes)
   initialize() {
+    this.start();
     logger.info('MonitoringService initialized');
   }
 
@@ -791,10 +812,12 @@ export class MonitoringService {
     // Parar intervalos
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = undefined;
     }
     
     if (this.metricsCleanupInterval) {
       clearInterval(this.metricsCleanupInterval);
+      this.metricsCleanupInterval = undefined;
     }
 
     // Fechar conexão do banco

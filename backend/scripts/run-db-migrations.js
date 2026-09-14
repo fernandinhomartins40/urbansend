@@ -44,7 +44,9 @@ try {
       '--schema',
       path.join('prisma', 'schema.prisma')
     ]);
-    run('npx', ['prisma', 'generate', '--schema', path.join('prisma', 'schema.prisma')]);
+    // `prisma generate` foi removido intencionalmente: nenhuma linha de src/
+    // importa @prisma/client (o runtime usa Knex). Gerar o client em produção
+    // gastava CPU/RAM da VPS a cada deploy para produzir um artefato morto.
   } else {
     console.log('Using SQLite migration strategy via Knex.');
     run('node', ['-r', 'dotenv/config', path.join('node_modules', 'knex', 'bin', 'cli.js'), 'migrate:latest']);
