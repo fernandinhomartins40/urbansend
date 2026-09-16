@@ -1,5 +1,29 @@
 # Relatório: origem dos containers órfãos e plano de limpeza automatizada
 
+> ## ⚠️ ESTADO SUPERADO — leia antes de agir sobre este documento
+>
+> **Medição de 2026-09-16 contradiz todo o levantamento abaixo.** Entre 14/09 e 16/09 a VPS foi
+> reconstruída ou limpa a fundo. Medido com os mesmos comandos (`free`, `df`, `docker ps`, `uptime`):
+>
+> | Métrica | Este relatório (14/09) | **Medido em 16/09** |
+> |---|---|---|
+> | Containers | 95 | **16** |
+> | Disco | 162 GB (84%) | **20 GB (11%)** |
+> | Swap | 2.759 MB (67%) | **1 MB (0%)** |
+> | CPU | 96% (throttle) | **load 0.06, steal 0%** |
+> | Builds zumbis | 11 | **0** |
+> | Containers do flowcraft | 8 órfãos | **nenhum** |
+>
+> **Os órfãos descritos aqui não existem mais.** `scripts/remove-flowcraft-orphans.sh` não tem
+> mais alvos: ele aborta por segurança se os containers não casarem com o padrão esperado.
+>
+> **Este documento é preservado como registro de causa raiz**, não como retrato do estado atual.
+> A análise dos mecanismos (release sem retirada da anterior, PGDATA compartilhado, build órfão)
+> continua **tecnicamente válida e útil** — foi ela que originou as regras de
+> `docs/PADRAO-VPS-MULTI-APPS.md`.
+>
+> Para o estado atual e o diagnóstico vigente, ver **`docs/AUDITORIA-OTIMIZACAO-VPS.md`**.
+
 **VPS:** srv953800.hstgr.cloud (72.60.10.108) — Ubuntu 22.04, KVM 4
 **Data do levantamento:** 2026-09-14
 **Método:** inspeção read-only via SSH/paramiko. Nada foi removido nesta fase.
@@ -184,6 +208,43 @@ deploy ficou **mais de 16 minutos** sem concluir.
 
 Dois deploys simultâneos, ou um deploy junto do guardian, colidem. Mitigação: o timer do
 guardian roda às 04:00, fora da janela típica de deploy.
+
+### 🔬 Flowcraft: 6 Postgres disputando o MESMO PGDATA (2026-09-14 17:50Z)
+
+Ao executar a remoção com dump, o `pg_dumpall` travou e produziu um arquivo de 1376 bytes
+sem nenhum `CREATE TABLE`. O script **recusou remover** (comportamento projetado: dump
+inválido ⇒ container preservado) e apagou o dump ruim. Investigando o porquê:
+
+```
+a6c3fa0-...-postgres-1 -> /opt/flowcraft/data/postgres
+25f0505-...-postgres-1 -> /opt/flowcraft/data/postgres
+289cb5b-...-postgres-1 -> /opt/flowcraft/data/postgres
+8c1dc40-...113805-postgres-1 -> /opt/flowcraft/data/postgres
+8c1dc40-...113600-postgres-1 -> /opt/flowcraft/data/postgres
+7914c1c-...-postgres-1 -> /opt/flowcraft/data/postgres
+```
+
+**Os 6 Postgres montam o mesmo diretório de dados** (bind mount, não volume Docker).
+Um PGDATA só admite um postmaster: o `postmaster.pid` mostra um único dono, e os outros
+5 containers **nunca conseguiram inicializar** — daí estarem `unhealthy` há 4 meses e não
+responderem a `docker exec`.
+
+| Fato | Valor |
+|---|---|
+| PGDATA total | **47 MB** |
+| `/opt/flowcraft` inteiro | 51 MB |
+| Última escrita de dados | **2026-05-09 13:29** |
+| Containers compartilhando | 6 |
+| Containers que subiram de fato | 1 |
+
+**Consequência para a limpeza:** o dump por `pg_dumpall` é impossível em 5 dos 6 — eles não
+têm banco rodando. E é desnecessário: o backup correto é copiar o diretório
+`/opt/flowcraft/data/postgres` (47 MB), que contém o estado real e único.
+
+**Causa raiz:** o mesmo bug dos demais mecanismos. Cada deploy criou uma release nova
+apontando para o PGDATA compartilhado em `/opt/flowcraft/data/`, sem derrubar a anterior.
+O padrão de release versionada foi aplicado ao código, mas **não ao dado** — que ficou
+num caminho fixo, compartilhado por todas as releases.
 
 ### Mecanismo C — Containers `Exited` acumulados
 

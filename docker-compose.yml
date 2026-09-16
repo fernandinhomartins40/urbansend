@@ -1,3 +1,14 @@
+# ============================================================================
+# ATENCAO (PLANO MEDIA-6): este arquivo e para DESENVOLVIMENTO LOCAL.
+#
+# O deploy de producao NAO usa este compose. Ele executa `docker run` explicitos
+# em .github/scripts/deploy-production-remote.sh. Editar este arquivo NAO muda
+# nada em producao.
+#
+# Os limites abaixo sao mantidos em paridade com os do script de deploy para que
+# o ambiente local reproduza o comportamento de producao sob restricao de
+# recursos. Se alterar um limite aqui, altere tambem no script de deploy.
+# ============================================================================
 services:
   postgres:
     image: postgres:16-alpine
@@ -21,10 +32,12 @@ services:
       - max_connections=50
       - -c
       - work_mem=4MB
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    # `deploy.resources` e chave do Swarm; `mem_limit`/`cpus`/`pids_limit` no
+    # nivel do servico sao o equivalente explicito que o Compose v2 aplica.
+    # Paridade com o script de deploy (PLANO ALTA-4).
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 200
     logging:
       driver: json-file
       options:
@@ -67,10 +80,10 @@ services:
       - /var/lib/ultrazend/configs:/app/configs
     networks:
       - ultrazend-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    # Paridade com o script de deploy (PLANO ALTA-4).
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
     logging:
       driver: json-file
       options:
@@ -113,10 +126,11 @@ services:
     # Migration saiu daqui: roda no servico ultrazend-migration. O container
     # residente apenas sobe a aplicacao.
     command: node dist/index.js
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    # Paridade com o script de deploy (PLANO ALTA-4). CPU/PIDs maiores que os
+    # demais: e o container que atende requisicoes.
+    mem_limit: 512m
+    cpus: 1.5
+    pids_limit: 300
     logging:
       driver: json-file
       options:

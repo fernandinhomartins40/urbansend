@@ -148,14 +148,54 @@ echo "Atualizando codigo da aplicacao..."
 echo "Verificando espaco antes da compilacao..."
 available_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
 if [ "${available_kb:-0}" -lt 1572864 ]; then
-  echo "Espaco abaixo de 1.5 GB; removendo somente imagens e cache Docker nao utilizados..."
-  docker image prune -f || true
-  docker builder prune -f --filter 'until=24h' || true
+  # PLANO MEDIA-7: limpeza com escopo restrito.
+  #
+  # Esta VPS e compartilhada (aprenderia, digiurban, m2centerauto). Um
+  # `docker image prune -f` sem filtro apaga imagens DAS OUTRAS aplicacoes.
+  # Aqui removemos apenas imagens DESTA app, selecionadas pelo nome do
+  # repositorio (velomail-api / velomail-migration), mantendo as 3 tags mais
+  # recentes para que o rollback continue possivel sem rebuild.
+  #
+  # Ordenamos por CreatedAt em epoch (nao pela string de data, que nao ordena
+  # cronologicamente) e nunca removemos a imagem em uso pelo container vivo.
+  echo "Espaco abaixo de 1.5 GB; removendo apenas imagens antigas desta aplicacao..."
+  in_use="$(docker inspect --format '{{.Image}}' ultrazend-api 2>/dev/null || true)"
+  for repo in velomail-api velomail-migration; do
+    docker images --filter "reference=*/*/${repo}" \
+      --format '{{.CreatedAt}}\t{{.ID}}' 2>/dev/null \
+      | sort -r | tail -n +4 | cut -f2 \
+      | while read -r img_id; do
+          [ -n "$img_id" ] || continue
+          [ "$img_id" = "$in_use" ] && continue
+          docker rmi "$img_id" >/dev/null 2>&1 || true
+        done
+  done
+
+  # NAO usamos `docker builder prune`: ele NAO aceita filtro por label ou por
+  # projeto, entao apagaria o cache de build das outras 3 aplicacoes do host.
+  # Como esta app nao builda mais nesta maquina (PLANO CRITICA-1), ela tambem
+  # nao gera cache aqui. Nao ha o que limpar por nossa conta.
+  echo "Cache de build: nao tocado (compartilhado com outras apps do host)."
 fi
 df -h /
 
-rm -rf "$APP_DIR"
-git clone --depth 1 "$REPO_URL" "$APP_DIR"
+# PLANO ALTA-5: clone atomico, nao destrutivo.
+# Antes: `rm -rf "$APP_DIR"` acontecia ANTES do clone, entao um clone que
+# falhasse (rede, GitHub fora, disco cheio) deixava a VPS sem o codigo anterior
+# e sem o novo. Agora clonamos ao lado e so trocamos apos o clone concluir.
+APP_DIR_NEW="${APP_DIR}.new.$$"
+APP_DIR_OLD="${APP_DIR}.old.$$"
+rm -rf "$APP_DIR_NEW"
+if ! git clone --depth 1 "$REPO_URL" "$APP_DIR_NEW"; then
+  echo "ERRO: git clone falhou. Estado anterior em $APP_DIR foi preservado."
+  rm -rf "$APP_DIR_NEW"
+  exit 1
+fi
+if [ -d "$APP_DIR" ]; then
+  mv "$APP_DIR" "$APP_DIR_OLD"
+fi
+mv "$APP_DIR_NEW" "$APP_DIR"
+rm -rf "$APP_DIR_OLD"
 cd "$APP_DIR"
 echo "Repositorio clonado"
 
@@ -188,15 +228,40 @@ chown -R root:root "$CONFIG_DIR/dkim-keys" || true
 chmod 755 "$CONFIG_DIR/dkim-keys" || true
 find "$CONFIG_DIR/dkim-keys" -type f -exec chmod 644 {} + 2>/dev/null || true
 
-echo "Compilando frontend..."
-cd "$APP_DIR/frontend"
-npm ci --no-audit --no-fund --no-progress
-npm run build
+# PLANO CRITICA-1: o frontend NAO e mais compilado aqui.
+# Antes: `npm ci && npm run build` rodava na VPS, disputando CPU e I/O com as
+# outras 3 aplicacoes do host e exigindo toolchain Node em producao. O build
+# agora acontece no runner do GitHub e chega como tarball via scp.
+echo "Instalando frontend pre-compilado..."
+FRONTEND_TARBALL="/tmp/velomail-frontend.tar.gz"
+if [ ! -f "$FRONTEND_TARBALL" ]; then
+  echo "ERRO: artefato do frontend nao encontrado em $FRONTEND_TARBALL."
+  echo "O workflow deve envia-lo via scp antes de executar este script."
+  exit 1
+fi
 
-rm -rf "$STATIC_DIR"/*
-cp -r dist/* "$STATIC_DIR/"
+# Extrai para um diretorio temporario e so entao troca, para que uma extracao
+# corrompida nao deixe o site servindo uma pasta pela metade.
+STATIC_TMP="${STATIC_DIR}.new.$$"
+rm -rf "$STATIC_TMP"
+mkdir -p "$STATIC_TMP"
+tar -xzf "$FRONTEND_TARBALL" -C "$STATIC_TMP"
+
+if [ ! -f "$STATIC_TMP/index.html" ]; then
+  echo "ERRO: artefato do frontend nao contem index.html. Abortando sem tocar no site atual."
+  rm -rf "$STATIC_TMP"
+  exit 1
+fi
+
+STATIC_OLD="${STATIC_DIR}.old.$$"
+if [ -d "$STATIC_DIR" ]; then
+  mv "$STATIC_DIR" "$STATIC_OLD"
+fi
+mv "$STATIC_TMP" "$STATIC_DIR"
+rm -rf "$STATIC_OLD"
 chown -R www-data:www-data "$STATIC_DIR"
-echo "Frontend compilado e copiado"
+rm -f "$FRONTEND_TARBALL"
+echo "Frontend pre-compilado instalado"
 
 echo "Configurando Nginx..."
 cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
@@ -344,12 +409,20 @@ if docker ps -aq --filter "name=^/ultrazend-postgres$" | grep -q .; then
   fi
 else
   echo "Criando container ultrazend-postgres..."
+  # PLANO ALTA-4: alem do limite de memoria (que ja existia), o container agora
+  # tem limite de CPU e de PIDs. Sem eles, num host compartilhado por 4
+  # aplicacoes, um loop quente ou um vazamento de processos desta app degrada
+  # ou derruba as outras.
+  # Valores ESTIMADOS (VPS de 4 vCPU), com folga deliberada: nao foi possivel
+  # medir o pico com a aplicacao fora do ar. Revisar apos o item MEDIA-8.
   docker run -d \
     --name ultrazend-postgres \
     --restart unless-stopped \
     --network ultrazend-network \
     -m 256m \
     --memory-swap 256m \
+    --cpus=1.0 \
+    --pids-limit=200 \
     --log-driver json-file \
     --log-opt max-size=10m \
     --log-opt max-file=3 \
@@ -378,15 +451,43 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-echo "Construindo imagem Docker do backend..."
+# PLANO CRITICA-1 + CRITICA-2: a imagem NAO e mais construida aqui.
+#
+# Antes, dois `docker build` rodavam nesta VPS. Foi a causa direta da queda de
+# 12/09: com o host saturado o BuildKit perdia a sessao
+# ("failed to build: NotFound: forwarding Ping: no such job ...") e o deploy
+# morria sem deixar artefato utilizavel. Alem disso, um SSH interrompido deixava
+# o processo de build orfao (PPID 1) segurando locks do BuildKit.
+#
+# Agora as imagens sao construidas no runner do GitHub e publicadas no GHCR com
+# tag imutavel `sha-<commit>`. Aqui so baixamos. Isso torna o rollback uma troca
+# de variavel (pull de uma tag ja existente) em vez de um rebuild sob pressao.
 cd "$APP_DIR"
-# Dois targets: "runtime" e a imagem enxuta que fica residente 24h (sem Prisma
-# nem TypeScript); "migration" adiciona o Prisma CLI e roda como container
-# efemero apenas para aplicar o schema.
-DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --progress=plain \
-  --target runtime -t ultrazend-api:latest -f backend/Dockerfile backend/
-DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --progress=plain \
-  --target migration -t ultrazend-migration:latest -f backend/Dockerfile backend/
+
+if [ -z "${IMAGE_API:-}" ] || [ -z "${IMAGE_MIGRATION:-}" ]; then
+  echo "ERRO: IMAGE_API e IMAGE_MIGRATION precisam ser definidas pelo workflow."
+  exit 1
+fi
+
+echo "Baixando imagens do registry..."
+echo "  API:       $IMAGE_API"
+echo "  MIGRATION: $IMAGE_MIGRATION"
+
+if [ -n "${REGISTRY_USER:-}" ] && [ -n "${REGISTRY_TOKEN:-}" ]; then
+  echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+fi
+
+docker pull "$IMAGE_API"
+docker pull "$IMAGE_MIGRATION"
+
+# Tags locais estaveis: o restante do script (e um rollback manual) referencia
+# estes nomes, enquanto a tag SHA permanece como identificador imutavel.
+docker tag "$IMAGE_API" ultrazend-api:latest
+docker tag "$IMAGE_MIGRATION" ultrazend-migration:latest
+
+# Label usado pela limpeza com escopo restrito (MEDIA-7), para nunca apagar
+# imagem de outra aplicacao do host.
+echo "Imagens prontas (build feito fora desta VPS)"
 
 echo "Aplicando migrations (container efemero)..."
 docker run --rm \
@@ -394,6 +495,8 @@ docker run --rm \
   --network ultrazend-network \
   --env-file "$ENV_FILE" \
   -m 512m \
+  --cpus=1.0 \
+  --pids-limit=200 \
   -e NODE_ENV=production \
   -e DB_CLIENT=pg \
   -e DATABASE_URL=postgresql://ultrazend:ultrazend@ultrazend-postgres:5432/ultrazend?schema=public \
@@ -413,6 +516,8 @@ docker run -d \
   -p 3001:3001 \
   -m 512m \
   --memory-swap 512m \
+  --cpus=1.5 \
+  --pids-limit=300 \
   --log-driver json-file \
   --log-opt max-size=10m \
   --log-opt max-file=3 \

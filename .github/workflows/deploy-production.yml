@@ -11,23 +11,163 @@ on:
       - ".github/workflows/deploy-production.yml"
       - ".github/scripts/deploy-production-remote.sh"
   workflow_dispatch:
+    inputs:
+      rollback_sha:
+        description: "SHA de 40 caracteres para rollback (deixe vazio para deploy normal)"
+        required: false
+        type: string
 
 env:
   VPS_HOST: ${{ secrets.VPS_HOST }}
   VPS_USER: ${{ secrets.VPS_USER }}
   DOMAIN: www.velomail.com.br
+  REGISTRY: ghcr.io
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # PLANO CRITICA-1: o build acontece AQUI, no runner do GitHub, nunca na VPS.
+  #
+  # Antes, `npm run build` (frontend) e dois `docker build` (backend) rodavam
+  # dentro da VPS de producao. Isso disputava CPU e I/O com as outras 3
+  # aplicacoes do host e foi a causa direta da queda de 12/09: com o host
+  # saturado, o BuildKit perdia a sessao e o deploy morria sem artefato.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build images and frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_api: ${{ steps.meta.outputs.image_api }}
+      image_migration: ${{ steps.meta.outputs.image_migration }}
+    steps:
+      # Em rollback, o checkout precisa ser DO COMMIT ANTIGO. Sem `ref`, o job
+      # compilaria o codigo atual e o publicaria sob a tag do SHA antigo,
+      # corrompendo a imagem historica e tornando o rollback uma mentira.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.rollback_sha || github.sha }}
+
+      # PLANO CRITICA-2: versionamento por identificador imutavel.
+      # A tag deixa de ser `:latest` e passa a ser `sha-<commit>`. E isso que
+      # torna o rollback uma troca de variavel, em vez de um rebuild sob
+      # pressao num host que talvez esteja saturado.
+      - name: Resolve image tags
+        id: meta
+        shell: bash
+        run: |
+          set -eo pipefail
+          OWNER="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          SHA="${{ github.event.inputs.rollback_sha || github.sha }}"
+          echo "image_api=${REGISTRY}/${OWNER}/velomail-api:sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "image_migration=${REGISTRY}/${OWNER}/velomail-migration:sha-${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Se a imagem daquele SHA ja existe no registry (caso tipico de rollback),
+      # nao ha o que construir: o deploy so precisa baixa-la. E isso que cumpre
+      # a promessa de "rollback sem rebuild", inclusive com o host saturado.
+      - name: Check if images already exist
+        id: exists
+        shell: bash
+        run: |
+          set -eo pipefail
+          if docker manifest inspect "${{ steps.meta.outputs.image_api }}" >/dev/null 2>&1 \
+             && docker manifest inspect "${{ steps.meta.outputs.image_migration }}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Imagens ja existem no registry; build sera pulado."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Buildx
+        if: steps.exists.outputs.found != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      # Dois targets do mesmo Dockerfile: "runtime" e a imagem enxuta que fica
+      # residente 24h; "migration" adiciona o Prisma CLI (~190 MB) e roda como
+      # container efemero, entao esse peso nunca fica no ar.
+      - name: Build and push API image
+        if: steps.exists.outputs.found != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ steps.meta.outputs.image_api }}
+          labels: com.ultrazend.component=application
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push migration image
+        if: steps.exists.outputs.found != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: migration
+          push: true
+          tags: ${{ steps.meta.outputs.image_migration }}
+          labels: com.ultrazend.component=application
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set up Node for frontend build
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          set -eo pipefail
+          npm ci --no-audit --no-fund --no-progress
+          npm run build
+
+      # O artefato vai para a VPS como tarball. A VPS so extrai, nunca compila.
+      - name: Package frontend artifact
+        working-directory: frontend
+        run: |
+          set -eo pipefail
+          test -f dist/index.html || { echo "ERRO: build do frontend nao gerou index.html"; exit 1; }
+          tar -czf /tmp/velomail-frontend.tar.gz -C dist .
+          ls -lh /tmp/velomail-frontend.tar.gz
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: /tmp/velomail-frontend.tar.gz
+          retention-days: 7
+
   deploy:
     name: Deploy to Production
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     environment:
       name: production
       url: https://www.velomail.com.br
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: /tmp/artifact
 
       - name: Install SSH tools
         shell: bash
@@ -47,7 +187,6 @@ jobs:
           set -eo pipefail
           SERVER_IP="${VPS_HOST:-72.60.10.108}"
           SERVER_USER="${VPS_USER:-root}"
-          SERVER_HOST="${SERVER_USER}@${SERVER_IP}"
           if [ -z "$SSHPASS" ]; then
             echo "ERROR: secret VPS_PASSWORD is empty or not configured."
             exit 1
@@ -60,8 +199,25 @@ jobs:
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
-            "$SERVER_HOST" \
+            "${SERVER_USER}@${SERVER_IP}" \
             "echo SSH_OK"
+
+      # O frontend ja compilado viaja por scp. A VPS recebe bytes prontos.
+      - name: Upload frontend to VPS
+        shell: bash
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          set -eo pipefail
+          SERVER_IP="${VPS_HOST:-72.60.10.108}"
+          SERVER_USER="${VPS_USER:-root}"
+          sshpass -e scp \
+            -o ConnectTimeout=20 \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
+            -o StrictHostKeyChecking=yes \
+            /tmp/artifact/velomail-frontend.tar.gz \
+            "${SERVER_USER}@${SERVER_IP}:/tmp/velomail-frontend.tar.gz"
 
       - name: Deploy via SSH
         shell: bash
@@ -71,7 +227,6 @@ jobs:
           set -eo pipefail
           SERVER_IP="${VPS_HOST:-72.60.10.108}"
           SERVER_USER="${VPS_USER:-root}"
-          SERVER_HOST="${SERVER_USER}@${SERVER_IP}"
           sshpass -e ssh \
             -o ConnectTimeout=20 \
             -o ServerAliveInterval=30 \
@@ -80,13 +235,16 @@ jobs:
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
-            "$SERVER_HOST" \
-            'bash -s' < .github/scripts/deploy-production-remote.sh
+            "${SERVER_USER}@${SERVER_IP}" \
+            "IMAGE_API='${{ needs.build.outputs.image_api }}' \
+             IMAGE_MIGRATION='${{ needs.build.outputs.image_migration }}' \
+             REGISTRY_USER='${{ github.actor }}' \
+             REGISTRY_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
+             bash -s" < .github/scripts/deploy-production-remote.sh
 
       - name: Deploy Complete
         run: |
-          SERVER_IP="${VPS_HOST:-72.60.10.108}"
-          SERVER_USER="${VPS_USER:-root}"
           echo "Deploy completed"
-          echo "Site: https://${{ env.DOMAIN }}"
-          echo "Server: ${SERVER_USER}@${SERVER_IP}"
+          echo "Site:  https://${{ env.DOMAIN }}"
+          echo "API:   ${{ needs.build.outputs.image_api }}"
+          echo "Rollback: rode este workflow via workflow_dispatch informando o SHA anterior."

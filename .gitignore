@@ -99,3 +99,6 @@ assetslandingpage/
 # Python (scripts de manutencao da VPS)
 __pycache__/
 *.pyc
+
+# Diretorio da ferramenta Serena (indices locais, nao versionar)
+.serena/

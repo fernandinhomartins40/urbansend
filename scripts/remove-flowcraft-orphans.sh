@@ -55,7 +55,28 @@ done
 echo "[OK] todos os ${#CONTAINERS[@]} nomes conferem com o padrao do flowcraft."
 echo
 
-[ "$APPLY" = "1" ] && mkdir -p "$BACKUP_DIR"
+PGDATA="/opt/flowcraft/data/postgres"
+
+if [ "$APPLY" = "1" ]; then
+  mkdir -p "$BACKUP_DIR"
+
+  # Backup UNICO do PGDATA compartilhado, feito com os containers ainda de pe.
+  # E um copia-a-frio de um Postgres que nao recebe escrita desde 2026-05-09;
+  # para restaurar, aponte um postgres:16-alpine para o diretorio extraido.
+  if [ -d "$PGDATA" ]; then
+    echo "Copiando PGDATA compartilhado ($(du -xsh "$PGDATA" 2>/dev/null | cut -f1))..."
+    if tar czf "$BACKUP_DIR/pgdata.tar.gz" -C "$(dirname "$PGDATA")" "$(basename "$PGDATA")" 2>/dev/null; then
+      echo "[OK] backup: $BACKUP_DIR/pgdata.tar.gz ($(du -h "$BACKUP_DIR/pgdata.tar.gz" | cut -f1))"
+    else
+      echo "!! FALHA ao copiar o PGDATA. Abortando: nada sera removido."
+      exit 1
+    fi
+  else
+    echo "!! $PGDATA nao existe. Abortando por seguranca."
+    exit 1
+  fi
+  echo
+fi
 
 for c in "${CONTAINERS[@]}"; do
   echo "------------------------------------------------------------------"
@@ -67,29 +88,22 @@ for c in "${CONTAINERS[@]}"; do
   IMG=$(docker inspect -f '{{.Config.Image}}' "$c" 2>/dev/null)
   echo "$c  [$IMG]"
 
-  # Dump apenas dos Postgres.
+  # Backup: NAO usamos pg_dumpall aqui.
+  #
+  # Descoberto em 2026-09-14: os 6 Postgres do flowcraft montam o MESMO
+  # diretorio de dados (/opt/flowcraft/data/postgres, bind mount). Um PGDATA
+  # so admite um postmaster, entao 5 dos 6 nunca inicializaram -- estao
+  # unhealthy ha 4 meses e nao respondem a `docker exec`. Tentar pg_dumpall
+  # neles trava e produz arquivo vazio.
+  #
+  # O backup correto e copiar o PGDATA uma unica vez (47MB), feito antes do
+  # laco. Ver docs/VPS-ORPHAN-CLEANUP-REPORT.md.
   if echo "$IMG" | grep -qi postgres; then
-    if [ "$APPLY" = "1" ]; then
-      echo "  -> dump..."
-      # pg_dumpall precisa do superusuario; tenta os nomes usuais.
-      OK=0
-      for u in postgres flowcraft app; do
-        if docker exec "$c" pg_dumpall -U "$u" > "$BACKUP_DIR/$c.sql" 2>/dev/null; then
-          SZ=$(du -h "$BACKUP_DIR/$c.sql" 2>/dev/null | cut -f1)
-          if [ -s "$BACKUP_DIR/$c.sql" ]; then
-            echo "  -> dump OK como '$u' ($SZ)"; OK=1; break
-          fi
-        fi
-      done
-      if [ "$OK" != "1" ]; then
-        rm -f "$BACKUP_DIR/$c.sql"
-        echo "  !! DUMP FALHOU. Container NAO sera removido."
-        echo "     (o banco pode estar parado ou com outro usuario)"
-        continue
-      fi
-    else
-      echo "  -> FARIA dump para $BACKUP_DIR/$c.sql"
+    if [ ! -s "$BACKUP_DIR/pgdata.tar.gz" ]; then
+      echo "  !! backup do PGDATA ausente. Container NAO sera removido."
+      continue
     fi
+    echo "  -> dados cobertos pelo backup do PGDATA compartilhado"
   fi
 
   if [ "$APPLY" = "1" ]; then
