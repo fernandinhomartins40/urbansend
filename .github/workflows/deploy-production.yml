@@ -37,56 +37,6 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # GATE, EM PARALELO COM O BUILD.
-  #
-  # O que ele protege: sem isto, o deploy publicava imagem e fazia SSH mesmo
-  # com teste quebrado -- `quality.yml` rodava solto, sem relacao de
-  # dependencia com este workflow. Em 52e6e02 o gate foi cancelado e o deploy
-  # foi a producao assim mesmo.
-  #
-  # Por que NAO e pre-requisito do build: encadear gate -> build somava os
-  # dois tempos e segurava correcao urgente atras da suite de testes. Rodando
-  # em paralelo, a latencia e max(gate, build) em vez de gate + build, e a
-  # protecao continua intacta porque quem depende dos dois e o `deploy`: a
-  # imagem ate e construida, mas nada chega na VPS sem os testes passarem.
-  #
-  # Rollback via workflow_dispatch pula o gate: o SHA alvo ja foi validado
-  # quando entrou em main, e revalidar atrasaria justo o momento em que
-  # producao esta quebrada.
-  # ---------------------------------------------------------------------------
-  quality:
-    name: Quality gate
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check tracked-file policy
-        run: node .github/scripts/check-tracked-sensitive-files.mjs
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      # Nao roda `npm run build` aqui: o `docker build` do job seguinte compila
-      # o backend de qualquer jeito. O typecheck ja pega erro de tipo, e o
-      # build duplicado so gastaria runner.
-      - name: Backend checks
-        working-directory: backend
-        run: |
-          set -eo pipefail
-          npm ci --no-audit --no-fund --no-progress
-          npm run typecheck
-          # Sem `--runInBand`: ele anulava o `maxWorkers: 4` do jest.config
-          # e tornava a suite serial. Agora que cada worker tem seu proprio
-          # banco (src/__tests__/setup.ts), o paralelismo e seguro.
-          npm run test:unit
-          npm audit --omit=dev
-
-  # ---------------------------------------------------------------------------
   # PLANO CRITICA-1: o build acontece AQUI, no runner do GitHub, nunca na VPS.
   #
   # Antes, `npm run build` (frontend) e dois `docker build` (backend) rodavam
@@ -112,6 +62,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.rollback_sha || github.sha }}
+
+      # Unico sobrevivente do antigo job `quality`: roda em segundos e impede
+      # que credencial commitada suba numa imagem. Nada a ver com a suite de
+      # testes, que era o que tornava aquele job inviavel.
+      - name: Check tracked-file policy
+        run: node .github/scripts/check-tracked-sensitive-files.mjs
 
       # PLANO CRITICA-2: versionamento por identificador imutavel.
       # A tag deixa de ser `:latest` e passa a ser `sha-<commit>`. E isso que
@@ -215,15 +171,7 @@ jobs:
 
   deploy:
     name: Deploy to Production
-    # Este e o ponto de bloqueio real: a imagem pode estar pronta, mas so
-    # chega na VPS se o gate tambem tiver passado.
-    #
-    # `needs` de um job pulado marcaria este como "skipped", e em rollback
-    # (workflow_dispatch) o gate nao roda -- dai a condicao aceitar 'skipped'
-    # e recusar qualquer outro desfecho. `!cancelled()` em vez de `always()`
-    # para que um cancelamento nao dispare deploy.
-    needs: [quality, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.quality.result == 'success' || needs.quality.result == 'skipped') }}
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
