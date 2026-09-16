@@ -264,6 +264,67 @@ rm -f "$FRONTEND_TARBALL"
 echo "Frontend pre-compilado instalado"
 
 echo "Configurando Nginx..."
+
+# Bootstrap SSL em duas fases (corrige falha do deploy de 2026-09-16).
+#
+# A config completa abaixo faz `include /etc/letsencrypt/options-ssl-nginx.conf`
+# e referencia o certificado do dominio. Numa VPS recem-instalada nenhum dos
+# dois existe ainda, entao o `nginx -t` falha com:
+#   open() "/etc/letsencrypt/options-ssl-nginx.conf" failed (2: No such file...)
+# e o deploy morre ANTES de chegar no certbot -- que era justamente quem criaria
+# esses arquivos. Deadlock: nginx precisa do cert, cert precisa do nginx no ar.
+#
+# Solucao: se o certificado ainda nao existe, sobe primeiro um server HTTP
+# minimo (suficiente para o desafio ACME), roda o certbot, e so entao instala a
+# config HTTPS completa. Em host que ja tem certificado, nada disso executa.
+if [ ! -f "/etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem" ]; then
+  echo "Certificado ausente: fazendo bootstrap HTTP para o desafio ACME..."
+  mkdir -p /var/www/html
+  cat > /etc/nginx/sites-available/ultrazend << 'BOOTSTRAP_EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.velomail.com.br velomail.com.br;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+
+    location / {
+        root /var/www/ultrazend-static;
+        try_files $uri $uri/ /index.html;
+    }
+}
+BOOTSTRAP_EOF
+  ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/000-ultrazend
+  rm -f /etc/nginx/sites-enabled/ultrazend
+  if nginx -t; then
+    systemctl reload nginx
+    echo "Nginx em modo HTTP. Solicitando certificado..."
+    # --nginx edita a config para validar; o resultado e descartado logo abaixo,
+    # quando a config completa e reescrita. O que importa e o certificado.
+    certbot certonly --nginx \
+      -d "$BASE_DOMAIN" -d "$WWW_DOMAIN" \
+      --cert-name "$BASE_DOMAIN" \
+      --non-interactive --agree-tos --email divairbuava@gmail.com \
+      || echo "AVISO: certbot falhou; o deploy continua e o site fica em HTTP."
+  else
+    echo "AVISO: nginx -t falhou no bootstrap; pulando emissao de certificado."
+  fi
+fi
+
+# Se mesmo apos o bootstrap nao houver certificado (DNS ainda propagando, rate
+# limit do Let's Encrypt), instalar a config HTTPS deixaria o nginx sem subir e
+# derrubaria as OUTRAS 3 aplicacoes do host. Nesse caso paramos aqui, com o site
+# servindo em HTTP, e reportamos.
+if [ ! -f "/etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem" ]; then
+  echo "AVISO: sem certificado para $BASE_DOMAIN. Mantendo configuracao HTTP."
+  echo "       Rode o deploy novamente apos resolver o DNS/certbot."
+  SKIP_HTTPS_CONFIG=1
+fi
+
+if [ "${SKIP_HTTPS_CONFIG:-0}" != "1" ]; then
 cat > /etc/nginx/sites-available/ultrazend << 'NGINX_EOF'
 # HTTP server - redirect to HTTPS
 server {
@@ -392,7 +453,40 @@ NGINX_EOF
 ln -sf /etc/nginx/sites-available/ultrazend /etc/nginx/sites-enabled/000-ultrazend
 rm -f /etc/nginx/sites-enabled/ultrazend
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && echo "Nginx configurado com sucesso"
+
+# Se a config HTTPS nao validar, restauramos o modo HTTP em vez de deixar o
+# nginx quebrado: uma config invalida impede `systemctl reload` e derrubaria
+# tambem aprenderia, digiurban e m2centerauto, que dividem este nginx.
+if ! nginx -t; then
+  echo "ERRO: configuracao HTTPS invalida. Revertendo para HTTP para nao afetar as outras apps."
+  cat > /etc/nginx/sites-available/ultrazend << 'FALLBACK_EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.velomail.com.br velomail.com.br;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+
+    location / {
+        root /var/www/ultrazend-static;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+FALLBACK_EOF
+  nginx -t || { echo "ERRO: nem a config HTTP de fallback valida."; exit 1; }
+fi
+echo "Nginx configurado com sucesso"
+fi
 
 echo "Preparando rede e volumes..."
 docker network create ultrazend-network >/dev/null 2>&1 || true
@@ -549,20 +643,28 @@ if ! docker ps --filter "name=^/ultrazend-api$" --format '{{.Names}}' | grep -q 
   exit 1
 fi
 
-systemctl reload nginx
-echo "Servicos iniciados"
-
-echo "Configurando SSL..."
-if [ ! -f /etc/letsencrypt/live/$BASE_DOMAIN/fullchain.pem ]; then
-  echo "Obtendo certificado SSL para apex domain..."
-  certbot certonly --nginx -d $BASE_DOMAIN -d $WWW_DOMAIN --cert-name $BASE_DOMAIN --non-interactive --agree-tos --email divairbuava@gmail.com || echo "SSL setup completed with warnings"
+# `nginx -t` ja validou a config acima. Um reload que falhe aqui NAO deve
+# abortar o deploy: a aplicacao esta no ar e o container saudavel, e derrubar o
+# deploy neste ponto deixaria tudo pela metade (foi o que aconteceu em 16/09).
+if ! systemctl reload nginx; then
+  echo "AVISO: reload do nginx falhou. Diagnostico:"
+  nginx -t || true
+  systemctl status nginx --no-pager -l 2>&1 | tail -15 || true
 fi
+echo "Servicos iniciados"
 
 # O certificado de $BASE_DOMAIN ja cobre $WWW_DOMAIN via SAN, entao nao ha
 # emissao separada para o www (o diretorio live/$WWW_DOMAIN nunca existe).
-
-systemctl reload nginx
-echo "SSL configurado para ambos dominios"
+#
+# A emissao em si acontece no bootstrap, la em cima, antes da config HTTPS ser
+# escrita. Aqui apenas tratamos o caso em que o certificado passou a existir
+# DEPOIS de termos caido no modo HTTP: reexecutar o deploy instala o HTTPS.
+if [ "${SKIP_HTTPS_CONFIG:-0}" = "1" ]; then
+  echo "SSL: site servindo em HTTP (sem certificado). Rode o deploy novamente"
+  echo "     apos confirmar que o DNS de $BASE_DOMAIN aponta para esta VPS."
+else
+  echo "SSL configurado para ambos dominios"
+fi
 
 echo "Validando deployment..."
 sleep 10
