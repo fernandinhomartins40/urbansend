@@ -37,19 +37,28 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # GATE. Antes, o deploy publicava imagem e fazia SSH mesmo com typecheck ou
-  # teste quebrado: `quality.yml` rodava em paralelo, sem nenhuma relacao de
-  # dependencia com este workflow. Agora o build so comeca se isto passar.
+  # GATE, EM PARALELO COM O BUILD.
+  #
+  # O que ele protege: sem isto, o deploy publicava imagem e fazia SSH mesmo
+  # com teste quebrado -- `quality.yml` rodava solto, sem relacao de
+  # dependencia com este workflow. Em 52e6e02 o gate foi cancelado e o deploy
+  # foi a producao assim mesmo.
+  #
+  # Por que NAO e pre-requisito do build: encadear gate -> build somava os
+  # dois tempos e segurava correcao urgente atras da suite de testes. Rodando
+  # em paralelo, a latencia e max(gate, build) em vez de gate + build, e a
+  # protecao continua intacta porque quem depende dos dois e o `deploy`: a
+  # imagem ate e construida, mas nada chega na VPS sem os testes passarem.
   #
   # Rollback via workflow_dispatch pula o gate: o SHA alvo ja foi validado
-  # quando entrou em main, e exigir nova validacao atrasaria justo o momento
-  # em que producao esta quebrada.
+  # quando entrou em main, e revalidar atrasaria justo o momento em que
+  # producao esta quebrada.
   # ---------------------------------------------------------------------------
   quality:
     name: Quality gate
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +80,10 @@ jobs:
           set -eo pipefail
           npm ci --no-audit --no-fund --no-progress
           npm run typecheck
-          npm run test:unit -- --runInBand
+          # Sem `--runInBand`: ele anulava o `maxWorkers: 4` do jest.config
+          # e tornava a suite serial. Agora que cada worker tem seu proprio
+          # banco (src/__tests__/setup.ts), o paralelismo e seguro.
+          npm run test:unit
           npm audit --omit=dev
 
   # ---------------------------------------------------------------------------
@@ -84,14 +96,6 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: Build images and frontend
-    needs: quality
-    # `needs` de um job pulado deixa este como "skipped" por padrao. Em
-    # workflow_dispatch (rollback) o gate nao roda, entao a condicao precisa
-    # aceitar 'skipped' e recusar qualquer outro desfecho.
-    #
-    # `!cancelled()` em vez de `always()`: com `always()`, um cancelamento que
-    # chegasse depois do gate passar ainda deixaria o build arrancar.
-    if: ${{ !cancelled() && (needs.quality.result == 'success' || needs.quality.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -211,7 +215,15 @@ jobs:
 
   deploy:
     name: Deploy to Production
-    needs: build
+    # Este e o ponto de bloqueio real: a imagem pode estar pronta, mas so
+    # chega na VPS se o gate tambem tiver passado.
+    #
+    # `needs` de um job pulado marcaria este como "skipped", e em rollback
+    # (workflow_dispatch) o gate nao roda -- dai a condicao aceitar 'skipped'
+    # e recusar qualquer outro desfecho. `!cancelled()` em vez de `always()`
+    # para que um cancelamento nao dispare deploy.
+    needs: [quality, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.quality.result == 'success' || needs.quality.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:

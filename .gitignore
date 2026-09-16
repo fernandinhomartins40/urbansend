@@ -102,3 +102,6 @@ __pycache__/
 
 # Diretorio da ferramenta Serena (indices locais, nao versionar)
 .serena/
+
+# Bancos de teste por worker do Jest
+backend/test-worker-*.db

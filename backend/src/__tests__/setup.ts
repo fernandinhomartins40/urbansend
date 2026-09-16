@@ -5,8 +5,24 @@ import { logger } from '../config/logger';
 import { monitoringService } from '../services/monitoringService';
 import { DEFAULT_USER_PERMISSIONS, ADMIN_PERMISSIONS, permissionsToJson } from '../constants/permissions';
 
-// Test database path
-const TEST_DB_PATH = path.resolve(__dirname, '../../test.db');
+/**
+ * Banco de teste POR WORKER.
+ *
+ * Antes era um unico `test.db` compartilhado, e cada suite o apagava no
+ * proprio `beforeAll`. Com `maxWorkers: 4` isso e uma corrida: quatro
+ * suites paralelas deletando e remigrando o banco umas das outras. A
+ * suite so era estavel porque rodava serial (`--runInBand`), o que
+ * mascarava a causa e custava ~20 min de CI, tempo suficiente para o
+ * job estourar o timeout e segurar correcao urgente.
+ *
+ * `JEST_WORKER_ID` e atribuido pelo Jest a cada worker (e fica indefinido
+ * fora deles, dai o fallback), entao cada um passa a ter arquivo proprio
+ * e os testes podem rodar em paralelo sem interferencia.
+ */
+const TEST_DB_PATH = path.resolve(
+  __dirname,
+  `../../test-worker-${process.env.JEST_WORKER_ID || '1'}.db`
+);
 
 /**
  * Global test setup
