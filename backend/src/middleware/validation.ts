@@ -5,6 +5,31 @@ import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 import { API_KEY_GRANTABLE_PERMISSIONS } from '../constants/permissions';
 
+/**
+ * No Express 5, `req.query` e `req.params` deixaram de ser propriedades
+ * graváveis e passaram a ser getters no prototype (`IncomingMessage`).
+ * Uma atribuição direta lança:
+ *
+ *   TypeError: Cannot set property query of #<IncomingMessage>
+ *               which has only a getter
+ *
+ * Isso derrubava com 500 TODA rota que validasse query -- entre elas
+ * GET /api/emails, super-admin e monitoring.
+ *
+ * `defineProperty` grava a versão validada como propriedade própria da
+ * request, que tem precedência sobre o getter do prototype. Mantemos o
+ * contrato `req.query`, de que as rotas dependem para ler os valores já
+ * transformados pelo Zod (ex.: `page` e `limit` como number).
+ */
+const assignValidated = (req: Request, key: 'query' | 'params', value: unknown): void => {
+  Object.defineProperty(req, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true
+  });
+};
+
 export const validateRequest = (schema: {
   body?: ZodSchema;
   query?: ZodSchema;
@@ -15,15 +40,15 @@ export const validateRequest = (schema: {
       if (schema.body) {
         req.body = schema.body.parse(req.body);
       }
-      
+
       if (schema.query) {
-        req.query = schema.query.parse(req.query);
+        assignValidated(req, 'query', schema.query.parse(req.query));
       }
-      
+
       if (schema.params) {
-        req.params = schema.params.parse(req.params);
+        assignValidated(req, 'params', schema.params.parse(req.params));
       }
-      
+
       next();
     } catch (error) {
       next(error);
