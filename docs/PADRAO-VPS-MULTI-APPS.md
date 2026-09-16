@@ -6,7 +6,7 @@ concreto que a originou, e o status de validação está declarado.
 
 ---
 
-## 0. As três lições que custaram caro
+## 0. As quatro lições que custaram caro
 
 Antes das regras, o que esta auditoria de fato provou:
 
@@ -17,6 +17,10 @@ Antes das regras, o que esta auditoria de fato provou:
    `digiurban`. Limpeza por nome derruba produção alheia. **Use labels.**
 3. **Dado de auditoria envelhece rápido.** Um relatório de 14/09 descrevia 95 containers e disco a
    84%; em 16/09 eram 16 containers e 11%. Agir sobre número velho é agir às cegas — **meça de novo**.
+4. **Tirar o build da VPS não basta: o pipeline precisa de fila e de gate.** Dois workflows
+   disparando no mesmo push compilavam tudo em dobro, e o deploy subia mesmo com o gate de
+   qualidade cancelado. Sem `concurrency`, dois pushes seguidos viram dois deploys simultâneos no
+   mesmo host — **o mesmo empilhamento que gerou os órfãos do flowcraft**. Ver §3.3.
 
 ---
 
@@ -78,7 +82,37 @@ emergência acontece exatamente quando o host está mal — ou seja, quando ele 
 
 *(Status: implementado; **rollback ainda não testado de ponta a ponta**.)*
 
-### 3.3 Deploy não destrutivo e idempotente
+### 3.3 Um push, um pipeline — com trava de concorrência
+
+Três erros que andam juntos e que esta auditoria cometeu antes de corrigir:
+
+**a) Workflows duplicados.** `quality.yml` e `deploy-production.yml` disparavam ambos em
+`push: main`. Resultado: o frontend era compilado **duas vezes** no mesmo commit, e o backend no
+`quality` e de novo dentro do `docker build`. Correção: o workflow de qualidade roda em
+`pull_request`; no push, o gate é um **job** dentro do próprio deploy.
+
+**b) Deploy sem gate.** Como eram workflows independentes, o deploy publicava imagem e fazia SSH
+**mesmo com o `quality` falhando ou cancelado** — observado: um run com `Quality checks: cancelled`
+e `Deploy Production: success` no mesmo segundo. Correção: `needs: quality` no job de build.
+
+**c) Sem trava de concorrência.** Dois pushes seguidos disparavam dois deploys simultâneos contra o
+mesmo host. **É esse empilhamento que produziu os 8 containers órfãos e os 11 `docker build` zumbis
+do flowcraft** (6 deploys em 2 horas). Correção:
+
+```yaml
+concurrency:
+  group: deploy-production      # sem ${{ github.ref }}: a fila é por AMBIENTE, não por branch
+  cancel-in-progress: false     # cancelar no meio deixa migração pela metade e container parcial
+```
+
+> `cancel-in-progress: false` é deliberado no deploy. Em CI de qualidade, `true` é o certo (cancelar
+> uma verificação obsoleta não custa nada). **Num deploy, cancelar no meio é pior que esperar:**
+> deixa migração parcial e container meio-subido no host.
+
+*(Status: **implementado e simulado** nos 5 cenários de gate; ainda não exercitado com dois pushes
+concorrentes reais.)*
+
+### 3.4 Deploy não destrutivo e idempotente
 
 - Clone/extração em diretório temporário, **troca atômica** só após sucesso. Nunca `rm -rf` do
   destino antes de ter o substituto pronto.
@@ -87,7 +121,7 @@ emergência acontece exatamente quando o host está mal — ou seja, quando ele 
 
 *(Status: implementado no VeloMail.)*
 
-### 3.4 Serviço removido não some sozinho
+### 3.5 Serviço removido não some sozinho
 
 Ao retirar um serviço, percorra o checklist da §7. Remoção pela metade deixa a aplicação **pior**:
 paga o custo da configuração morta sem nenhum benefício.
@@ -265,4 +299,8 @@ destino definido antes de desligar o antigo.
 | **Valores de CPU/PIDs do VeloMail** | ⚠️ **ESTIMADOS** — sem medição de pico |
 | **Rollback por SHA** | ⚠️ **implementado, não testado de ponta a ponta** |
 | **Tuning Postgres sob limite de 256 MB** | ⚠️ não validado sob carga real |
-| **Build no CI + pull na VPS** | ⚠️ implementado, **deploy ainda não executado** |
+| **Build no CI + pull na VPS** | ✅ **executado com sucesso em 16/09** — app no ar, HTTPS válido |
+| Limites CPU/PIDs aplicados de fato | ✅ `docker inspect`: `NanoCpus=1500000000`, `PidsLimit=300` |
+| Bootstrap SSL em duas fases | ✅ certificado emitido, `CN=velomail.com.br` |
+| Gate de qualidade bloqueia o deploy | ✅ 5 cenários simulados; ⚠️ não exercitado com falha real |
+| `concurrency` evita deploys simultâneos | ⚠️ implementado, **não exercitado com 2 pushes concorrentes** |

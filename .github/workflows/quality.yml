@@ -2,11 +2,16 @@ name: Quality checks
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
+
+# Em push para `main` este workflow NAO roda. O gate de qualidade daquele
+# caminho e o job `quality` do deploy-production.yml, que bloqueia o build.
+# Rodar os dois no mesmo push compilava frontend e backend duas vezes.
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:

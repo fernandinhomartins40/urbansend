@@ -17,6 +17,18 @@ on:
         required: false
         type: string
 
+# ---------------------------------------------------------------------------
+# TRAVA DE CONCORRENCIA. Sem isto, dois pushes seguidos disparam dois deploys
+# simultaneos que colidem no MESMO host: foi esse empilhamento que produziu
+# os 8 containers orfaos e os 11 `docker build` zumbis do flowcraft.
+#
+# `cancel-in-progress: false` e deliberado: cancelar um deploy no meio deixa
+# containers parciais e migracao pela metade na VPS. A fila espera; nao mata.
+# ---------------------------------------------------------------------------
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   VPS_HOST: ${{ secrets.VPS_HOST }}
   VPS_USER: ${{ secrets.VPS_USER }}
@@ -24,6 +36,44 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # GATE. Antes, o deploy publicava imagem e fazia SSH mesmo com typecheck ou
+  # teste quebrado: `quality.yml` rodava em paralelo, sem nenhuma relacao de
+  # dependencia com este workflow. Agora o build so comeca se isto passar.
+  #
+  # Rollback via workflow_dispatch pula o gate: o SHA alvo ja foi validado
+  # quando entrou em main, e exigir nova validacao atrasaria justo o momento
+  # em que producao esta quebrada.
+  # ---------------------------------------------------------------------------
+  quality:
+    name: Quality gate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tracked-file policy
+        run: node .github/scripts/check-tracked-sensitive-files.mjs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # Nao roda `npm run build` aqui: o `docker build` do job seguinte compila
+      # o backend de qualquer jeito. O typecheck ja pega erro de tipo, e o
+      # build duplicado so gastaria runner.
+      - name: Backend checks
+        working-directory: backend
+        run: |
+          set -eo pipefail
+          npm ci --no-audit --no-fund --no-progress
+          npm run typecheck
+          npm run test:unit -- --runInBand
+          npm audit --omit=dev
+
   # ---------------------------------------------------------------------------
   # PLANO CRITICA-1: o build acontece AQUI, no runner do GitHub, nunca na VPS.
   #
@@ -34,6 +84,14 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: Build images and frontend
+    needs: quality
+    # `needs` de um job pulado deixa este como "skipped" por padrao. Em
+    # workflow_dispatch (rollback) o gate nao roda, entao a condicao precisa
+    # aceitar 'skipped' e recusar qualquer outro desfecho.
+    #
+    # `!cancelled()` em vez de `always()`: com `always()`, um cancelamento que
+    # chegasse depois do gate passar ainda deixaria o build arrancar.
+    if: ${{ !cancelled() && (needs.quality.result == 'success' || needs.quality.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
