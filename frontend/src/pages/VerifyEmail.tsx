@@ -4,6 +4,12 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { authApi } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 
+// Guard em escopo de modulo: sobrevive ao remount do StrictMode, que recria
+// os refs do componente e deixava a segunda chamada passar. O token so pode
+// ser trocado uma vez - a segunda chamada recebe "Token not found", porque a
+// primeira ja o consumiu, e o erro sobrescrevia o sucesso na tela.
+const verificationAttempts = new Map<string, ReturnType<typeof authApi.verifyEmail>>()
+
 export function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -13,6 +19,7 @@ export function VerifyEmail() {
   const toast = useToast()
   const hasVerified = useRef(false)
   const tokenProcessed = useRef<string | null>(null)
+  const succeeded = useRef(false)
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -34,12 +41,6 @@ export function VerifyEmail() {
       return
     }
 
-    // Verificar se já estamos processando ou já processamos este token
-    if (hasVerified.current || tokenProcessed.current === token || isVerifying) {
-      console.log('Verification blocked - already processed or in progress')
-      return
-    }
-
     // Marcar imediatamente para prevenir execuções simultâneas
     hasVerified.current = true
     tokenProcessed.current = token
@@ -52,11 +53,19 @@ export function VerifyEmail() {
       if (isCancelled) return // Verificar se foi cancelado
       try {
         console.log('Calling verifyEmail API with token:', token)
-        const response = await authApi.verifyEmail(token)
+        // Uma unica requisicao por token no ciclo de vida da pagina. Um
+        // remount reaproveita a promise em voo em vez de gastar o token.
+        let attempt = verificationAttempts.get(token)
+        if (!attempt) {
+          attempt = authApi.verifyEmail(token)
+          verificationAttempts.set(token, attempt)
+        }
+        const response = await attempt
         console.log('SUCCESS: Verification response:', response)
         
         if (isCancelled) return // Verificar se foi cancelado antes de setar estado
         
+        succeeded.current = true
         setStatus('success')
         setMessage(response.data.message)
         console.log('Status set to SUCCESS, message:', response.data.message)
@@ -81,8 +90,10 @@ export function VerifyEmail() {
         console.error('CATCH: Email verification error:', error)
         console.error('CATCH: Error response:', error.response)
         
-        // IMPORTANTE: Se já foi verificado com sucesso, não sobrescrever
-        if (status === 'success' || isCancelled) {
+        // IMPORTANTE: Se já foi verificado com sucesso, não sobrescrever.
+        // Usa ref porque `status` fica preso no closure do efeito com o valor
+        // inicial 'loading' e nunca protegeria nada.
+        if (succeeded.current || isCancelled) {
           console.log('BLOCKED: Ignoring error because status is success or cancelled')
           return
         }
