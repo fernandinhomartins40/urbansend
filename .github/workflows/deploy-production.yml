@@ -63,9 +63,8 @@ jobs:
         with:
           ref: ${{ github.event.inputs.rollback_sha || github.sha }}
 
-      # Unico sobrevivente do antigo job `quality`: roda em segundos e impede
-      # que credencial commitada suba numa imagem. Nada a ver com a suite de
-      # testes, que era o que tornava aquele job inviavel.
+      # Roda em segundos e impede que credencial commitada suba numa imagem.
+      # Nada a ver com suite de testes.
       - name: Check tracked-file policy
         run: node .github/scripts/check-tracked-sensitive-files.mjs
 
