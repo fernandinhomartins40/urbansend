@@ -151,7 +151,7 @@ export function logMiddlewareEvent(
 /**
  * Cache cleanup periódico
  */
-setInterval(() => {
+const serviceHealthCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, value] of serviceHealthCache.entries()) {
     if (now - value.timestamp > HEALTH_CACHE_TTL * 2) {
@@ -159,3 +159,8 @@ setInterval(() => {
     }
   }
 }, HEALTH_CACHE_TTL);
+
+export function shutdownEmailMiddlewareHelpers(): void {
+  clearInterval(serviceHealthCleanupInterval);
+  serviceHealthCache.clear();
+}

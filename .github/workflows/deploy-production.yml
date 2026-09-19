@@ -69,6 +69,23 @@ jobs:
       - name: Check tracked-file policy
         run: node .github/scripts/check-tracked-sensitive-files.mjs
 
+      # Esses testes exercitam as otimizações de runtime sem acionar o setup
+      # SQLite completo. Suites que dependem de banco mantêm o perfil padrão.
+      - name: Set up Node for backend checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Run isolated unit checks
+        working-directory: backend
+        run: |
+          set -eo pipefail
+          npm ci --no-audit --no-fund --no-progress
+          npm run typecheck
+          npm run test:unit
+
       # PLANO CRITICA-2: versionamento por identificador imutavel.
       # A tag deixa de ser `:latest` e passa a ser `sha-<commit>`. E isso que
       # torna o rollback uma troca de variavel, em vez de um rebuild sob
@@ -195,7 +212,16 @@ jobs:
           install -m 700 -d "$HOME/.ssh"
           sudo apt-get update
           sudo apt-get install -y sshpass
-          ssh-keyscan -H "$SERVER_IP" >> "$HOME/.ssh/known_hosts"
+          # A host key e descoberta no momento da conexao. Isso confia na rota ate
+          # o servidor: um MITM poderia apresentar a propria chave. O deploy usa
+          # apenas VPS_PASSWORD por decisao do dono do ambiente; fixar a chave
+          # exigiria um segredo adicional.
+          ssh-keyscan -H "$SERVER_IP" > "$HOME/.ssh/known_hosts" 2>/dev/null
+          chmod 600 "$HOME/.ssh/known_hosts"
+          if ! ssh-keygen -F "$SERVER_IP" -f "$HOME/.ssh/known_hosts" >/dev/null; then
+            echo "ERROR: ssh-keyscan nao retornou host key para $SERVER_IP."
+            exit 1
+          fi
 
       - name: Test SSH connection
         shell: bash
@@ -241,11 +267,21 @@ jobs:
         shell: bash
         env:
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          IMAGE_API: ${{ needs.build.outputs.image_api }}
+          IMAGE_MIGRATION: ${{ needs.build.outputs.image_migration }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eo pipefail
           SERVER_IP="${VPS_HOST:-72.60.10.108}"
           SERVER_USER="${VPS_USER:-root}"
-          sshpass -e ssh \
+          {
+            printf 'export IMAGE_API=%q\n' "$IMAGE_API"
+            printf 'export IMAGE_MIGRATION=%q\n' "$IMAGE_MIGRATION"
+            printf 'export REGISTRY_USER=%q\n' "$REGISTRY_USER"
+            printf 'export REGISTRY_TOKEN=%q\n' "$REGISTRY_TOKEN"
+            cat .github/scripts/deploy-production-remote.sh
+          } | sshpass -e ssh \
             -o ConnectTimeout=20 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=10 \
@@ -253,12 +289,7 @@ jobs:
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
-            "${SERVER_USER}@${SERVER_IP}" \
-            "IMAGE_API='${{ needs.build.outputs.image_api }}' \
-             IMAGE_MIGRATION='${{ needs.build.outputs.image_migration }}' \
-             REGISTRY_USER='${{ github.actor }}' \
-             REGISTRY_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
-             bash -s" < .github/scripts/deploy-production-remote.sh
+            "${SERVER_USER}@${SERVER_IP}" "bash -s"
 
       - name: Deploy Complete
         run: |

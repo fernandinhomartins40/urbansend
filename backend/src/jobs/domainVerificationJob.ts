@@ -552,17 +552,21 @@ export class DomainVerificationJob {
   public async getJobStats(): Promise<any> {
     try {
       // Arquitetura simplificada - apenas status básico do serviço
-      const domainCount = await db('domains').count('* as total').first();
-      const verifiedCount = await db('domains').where('is_verified', true).count('* as verified').first();
-      const pendingCount = await db('domains').where('is_verified', false).count('* as pending').first();
+      const domainStats = await db('domains')
+        .select(
+          db.raw('COUNT(*) as total'),
+          db.raw('SUM(CASE WHEN is_verified THEN 1 ELSE 0 END) as verified'),
+          db.raw('SUM(CASE WHEN is_verified THEN 0 ELSE 1 END) as pending')
+        )
+        .first() as unknown as { total?: number | string; verified?: number | string; pending?: number | string } | undefined;
 
       return {
         service: 'simplified-v3',
         isJobRunning: this.isRunning,
         domains: {
-          total: domainCount?.total || 0,
-          verified: verifiedCount?.verified || 0,
-          pending: pendingCount?.pending || 0
+          total: domainStats?.total || 0,
+          verified: domainStats?.verified || 0,
+          pending: domainStats?.pending || 0
         },
         architecture: 'direct-execution',
         timestamp: new Date().toISOString()

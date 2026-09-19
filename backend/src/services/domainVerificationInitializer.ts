@@ -2,10 +2,13 @@ import { logger, Logger } from '../config/logger';
 import { domainVerificationJob } from '../jobs/domainVerificationJob';
 import { domainVerificationLogger } from './DomainVerificationLogger';
 import { Env } from '../utils/env';
+import * as cron from 'node-cron';
 
 export class DomainVerificationInitializer {
   private static instance: DomainVerificationInitializer;
   private isInitialized = false;
+  private scheduledJobs: cron.ScheduledTask[] = [];
+  private intervals: NodeJS.Timeout[] = [];
   
   public static getInstance(): DomainVerificationInitializer {
     if (!DomainVerificationInitializer.instance) {
@@ -33,7 +36,6 @@ export class DomainVerificationInitializer {
       logger.info('🔄 Initializing domain verification logging system...');
       
       // Forçar inicialização das tabelas se ainda não foi feita
-      await domainVerificationLogger.cleanupOldLogs(0); // Apenas para forçar inicialização
       logger.info('✅ Domain verification logging system initialized');
 
       // Step 2: Configurar job recorrente
@@ -41,6 +43,13 @@ export class DomainVerificationInitializer {
       
       if (Env.getBoolean('DOMAIN_AUTO_VERIFICATION_ENABLED', true)) {
         await domainVerificationJob.runRecurringVerification();
+        this.scheduledJobs.push(cron.schedule('0 */6 * * *', async () => {
+          try {
+            await domainVerificationJob.runRecurringVerification();
+          } catch (error) {
+            Logger.error('Failed to run scheduled domain verification', error as Error);
+          }
+        }));
         logger.info('✅ Recurring domain verification job scheduled (every 6 hours)');
       } else {
         logger.info('⚠️ Automatic domain verification disabled by environment variable');
@@ -75,22 +84,12 @@ export class DomainVerificationInitializer {
       const jobRetentionHours = Env.getNumber('DOMAIN_JOB_RETENTION_HOURS', 168); // 7 dias
       
       // Executar limpeza diária
-      const cleanupInterval = setInterval(async () => {
+      this.scheduledJobs.push(cron.schedule('0 2 * * *', async () => {
         try {
-          const midnight = new Date();
-          midnight.setHours(2, 0, 0, 0); // 2:00 AM
-          
-          const now = new Date();
-          const timeUntilCleanup = midnight.getTime() - now.getTime();
-          
           // Se já passou das 2:00 AM hoje, agendar para amanhã
-          if (timeUntilCleanup < 0) {
-            midnight.setDate(midnight.getDate() + 1);
-          }
-          
           Logger.business('domain_verification_system', 'cleanup_scheduled', {
             metadata: { 
-              nextCleanup: midnight.toISOString(),
+              schedule: '0 2 * * *',
               logRetentionDays,
               jobRetentionHours
             }
@@ -98,12 +97,11 @@ export class DomainVerificationInitializer {
           
           // Executar limpeza
           await domainVerificationLogger.cleanupOldLogs(logRetentionDays);
-          await domainVerificationJob.cleanupOldJobs();
           
         } catch (error) {
           Logger.error('Failed to run domain verification cleanup', error as Error);
         }
-      }, 24 * 60 * 60 * 1000); // A cada 24 horas
+      }));
       
       logger.info(`✅ Automatic cleanup configured (${logRetentionDays} days retention)`);
 
@@ -111,7 +109,7 @@ export class DomainVerificationInitializer {
       logger.info('🔄 Configuring recurring alerts monitoring...');
       
       if (Env.getBoolean('DOMAIN_ALERTS_ENABLED', true)) {
-        const alertsInterval = setInterval(async () => {
+        this.intervals.push(setInterval(async () => {
           try {
             const issues = await domainVerificationLogger.checkForRecurringIssues();
             
@@ -134,7 +132,7 @@ export class DomainVerificationInitializer {
           } catch (error) {
             Logger.error('Failed to check for domain verification recurring issues', error as Error);
           }
-        }, Env.getNumber('DOMAIN_ALERTS_INTERVAL_MINUTES', 30) * 60 * 1000); // A cada 30 minutos
+        }, Env.getNumber('DOMAIN_ALERTS_INTERVAL_MINUTES', 30) * 60 * 1000)); // A cada 30 minutos
         
         logger.info('✅ Recurring alerts monitoring configured (every 30 minutes)');
       } else {
@@ -144,7 +142,7 @@ export class DomainVerificationInitializer {
       // Step 6: Configurar métricas de health check
       logger.info('🔄 Configuring domain verification health metrics...');
       
-      const healthCheckInterval = setInterval(async () => {
+      this.intervals.push(setInterval(async () => {
         try {
           const stats = await domainVerificationJob.getJobStats();
           const recentStats = await domainVerificationLogger.getVerificationStats({
@@ -166,7 +164,7 @@ export class DomainVerificationInitializer {
         } catch (error) {
           Logger.error('Failed to collect domain verification health metrics', error as Error);
         }
-      }, 15 * 60 * 1000); // A cada 15 minutos
+      }, 15 * 60 * 1000)); // A cada 15 minutos
       
       logger.info('✅ Health metrics collection configured (every 15 minutes)');
 
@@ -205,6 +203,16 @@ export class DomainVerificationInitializer {
   }
 
   // Método para obter status do sistema
+  /** Stop cron and interval handles so a shutdown does not retain the event loop. */
+  public stop(): void {
+    this.scheduledJobs.forEach(job => job.stop());
+    this.scheduledJobs = [];
+    this.intervals.forEach(interval => clearInterval(interval));
+    this.intervals = [];
+    this.isInitialized = false;
+    logger.info('Domain verification monitoring stopped');
+  }
+
   public async getSystemStatus(): Promise<{
     initialized: boolean;
     jobStats: any;

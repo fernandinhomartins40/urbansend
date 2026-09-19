@@ -33,6 +33,7 @@ export class MonitoringService {
 
   private healthCheckInterval?: NodeJS.Timeout;
   private metricsCleanupInterval?: NodeJS.Timeout;
+  private isPerformingHealthChecks = false;
 
   constructor(database?: Knex) {
     this.db = database || db;
@@ -106,17 +107,37 @@ export class MonitoringService {
   }
 
   private async performAllHealthChecks(): Promise<void> {
+    if (this.isPerformingHealthChecks) {
+      logger.warn('MonitoringService: ciclo de health check anterior ainda est\u00e1 em execu\u00e7\u00e3o; ignorando sobreposi\u00e7\u00e3o');
+      return;
+    }
+
+    this.isPerformingHealthChecks = true;
+
     try {
-      // Health checks paralelos
-      await Promise.allSettled([
+      // Redis is optional in the direct-delivery architecture. Avoid a failed
+      // localhost connection and database writes every 30 seconds unless a
+      // Redis endpoint is explicitly configured.
+      const healthChecks = [
         this.checkSMTPHealth(),
-        this.checkRedisHealth(),
         this.checkDatabaseHealth(),
         this.checkSystemHealth()
-      ]);
+      ];
+
+      if (this.isRedisConfigured()) {
+        healthChecks.push(this.checkRedisHealth());
+      }
+
+      await Promise.allSettled(healthChecks);
     } catch (error) {
       logger.error('Erro durante health checks:', error);
+    } finally {
+      this.isPerformingHealthChecks = false;
     }
+  }
+
+  private isRedisConfigured(): boolean {
+    return Env.get('REDIS_URL', '').trim().length > 0;
   }
 
   private async checkSMTPHealth(): Promise<void> {

@@ -5,6 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import { Env } from '../utils/env';
 import { requestContextService } from '../services/RequestContextService';
+import { type LogCategory, shouldRouteLogToCategory } from './logRouting';
 
 interface LogEntry {
   '@timestamp': string;
@@ -60,7 +61,7 @@ interface LogEntry {
 
 const logLevel = Env.get('LOG_LEVEL', 'info');
 const logDir = Env.isProduction 
-  ? Env.get('LOG_FILE_PATH', '/var/www/ultrazend/logs')
+  ? Env.get('LOG_FILE_PATH', '/app/logs')
   : path.join(__dirname, '../../logs');
 
 const withRequestContext = winston.format((info) => {
@@ -155,6 +156,10 @@ const developmentFormat = winston.format.combine(
 // Create transports array
 const transports: winston.transport[] = [];
 
+const onlyLogCategory = (category: LogCategory) => winston.format((info) => (
+  shouldRouteLogToCategory(info, category) ? info : false
+))();
+
 if (Env.isProduction) {
   // Application logs with daily rotation
   transports.push(new DailyRotateFile({
@@ -185,7 +190,7 @@ if (Env.isProduction) {
     maxSize: '50m',
     maxFiles: '180d', // 6 months retention for security logs
     level: 'info',
-    format: productionFormat,
+    format: winston.format.combine(onlyLogCategory('security'), productionFormat),
     auditFile: path.join(logDir, 'security', 'security-audit.json')
   }));
 
@@ -196,7 +201,7 @@ if (Env.isProduction) {
     maxSize: '50m',
     maxFiles: '7d', // Performance logs only kept for 7 days
     level: 'info',
-    format: productionFormat,
+    format: winston.format.combine(onlyLogCategory('performance'), productionFormat),
     auditFile: path.join(logDir, 'performance', 'perf-audit.json')
   }));
 
@@ -207,7 +212,7 @@ if (Env.isProduction) {
     maxSize: '100m',
     maxFiles: '365d', // Business logs kept for 1 year
     level: 'info',
-    format: productionFormat,
+    format: winston.format.combine(onlyLogCategory('business'), productionFormat),
     auditFile: path.join(logDir, 'business', 'business-audit.json')
   }));
 } else {

@@ -2,6 +2,10 @@ import { Database } from 'sqlite3';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '../config/logger';
+import db from '../config/database';
+import { optimizedLogger } from '../config/optimizedLogger';
+import { shutdownEmailMiddlewareHelpers } from '../middleware/emailMiddlewareHelpers';
+import { rateLimiterInstance } from '../middleware/advancedRateLimiting';
 import { monitoringService } from '../services/monitoringService';
 import { DEFAULT_USER_PERMISSIONS, ADMIN_PERMISSIONS, permissionsToJson } from '../constants/permissions';
 
@@ -23,6 +27,10 @@ const TEST_DB_PATH = path.resolve(
   __dirname,
   `../../test-worker-${process.env.JEST_WORKER_ID || '1'}.db`
 );
+
+if (process.env.TEST_DATABASE_PATH !== TEST_DB_PATH) {
+  throw new Error('Test database bootstrap path does not match the per-worker setup path');
+}
 
 /**
  * Global test setup
@@ -60,10 +68,19 @@ beforeAll(async () => {
  */
 afterAll(async () => {
   try {
+    optimizedLogger.destroy();
+    shutdownEmailMiddlewareHelpers();
+    rateLimiterInstance.destroy();
+
     // Close monitoring service
     if (monitoringService && typeof monitoringService.close === 'function') {
       await monitoringService.close();
     }
+
+    // The application singleton uses the same per-worker SQLite file as the
+    // migration setup. Leaving its pool open makes Jest require forceExit and
+    // hides leaked handles from integration/unit tests.
+    await db.destroy();
     
     // Clean up test database
     await fs.unlink(TEST_DB_PATH);
@@ -89,6 +106,12 @@ async function initializeTestDatabase(): Promise<void> {
       directory: path.resolve(__dirname, '../migrations')
     }
   });
+  const originalConsoleLog = console.log;
+  const silenceMigrationOutput = process.env.TEST_VERBOSE !== 'true';
+
+  if (silenceMigrationOutput) {
+    console.log = () => undefined;
+  }
 
   try {
     // Run migrations
@@ -102,6 +125,9 @@ async function initializeTestDatabase(): Promise<void> {
     logger.error('Failed to initialize test database:', error);
     throw error;
   } finally {
+    if (silenceMigrationOutput) {
+      console.log = originalConsoleLog;
+    }
     await knex.destroy();
   }
 }

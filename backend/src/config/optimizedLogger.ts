@@ -32,6 +32,7 @@ class OptimizedLogger {
   private recentLogs = new Map<string, LogEntry>();
   private logBuffer: LogEntry[] = [];
   private flushInterval: NodeJS.Timeout;
+  private cleanupInterval: NodeJS.Timeout;
 
   // Configurações por nível de log
   private readonly configs = {
@@ -64,7 +65,7 @@ class OptimizedLogger {
     }, 5000);
     
     // Cleanup de contadores antigos a cada minuto
-    setInterval(() => {
+    this.cleanupInterval = setInterval(() => {
       this.cleanupCounters();
     }, 60000);
   }
@@ -460,6 +461,9 @@ class OptimizedLogger {
   destroy(): void {
     if (this.flushInterval) {
       clearInterval(this.flushInterval);
+    }
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
     }
     this.flushLogBuffer();
     this.throttleCounters.clear();

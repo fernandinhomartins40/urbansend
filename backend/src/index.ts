@@ -18,6 +18,7 @@ import { metricsMiddleware, healthCheckMiddleware, metricsEndpointMiddleware } f
 import { correlationIdMiddleware } from './middleware/correlationId';
 import { monitoringService } from './services/monitoringService';
 import { logger } from './config/logger';
+import { optimizedLogger } from './config/optimizedLogger';
 import { setupSwagger } from './config/swagger';
 import { Env } from './utils/env';
 import db from './config/database';
@@ -27,6 +28,8 @@ import { domainVerificationInitializer } from './services/domainVerificationInit
 import { autoRollbackService } from './services/AutoRollbackService';
 import { getFeatureFlags } from './config/features';
 import { applicationErrorLogService } from './services/ApplicationErrorLogService';
+import { shutdownEmailMiddlewareHelpers } from './middleware/emailMiddlewareHelpers';
+import { rateLimiterInstance } from './middleware/advancedRateLimiting';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -878,7 +881,14 @@ const gracefulShutdown = async (signal: string) => {
     // 3. Queue service removido - sistema simplificado
     logger.info('✅ Sistema simplificado - sem queue service para fechar');
 
-    // 4. Cleanup performance monitor with timeout protection
+    // 4. Stop domain jobs before closing the database they use.
+    try {
+      domainVerificationInitializer.stop();
+    } catch (error) {
+      logger.warn('Domain verification shutdown failed, continuing...', { error: (error as Error).message });
+    }
+
+    // 5. Cleanup performance monitor with timeout protection
     try {
       logger.info('🔄 Cleaning up performance monitor...');
       await Promise.race([
@@ -900,6 +910,15 @@ const gracefulShutdown = async (signal: string) => {
       logger.info('✅ Monitoring service shutdown completed');
     } catch (error) {
       logger.warn('Monitoring service cleanup failed, continuing...', { error: (error as Error).message });
+    }
+
+    // Flush optimized logger buffers and release its maintenance timers.
+    try {
+      optimizedLogger.destroy();
+      shutdownEmailMiddlewareHelpers();
+      rateLimiterInstance.destroy();
+    } catch (error) {
+      logger.warn('In-memory middleware cleanup failed, continuing...', { error: (error as Error).message });
     }
 
     // 6. Close database connection (only if not already closed)

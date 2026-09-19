@@ -8,17 +8,11 @@ const path = require('path');
 const isPostgresUrl = (value = '') => /^postgres(ql)?:\/\//i.test(value);
 const usePostgres = isPostgresUrl(process.env.DATABASE_URL || '') || (process.env.DB_CLIENT || '').toLowerCase() === 'pg';
 
-const baseEnv = {
-  ...process.env,
-  DOTENV_CONFIG_QUIET: 'true',
-  PRISMA_HIDE_UPDATE_MESSAGE: 'true'
-};
-
-const run = (command, args) => {
+const run = (command, args, env) => {
   const executable = command;
   const result = spawnSync(executable, args, {
     stdio: 'inherit',
-    env: baseEnv,
+    env,
     shell: process.platform === 'win32'
   });
 
@@ -31,27 +25,57 @@ const run = (command, args) => {
   }
 };
 
-try {
+const buildMigrationPlan = (env = process.env) => {
+  const usePostgresForPlan = isPostgresUrl(env.DATABASE_URL || '') || (env.DB_CLIENT || '').toLowerCase() === 'pg';
+
+  if (usePostgresForPlan) {
+    return [
+      ['node', [path.join('scripts', 'prepare-postgres-for-prisma.js')]],
+      ['npx', [
+        'prisma',
+        'db',
+        'push',
+        '--skip-generate',
+        '--schema',
+        path.join('prisma', 'schema.prisma')
+      ]]
+    ];
+  }
+
+  return [[
+    'node',
+    ['-r', 'dotenv/config', path.join('node_modules', 'knex', 'bin', 'cli.js'), 'migrate:latest']
+  ]];
+};
+
+const main = () => {
+  const baseEnv = {
+    ...process.env,
+    DOTENV_CONFIG_QUIET: 'true',
+    PRISMA_HIDE_UPDATE_MESSAGE: 'true'
+  };
+
   if (usePostgres) {
-    console.log('Using PostgreSQL migration strategy via Prisma (db push).');
-    run('node', [path.join('scripts', 'prepare-postgres-for-prisma.js')]);
-    run('npx', [
-      'prisma',
-      'db',
-      'push',
-      '--accept-data-loss',
-      '--skip-generate',
-      '--schema',
-      path.join('prisma', 'schema.prisma')
-    ]);
+    console.log('Using PostgreSQL migration strategy via Prisma (db push without destructive acceptance).');
+  } else {
+    console.log('Using SQLite migration strategy via Knex.');
+  }
+
+  try {
+    for (const [command, args] of buildMigrationPlan(baseEnv)) {
+      run(command, args, baseEnv);
+    }
     // `prisma generate` foi removido intencionalmente: nenhuma linha de src/
     // importa @prisma/client (o runtime usa Knex). Gerar o client em produção
     // gastava CPU/RAM da VPS a cada deploy para produzir um artefato morto.
-  } else {
-    console.log('Using SQLite migration strategy via Knex.');
-    run('node', ['-r', 'dotenv/config', path.join('node_modules', 'knex', 'bin', 'cli.js'), 'migrate:latest']);
+  } catch (error) {
+    console.error('Database migration failed:', error.message);
+    process.exit(1);
   }
-} catch (error) {
-  console.error('Database migration failed:', error.message);
-  process.exit(1);
+};
+
+if (require.main === module) {
+  main();
 }
+
+module.exports = { buildMigrationPlan, isPostgresUrl };

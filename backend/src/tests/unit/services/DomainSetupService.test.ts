@@ -183,8 +183,9 @@ describe('DomainSetupService', () => {
     expect(instructions.mail_from_mx.record).toBe('uz-mail.example.com');
     expect(instructions.mail_from_mx.value).toBe('mail.velomail.com.br');
     expect(instructions.spf.record).toBe('uz-mail.example.com');
-    expect(instructions.spf.value).toContain('include:velomail.com.br');
-    expect(instructions.dmarc.value).toBe('v=DMARC1; p=none');
+    expect(instructions.spf.value).toBe('v=spf1 a:mail.velomail.com.br -all');
+    expect(instructions.dmarc.value).toContain('v=DMARC1; p=none');
+    expect(instructions.dmarc.value).toContain('rua=mailto:dmarc@velomail.com.br');
     expect(instructions.notes[0]).toContain('Nao altere os registros @');
   });
 

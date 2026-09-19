@@ -5,6 +5,36 @@ require('dotenv').config({ quiet: true });
 const { Client } = require('pg');
 
 const isPostgresUrl = (value = '') => /^postgres(ql)?:\/\//i.test(value);
+const CONNECTION_RETRY_COUNT = 5;
+const CONNECTION_RETRY_DELAY_MS = 1000;
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const connectWithRetry = async (databaseUrl) => {
+  let lastError;
+
+  for (let attempt = 1; attempt <= CONNECTION_RETRY_COUNT; attempt += 1) {
+    const client = new Client({ connectionString: databaseUrl });
+
+    try {
+      await client.connect();
+      return client;
+    } catch (error) {
+      lastError = error;
+      await client.end().catch(() => undefined);
+
+      if (error && error.code === 'ECONNREFUSED' && attempt < CONNECTION_RETRY_COUNT) {
+        console.warn(`PostgreSQL preflight: connection refused, retrying (${attempt}/${CONNECTION_RETRY_COUNT})...`);
+        await wait(CONNECTION_RETRY_DELAY_MS);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError;
+};
 
 const tableExists = async (client, tableName) => {
   const result = await client.query(
@@ -70,11 +100,7 @@ const main = async () => {
     return;
   }
 
-  const client = new Client({
-    connectionString: databaseUrl
-  });
-
-  await client.connect();
+  const client = await connectWithRetry(databaseUrl);
 
   try {
     await dedupeAbTestVariants(client);
@@ -84,6 +110,9 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  console.error('PostgreSQL preflight failed:', error.message);
+  const details = error instanceof Error
+    ? { name: error.name, message: error.message, code: error.code }
+    : { message: String(error) };
+  console.error('PostgreSQL preflight failed:', JSON.stringify(details));
   process.exit(1);
 });

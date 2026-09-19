@@ -1721,6 +1721,28 @@ export class DomainSetupService {
   }
 }
 
-// Export singleton instance
-export const domainSetupService = new DomainSetupService();
+// Preserve the historical singleton export without constructing DKIM/DNS
+// dependencies merely because this module was imported. Consumers that use the
+// singleton still receive the same DomainSetupService instance on first use.
+let domainSetupServiceInstance: DomainSetupService | undefined;
 
+export function getDomainSetupService(): DomainSetupService {
+  if (!domainSetupServiceInstance) {
+    domainSetupServiceInstance = new DomainSetupService();
+  }
+
+  return domainSetupServiceInstance;
+}
+
+export const domainSetupService = new Proxy({} as DomainSetupService, {
+  get(_target, property) {
+    const service = getDomainSetupService() as unknown as Record<PropertyKey, unknown>;
+    const value = service[property];
+    return typeof value === 'function' ? value.bind(service) : value;
+  },
+  set(_target, property, value) {
+    const service = getDomainSetupService() as unknown as Record<PropertyKey, unknown>;
+    service[property] = value;
+    return true;
+  }
+});

@@ -1,3 +1,4 @@
+// @ts-nocheck -- dynamic Knex query-builder doubles intentionally model different driver shapes.
 /**
  * Testes unitários para MultiDomainDKIMManager
  * Foca em testar as correções da Fase 1 - DKIM fallback para domínios não verificados
@@ -18,6 +19,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     dkimManager = new MultiDomainDKIMManager();
+    jest.spyOn(dkimManager as any, 'loadDomainDKIMConfig').mockResolvedValue(null);
     
     // Mock do banco de dados
     mockDb = db as any;
@@ -59,6 +61,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
     it('should generate DKIM for verified domains', async () => {
       // Mock domain record verificado
       mockDb.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         first: jest.fn().mockResolvedValue({
           id: 1,
@@ -70,12 +73,13 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
 
       // Mock DKIM keys query (não existente, então deve gerar)
       mockDb.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         first: jest.fn().mockResolvedValue(null)
       });
 
-      // Mock para generateDKIMKeys
-      const mockGenerateDKIM = jest.spyOn(dkimManager, 'generateDKIMKeys' as any)
+      // Mock para geração da chave usada pela implementação atual.
+      const mockGenerateDKIM = jest.spyOn(dkimManager as any, 'generateDKIMKeyPair')
         .mockResolvedValue({
           privateKey: 'generated-private-key',
           publicKey: 'generated-public-key'
@@ -125,6 +129,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
       const mockLogger = require('../../../config/logger').logger;
       
       mockDb.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         first: jest.fn().mockResolvedValue({
           id: 1,
@@ -160,6 +165,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
         where: jest.fn().mockReturnThis(),
         first: jest.fn().mockResolvedValue(null)
       });
+      jest.spyOn(dkimManager, 'getDefaultDKIMConfig' as any).mockResolvedValue(null);
 
       const config = await dkimManager.getDKIMConfigForDomain('nonexistent.com');
 
@@ -170,6 +176,7 @@ describe('MultiDomainDKIMManager - DKIM Fallback (Fase 1 Corrections)', () => {
     it('should preserve DKIM functionality for verified domains', async () => {
       // Verificar se domínios verificados ainda funcionam normalmente
       mockDb.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         first: jest.fn().mockResolvedValue({
           id: 1,

@@ -130,11 +130,12 @@ echo "Configurando diretorios persistentes..."
 mkdir -p "$STATIC_DIR"
 mkdir -p "$CONFIG_DIR/dkim-keys"
 mkdir -p "$LOGS_DIR"/{application,errors,security,performance,business}
-chown -R root:root "$CONFIG_DIR/dkim-keys" || true
-# O diretorio precisa de +x para ser atravessado pelo usuario nodejs (uid 1001)
-# do container; um "chmod -R 644" removeria esse bit e o DKIM falharia ao carregar.
-chmod 755 "$CONFIG_DIR/dkim-keys" || true
-find "$CONFIG_DIR/dkim-keys" -type f -exec chmod 644 {} + 2>/dev/null || true
+# A aplicacao roda como uid/gid 1001. Chaves privadas ficam legiveis apenas
+# para root e esse grupo; arquivos publicos continuam legiveis normalmente.
+chown -R root:1001 "$CONFIG_DIR/dkim-keys" || true
+chmod 750 "$CONFIG_DIR/dkim-keys" || true
+find "$CONFIG_DIR/dkim-keys" -type f -name '*-private.pem' -exec chmod 640 {} + 2>/dev/null || true
+find "$CONFIG_DIR/dkim-keys" -type f ! -name '*-private.pem' -exec chmod 644 {} + 2>/dev/null || true
 chown -R 1001:1001 "$LOGS_DIR" || true
 chmod -R 755 "$LOGS_DIR" || true
 
@@ -222,11 +223,10 @@ ensure_secret_if_missing "SUPER_ADMIN_PASSWORD"
 ensure_env_value "ENABLE_CSRF_PROTECTION" "true"
 
 mkdir -p "$CONFIG_DIR/dkim-keys"
-chown -R root:root "$CONFIG_DIR/dkim-keys" || true
-# O diretorio precisa de +x para ser atravessado pelo usuario nodejs (uid 1001)
-# do container; um "chmod -R 644" removeria esse bit e o DKIM falharia ao carregar.
-chmod 755 "$CONFIG_DIR/dkim-keys" || true
-find "$CONFIG_DIR/dkim-keys" -type f -exec chmod 644 {} + 2>/dev/null || true
+chown -R root:1001 "$CONFIG_DIR/dkim-keys" || true
+chmod 750 "$CONFIG_DIR/dkim-keys" || true
+find "$CONFIG_DIR/dkim-keys" -type f -name '*-private.pem' -exec chmod 640 {} + 2>/dev/null || true
+find "$CONFIG_DIR/dkim-keys" -type f ! -name '*-private.pem' -exec chmod 644 {} + 2>/dev/null || true
 
 # PLANO CRITICA-1: o frontend NAO e mais compilado aqui.
 # Antes: `npm ci && npm run build` rodava na VPS, disputando CPU e I/O com as

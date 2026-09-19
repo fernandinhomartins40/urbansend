@@ -105,3 +105,6 @@ __pycache__/
 
 # Bancos de teste por worker do Jest
 backend/test-worker-*.db
+
+# Saida de verificacao de build do Vite (artefato local)
+frontend/.vite-verify/

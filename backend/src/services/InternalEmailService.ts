@@ -18,13 +18,12 @@ type PasswordResetScope = 'app' | 'super_admin';
  * Responsável por emails de verificação, reset de senha e notificações do sistema
  */
 export class InternalEmailService implements IEmailService {
-  private readonly smtpDelivery: SMTPDeliveryService;
+  private smtpDelivery?: SMTPDeliveryService;
   private readonly defaultFrom: string;
   private readonly dkimDomain: string;
   private readonly enableTracking: boolean;
 
   constructor(options: InternalEmailServiceOptions = {}) {
-    this.smtpDelivery = new SMTPDeliveryService();
     this.defaultFrom = options.defaultFrom || 'noreply@velomail.com.br';
     this.dkimDomain = options.dkimDomain || 'velomail.com.br';
     this.enableTracking = options.enableTracking || false;
@@ -34,6 +33,14 @@ export class InternalEmailService implements IEmailService {
       dkimDomain: this.dkimDomain,
       enableTracking: this.enableTracking
     });
+  }
+
+  private getSmtpDelivery(): SMTPDeliveryService {
+    if (!this.smtpDelivery) {
+      this.smtpDelivery = new SMTPDeliveryService();
+    }
+
+    return this.smtpDelivery;
   }
 
   /**
@@ -64,7 +71,7 @@ export class InternalEmailService implements IEmailService {
         }
       };
 
-      const success = await this.smtpDelivery.deliverEmail(emailData);
+      const success = await this.getSmtpDelivery().deliverEmail(emailData);
       
       if (!success) {
         throw new Error('SMTP delivery failed');
@@ -115,7 +122,7 @@ export class InternalEmailService implements IEmailService {
         }
       };
 
-      const success = await this.smtpDelivery.deliverEmail(emailData);
+      const success = await this.getSmtpDelivery().deliverEmail(emailData);
       
       if (!success) {
         throw new Error('SMTP delivery failed');
@@ -159,7 +166,7 @@ export class InternalEmailService implements IEmailService {
         }
       };
 
-      const success = await this.smtpDelivery.deliverEmail(emailData);
+      const success = await this.getSmtpDelivery().deliverEmail(emailData);
       
       if (!success) {
         throw new Error('SMTP delivery failed');

@@ -2,6 +2,6 @@ const baseConfig = require('./jest.config');
 
 module.exports = {
   ...baseConfig,
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/isolated-setup.ts'],
+  testMatch: ['<rootDir>/src/tests/integration/performance.test.ts'],
   maxWorkers: 1
 };

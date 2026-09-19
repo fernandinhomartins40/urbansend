@@ -220,6 +220,7 @@ describe('Email Flow Integration Tests', () => {
         .mockResolvedValue({
           email: 'noreply+user1@velomail.com.br',
           dkimDomain: 'velomail.com.br',
+          valid: false,
           fallback: true,
           reason: 'Domain not verified'
         });

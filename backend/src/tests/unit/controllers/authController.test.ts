@@ -183,7 +183,7 @@ describe('AuthController - Password Reset (Fase 1 Corrections)', () => {
       const internalEmailService = new InternalEmailService();
       
       // Verificar se a instância foi criada corretamente
-      expect(internalEmailService).toBeInstanceOf(InternalEmailService);
+      expect(typeof internalEmailService.sendPasswordResetEmail).toBe('function');
       expect(InternalEmailService).toHaveBeenCalledTimes(1);
     });
 

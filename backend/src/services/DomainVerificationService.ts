@@ -66,8 +66,22 @@ type DomainRow = {
 
 export class DomainVerificationService {
   private static readonly CACHE_TTL = 300000;
+  private static readonly CACHE_MAX_ENTRIES = 1000;
   private static cache: Map<string, { result: VerificationResult; timestamp: number }> = new Map();
-  private readonly setupService = new DomainSetupService();
+  /**
+   * Constructing DomainSetupService also initializes its DKIM dependency.
+   * Verification-cache and status-only paths do not need that I/O, so defer
+   * it until a verification is actually requested.
+   */
+  private setupService?: DomainSetupService;
+
+  private getSetupService(): DomainSetupService {
+    if (!this.setupService) {
+      this.setupService = new DomainSetupService();
+    }
+
+    return this.setupService;
+  }
 
   private getCacheKey(userId: number, domain: string): string {
     return `${userId}:${domain.toLowerCase()}`;
@@ -88,10 +102,28 @@ export class DomainVerificationService {
   }
 
   private setCachedResult(key: string, result: VerificationResult): void {
+    this.pruneCache();
+
+    if (!DomainVerificationService.cache.has(key) && DomainVerificationService.cache.size >= DomainVerificationService.CACHE_MAX_ENTRIES) {
+      const oldestKey = DomainVerificationService.cache.keys().next().value;
+      if (oldestKey) {
+        DomainVerificationService.cache.delete(oldestKey);
+      }
+    }
+
     DomainVerificationService.cache.set(key, {
       result,
       timestamp: Date.now()
     });
+  }
+
+  private pruneCache(): void {
+    const cutoff = Date.now() - DomainVerificationService.CACHE_TTL;
+    for (const [cacheKey, cached] of DomainVerificationService.cache.entries()) {
+      if (cached.timestamp <= cutoff) {
+        DomainVerificationService.cache.delete(cacheKey);
+      }
+    }
   }
 
   private clearCachedResult(key: string): void {
@@ -177,7 +209,7 @@ export class DomainVerificationService {
     }
 
     const result = this.mapVerificationResult(
-      await this.setupService.verifyDomainSetup(domain.user_id, domain.id)
+      await this.getSetupService().verifyDomainSetup(domain.user_id, domain.id)
     );
     const cacheKey = this.getCacheKey(domain.user_id, domain.domain_name);
 

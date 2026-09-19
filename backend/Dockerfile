@@ -10,19 +10,23 @@
 # separadamente no stage de migration, porque nenhuma linha de src/ importa
 # @prisma/client — o Prisma aqui é só ferramenta de schema (prisma db push).
 # ---------------------------------------------------------------------------
-FROM node:18-alpine AS prod-deps
+ARG NODE_IMAGE=node:20-alpine
+FROM ${NODE_IMAGE} AS prod-deps
 
 WORKDIR /app
 
 COPY package*.json ./
+# `bcrypt` e dependência de runtime; um rebuild que falha não pode ser
+# ignorado. `sqlite3` é devDependency e não pertence à imagem PostgreSQL de
+# produção, portanto tentar recompilá-lo aqui só mascarava configuração ruim.
 RUN npm ci --omit=dev --ignore-scripts && \
-    npm rebuild bcrypt sqlite3 --build-from-source=false 2>/dev/null || true && \
+    npm rebuild bcrypt --build-from-source=false && \
     npm cache clean --force
 
 # ---------------------------------------------------------------------------
 # Stage 2: build TypeScript
 # ---------------------------------------------------------------------------
-FROM node:18-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -39,7 +43,7 @@ RUN npm run build
 # Contém apenas: node_modules de produção, dist/, scripts e knexfile.
 # Sem TypeScript, sem Prisma, sem devDependencies.
 # ---------------------------------------------------------------------------
-FROM node:18-alpine AS runtime
+FROM ${NODE_IMAGE} AS runtime
 
 WORKDIR /app
 
@@ -65,7 +69,7 @@ USER nodejs
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3001/api/health/simple', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node -e "require('http').get('http://localhost:3001/api/health/simple', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/index.js"]
@@ -82,7 +86,7 @@ USER root
 
 # --chown limitado ao que o npm realmente cria; um chown -R /app duplicaria
 # node_modules inteiro numa camada nova.
-RUN npm install --no-save --no-audit --no-fund prisma@^6.12.0 @prisma/client@^6.12.0 && \
+RUN npm install --no-save --no-package-lock --no-audit --no-fund prisma@6.12.0 @prisma/client@6.12.0 && \
     npm cache clean --force && \
     chown -R nodejs:nodejs /app/node_modules/prisma /app/node_modules/.bin
 

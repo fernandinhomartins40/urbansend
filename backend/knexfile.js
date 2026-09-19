@@ -85,6 +85,7 @@ const buildPostgresConfig = (fallbackDatabaseName) => {
 };
 
 const productionDatabaseFile = process.env.DATABASE_URL || path.join(__dirname, 'ultrazend.sqlite');
+const testDatabaseFile = process.env.TEST_DATABASE_PATH || ':memory:';
 const usePostgres = shouldUsePostgres();
 
 module.exports = {
@@ -94,7 +95,7 @@ module.exports = {
 
   test: process.env.TEST_DB_CLIENT === 'pg'
     ? buildPostgresConfig('ultrazend_test')
-    : buildSqliteConfig(':memory:'),
+    : buildSqliteConfig(testDatabaseFile),
 
   production: usePostgres
     ? buildPostgresConfig('ultrazend')

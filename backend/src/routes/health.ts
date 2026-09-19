@@ -3,6 +3,7 @@ import { logger } from '../config/logger';
 import db from '../config/database';
 import { Env } from '../utils/env';
 import { performanceReportMiddleware } from '../middleware/performanceMonitoring';
+import { getRuntimeMemoryMetrics } from '../config/runtimeMetrics';
 
 const router = Router();
 
@@ -27,6 +28,9 @@ interface SystemHealth {
       free: number;
       total: number;
       percentage: number;
+      rss: number;
+      external: number;
+      arrayBuffers: number;
     };
     cpu: {
       usage: number;
@@ -179,16 +183,17 @@ async function checkDKIMHealth(): Promise<HealthCheck> {
 
 // Helper function to get system metrics
 function getSystemMetrics() {
-  const memoryUsage = process.memoryUsage();
-  const totalMemory = memoryUsage.heapTotal + memoryUsage.external;
-  const usedMemory = memoryUsage.heapUsed;
+  const memory = getRuntimeMemoryMetrics();
   
   return {
     memory: {
-      used: Math.round(usedMemory / 1024 / 1024), // MB
-      free: Math.round((totalMemory - usedMemory) / 1024 / 1024), // MB
-      total: Math.round(totalMemory / 1024 / 1024), // MB
-      percentage: Math.round((usedMemory / totalMemory) * 100)
+      used: memory.heapUsedMb,
+      free: Math.max(0, memory.heapTotalMb - memory.heapUsedMb),
+      total: memory.heapTotalMb,
+      percentage: memory.heapUsagePercent,
+      rss: memory.rssMb,
+      external: memory.externalMb,
+      arrayBuffers: memory.arrayBuffersMb
     },
     cpu: {
       usage: process.cpuUsage().system / 1000000 // Convert to seconds

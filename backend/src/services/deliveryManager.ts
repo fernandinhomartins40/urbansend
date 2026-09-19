@@ -88,6 +88,7 @@ export class DeliveryManager {
   private securityManager: SecurityManager;
   private tenantContextService: TenantContextService; // 🔥 NOVO: Tenant context service
   private isProcessing = false;
+  private isPollingDeliveryQueue = false;
   private activeDeliveries = 0;
   private deliveryQueue: Map<number, NodeJS.Timeout> = new Map();
   private processorInterval?: NodeJS.Timeout;
@@ -315,7 +316,7 @@ export class DeliveryManager {
           to: delivery.to_address,
           subject: delivery.subject,
           body: delivery.body,
-          headers: JSON.parse(delivery.headers || '{}')
+          headers: this.parseDeliveryHeaders(delivery.headers)
         });
 
         // Preparar opções de envio
@@ -371,10 +372,11 @@ export class DeliveryManager {
       }
 
     } catch (error) {
-      logger.error('Error processing delivery', { error, deliveryId });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Error processing delivery', { error: errorMessage, deliveryId });
       return {
         success: false,
-        errorMessage: (error as Error).message
+        errorMessage
       };
     }
   }
@@ -459,6 +461,30 @@ export class DeliveryManager {
       error_message: error.message,
       created_at: new Date()
     });
+  }
+
+  /**
+   * PostgreSQL returns JSON columns as objects while legacy SQLite rows keep
+   * serialized strings. Both representations are valid delivery headers.
+   */
+  private parseDeliveryHeaders(headers: unknown): Record<string, unknown> {
+    if (headers === null || headers === undefined || headers === '') {
+      return {};
+    }
+
+    if (typeof headers === 'string') {
+      const parsed = JSON.parse(headers) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      throw new Error('Delivery headers must be a JSON object');
+    }
+
+    if (typeof headers === 'object' && !Array.isArray(headers)) {
+      return headers as Record<string, unknown>;
+    }
+
+    throw new Error('Delivery headers must be a JSON object');
   }
 
   private async recordDeadLetter(delivery: any, errorMessage: string): Promise<void> {
@@ -551,35 +577,47 @@ export class DeliveryManager {
 
     this.isProcessing = true;
 
-    this.processorInterval = setInterval(async () => {
-      try {
-        await this.recoverStaleDeliveries();
-
-        if (this.activeDeliveries >= this.config.maxConcurrentDeliveries) {
-          return;
-        }
-
-        // 🔥 NOVA ABORDAGEM: Descobrir tenants ativos e processar por tenant
-        const activeTenants = await this.discoverTenantsWithPendingDeliveries();
-
-        for (const tenantId of activeTenants) {
-          if (this.activeDeliveries >= this.config.maxConcurrentDeliveries) {
-            break;
-          }
-
-          try {
-            await this.processTenantDeliveries(tenantId);
-          } catch (error) {
-            logger.error(`Error processing deliveries for tenant ${tenantId}`, { error, tenantId });
-          }
-        }
-
-      } catch (error) {
-        logger.error('Error in tenant-aware delivery processor', { error });
-      }
+    this.processorInterval = setInterval(() => {
+      void this.runTenantAwareDeliveryCycle();
     }, 5000); // Verificar a cada 5 segundos
 
     logger.info('Tenant-aware delivery processor started');
+  }
+
+  private async runTenantAwareDeliveryCycle(): Promise<void> {
+    if (this.isPollingDeliveryQueue) {
+      logger.debug('Skipping overlapping tenant-aware delivery cycle');
+      return;
+    }
+
+    this.isPollingDeliveryQueue = true;
+
+    try {
+      await this.recoverStaleDeliveries();
+
+      if (this.activeDeliveries >= this.config.maxConcurrentDeliveries) {
+        return;
+      }
+
+      // Descobrir tenants ativos e processar por tenant
+      const activeTenants = await this.discoverTenantsWithPendingDeliveries();
+
+      for (const tenantId of activeTenants) {
+        if (this.activeDeliveries >= this.config.maxConcurrentDeliveries) {
+          break;
+        }
+
+        try {
+          await this.processTenantDeliveries(tenantId);
+        } catch (error) {
+          logger.error(`Error processing deliveries for tenant ${tenantId}`, { error, tenantId });
+        }
+      }
+    } catch (error) {
+      logger.error('Error in tenant-aware delivery processor', { error });
+    } finally {
+      this.isPollingDeliveryQueue = false;
+    }
   }
 
   private async recoverStaleDeliveries(): Promise<void> {
