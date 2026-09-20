@@ -13,8 +13,8 @@ model ab_test_results {
   winning_variant_id           Int?
   confidence_level             Float?               @default(0)
   is_statistically_significant Boolean?             @default(false)
-  statistical_analysis         Unsupported("json")?
-  performance_summary          Unsupported("json")?
+  statistical_analysis         Json? @db.Json
+  performance_summary          Json? @db.Json
   recommendations              String?
   analysis_completed_at        DateTime?
   created_at                   DateTime?            @default(now())
@@ -36,8 +36,8 @@ model ab_test_variants {
   from_name          String?
   from_email         String?
   template_id        Int?
-  send_time_config   Unsupported("json")?
-  variant_config     Unsupported("json")?
+  send_time_config   Json? @db.Json
+  variant_config     Json? @db.Json
   emails_sent        Int?                 @default(0)
   emails_delivered   Int?                 @default(0)
   emails_opened      Int?                 @default(0)
@@ -74,7 +74,7 @@ model ab_tests {
   test_end_time               DateTime?
   test_duration_hours         Int?                 @default(24)
   winning_variant_id          String?
-  test_criteria               Unsupported("json")?
+  test_criteria               Json? @db.Json
   created_at                  DateTime?            @default(now())
   updated_at                  DateTime?            @default(now())
   ab_test_results             ab_test_results[]
@@ -110,7 +110,7 @@ model alert_notifications {
   recipient         String
   subject           String?
   content           String?
-  notification_data Unsupported("json")?
+  notification_data Json? @db.Json
   sent_at           DateTime?
   delivered_at      DateTime?
   opened_at         DateTime?
@@ -119,7 +119,7 @@ model alert_notifications {
   external_id       String?
   retry_count       Int?                 @default(0)
   next_retry_at     DateTime?
-  metadata          Unsupported("json")?
+  metadata          Json? @db.Json
   created_at        DateTime             @default(now())
   updated_at        DateTime             @default(now())
   users             users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -162,8 +162,8 @@ model audit_logs {
   resource_id   Int?
   ip_address    String?
   user_agent    String?
-  old_values    Unsupported("json")?
-  new_values    Unsupported("json")?
+  old_values    Json? @db.Json
+  new_values    Json? @db.Json
   details       String?
   created_at    DateTime             @default(now())
   updated_at    DateTime             @default(now())
@@ -196,7 +196,7 @@ model automation_executions {
   started_at        DateTime?            @default(now())
   next_execution_at DateTime?
   completed_at      DateTime?
-  execution_context Unsupported("json")?
+  execution_context Json? @db.Json
   failure_reason    String?
   steps_completed   Int?                 @default(0)
   emails_sent       Int?                 @default(0)
@@ -222,7 +222,7 @@ model automation_logs {
   action_type             String
   status                  String
   message                 String?
-  metadata                Unsupported("json")?
+  metadata                Json? @db.Json
   email_id                Int?
   executed_at             DateTime?             @default(now())
   created_at              DateTime?             @default(now())
@@ -246,10 +246,10 @@ model automation_steps {
   custom_content        String?
   wait_duration_hours   Int?
   wait_unit             String?                 @default("hours")
-  condition_criteria    Unsupported("json")?
-  action_config         Unsupported("json")?
+  condition_criteria    Json? @db.Json
+  action_config         Json? @db.Json
   webhook_url           String?
-  webhook_payload       Unsupported("json")?
+  webhook_payload       Json? @db.Json
   is_active             Boolean?                @default(true)
   emails_sent           Int?                    @default(0)
   open_rate             Float?                  @default(0)
@@ -295,9 +295,9 @@ model campaign_executions {
   total_recipients    Int?                  @default(0)
   emails_sent         Int?                  @default(0)
   emails_failed       Int?                  @default(0)
-  execution_stats     Unsupported("json")?
+  execution_stats     Json? @db.Json
   error_message       String?
-  execution_log       Unsupported("json")?
+  execution_log       Json? @db.Json
   created_at          DateTime              @default(now())
   updated_at          DateTime              @default(now())
   users               users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -333,7 +333,7 @@ model campaign_recipients {
   email               String
   first_name          String?
   last_name           String?
-  custom_fields       Unsupported("json")?
+  custom_fields       Json? @db.Json
   status              String?              @default("pending")
   message_id          String?
   sent_at             DateTime?
@@ -369,15 +369,15 @@ model campaigns {
   from_email                                                       String?
   from_name                                                        String?
   reply_to                                                         String?
-  segment_criteria                                                 Unsupported("json")?
-  recipient_list                                                   Unsupported("json")?
+  segment_criteria                                                 Json? @db.Json
+  recipient_list                                                   Json? @db.Json
   use_segmentation                                                 Boolean?              @default(false)
   ab_test_type                                                     String?
   ab_test_split                                                    Float?
   ab_winner_template_id                                            Int?
   ab_decision_time                                                 DateTime?
   recurrence_pattern                                               String?
-  recurrence_config                                                Unsupported("json")?
+  recurrence_config                                                Json? @db.Json
   next_run_at                                                      DateTime?
   total_recipients                                                 Int?                  @default(0)
   emails_sent                                                      Int?                  @default(0)
@@ -391,9 +391,9 @@ model campaigns {
   open_rate                                                        Float?                @default(0)
   click_rate                                                       Float?                @default(0)
   unsubscribe_rate                                                 Float?                @default(0)
-  send_settings                                                    Unsupported("json")?
-  tracking_settings                                                Unsupported("json")?
-  metadata                                                         Unsupported("json")?
+  send_settings                                                    Json? @db.Json
+  tracking_settings                                                Json? @db.Json
+  metadata                                                         Json? @db.Json
   notes                                                            String?
   created_by                                                       Int?
   last_modified_by                                                 Int?
@@ -424,7 +424,7 @@ model contact_activities {
   email_id      Int?
   campaign_id   Int?
   description   String?
-  activity_data Unsupported("json")?
+  activity_data Json? @db.Json
   ip_address    String?
   user_agent    String?
   activity_at   DateTime
@@ -462,7 +462,7 @@ model contact_lists {
   contact_count        Int?                   @default(0)
   is_active            Boolean?               @default(true)
   import_source        String?
-  import_metadata      Unsupported("json")?
+  import_metadata      Json? @db.Json
   last_imported_at     DateTime?
   created_at           DateTime               @default(now())
   updated_at           DateTime               @default(now())
@@ -491,7 +491,7 @@ model contact_segment_members {
   segment_id       Int
   added_at         DateTime?            @default(now())
   added_by         String?
-  metadata         Unsupported("json")?
+  metadata         Json? @db.Json
   contact_segments contact_segments     @relation(fields: [segment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   contacts         contacts             @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -507,13 +507,13 @@ model contact_segments {
   description              String?
   type                     String?                   @default("dynamic")
   is_active                Boolean?                  @default(true)
-  criteria                 Unsupported("json")?
+  criteria                 Json? @db.Json
   criteria_description     String?
   contact_count            Int?                      @default(0)
   last_calculated_at       DateTime?
   auto_update              Boolean?                  @default(true)
   update_frequency_minutes Int?                      @default(60)
-  settings                 Unsupported("json")?
+  settings                 Json? @db.Json
   color                    String?                   @default("#3B82F6")
   sort_order               Int?                      @default(0)
   created_at               DateTime                  @default(now())
@@ -558,9 +558,9 @@ model contacts {
   engagement_score        Float?                    @default(0)
   last_opened_at          DateTime?
   last_clicked_at         DateTime?
-  custom_fields           Unsupported("json")?
-  tags                    Unsupported("json")?
-  preferences             Unsupported("json")?
+  custom_fields           Json? @db.Json
+  tags                    Json? @db.Json
+  preferences             Json? @db.Json
   source                  String?
   source_details          String?
   imported_from_list_id   Int?
@@ -727,9 +727,9 @@ model domain_verification_metrics {
   failed_verifications      Int?                 @default(0)
   partial_verifications     Int?                 @default(0)
   average_verification_time Float?
-  common_errors             Unsupported("json")?
-  hourly_distribution       Unsupported("json")?
-  retry_statistics          Unsupported("json")?
+  common_errors             Json? @db.Json
+  hourly_distribution       Json? @db.Json
+  retry_statistics          Json? @db.Json
   created_at                DateTime             @default(now())
   updated_at                DateTime             @default(now())
 
@@ -795,13 +795,13 @@ model email_analytics {
   campaign_id             String?
   ip_address              String?
   user_agent              String?
-  metadata                Unsupported("json")?
+  metadata                Json? @db.Json
   created_at              DateTime             @default(now())
   updated_at              DateTime             @default(now())
   hour_sent               Int?
   day_of_week             Int?
   timezone                String?
-  engagement_metadata     Unsupported("json")?
+  engagement_metadata     Json? @db.Json
   week_of_year            Int?
   month_of_year           Int?
   ip_reputation_score     Float?
@@ -810,9 +810,9 @@ model email_analytics {
   forward_count           Int?                 @default(0)
   reply_count             Int?                 @default(0)
   print_count             Int?                 @default(0)
-  geographic_data         Unsupported("json")?
-  device_data             Unsupported("json")?
-  client_data             Unsupported("json")?
+  geographic_data         Json? @db.Json
+  device_data             Json? @db.Json
+  client_data             Json? @db.Json
   is_spam_filtered        Boolean?             @default(false)
   is_promotional          Boolean?             @default(false)
   campaign_tags           String?
@@ -848,7 +848,7 @@ model email_audit_logs {
   dkim_domain         String
   delivery_status     String
   timestamp           DateTime?            @default(now())
-  metadata            Unsupported("json")?
+  metadata            Json? @db.Json
   users               users                @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([was_modified], map: "idx_email_audit_was_modified")
@@ -864,8 +864,8 @@ model email_automations {
   description           String?
   status                String?                 @default("draft")
   trigger_type          String
-  trigger_config        Unsupported("json")?
-  audience_criteria     Unsupported("json")?
+  trigger_config        Json? @db.Json
+  audience_criteria     Json? @db.Json
   total_subscribers     Int?                    @default(0)
   active_subscribers    Int?                    @default(0)
   last_triggered_at     DateTime?
@@ -891,7 +891,7 @@ model email_delivery_queue {
   to_address      String
   subject         String?
   body            String?
-  headers         Unsupported("json")?
+  headers         Json? @db.Json
   status          String?              @default("pending")
   attempts        Int?                 @default(0)
   last_attempt    DateTime?
@@ -903,7 +903,7 @@ model email_delivery_queue {
   user_id         Int?
   campaign_id     Int?
   bounce_type     String?
-  delivery_report Unsupported("json")?
+  delivery_report Json? @db.Json
   created_at      DateTime             @default(now())
   updated_at      DateTime             @default(now())
   delivery_stats  delivery_stats[]
@@ -956,8 +956,8 @@ model email_quarantine {
   reason           String
   severity         String?              @default("medium")
   email_content    String?
-  headers          Unsupported("json")?
-  security_details Unsupported("json")?
+  headers          Json? @db.Json
+  security_details Json? @db.Json
   reviewed         Boolean?             @default(false)
   action_taken     String?
   quarantined_at   DateTime?            @default(now())
@@ -975,7 +975,7 @@ model email_segments {
   user_id            Int
   name               String
   description        String?
-  filters            Unsupported("json")
+  filters            Json @db.Json
   is_active          Boolean?            @default(true)
   is_smart           Boolean?            @default(false)
   total_emails       Int?                @default(0)
@@ -1008,7 +1008,7 @@ model email_templates {
   text_content                                               String?
   category                                                   String?              @default("general")
   is_active                                                  Boolean?             @default(true)
-  variables                                                  Unsupported("json")?
+  variables                                                  Json? @db.Json
   created_at                                                 DateTime             @default(now())
   updated_at                                                 DateTime             @default(now())
   template_type                                              String?              @default("user")
@@ -1044,8 +1044,8 @@ model emails {
   bounce_reason       String?
   campaign_id         Int?
   template_id         Int?
-  tags                Unsupported("json")?
-  metadata            Unsupported("json")?
+  tags                Json? @db.Json
+  metadata            Json? @db.Json
   attempts            Int?                 @default(0)
   error_message       String?
   created_at          DateTime             @default(now())
@@ -1092,9 +1092,9 @@ model integration_logs {
   http_status_code   Int?
   request_url        String?
   request_method     String?
-  request_headers    Unsupported("json")?
+  request_headers    Json? @db.Json
   request_payload    String?
-  response_headers   Unsupported("json")?
+  response_headers   Json? @db.Json
   response_payload   String?
   error_message      String?
   retry_count        Int?                 @default(0)
@@ -1122,9 +1122,9 @@ model integrations {
   endpoint_url        String?
   api_key             String?
   secret_token        String?
-  configuration       Unsupported("json")?
-  field_mapping       Unsupported("json")?
-  trigger_events      Unsupported("json")?
+  configuration       Json? @db.Json
+  field_mapping       Json? @db.Json
+  trigger_events      Json? @db.Json
   is_bidirectional    Boolean?             @default(false)
   requests_made       Int?                 @default(0)
   successful_requests Int?                 @default(0)
@@ -1156,7 +1156,7 @@ model ip_domain_reputation {
   delivery_rate      Float?               @default(0)
   bounce_rate        Float?               @default(0)
   complaint_rate     Float?               @default(0)
-  reputation_factors Unsupported("json")?
+  reputation_factors Json? @db.Json
   last_updated       DateTime?            @default(now())
   created_at         DateTime             @default(now())
   updated_at         DateTime             @default(now())
@@ -1219,7 +1219,7 @@ model mx_server_reputation {
   avg_response_time     Float?               @default(0)
   last_success          DateTime?
   last_failure          DateTime?
-  failure_reasons       Unsupported("json")?
+  failure_reasons       Json? @db.Json
   created_at            DateTime             @default(now())
   updated_at            DateTime             @default(now())
 
@@ -1255,7 +1255,7 @@ model processed_emails {
   status            String
   processing_result String?
   rejection_reason  String?
-  security_checks   Unsupported("json")?
+  security_checks   Json? @db.Json
   size_bytes        Int?
   has_attachments   Boolean?             @default(false)
   attachment_count  Int?                 @default(0)
@@ -1498,7 +1498,7 @@ model system_alerts {
   acknowledged_at     DateTime?
   resolved_at         DateTime?
   resolved_by         String?
-  metadata            Unsupported("json")?
+  metadata            Json? @db.Json
   action_url          String?
   email_sent          Boolean?              @default(false)
   email_sent_at       DateTime?
@@ -1562,8 +1562,8 @@ model tenant_settings {
   webhook_url              String?
   webhook_secret           String?
   webhook_enabled          Boolean?             @default(false)
-  custom_headers           Unsupported("json")?
-  notification_preferences Unsupported("json")?
+  custom_headers           Json? @db.Json
+  notification_preferences Json? @db.Json
   created_at               DateTime             @default(now())
   updated_at               DateTime             @default(now())
   users                    users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -1591,12 +1591,12 @@ model user_alert_settings {
   email_notifications    Boolean?             @default(true)
   push_notifications     Boolean?             @default(true)
   sms_notifications      Boolean?             @default(false)
-  severity_settings      Unsupported("json")?
-  alert_type_settings    Unsupported("json")?
+  severity_settings      Json? @db.Json
+  alert_type_settings    Json? @db.Json
   timezone               String?              @default("America/Sao_Paulo")
   quiet_hours_start      Unsupported("time")?
   quiet_hours_end        Unsupported("time")?
-  quiet_days             Unsupported("json")?
+  quiet_days             Json? @db.Json
   max_alerts_per_hour    Int?                 @default(10)
   max_alerts_per_day     Int?                 @default(50)
   digest_frequency_hours Int?                 @default(24)
@@ -1815,7 +1815,7 @@ model webhooks {
   user_id          Int
   url              String
   name             String
-  events           Unsupported("json")
+  events           Json @db.Json
   is_active        Boolean?            @default(true)
   secret           String?
   max_retries      Int?                @default(3)
@@ -1872,8 +1872,8 @@ model platform_admin_audit_logs {
   target_type    String               @db.VarChar(120)
   target_id      String?              @db.VarChar(120)
   reason         String?
-  before_payload Unsupported("json")?
-  after_payload  Unsupported("json")?
+  before_payload String?
+  after_payload  String?
   request_id     String?              @db.VarChar(100)
   ip_address     String?              @db.VarChar(100)
   user_agent     String?              @db.VarChar(1000)
@@ -1914,7 +1914,7 @@ model account_subscriptions {
   expires_at                DateTime?
   payment_provider          String?              @db.VarChar(80)
   external_subscription_id  String?              @db.VarChar(255)
-  features                  Unsupported("json")?
+  features                  String?
   created_at                DateTime             @default(now())
   updated_at                DateTime             @default(now())
   users                     users                @relation(fields: [account_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
