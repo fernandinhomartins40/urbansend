@@ -1723,6 +1723,9 @@ model users {
   updated_at                                                        DateTime                  @default(now())
   permissions                                                       Json?                     @default("[\"email:send\", \"email:read\"]")
   ab_tests                                                          ab_tests[]
+  account_security_flags_account_security_flags_account_user_idTousers account_security_flags? @relation("account_security_flags_account_user_idTousers")
+  account_security_flags_account_security_flags_updated_byTousers   account_security_flags[]  @relation("account_security_flags_updated_byTousers")
+  account_subscriptions                                             account_subscriptions?
   alert_notifications                                               alert_notifications[]
   api_keys                                                          api_keys[]
   audit_logs                                                        audit_logs[]
@@ -1746,6 +1749,11 @@ model users {
   emails                                                            emails[]
   integrations                                                      integrations[]
   ip_domain_reputation                                              ip_domain_reputation[]
+  platform_admin_audit_logs                                         platform_admin_audit_logs[]
+  platform_admin_profiles                                           platform_admin_profiles?
+  platform_impersonation_sessions_admin_user_idTousers              platform_impersonation_sessions[] @relation("platform_impersonation_sessions_admin_user_idTousers")
+  platform_impersonation_sessions_account_user_idTousers            platform_impersonation_sessions[] @relation("platform_impersonation_sessions_account_user_idTousers")
+  refresh_tokens                                                    refresh_tokens[]
   suppression_lists                                                 suppression_lists[]
   system_alerts                                                     system_alerts[]
   tenant_settings                                                   tenant_settings?
@@ -1817,4 +1825,114 @@ model webhooks {
 
   @@index([is_active], map: "webhooks_is_active_index")
   @@index([user_id], map: "webhooks_user_id_index")
+}
+
+// Fundacao do super admin, criada pela migration Knex
+// A85_create_super_admin_foundation.js. Estes modelos precisam existir aqui
+// porque em producao o `prisma db push` trata este schema como a verdade e
+// dropa qualquer tabela ausente dele.
+
+model refresh_tokens {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token_id   String    @unique(map: "refresh_tokens_token_id_unique") @db.VarChar(120)
+  expires_at DateTime
+  is_revoked Boolean   @default(false)
+  revoked_at DateTime?
+  created_ip String?   @db.VarChar(100)
+  user_agent String?   @db.VarChar(1000)
+  created_at DateTime  @default(now())
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, is_revoked], map: "refresh_tokens_user_id_is_revoked_index")
+  @@index([expires_at, is_revoked], map: "refresh_tokens_expires_at_is_revoked_index")
+}
+
+model platform_admin_profiles {
+  id            Int       @id @default(autoincrement())
+  user_id       Int       @unique(map: "platform_admin_profiles_user_id_unique")
+  role          String    @default("super_admin") @db.VarChar(40)
+  is_active     Boolean   @default(true)
+  mfa_required  Boolean   @default(true)
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now())
+  users         users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_active, role], map: "platform_admin_profiles_is_active_role_index")
+}
+
+model platform_admin_audit_logs {
+  id             Int                  @id @default(autoincrement())
+  admin_user_id  Int
+  action         String               @db.VarChar(120)
+  target_type    String               @db.VarChar(120)
+  target_id      String?              @db.VarChar(120)
+  reason         String?
+  before_payload Unsupported("json")?
+  after_payload  Unsupported("json")?
+  request_id     String?              @db.VarChar(100)
+  ip_address     String?              @db.VarChar(100)
+  user_agent     String?              @db.VarChar(1000)
+  created_at     DateTime             @default(now())
+  users          users                @relation(fields: [admin_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([admin_user_id, created_at], map: "platform_admin_audit_logs_admin_user_id_created_at_index")
+  @@index([target_type, target_id], map: "platform_admin_audit_logs_target_type_target_id_index")
+  @@index([action, created_at], map: "platform_admin_audit_logs_action_created_at_index")
+}
+
+model platform_impersonation_sessions {
+  id                                                        Int       @id @default(autoincrement())
+  session_token                                             String    @unique(map: "platform_impersonation_sessions_session_token_unique") @db.VarChar(120)
+  admin_user_id                                             Int
+  account_user_id                                           Int
+  status                                                    String    @default("active") @db.VarChar(40)
+  reason                                                    String
+  expires_at                                                DateTime
+  ended_at                                                  DateTime?
+  created_at                                                DateTime  @default(now())
+  users_platform_impersonation_sessions_admin_user_idTousers users     @relation("platform_impersonation_sessions_admin_user_idTousers", fields: [admin_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_platform_impersonation_sessions_account_user_idTousers users   @relation("platform_impersonation_sessions_account_user_idTousers", fields: [account_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([admin_user_id, status, created_at], map: "platform_impersonation_sessions_admin_user_id_status_created_at")
+  @@index([account_user_id, status], map: "platform_impersonation_sessions_account_user_id_status_index")
+  @@index([expires_at, status], map: "platform_impersonation_sessions_expires_at_status_index")
+}
+
+model account_subscriptions {
+  id                        Int                  @id @default(autoincrement())
+  account_user_id           Int                  @unique(map: "account_subscriptions_account_user_id_unique")
+  plan_name                 String               @default("free") @db.VarChar(80)
+  status                    String               @default("active") @db.VarChar(40)
+  monthly_email_limit       Int                  @default(1000)
+  api_rate_limit_per_minute Int                  @default(120)
+  started_at                DateTime?
+  expires_at                DateTime?
+  payment_provider          String?              @db.VarChar(80)
+  external_subscription_id  String?              @db.VarChar(255)
+  features                  Unsupported("json")?
+  created_at                DateTime             @default(now())
+  updated_at                DateTime             @default(now())
+  users                     users                @relation(fields: [account_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status, plan_name], map: "account_subscriptions_status_plan_name_index")
+}
+
+model account_security_flags {
+  id                                                 Int       @id @default(autoincrement())
+  account_user_id                                    Int       @unique(map: "account_security_flags_account_user_id_unique")
+  is_suspended                                       Boolean   @default(false)
+  is_under_review                                    Boolean   @default(false)
+  email_sending_blocked                              Boolean   @default(false)
+  suspension_reason                                  String?
+  suspended_at                                       DateTime?
+  suspension_ends_at                                 DateTime?
+  updated_by                                         Int?
+  created_at                                         DateTime  @default(now())
+  updated_at                                         DateTime  @default(now())
+  users_account_security_flags_account_user_idTousers users     @relation("account_security_flags_account_user_idTousers", fields: [account_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_account_security_flags_updated_byTousers     users?    @relation("account_security_flags_updated_byTousers", fields: [updated_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([is_suspended, is_under_review], map: "account_security_flags_is_suspended_is_under_review_index")
 }
