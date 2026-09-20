@@ -49,7 +49,7 @@ WORKDIR /app
 
 RUN apk add --no-cache dumb-init && \
     addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
+    adduser -S nodejs -u 1001 -G nodejs && \
     mkdir -p /app/logs && \
     chown nodejs:nodejs /app/logs
 
