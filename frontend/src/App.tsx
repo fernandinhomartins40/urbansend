@@ -28,6 +28,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ 
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail').then(m => ({ default: m.VerifyEmail })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
+const PublicDocs = lazy(() => import('./pages/PublicDocs').then(m => ({ default: m.PublicDocs })));
 const EmailList = lazy(() => import('./pages/EmailList').then(m => ({ default: m.EmailList })));
 const EmailDetails = lazy(() => import('./pages/EmailDetails').then(m => ({ default: m.EmailDetails })));
 const SendEmail = lazy(() => import('./pages/SendEmail').then(m => ({ default: m.SendEmail })));
@@ -138,8 +139,19 @@ function AppRoutes() {
                   </RootRoute>
                 }
               />
-              <Route 
-                path="/login" 
+              {/* Documentacao publica: aberta a visitantes e tambem a quem ja
+                  esta logado, por isso fica fora de PublicRoute. */}
+              <Route
+                path="/developers"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PublicDocs />
+                  </Suspense>
+                }
+              />
+              <Route path="/docs" element={<Navigate to="/developers" replace />} />
+              <Route
+                path="/login"
                 element={
                   <PublicRoute>
                     <Suspense fallback={<LoadingSpinner />}>

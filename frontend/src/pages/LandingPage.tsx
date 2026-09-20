@@ -15,53 +15,69 @@ const features = [
 ] as const
 const steps = [['Gere sua API key', 'Crie sua conta e habilite as permissões necessárias.'], ['Autentique seu domínio', 'Publique os registros SPF, DKIM e DMARC.'], ['Configure seus templates', 'Crie e personalize seus modelos de e-mail.'], ['Envie e acompanhe', 'Dispare os e-mails e monitore os resultados em tempo real.']]
 const codeSamples = {
-  cURL: `curl -X POST https://api.velomail.com/emails/send \\
-  -H "Authorization: Bearer sua_api_key" \\
+  cURL: `curl -X POST https://www.velomail.com.br/api/emails/send \\
+  -H "x-api-key: re_sua_api_key" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "from": "cliente@exemplo.com",
+    "from": "no-reply@seu-dominio.com",
+    "to": "usuario@exemplo.com",
     "subject": "Seu código de acesso",
-    "template_id": "tmpl_123",
-    "variables": { "nome": "João", "codigo": "996472" }
+    "html": "<p>Seu código é <b>996472</b>.</p>"
   }'`,
-  JavaScript: `import { VeloMail } from '@velomail/sdk'
-
-const velomail = new VeloMail({
-  apiKey: process.env.VELOMAIL_API_KEY,
-})
-
-await velomail.emails.send({
-  from: 'cliente@exemplo.com',
-  to: 'usuario@exemplo.com',
-  subject: 'Seu código de acesso',
-  templateId: 'tmpl_123',
-  variables: { nome: 'João', codigo: '996472' },
-})`,
-  Python: `from velomail import VeloMail
-
-velomail = VeloMail(
-    api_key=os.environ['VELOMAIL_API_KEY']
+  JavaScript: `const response = await fetch(
+  'https://www.velomail.com.br/api/emails/send',
+  {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.VELOMAIL_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'no-reply@seu-dominio.com',
+      to: 'usuario@exemplo.com',
+      subject: 'Seu código de acesso',
+      html: '<p>Seu código é <b>996472</b>.</p>',
+    }),
+  },
 )
 
-velomail.emails.send(
-    from_='cliente@exemplo.com',
-    to='usuario@exemplo.com',
-    subject='Seu código de acesso',
-    template_id='tmpl_123',
-    variables={'nome': 'João', 'codigo': '996472'},
-)`,
+const { message_id } = await response.json()`,
+  Python: `import os
+import requests
+
+response = requests.post(
+    "https://www.velomail.com.br/api/emails/send",
+    headers={"x-api-key": os.environ["VELOMAIL_API_KEY"]},
+    json={
+        "from": "no-reply@seu-dominio.com",
+        "to": "usuario@exemplo.com",
+        "subject": "Seu código de acesso",
+        "html": "<p>Seu código é <b>996472</b>.</p>",
+    },
+    timeout=15,
+)
+
+print(response.json()["message_id"])`,
   PHP: `<?php
-$velomail = new VeloMail\Client([
-  'api_key' => getenv('VELOMAIL_API_KEY'),
+$ch = curl_init('https://www.velomail.com.br/api/emails/send');
+
+curl_setopt_array($ch, [
+  CURLOPT_POST => true,
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_HTTPHEADER => [
+    'x-api-key: ' . getenv('VELOMAIL_API_KEY'),
+    'Content-Type: application/json',
+  ],
+  CURLOPT_POSTFIELDS => json_encode([
+    'from' => 'no-reply@seu-dominio.com',
+    'to' => 'usuario@exemplo.com',
+    'subject' => 'Seu código de acesso',
+    'html' => '<p>Seu código é <b>996472</b>.</p>',
+  ]),
 ]);
 
-$velomail->emails->send([
-  'from' => 'cliente@exemplo.com',
-  'to' => 'usuario@exemplo.com',
-  'subject' => 'Seu código de acesso',
-  'template_id' => 'tmpl_123',
-  'variables' => ['nome' => 'João', 'codigo' => '996472'],
-]);`,
+$response = json_decode(curl_exec($ch), true);
+echo $response['message_id'];`,
 } as const
 
 export function LandingPage() {
