@@ -55,8 +55,8 @@ exports.up = async function up(knex) {
       table.string('target_type', 120).notNullable();
       table.string('target_id', 120).nullable();
       table.text('reason').nullable();
-      table.json('before_payload').nullable();
-      table.json('after_payload').nullable();
+      table.text('before_payload').nullable();
+      table.text('after_payload').nullable();
       table.string('request_id', 100).nullable();
       table.string('ip_address', 100).nullable();
       table.string('user_agent', 1000).nullable();
@@ -103,7 +103,7 @@ exports.up = async function up(knex) {
       table.timestamp('expires_at').nullable();
       table.string('payment_provider', 80).nullable();
       table.string('external_subscription_id', 255).nullable();
-      table.json('features').nullable();
+      table.text('features').nullable();
       table.timestamps(true, true);
 
       table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');

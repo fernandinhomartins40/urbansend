@@ -31,138 +31,50 @@ const resolvePassword = () => {
   return DEFAULT_DEV_PASSWORD;
 };
 
-const ensureUsersSuperAdminColumn = async () => {
-  const hasUsers = await db.schema.hasTable('users');
-  if (!hasUsers) {
-    throw new Error('users table not found');
+/**
+ * Pre-requisitos de schema.
+ *
+ * Este script NAO cria tabelas nem colunas. O schema de producao vem de
+ * prisma/schema.prisma via `prisma db push`, que roda antes deste seed.
+ * Criar schema aqui duplicava as definicoes com tipos divergentes (o
+ * `table.json()` do Knex virava `text`) e, pior, mascarava tabelas que o
+ * push havia dropado por nao estarem declaradas no schema — o problema
+ * so aparecia deploys depois. Se algo faltar, falhamos alto.
+ */
+const REQUIRED_TABLES = [
+  'users',
+  'platform_admin_profiles',
+  'platform_admin_audit_logs',
+  'platform_impersonation_sessions',
+  'account_subscriptions',
+  'account_security_flags',
+  'refresh_tokens'
+];
+
+const assertSchemaReady = async () => {
+  const missingTables = [];
+  for (const table of REQUIRED_TABLES) {
+    if (!(await db.schema.hasTable(table))) {
+      missingTables.push(table);
+    }
   }
 
-  const hasColumn = await db.schema.hasColumn('users', 'is_superadmin');
-  if (!hasColumn) {
-    await db.schema.alterTable('users', (table) => {
-      table.boolean('is_superadmin').notNullable().defaultTo(false);
-    });
-  }
-};
-
-const ensurePlatformAdminProfilesTable = async () => {
-  const hasTable = await db.schema.hasTable('platform_admin_profiles');
-  if (hasTable) {
-    return;
+  const missingColumns = [];
+  if (!missingTables.includes('users') && !(await db.schema.hasColumn('users', 'is_superadmin'))) {
+    missingColumns.push('users.is_superadmin');
   }
 
-  await db.schema.createTable('platform_admin_profiles', (table) => {
-    table.increments('id').primary();
-    table.integer('user_id').unsigned().notNullable().unique();
-    table.string('role', 40).notNullable().defaultTo('super_admin');
-    table.boolean('is_active').notNullable().defaultTo(true);
-    table.boolean('mfa_required').notNullable().defaultTo(true);
-    table.timestamp('last_login_at').nullable();
-    table.timestamps(true, true);
+  if (missingTables.length || missingColumns.length) {
+    const details = [
+      missingTables.length ? `tabelas ausentes: ${missingTables.join(', ')}` : null,
+      missingColumns.length ? `colunas ausentes: ${missingColumns.join(', ')}` : null
+    ].filter(Boolean).join('; ');
 
-    table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
-  });
-};
-
-const ensurePlatformAdminAuditLogsTable = async () => {
-  const hasTable = await db.schema.hasTable('platform_admin_audit_logs');
-  if (hasTable) {
-    return;
+    throw new Error(
+      `Schema incompleto (${details}). ` +
+      'Declare no prisma/schema.prisma e rode as migrations antes do seed.'
+    );
   }
-
-  await db.schema.createTable('platform_admin_audit_logs', (table) => {
-    table.increments('id').primary();
-    table.integer('admin_user_id').unsigned().notNullable();
-    table.string('action', 120).notNullable();
-    table.string('target_type', 120).notNullable();
-    table.string('target_id', 120).nullable();
-    table.text('reason').nullable();
-    table.text('before_payload').nullable();
-    table.text('after_payload').nullable();
-    table.string('request_id', 100).nullable();
-    table.string('ip_address', 100).nullable();
-    table.string('user_agent', 1000).nullable();
-    table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
-
-    table.foreign('admin_user_id').references('id').inTable('users').onDelete('CASCADE');
-    table.index(['admin_user_id', 'created_at']);
-    table.index(['target_type', 'target_id']);
-    table.index(['action', 'created_at']);
-  });
-};
-
-const ensurePlatformImpersonationSessionsTable = async () => {
-  const hasTable = await db.schema.hasTable('platform_impersonation_sessions');
-  if (hasTable) {
-    return;
-  }
-
-  await db.schema.createTable('platform_impersonation_sessions', (table) => {
-    table.increments('id').primary();
-    table.string('session_token', 120).notNullable().unique();
-    table.integer('admin_user_id').unsigned().notNullable();
-    table.integer('account_user_id').unsigned().notNullable();
-    table.string('status', 40).notNullable().defaultTo('active');
-    table.text('reason').notNullable();
-    table.timestamp('expires_at').notNullable();
-    table.timestamp('ended_at').nullable();
-    table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
-
-    table.foreign('admin_user_id').references('id').inTable('users').onDelete('CASCADE');
-    table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');
-    table.index(['admin_user_id', 'status', 'created_at']);
-    table.index(['account_user_id', 'status']);
-    table.index(['expires_at', 'status']);
-  });
-};
-
-const ensureAccountSubscriptionsTable = async () => {
-  const hasTable = await db.schema.hasTable('account_subscriptions');
-  if (hasTable) {
-    return;
-  }
-
-  await db.schema.createTable('account_subscriptions', (table) => {
-    table.increments('id').primary();
-    table.integer('account_user_id').unsigned().notNullable().unique();
-    table.string('plan_name', 80).notNullable().defaultTo('free');
-    table.string('status', 40).notNullable().defaultTo('active');
-    table.integer('monthly_email_limit').notNullable().defaultTo(1000);
-    table.integer('api_rate_limit_per_minute').notNullable().defaultTo(120);
-    table.timestamp('started_at').nullable();
-    table.timestamp('expires_at').nullable();
-    table.string('payment_provider', 80).nullable();
-    table.string('external_subscription_id', 255).nullable();
-    table.text('features').nullable();
-    table.timestamps(true, true);
-
-    table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');
-    table.index(['status', 'plan_name']);
-  });
-};
-
-const ensureAccountSecurityFlagsTable = async () => {
-  const hasTable = await db.schema.hasTable('account_security_flags');
-  if (hasTable) {
-    return;
-  }
-
-  await db.schema.createTable('account_security_flags', (table) => {
-    table.increments('id').primary();
-    table.integer('account_user_id').unsigned().notNullable().unique();
-    table.boolean('is_suspended').notNullable().defaultTo(false);
-    table.boolean('is_under_review').notNullable().defaultTo(false);
-    table.boolean('email_sending_blocked').notNullable().defaultTo(false);
-    table.text('suspension_reason').nullable();
-    table.timestamp('suspended_at').nullable();
-    table.timestamp('suspension_ends_at').nullable();
-    table.integer('updated_by').unsigned().nullable();
-    table.timestamps(true, true);
-
-    table.foreign('account_user_id').references('id').inTable('users').onDelete('CASCADE');
-    table.foreign('updated_by').references('id').inTable('users').onDelete('SET NULL');
-    table.index(['is_suspended', 'is_under_review']);
-  });
 };
 
 const ensureAccountFoundationRows = async () => {
@@ -229,12 +141,7 @@ const run = async () => {
   const now = new Date();
   let passwordUpdated = false;
 
-  await ensureUsersSuperAdminColumn();
-  await ensurePlatformAdminProfilesTable();
-  await ensurePlatformAdminAuditLogsTable();
-  await ensurePlatformImpersonationSessionsTable();
-  await ensureAccountSubscriptionsTable();
-  await ensureAccountSecurityFlagsTable();
+  await assertSchemaReady();
   await ensureAccountFoundationRows();
 
   await db.transaction(async (trx) => {

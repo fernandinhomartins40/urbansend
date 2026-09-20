@@ -22,6 +22,7 @@
     "migrate:legacy": "node -r dotenv/config ./node_modules/knex/bin/cli.js migrate:latest",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:db:push": "prisma db push --schema prisma/schema.prisma",
+    "prisma:check:drift": "node scripts/check-prisma-schema-drift.js",
     "prisma:introspect:sqlite": "prisma db pull --schema prisma/schema.sqlite.prisma",
     "db:migrate:postgres": "npm run prisma:db:push",
     "db:migrate:sqlite": "npm run migrate:legacy",

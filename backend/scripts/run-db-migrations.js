@@ -31,6 +31,10 @@ const buildMigrationPlan = (env = process.env) => {
   if (usePostgresForPlan) {
     return [
       ['node', [path.join('scripts', 'prepare-postgres-for-prisma.js')]],
+      // Roda antes do push para que uma tabela/coluna ausente do schema
+      // falhe apontando exatamente o que falta, em vez do erro generico
+      // "use --accept-data-loss" que o push emite.
+      ['node', [path.join('scripts', 'check-prisma-schema-drift.js')]],
       ['npx', [
         'prisma',
         'db',
